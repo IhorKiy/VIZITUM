@@ -35,8 +35,30 @@ DB placement не є єдиною різницею між пакетами. Дл
 | Пакет | Для кого | Типові ролі | Ключові фічі першого scope |
 | --- | --- | --- | --- |
 | Pilot | 2-5 представників або короткий тест на 7-10 днів | Platform Owner, Company Admin або відповідальний пілоту, Representative, Team Manager для review | assisted setup від Vizitum, production-ready segment template, імпорт стартових даних, базові візити, AI-структурування нотаток, задачі, manager dashboard, pilot review metrics |
-| Team | 5-30 представників | Company Admin, Representative, Team Manager | усе з Pilot, повна база точок/клієнтів/партнерів/обʼєктів, необмежені візити, задачі й контроль виконання, дашборд керівника, експорт даних, щомісячний review на перші 2 місяці |
+| Team | 5-30 представників | Company Admin, Representative, один Team Manager або керівник з full tenant view | усе з Pilot, повна база точок/клієнтів/партнерів/обʼєктів, необмежені візити, задачі й контроль виконання, простий дашборд керівника по всій команді, експорт даних, щомісячний review на перші 2 місяці |
 | Business | 30+ представників або кілька регіонів | Company Admin, Representative, кілька Team Manager roles, Executive | усе з Team, access scope для регіонів/команд/територій/груп точок, регіональна структура, Executive Dashboard, розширені звіти, розширені AI-підсумки по команді/регіонах/продуктах, custom fields, dedicated DB як опція |
+
+### Продуктові режими: Team default і Business extension
+
+Маркетингова і реалізаційна модель мають збігатися: **Team і Business не є окремими платформами або codebase**. Це два продуктові режими одного tenant app layer і однієї доменної моделі.
+
+`Team` - базовий режим для перших продажів і MVP. У ньому tenant має просту управлінську модель:
+
+- один основний керівник або Company Admin, який бачить всю команду;
+- усі представники, точки, маршрути, візити і задачі належать одному tenant workspace;
+- регіон, територія або група точок можуть існувати як поля і фільтри, але не як складна permission-модель;
+- manager dashboard показує всю команду за замовчуванням;
+- Executive Dashboard, granular access scope і dedicated DB не є обов'язковими для запуску.
+
+`Business` - розширення для 30+ представників, кількох регіонів або кількох керівників. У цьому режимі вмикаються:
+
+- кілька Team Manager roles з різними зонами відповідальності;
+- access scope для регіонів, команд, територій, груп точок або окремих представників;
+- Executive Dashboard;
+- розширені AI-підсумки по регіонах, командах, продуктах або бізнес-напрямках;
+- dedicated database як paid option або enterprise-вимога.
+
+Правило переходу: клієнт може стартувати в `Team`, а потім перейти в `Business` без міграції на інший продукт. Перехід вмикає додаткові capabilities і складніші permissions, але не змінює core-сутності: users, locations, products, routes, visits, tasks, reports і tenant isolation.
 
 ## 2. Рівні користувачів
 
@@ -71,7 +93,9 @@ DB placement не є єдиною різницею між пакетами. Дл
 
 Керівник польової команди, регіону або напрямку. Це окрема бізнес-роль, не те саме, що `Company Admin`. Керівник заходить у той самий tenant workspace, але після логіну потрапляє в управлінський dashboard, а не в налаштування системи.
 
-Керівник бачить команду, активність, задачі, маршрути, проблемні точки та аналітику в межах свого access scope. Scope може бути:
+У режимі `Team` керівник за замовчуванням бачить всю команду tenant. Це найпростіший і найважливіший flow для перших продажів: один керівник відкриває `Огляд команди` і бачить активність, задачі, маршрути, проблемні точки та аналітику без налаштування складних доступів.
+
+У режимі `Business` керівник бачить команду, активність, задачі, маршрути, проблемні точки та аналітику в межах свого access scope. Scope може бути:
 
 - вся компанія;
 - один або кілька регіонів;
@@ -94,6 +118,8 @@ DB placement не є єдиною різницею між пакетами. Дл
 ### Company Owner / Executive
 
 Власник, CEO, комерційний директор або топкерівник компанії. Це роль для high-level перегляду бізнес-показників без щоденного операційного адміністрування системи.
+
+Executive - не обов'язкова роль для `Team`. Для малих команд high-level огляд може виконувати Company Admin або Team Manager через той самий manager dashboard. Окрема Executive role вмикається переважно для `Business`, коли є кілька регіонів, команд або управлінських рівнів.
 
 Executive бачить аналітику по всій компанії або по дозволених бізнес-напрямках:
 
@@ -154,7 +180,7 @@ flowchart TD
   TenantDB --> Shell["Tenant App Shell"]
   Shell --> Rep["Field Representative flow"]
   Shell --> Manager["Team Manager flow"]
-  Shell --> Executive["Executive flow"]
+  Shell --> Executive["Executive flow, якщо увімкнено Business/Executive"]
   Shell --> Admin["Company Admin flow"]
 ```
 
@@ -173,23 +199,25 @@ flowchart TD
    - tenant slug;
    - тип сегмента: pharma, OTC, FMCG, distribution, service, partner_account або custom;
    - тариф: pilot, team, business, enterprise;
+   - product mode: `team` або `business`;
    - країну, timezone, мову;
    - контактну особу;
    - очікувану кількість користувачів і точок;
    - database placement: shared або dedicated.
 4. Система створює запис у platform database.
 5. Provisioning job визначає database placement. Для `pilot` і `team` за замовчуванням використовується shared tenant database. Для `business` або `enterprise` можна створити dedicated tenant database.
-6. Система перевіряє або застосовує базові migrations до відповідної database.
-7. Система встановлює стартові довідники і шаблони:
+6. Система визначає product capabilities. Для `team` вмикаються базові ролі, full-team manager dashboard і прості фільтри. Для `business` додатково вмикаються access scope, регіональна структура, Executive Dashboard і розширені звіти.
+7. Система перевіряє або застосовує базові migrations до відповідної database.
+8. Система встановлює стартові довідники і шаблони:
    - ролі;
    - типи точок;
    - типи візитів;
    - статуси задач;
    - шаблон AI-структурування;
    - стандартні поля.
-8. Система створює першого Company Admin.
-9. Company Admin отримує invite email.
-10. Tenant переходить у статус `ready`.
+9. Система створює першого Company Admin.
+10. Company Admin отримує invite email.
+11. Tenant переходить у статус `ready`.
 
 ### Чи потрібна сегментація за типом бізнесу
 
@@ -278,6 +306,10 @@ flowchart TD
 
 Company Admin готує робоче середовище для своєї команди: користувачі, точки, продукти, маршрути, поля і базові правила.
 
+Для `Team` onboarding має залишатися коротким: імпорт точок, імпорт користувачів, продукти/SKU, базовий шаблон візиту, перший маршрут і дашборд керівника. Регіони або території можуть бути простими полями для фільтрації, але не блокують запуск.
+
+Для `Business` onboarding додає налаштування регіональної структури, кількох керівників, access scope, Executive Dashboard і, за потреби, dedicated database.
+
 Для перших продажів і pilot launch це не обов'язково self-serve процес. Команда Vizitum може виконати або супроводити tenant setup, імпорт даних, підготовку шаблонів і pilot review. Company Admin у такому сценарії підтверджує бізнес-правильність даних, ролей, територій і шаблону візиту, а не мусить самостійно робити весь операційний setup.
 
 ### Кроки
@@ -288,7 +320,7 @@ Company Admin готує робоче середовище для своєї к�
 4. Company Admin або команда Vizitum завантажує базу точок через CSV/XLSX.
 5. Company Admin або команда Vizitum завантажує список продуктів або SKU.
 6. Company Admin або команда Vizitum додає користувачів вручну або імпортом.
-7. Company Admin разом з Vizitum перевіряє ролі і території.
+7. Company Admin разом з Vizitum перевіряє ролі. Для `Team` достатньо Company Admin, керівника і представників; для `Business` додатково перевіряються access scope і керівники регіонів/команд.
 8. Company Admin разом з Vizitum перевіряє типи точок, поля і шаблон візиту.
 9. Company Admin або команда Vizitum перевіряє тестовий маршрут.
 10. Company Admin або команда Vizitum запрошує представників.
@@ -302,7 +334,8 @@ Company Admin готує робоче середовище для своєї к�
 - продукти імпортовані Company Admin або командою Vizitum;
 - користувачі створені Company Admin або командою Vizitum;
 - ролі призначені і підтверджені з Company Admin;
-- території налаштовані і підтверджені з Company Admin;
+- для `Team`: керівник має full tenant view і може бачити всю команду;
+- для `Business`: території, регіони і access scope налаштовані та підтверджені з Company Admin;
 - шаблон візиту обраний і підтверджений з Company Admin;
 - AI-структурування протестоване;
 - перший маршрут створений.
@@ -335,7 +368,7 @@ Company Admin готує робоче середовище для своєї к�
 5. Company Admin і команда Vizitum проходять onboarding checklist як спільний launch checklist.
 6. Company Admin або команда Vizitum імпортує точки, користувачів і продукти.
 7. Система застосовує segment template для типів точок, візитів, полів, dashboard preset-ів і AI extraction schema.
-8. Company Admin разом з Vizitum перевіряє тестовий маршрут, ролі, access scope і AI-структурування.
+8. Company Admin разом з Vizitum перевіряє тестовий маршрут, ролі і AI-структурування. Для `Team` керівник отримує full tenant view; для `Business` додатково перевіряються access scope.
 9. Представники отримують invite і починають daily flow.
 10. Керівник бачить перші візити, задачі, покриття і AI-підсумки у dashboard.
 11. Після 7-10 днів система або команда Vizitum готує pilot review.
@@ -580,7 +613,8 @@ AI output не має автоматично змінювати бізнес-д�
 Company Admin налаштовує:
 
 - території;
-- правила видимості точок;
+- у `Team`: прості правила закріплення точок за представниками і фільтри;
+- у `Business`: правила видимості точок для регіонів, команд і керівників;
 - права на самостійне планування;
 - циклічність маршрутів;
 - шаблони робочих тижнів.
@@ -598,28 +632,33 @@ Company Admin налаштовує:
 1. Company Admin відкриває `Користувачі`.
 2. Створює або редагує користувача.
 3. Призначає роль `Team Manager`.
-4. Визначає access scope:
+4. Для tenant у режимі `Team` система за замовчуванням дає керівнику full tenant view: усі представники, точки, маршрути, візити, задачі і dashboard.
+5. Для tenant у режимі `Business` Company Admin визначає access scope:
    - вся компанія;
    - регіон;
    - команда;
    - список представників;
    - територія або група точок.
-5. Система надсилає invite email.
-6. Керівник активує акаунт і входить у tenant workspace.
+6. Система надсилає invite email.
+7. Керівник активує акаунт і входить у tenant workspace.
 
 ### Вхід керівника
 
 1. Керівник відкриває tenant URL, наприклад `{tenant}.vizitum.com`.
 2. Вводить email і пароль.
-3. Auth layer визначає tenant, роль і access scope.
+3. Auth layer визначає tenant, product mode, роль і permissions.
 4. Після логіну система відкриває `Огляд команди`.
-5. Усі дані в dashboard фільтруються за scope керівника.
+5. У режимі `Team` dashboard показує всю команду tenant.
+6. У режимі `Business` dashboard фільтрується за access scope керівника.
 
 ```mermaid
 flowchart TD
   Login["Login у tenant workspace"] --> Role["Role: Team Manager"]
-  Role --> Scope["Застосувати access scope"]
-  Scope --> Dashboard["Огляд команди"]
+  Role --> Mode{"Product mode"}
+  Mode -- Team --> FullView["Full tenant view"]
+  Mode -- Business --> Scope["Застосувати access scope"]
+  FullView --> Dashboard["Огляд команди"]
+  Scope --> Dashboard
   Dashboard --> Reps["Представники"]
   Dashboard --> Visits["Візити"]
   Dashboard --> Tasks["Задачі"]
@@ -659,7 +698,8 @@ flowchart TD
 
 Керівник може перейти:
 
-- з компанії або регіону до команди;
+- у `Team`: з огляду всієї команди до представника, маршруту, точки, візиту або задачі;
+- у `Business`: з компанії або регіону до команди;
 - з команди до представника;
 - з представника до маршруту;
 - з маршруту до точки;
@@ -678,7 +718,8 @@ flowchart TD
 - призначити follow-up по точці;
 - змінити пріоритет точки, якщо це дозволено правами;
 - експортувати звіт за період;
-- переглянути AI summary по дню, тижню, регіону або представнику.
+- у `Team`: переглянути AI summary по дню, тижню або представнику;
+- у `Business`: переглянути AI summary по дню, тижню, регіону, команді або представнику.
 
 Керівник не може без додаткових прав:
 
@@ -705,7 +746,8 @@ flowchart TD
 
 ### Access scope rules
 
-- Керівник бачить тільки ті дані, які входять у його scope.
+- У режимі `Team` керівник має full tenant view, якщо Company Admin не обмежив його додатковими правами вручну.
+- У режимі `Business` керівник бачить тільки ті дані, які входять у його scope.
 - Якщо представник переходить в інший регіон, видимість для керівника оновлюється через territory/team assignment.
 - API не приймає `manager_id` або `team_id` з client-side як джерело правди. Scope визначається на backend за роллю і tenant permissions.
 - AI summaries для керівника формуються тільки з даних, доступних цьому керівнику.
@@ -721,7 +763,8 @@ Company Admin може:
 - запрошувати користувачів;
 - активувати і деактивувати акаунти;
 - призначати ролі;
-- призначати керівників і access scope;
+- у `Team`: призначати одного або кількох керівників з full tenant view;
+- у `Business`: призначати керівників і access scope;
 - призначати території;
 - скидати доступ;
 - переглядати останню активність.
@@ -736,7 +779,8 @@ Company Admin може:
 - об'єднувати дублікати;
 - призначати відповідальних;
 - сегментувати точки;
-- керувати мережами, регіонами, категоріями.
+- у `Team`: використовувати регіони, території або групи точок як прості поля та фільтри;
+- у `Business`: керувати мережами, регіонами, командами, територіями і категоріями як частиною access model.
 
 ### Управління продуктами
 
@@ -754,12 +798,21 @@ Company Admin може налаштувати:
 
 - типи візитів;
 - обов'язкові поля;
-- custom fields;
+- базові custom fields;
 - шаблони задач;
 - шаблони AI extraction;
 - branding;
 - мову;
 - експортні формати.
+
+Business-only налаштування:
+
+- granular access scope;
+- регіональна структура і кілька команд;
+- Executive Dashboard;
+- розширені custom fields;
+- dedicated database option;
+- інтеграції після окремої оцінки.
 
 ## 14. Platform operations flow
 
@@ -878,14 +931,15 @@ flowchart LR
 ### Platform: створення нового пілоту
 
 1. Увійти як Platform Owner.
-2. Створити tenant з типом `pilot`.
+2. Створити tenant з типом `pilot`, product mode `team` і database placement `shared`.
 3. Переконатися, що створено tenant registry record.
-4. Переконатися, що tenant отримав database placement: shared або dedicated.
-5. Переконатися, що migrations виконані.
-6. Переконатися, що seed data створена.
-7. Надіслати invite Company Admin.
-8. Увійти через tenant subdomain.
-9. Переконатися, що користувач бачить тільки дані свого tenant.
+4. Переконатися, що tenant отримав database placement `shared`.
+5. Переконатися, що product capabilities для `team` увімкнені: базові ролі, full-team manager dashboard, прості фільтри.
+6. Переконатися, що migrations виконані.
+7. Переконатися, що seed data створена.
+8. Надіслати invite Company Admin.
+9. Увійти через tenant subdomain.
+10. Переконатися, що користувач бачить тільки дані свого tenant.
 
 ### Pilot launch: від демо до першого usage review
 
@@ -926,6 +980,20 @@ flowchart LR
 
 ### Керівник: dashboard і scope
 
+#### Team mode: простий dashboard
+
+1. Увійти як Company Admin.
+2. Створити 2-3 представників.
+3. Створити користувача з роллю `Team Manager`.
+4. Не налаштовувати granular access scope.
+5. Увійти як керівник.
+6. Переконатися, що після логіну відкривається `Огляд команди`.
+7. Переконатися, що dashboard показує всіх представників, точки, візити і задачі tenant.
+8. Створити задачу для будь-якого представника.
+9. Переконатися, що AI summary формується по всій команді.
+
+#### Business mode: dashboard і scope
+
 1. Увійти як Company Admin.
 2. Створити двох представників у різних регіонах або командах.
 3. Створити користувача з роллю `Team Manager`.
@@ -961,6 +1029,8 @@ flowchart LR
 - Для пілотів і малих компаній базова модель - shared tenant database з логічною ізоляцією по tenant_id.
 - Dedicated database і окремий app deployment не варто робити правилом для базового пакета.
 - Dedicated deployment варто залишити для enterprise-рівня.
+- Перший MVP має бути `Team-first`: один керівник, full tenant view, простий manager dashboard, без обов'язкової регіональної permission-моделі.
+- Business capabilities мають бути спроєктовані як розширення того самого ядра, але не повинні блокувати запуск Team.
 - Tenant-specific custom logic має реалізовуватись через конфігурації, а не через fork коду.
 - На старті продажів треба мати production-ready templates для перших GTM-сценаріїв: distribution/trade reps, service/field operations і partner/account visits. Інші segment type можуть існувати в моделі, але не мають розширювати MVP без підтвердженого попиту.
 - Міграції shared DB і dedicated DB треба автоматизувати з першого етапу.
@@ -975,8 +1045,8 @@ flowchart LR
 - tenant registry;
 - tenant resolution за subdomain або slug;
 - shared database для pilot/team;
-- dedicated database як опція для business/enterprise;
 - provisioning script/job;
+- product mode/capabilities: `team` як default, `business` як розширення;
 - базові migrations;
 - Company Admin invite;
 - onboarding checklist;
@@ -985,19 +1055,20 @@ flowchart LR
 - імпорт продуктів;
 - segment templates для distribution/trade reps, service/field operations і partner/account visits;
 - ролі;
-- access scope для керівників;
 - денний план;
 - картка точки;
 - створення візиту;
 - AI-структурування нотатки;
 - задачі;
-- manager dashboard;
-- базовий executive view;
+- manager dashboard у Team mode з full tenant view;
 - pilot review metrics;
 - tenant-level backup/restore для shared DB.
 
 ### Можна відкласти
 
+- granular access scope для керівників;
+- Executive Dashboard;
+- dedicated database як опція для business/enterprise;
 - custom domains;
 - SSO;
 - складний billing;
