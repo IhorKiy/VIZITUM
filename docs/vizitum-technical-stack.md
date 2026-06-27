@@ -6,7 +6,7 @@ Vizitum - це B2B SaaS-платформа для польових команд 
 
 - спільний web/app layer для всіх клієнтів;
 - shared tenant database для pilot/team клієнтів;
-- optional dedicated tenant database для Business/Enterprise;
+- optional dedicated tenant database для Business як paid option;
 - tenant-aware API, background jobs, imports, AI processing і reporting;
 - mobile-first flow для польових представників.
 
@@ -160,7 +160,7 @@ PostgreSQL достатній для MVP і першої production-версії
 
 - власний auth module у NestJS;
 - Auth.js, якщо auth тісно прив'язаний до Next.js;
-- Clerk/Auth0 для швидшого enterprise auth і SSO, але з більшим vendor lock-in.
+- Clerk/Auth0 для швидшого external auth, але з більшим vendor lock-in.
 
 Рекомендація для Vizitum: власний auth module у backend на старті, бо tenant context, roles, scopes і invited users є доменно важливими.
 
@@ -318,14 +318,11 @@ Playwright + Vitest/Jest + tenant isolation integration tests
 - full offline-first native app;
 - складний BI-конструктор;
 - marketplace інтеграцій;
-- custom domains;
-- SSO;
-- окремий deployment на tenant;
 - ClickHouse;
 - Kubernetes;
 - складний event-driven microservices landscape.
 
-Ці речі мають сенс пізніше, коли з'явиться production-навантаження, enterprise-вимоги або підтверджений попит.
+Ці речі мають сенс пізніше тільки за підтвердженого production-навантаження або чіткого попиту, але не як окремий продуктовий напрям.
 
 ## 5. Щодо Supabase-only підходу
 
@@ -335,7 +332,6 @@ Supabase можна використовувати як managed Postgres, storag
 - dedicated tenant databases;
 - provisioning;
 - tenant-aware migrations;
-- enterprise control;
 - complex background jobs;
 - AI processing pipeline.
 
@@ -348,9 +344,9 @@ Core tenancy, routing, permissions, provisioning і job orchestration краще
 - Postgres-first архітектура;
 - власний tenant-aware backend;
 - shared DB для pilot/team;
-- dedicated DB як paid/enterprise option;
+- dedicated DB як paid Business option;
 - mobile-first PWA для field users;
 - окремі workers для imports, AI і provisioning;
 - сильні isolation tests з першої версії.
 
-Це дає швидкий запуск MVP, але не закриває шлях до Business/Enterprise клієнтів.
+Це дає швидкий запуск MVP і залишає шлях до Business-клієнтів без введення окремого четвертого пакета.

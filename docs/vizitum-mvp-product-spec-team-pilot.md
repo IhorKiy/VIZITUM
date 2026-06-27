@@ -32,7 +32,7 @@ MVP segment templates:
 - `service / field operations`;
 - `partner / account visits`.
 
-Ці три templates мають бути production-ready для першого демо і пілотів. Вони не є окремими продуктами, схемами даних або codebase. MVP реалізує один універсальний core, а segment template визначає стартові labels, типи точок, типи візитів, базові поля, KPI і AI extraction preset. Інші сегменти, такі як `FMCG`, `OTC`, `pharma` або `custom`, мають залишатися можливими через конфігурацію, але не є обов'язковими для першого MVP.
+Ці три templates мають бути production-ready для першого демо і пілотів. Вони не є окремими продуктами, схемами даних або codebase. MVP реалізує один універсальний core, а segment template визначає стартові labels, типи точок, типи візитів, базові поля, KPI і AI extraction preset. Інші vertical presets, такі як `FMCG`, `OTC`, `pharma` або `custom`, залишаються перспективою/template backlog і не є selectable options у першому tenant creation flow.
 
 ### Цільовий клієнт MVP
 
@@ -60,32 +60,42 @@ MVP segment templates:
 - Granular access scope по регіонах, командах або територіях.
 - Повноцінний offline-first режим.
 - Native mobile app.
-- SSO.
 - Billing automation.
 - Складні інтеграції з ERP, складом або бухгалтерією.
 - Route optimization.
 - BI-конструктор.
 - Marketplace інтеграцій.
-- Custom deployment або custom domain.
 
 ## 3. Ролі MVP
 
+MVP має підтримувати кілька ролей на одному користувачі всередині tenant. Ролі не є взаємовиключними: effective permissions користувача формуються як об'єднання призначених ролей з урахуванням tenant product mode і access scope.
+
+Практичні правила:
+
+- Company Admin може призначити собі роль `Team Manager`, якщо в компанії одна людина одночасно налаштовує tenant і керує командою.
+- Team Manager може паралельно мати роль `Field Representative`, якщо керівник також сам виконує візити.
+- Один email / user account не треба дублювати для різних ролей у тому самому tenant.
+- Якщо користувач має кілька ролей, інтерфейс має показувати role switcher або відкривати останній обраний робочий режим.
+
 ### Platform Owner
 
-Внутрішній користувач Vizitum. У MVP може працювати через просту Platform Console або через адміністративні seed/scripts, якщо повна console ще не готова.
+Внутрішній користувач Vizitum. У MVP може працювати через просту Platform Console або через адміністративні seed/scripts, якщо повна console ще не готова. Його зона відповідальності - створити і підтримувати tenant як технічний контейнер, а не адмініструвати щоденні дані клієнта.
 
 Основні задачі:
 
 - створити pilot tenant;
 - обрати segment template;
-- запустити або перевірити імпорти;
-- запросити першого Company Admin;
+- налаштувати базові tenant-параметри: plan, product mode, country, timezone, language, database placement;
+- запросити одного або кількох Company Admin;
 - перевірити статус tenant;
+- бачити health, provisioning, migration і import job status;
 - бачити базові usage/pilot metrics.
+
+Platform Owner не створює користувачів клієнта вручну, не призначає ролі всередині команди, не налаштовує маршрути і не керує операційними довідниками tenant, якщо це не тимчасова assisted setup дія для запуску пілоту.
 
 ### Company Admin
 
-Адміністратор клієнта всередині tenant workspace.
+Адміністратор клієнта всередині tenant workspace. Це основна роль для операційного налаштування компанії після створення tenant.
 
 Основні задачі:
 
@@ -95,23 +105,41 @@ MVP segment templates:
 - створити або підтвердити користувачів;
 - призначити ролі;
 - перевірити шаблон візиту;
+- налаштувати базові поля, довідники, правила доступу і tenant settings;
 - запросити представників.
 
-У першому MVP Company Admin може частково покладатися на команду Vizitum для assisted setup.
+У першому MVP Company Admin може частково покладатися на команду Vizitum для assisted setup, але саме Company Admin підтверджує правильність даних, ролей і налаштувань всередині tenant.
 
 ### Team Manager
 
-Керівник польової команди. У режимі `Team` має full tenant view.
+Керівник польової команди. У режимі `Team` має full tenant view. У режимі `Business` може мати access scope за регіоном, командою, територією, групою точок або конкретними представниками.
 
 Основні задачі:
 
 - бачити активність команди;
 - бачити план/факт візитів;
+- призначати маршрути або плани дня представникам;
 - переглядати візити та AI-підсумки;
 - бачити відкриті та прострочені задачі;
 - знаходити точки без покриття;
 - створювати follow-up задачі;
 - готуватися до pilot review.
+
+Team Manager не є системним адміністратором за замовчуванням: він не імпортує великі довідники, не керує billing, не змінює tenant settings і не призначає ролі без додаткових прав.
+
+### Company Owner / Executive
+
+Роль для пакету `Business` або більших клієнтів. Це власник, CEO, Commercial Director або інший топкерівник, якому потрібна high-level аналітика без операційного адміністрування.
+
+Основні задачі:
+
+- бачити executive dashboard;
+- переглядати активність по компанії, регіонах або командах;
+- бачити покриття, динаміку візитів, проблемні точки і відкриті задачі;
+- читати AI-підсумки на рівні компанії, регіону, команди або продукту;
+- експортувати управлінські звіти.
+
+Executive не налаштовує tenant, імпорти, ролі, маршрути або довідники без додаткових прав.
 
 ### Field Representative
 
@@ -134,7 +162,8 @@ MVP segment templates:
 
 - Як Platform Owner, я хочу створити pilot tenant, щоб швидко підготувати середовище для клієнта.
 - Як Platform Owner, я хочу обрати segment template, щоб tenant отримав релевантні поля, типи візитів і AI schema.
-- Як Platform Owner, я хочу бачити статус імпортів, щоб розуміти, чи tenant готовий до запуску.
+- Як Platform Owner, я хочу запросити одного або кількох Company Admin, щоб клієнт сам керував користувачами, ролями і налаштуваннями всередині tenant.
+- Як Platform Owner, я хочу бачити provisioning, health і статус import jobs, щоб розуміти, чи tenant технічно готовий до запуску.
 - Як Platform Owner, я хочу бачити pilot metrics, щоб провести review з клієнтом.
 
 ### Company Admin
@@ -143,14 +172,22 @@ MVP segment templates:
 - Як Company Admin, я хочу імпортувати представників, щоб запросити команду без ручного створення кожного користувача.
 - Як Company Admin, я хочу імпортувати продукти/SKU, щоб представники могли фіксувати, що обговорювали на візиті.
 - Як Company Admin, я хочу перевірити ролі, щоб керівник бачив команду, а представники бачили свої робочі дані.
+- Як Company Admin, я хочу налаштувати базові довідники, поля і шаблон візиту, щоб tenant відповідав процесу компанії.
 
 ### Team Manager
 
 - Як Team Manager, я хочу бачити dashboard команди, щоб розуміти, хто працює сьогодні і які візити вже виконані.
+- Як Team Manager, я хочу призначати маршрути або плани дня представникам, щоб команда працювала за погодженим планом.
 - Як Team Manager, я хочу бачити точки без покриття, щоб вчасно направляти представників.
 - Як Team Manager, я хочу читати структуровані AI-підсумки візитів, щоб не переглядати довгі ручні нотатки.
 - Як Team Manager, я хочу створювати задачі представникам, щоб фіксувати наступні дії.
 - Як Team Manager, я хочу бачити pilot review metrics, щоб оцінити користь Vizitum після першого тижня.
+
+### Company Owner / Executive
+
+- Як Executive, я хочу бачити загальну активність по компанії, регіонах і командах, щоб оцінювати ефективність польової роботи.
+- Як Executive, я хочу бачити покриття, динаміку візитів і проблемні точки, щоб приймати управлінські рішення без входу в операційні налаштування.
+- Як Executive, я хочу читати AI-підсумки по компанії або бізнес-напрямках, щоб швидко бачити ключові домовленості, ризики і наступні дії.
 
 ### Field Representative
 
@@ -171,13 +208,19 @@ MVP має підтримувати створення pilot tenant з таки�
 - country;
 - timezone;
 - language;
-- segment type;
+- segment template: `distribution`, `service` або `partner_account`;
 - plan: `pilot`;
 - product mode: `team`;
 - database placement: `shared`;
-- primary contact;
-- expected users count;
-- expected locations count.
+- primary Company Admin email.
+
+Optional onboarding metadata, якщо ці дані вже є після discovery:
+
+- estimated users count;
+- estimated locations count;
+- onboarding notes.
+
+Ці optional поля не є source of truth для billing, limits, permissions або product mode. Їх не треба вимагати від Platform Owner під час технічного створення tenant.
 
 Acceptance criteria:
 
@@ -185,7 +228,8 @@ Acceptance criteria:
 - tenant має статус `draft`, `provisioning`, `ready`, `pilot_active`, `active`, `suspended` або `archived`;
 - для pilot/team за замовчуванням використовується shared DB;
 - tenant отримує стартові ролі, типи точок, типи візитів, статуси задач і AI extraction template;
-- перший Company Admin отримує invite.
+- перший Company Admin отримує invite;
+- tenant можна створити без estimated users count і estimated locations count.
 
 ### 5.2 Auth and tenant resolution
 
@@ -228,7 +272,7 @@ Acceptance criteria:
 
 - Company Admin і Platform Owner бачать статус checklist;
 - кожен пункт має статус `not_started`, `in_progress`, `done` або `skipped`;
-- tenant не переходить у `pilot_active`, поки критичні пункти не завершені або явно не пропущені Platform Owner.
+- tenant не переходить у `pilot_active`, поки критичні пункти не завершені Company Admin або явно не пропущені Company Admin / Platform Owner під час assisted launch.
 
 ### 5.4 Imports
 
@@ -346,7 +390,7 @@ MVP може реалізувати маршрути у простому виг�
 
 Acceptance criteria:
 
-- за замовчуванням Team Manager або Company Admin створює простий план дня для представника;
+- за замовчуванням Team Manager створює або призначає простий план дня для представника;
 - Field Representative може самостійно створити або змінити власний план дня, якщо це дозволено tenant settings;
 - Field Representative завжди може додати позапланову точку або візит з маркуванням `unplanned`;
 - представник бачить свої точки на день;
@@ -789,27 +833,31 @@ MVP має підтримувати три production-ready templates для п�
 
 ## 8. Permissions matrix MVP
 
-| Дія | Company Admin | Team Manager | Field Representative |
-| --- | --- | --- | --- |
-| Бачити dashboard команди | Так | Так | Ні |
-| Бачити всі точки tenant | Так | Так | Ні |
-| Бачити свої точки | Так | Так | Так |
-| Створювати точки | Так | Опційно | Ні |
-| Редагувати точки | Так | Опційно | Обмежено |
-| Імпортувати точки | Так | Ні | Ні |
-| Бачити всі візити tenant | Так | Так | Ні |
-| Бачити свої візити | Так | Так | Так |
-| Створювати власні візити | Так | Так | Так |
-| Редагувати чужі візити | Обмежено | Обмежено | Ні |
-| Створювати план дня для представника | Так | Так | Для себе, якщо дозволено tenant settings |
-| Змінювати власний план дня | Так | Так | Якщо дозволено tenant settings |
-| Додавати позапланову точку або візит | Так | Так | Так |
-| Створювати задачі | Так | Так | Так |
-| Призначати задачі іншим | Так | Так | Ні |
-| Імпортувати користувачів | Так | Ні | Ні |
-| Призначати ролі | Так | Ні | Ні |
-| Налаштовувати шаблон візиту | Так | Ні | Ні |
-| Запускати pilot review | Так | Так | Ні |
+Матриця нижче описує базові права окремої ролі. Якщо користувач має кілька ролей, його effective permissions є сумою прав цих ролей. Наприклад, `Company Admin + Team Manager` не бачить team dashboard як Company Admin, але бачить його через роль Team Manager; `Team Manager + Field Representative` може і керувати командою, і проходити власний mobile-first daily flow.
+
+| Дія | Company Admin | Team Manager | Field Representative | Executive / Business |
+| --- | --- | --- | --- | --- |
+| Бачити dashboard команди | Ні, тільки admin overview | Так | Ні | Так, high-level |
+| Бачити всі точки tenant | Так | Так у Team / scope у Business | Ні | Так або scope |
+| Бачити свої точки | Так | Так | Так | Ні |
+| Створювати точки | Так | Опційно | Ні | Ні |
+| Редагувати точки | Так | Опційно | Обмежено | Ні |
+| Імпортувати точки | Так | Ні | Ні | Ні |
+| Бачити всі візити tenant | Ні, крім audit/support за окремим правом | Так у Team / scope у Business | Ні | Так або scope |
+| Бачити свої візити | Ні | Так | Так | Ні |
+| Створювати власні візити | Ні | Так | Так | Ні |
+| Редагувати чужі візити | Ні | Обмежено | Ні | Ні |
+| Створювати план дня для представника | Ні | Так | Для себе, якщо дозволено tenant settings | Ні |
+| Змінювати власний план дня | Ні | Так | Якщо дозволено tenant settings | Ні |
+| Призначати маршрути представникам | Ні | Так | Ні | Ні |
+| Додавати позапланову точку або візит | Ні | Так | Так | Ні |
+| Створювати задачі | Ні | Так | Так | Ні |
+| Призначати задачі іншим | Ні | Так | Ні | Ні |
+| Імпортувати користувачів | Так | Ні | Ні | Ні |
+| Призначати ролі | Так, включно із собою | Ні | Ні | Ні |
+| Налаштовувати шаблон візиту | Так | Ні | Ні | Ні |
+| Запускати pilot review | Так | Так | Ні | Так, перегляд |
+| Бачити executive dashboard | Ні | Ні | Ні | Так |
 
 ## 9. Екрани MVP
 
@@ -818,14 +866,15 @@ MVP має підтримувати три production-ready templates для п�
 - Tenant list.
 - Create tenant.
 - Tenant detail.
-- Import jobs.
+- Provisioning, migration and import job status.
 - Pilot review metrics.
 
-Повна Platform Console може бути спрощена в першій версії, але функції tenant setup і pilot monitoring мають існувати хоча б через внутрішній admin flow.
+Повна Platform Console може бути спрощена в першій версії, але функції tenant setup і pilot monitoring мають існувати хоча б через внутрішній admin flow. Platform Owner створює tenant і запрошує Company Admin, але не виконує регулярне адміністрування користувачів, ролей, маршрутів або довідників клієнта.
 
 ### Company Admin
 
 - Onboarding checklist.
+- Admin overview.
 - Users.
 - Locations.
 - Products/SKU.
@@ -841,6 +890,16 @@ MVP має підтримувати три production-ready templates для п�
 - Locations.
 - Representatives.
 - Pilot review.
+
+### Company Owner / Executive
+
+Окремий MVP-екран не є обов'язковим для `Team`. Для `Business` або post-MVP:
+
+- Executive Dashboard.
+- Company / region / team analytics.
+- Coverage.
+- AI summaries.
+- Management reports export.
 
 ### Field Representative
 
@@ -944,7 +1003,7 @@ MVP має комфортно працювати для tenant з:
 ### Pilot setup
 
 1. Створити pilot tenant.
-2. Обрати segment type `distribution`, `service` або `partner_account`.
+2. Обрати segment template `distribution`, `service` або `partner_account`.
 3. Імпортувати точки, користувачів і продукти.
 4. Перевірити onboarding checklist.
 5. Запросити Company Admin, Team Manager і Field Representative.
@@ -1044,7 +1103,9 @@ MVP має комфортно працювати для tenant з:
 - Чи дозволяємо audio upload як fallback, якщо browser recording недоступний?
 - Чи потрібен XLSX import у першій версії, чи достатньо CSV?
 - Чи може Field Representative створювати нові точки, чи тільки працює з призначеними?
-- Чи може Team Manager редагувати точки, чи лише переглядати і створювати задачі?
+- Чи може Team Manager редагувати точки, чи лише переглядати, призначати маршрути і створювати задачі?
+- Які саме дії Team Manager може робити з маршрутами у `Team`: створювати, редагувати, призначати чи тільки призначати готові плани?
+- Коли Executive role вмикається як частина першого `Business` scope, а коли залишається post-MVP?
 - Які поля location є обов'язковими для кожного MVP template?
 - Чи потрібен експорт pilot review у PDF/CSV, чи достатньо dashboard і copyable summary?
 - Яка мінімальна юридична згода потрібна для обробки голосових нотаток і AI processing?
