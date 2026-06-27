@@ -34,7 +34,7 @@ DB placement не є єдиною різницею між пакетами. Дл
 
 | Пакет | Для кого | Типові ролі | Ключові фічі першого scope |
 | --- | --- | --- | --- |
-| Pilot | 2-5 представників або короткий тест на 7-10 днів | Platform Owner, Company Admin або відповідальний пілоту, Representative, Team Manager для review | assisted setup від Vizitum, production-ready segment template, імпорт стартових даних, базові візити, AI-структурування нотаток, задачі, manager dashboard, pilot review metrics |
+| Pilot | 5-10 представників на 14-30 днів, з першим review після 7-10 днів | Platform Owner, Company Admin або відповідальний пілоту, Representative, Team Manager для review | assisted setup від Vizitum, production-ready segment template, імпорт стартових даних, базові візити, AI-структурування нотаток, задачі, manager dashboard, pilot review metrics |
 | Team | 5-30 представників | Company Admin, Representative, один Team Manager або керівник з full tenant view | усе з Pilot, повна база точок/клієнтів/партнерів/обʼєктів, необмежені візити, задачі й контроль виконання, простий дашборд керівника по всій команді, експорт даних, щомісячний review на перші 2 місяці |
 | Business | 30+ представників або кілька регіонів | Company Admin, Representative, кілька Team Manager roles, Executive | усе з Team, access scope для регіонів/команд/територій/груп точок, регіональна структура, Executive Dashboard, розширені звіти, розширені AI-підсумки по команді/регіонах/продуктах, custom fields, dedicated DB як опція |
 
@@ -352,7 +352,7 @@ Company Admin готує робоче середовище для своєї к�
 
 Для запуску пілоту клієнт надає:
 
-- базу аптек, клінік, магазинів або партнерських точок у CSV/XLSX;
+- базу торгових точок, клієнтів, партнерів або об'єктів у CSV/XLSX;
 - список представників, керівника і відповідального адміністратора;
 - продукти, SKU або товарні групи, якщо вони мають фіксуватись у візитах;
 - регіони, території або просте правило розподілу точок;
