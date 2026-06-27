@@ -570,6 +570,17 @@ MVP має підтримувати три production-ready templates для п�
 
 Всі templates використовують однакові core-сутності: users, locations, products, routes, visits, tasks, reports і AI extraction. Різниця між templates має бути конфігураційною: назви сутностей, стартові поля, типи візитів, KPI, dashboard preset і AI prompt/schema preset.
 
+Щоб template вважався production-ready для MVP, він має мати:
+
+- стартові labels і терміни інтерфейсу;
+- типи точок і типи візитів;
+- result statuses;
+- мінімальні обов'язкові поля location/visit;
+- dashboard KPI preset;
+- AI extraction schema/prompt preset;
+- demo data для sales/demo;
+- checklist перевірки після tenant seed.
+
 ### Template 1: distribution / trade reps
 
 #### Мова інтерфейсу
@@ -760,6 +771,8 @@ MVP має підтримувати три production-ready templates для п�
 - `Visit`
 - `VisitProduct`
 - `VisitNote`
+- `VisitAudioAttachment`
+- `TranscriptionJob`
 - `AiExtraction`
 - `Task`
 - `DashboardViewEvent`
@@ -867,6 +880,9 @@ MVP має підтримувати три production-ready templates для п�
 - `POST /api/visits`
 - `GET /api/visits/{id}`
 - `PATCH /api/visits/{id}`
+- `POST /api/visit-drafts/{id}/audio`
+- `POST /api/visit-drafts/{id}/transcribe`
+- `GET /api/visit-drafts/{id}/transcription-status`
 - `POST /api/visit-drafts/ai-extract`
 - `POST /api/visits/{id}/confirm-ai-draft`
 - `GET /api/tasks`
@@ -880,7 +896,7 @@ MVP має підтримувати три production-ready templates для п�
 ### Security and privacy
 
 - Tenant isolation є критичною вимогою MVP.
-- Raw notes, transcripts і AI outputs не пишуться у logs.
+- Raw audio, raw notes, transcripts і AI outputs не пишуться у logs.
 - Усі storage paths мають бути tenant-scoped.
 - Усі exports мають перевіряти роль і tenant context.
 - Audit events мають фіксувати створення, редагування і підтвердження критичних сутностей.
@@ -908,6 +924,8 @@ MVP має комфортно працювати для tenant з:
 - API errors;
 - auth errors;
 - import failures;
+- audio storage failures;
+- transcription failures;
 - AI extraction failures;
 - job queue status;
 - tenant-specific error grouping без витоку бізнес-даних.
@@ -1037,6 +1055,7 @@ MVP можна вважати готовим до першого реально�
 
 - можна створити pilot tenant у shared DB;
 - можна імпортувати точки, користувачів і продукти;
+- можна обрати і застосувати production-ready template для `distribution`, `service` або `partner_account`;
 - Company Admin може перевірити onboarding checklist;
 - представник може пройти повний daily flow з візитом;
 - представник може створити звіт через голосову нотатку, transcript і AI draft;

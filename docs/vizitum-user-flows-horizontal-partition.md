@@ -923,7 +923,8 @@ flowchart LR
 | Денний план | `/api/route-plans/{date}` |
 | Візити | `/api/visits`, `/api/visits/{id}` |
 | AI-обробка звіту | `/api/visits/{id}/ai-extract` або `/api/visit-drafts/ai-extract` |
-| Транскрипція | `/api/visit-drafts/transcribe` |
+| Audio upload | `/api/visit-drafts/{id}/audio` |
+| Транскрипція | `/api/visit-drafts/{id}/transcribe`, `/api/visit-drafts/{id}/transcription-status` |
 | Точки | `/api/locations`, `/api/locations/{id}` |
 | Продукти | `/api/products`, `/api/product-groups` |
 | Задачі | `/api/tasks`, `/api/tasks/{id}` |
@@ -1064,6 +1065,9 @@ flowchart LR
 - денний план;
 - картка точки;
 - створення візиту;
+- голосова нотатка через mobile web/PWA recording або audio upload;
+- tenant-scoped audio storage;
+- transcription job зі статусами обробки;
 - AI-структурування нотатки;
 - задачі;
 - manager dashboard у Team mode з full tenant view;
