@@ -937,9 +937,11 @@ MVP має підтримувати три production-ready templates для п�
 - `POST /api/platform/tenants`
 - `GET /api/platform/tenants`
 - `GET /api/platform/tenants/{tenantId}`
-- `POST /api/platform/tenants/{tenantId}/imports`
-- `GET /api/platform/tenants/{tenantId}/imports`
-- `GET /api/platform/tenants/{tenantId}/pilot-review`
+- `POST /api/platform/tenants/{tenantId}/assisted-imports`
+- `GET /api/platform/tenants/{tenantId}/assisted-imports`
+- `GET /api/platform/tenants/{tenantId}/import-jobs`
+
+Platform import endpoints не є основним API для імпорту клієнтських даних. Вони потрібні тільки для assisted setup / internal ops: підготовка файлу, assisted conversion, запуск або моніторинг import job від імені операційної підтримки. Основний product flow для імпорту точок, користувачів і продуктів/SKU проходить через Tenant API з роллю Company Admin.
 
 ### Tenant API
 
@@ -952,6 +954,12 @@ MVP має підтримувати три production-ready templates для п�
 - `PATCH /api/locations/{id}`
 - `GET /api/products`
 - `POST /api/products`
+- `GET /api/imports`
+- `POST /api/imports/locations`
+- `POST /api/imports/users`
+- `POST /api/imports/products`
+- `GET /api/imports/{jobId}`
+- `POST /api/imports/{jobId}/confirm`
 - `GET /api/route-plans/{date}`
 - `POST /api/route-plans`
 - `GET /api/visits`
@@ -967,7 +975,10 @@ MVP має підтримувати три production-ready templates для п�
 - `POST /api/tasks`
 - `PATCH /api/tasks/{id}`
 - `GET /api/manager/dashboard`
-- `GET /api/manager/pilot-review`
+- `GET /api/admin/pilot-review`
+- `POST /api/admin/pilot-review/run`
+
+Tenant import endpoints мають вимагати tenant context із session/token/host і роль Company Admin. `POST /api/imports/*` створює preview/import job, а `POST /api/imports/{jobId}/confirm` застосовує імпорт після preview та валідації.
 
 ## 11. Non-functional requirements
 
