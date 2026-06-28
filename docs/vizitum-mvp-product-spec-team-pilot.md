@@ -119,7 +119,7 @@ Platform Owner не створює користувачів клієнта вр�
 
 ### Team Manager
 
-Керівник польової команди. У режимі `Team` має full tenant view. У режимі `Business` може мати access scope за регіоном, командою, територією, групою точок або конкретними представниками.
+Керівник польової команди. У режимі `Team` має full tenant view. Це означає перегляд усіх операційних даних поточного tenant, але не автоматично admin/edit rights. У режимі `Business` може мати access scope за регіоном, командою, територією, групою точок або конкретними представниками.
 
 Основні задачі:
 
@@ -192,7 +192,7 @@ Executive не налаштовує tenant, імпорти, ролі, маршр
 - Як Team Manager, я хочу бачити точки без покриття, щоб вчасно направляти представників.
 - Як Team Manager, я хочу читати структуровані AI-підсумки візитів, щоб не переглядати довгі ручні нотатки.
 - Як Team Manager, я хочу створювати задачі представникам, щоб фіксувати наступні дії.
-- Як Team Manager, я хочу бачити pilot review metrics, щоб оцінити користь Vizitum після першого тижня.
+- Як Team Manager, я хочу бачити dashboard metrics команди, щоб оцінити активність, покриття і задачі протягом пілоту.
 
 ### Company Owner / Executive
 
@@ -613,7 +613,7 @@ Default success thresholds для 7-10 денного пілоту:
 
 Acceptance criteria:
 
-- Platform Owner або Team Manager може відкрити pilot review за період;
+- Company Admin може відкрити і запустити pilot review за період;
 - review можна експортувати або скопіювати у короткий summary;
 - метрики базуються на реальних сутностях продукту, а не ручному введенні;
 - pilot review показує, які success thresholds виконані, не виконані або не застосовуються до конкретного пілоту.
@@ -849,6 +849,8 @@ MVP має підтримувати три production-ready templates для п�
 
 Матриця нижче описує базові права окремої ролі. Якщо користувач має кілька ролей, його effective permissions є сумою прав цих ролей. Наприклад, `Company Admin + Team Manager` не бачить team dashboard як Company Admin, але бачить його через роль Team Manager; `Team Manager + Field Representative` може і керувати командою, і проходити власний mobile-first daily flow.
 
+`Full tenant view` для Team Manager означає read access до операційних даних tenant. Права створення, редагування, імпорту, tenant settings або role management надаються окремо й не випливають автоматично з full tenant view.
+
 | Дія | Company Admin | Team Manager | Field Representative | Executive / Business |
 | --- | --- | --- | --- | --- |
 | Бачити dashboard команди | Ні, тільки admin overview | Так | Ні | Так, high-level |
@@ -870,7 +872,7 @@ MVP має підтримувати три production-ready templates для п�
 | Імпортувати користувачів | Так | Ні | Ні | Ні |
 | Призначати ролі | Так, включно із собою | Ні | Ні | Ні |
 | Налаштовувати шаблон візиту | Так | Ні | Ні | Ні |
-| Запускати pilot review | Так | Так | Ні | Так, перегляд |
+| Запускати pilot review | Так | Ні | Ні | Ні |
 | Бачити executive dashboard | Ні | Ні | Ні | Так |
 
 Колонка `Executive / Business` не є частиною `Team Pilot` implementation scope. Вона залишена як сумісність з user flow документом і як нагадування, що Business capabilities мають бути розширенням того самого permissions model, а не окремим продуктом.
@@ -883,7 +885,7 @@ MVP має підтримувати три production-ready templates для п�
 - Create tenant.
 - Tenant detail.
 - Provisioning, migration and import job status.
-- Pilot review metrics.
+- Pilot monitoring metrics.
 
 Повна Platform Console може бути спрощена в першій версії, але функції tenant setup і pilot monitoring мають існувати хоча б через внутрішній admin flow. Platform Owner створює tenant і запрошує одного або кількох Company Admin, але не виконує регулярне адміністрування користувачів, ролей, маршрутів або довідників клієнта.
 
@@ -898,6 +900,7 @@ MVP має підтримувати три production-ready templates для п�
 - Visit template settings.
 - Branding.
 - Tenant settings.
+- Pilot review.
 
 ### Team Manager
 
@@ -906,7 +909,6 @@ MVP має підтримувати три production-ready templates для п�
 - Tasks.
 - Locations.
 - Representatives.
-- Pilot review.
 
 ### Company Owner / Executive
 
@@ -1058,8 +1060,9 @@ MVP має комфортно працювати для tenant з:
 1. Створити тестові візити за 7-10 днів.
 2. Додати AI-confirmed reports.
 3. Створити і закрити кілька задач.
-4. Відкрити pilot review.
-5. Переконатися, що метрики відповідають фактичним даним.
+4. Увійти як Company Admin.
+5. Відкрити pilot review.
+6. Переконатися, що метрики відповідають фактичним даним.
 
 ## 13. Implementation phases
 
