@@ -453,6 +453,13 @@ Voice reporting є обов'язковою частиною MVP, бо GTM і п�
 
 У MVP voice не означає native mobile app, offline-first recording або складну audio UX. Достатньо надійного mobile web/PWA flow: записати або завантажити audio, отримати transcript, побачити structured draft, підтвердити або відредагувати результат.
 
+#### Visit report states
+
+- `visit draft` створюється, коли представник починає візит або додає текстову/голосову нотатку. Draft можна зберегти до transcription, AI extraction або підтвердження.
+- `AI draft` створюється з transcript або raw text і ніколи самостійно не змінює final report, задачі або картку точки.
+- `final confirmed report` створюється після того, як користувач підтвердив або відредагував AI draft.
+- Якщо AI/transcription недоступні або користувач відхиляє AI draft, представник може завершити візит через manual fallback: вручну ввести текстовий звіт і підтвердити його як final report.
+
 #### Voice transcription flow
 
 1. Field Representative натискає кнопку голосової нотатки у visit draft.
@@ -462,7 +469,7 @@ Voice reporting є обов'язковою частиною MVP, бо GTM і п�
 5. AI extraction job застосовує tenant-specific extraction schema.
 6. Користувач бачить transcript і structured draft.
 7. Користувач підтверджує, редагує або відхиляє draft.
-8. Final report зберігається тільки після підтвердження користувачем.
+8. У AI flow final confirmed report зберігається тільки після підтвердження або редагування користувачем.
 
 #### AI extraction input
 
@@ -510,11 +517,13 @@ Voice reporting є обов'язковою частиною MVP, бо GTM і п�
 Acceptance criteria:
 
 - користувач може створити visit draft з текстової або голосової нотатки;
+- visit draft можна зберегти до створення AI draft або final confirmed report;
 - голосова нотатка зберігається у tenant-scoped storage;
 - transcription має статус `queued`, `processing`, `completed` або `failed`;
 - якщо transcription failed, користувач може вручну ввести текстову нотатку і завершити звіт;
 - AI output має статус `draft`, `confirmed`, `edited` або `discarded`;
-- користувач бачить AI draft перед збереженням final report;
+- користувач бачить AI draft перед створенням final confirmed report, якщо звіт проходить AI flow;
+- final confirmed report створюється після підтвердження або редагування AI draft, або після ручного підтвердження текстового fallback;
 - задачі з AI draft створюються тільки після підтвердження;
 - зміни у картці точки з AI draft застосовуються тільки після підтвердження;
 - raw audio reference, raw note, transcript, AI output і final report зберігаються для audit/debug;
@@ -1046,14 +1055,15 @@ MVP має комфортно працювати для tenant з:
 2. Відкрити `Головна`.
 3. Перейти до точки з плану.
 4. Почати візит.
-5. Записати голосову нотатку.
-6. Дочекатися transcript або побачити статус обробки.
-7. Запустити AI extraction зі transcript.
-8. Перевірити AI draft.
-9. Підтвердити або відредагувати draft.
-10. Зберегти візит.
-11. Переконатися, що задача з draft створена тільки після підтвердження.
-12. Повторити flow з текстовою нотаткою як fallback або альтернативний шлях.
+5. Зберегти visit draft.
+6. Записати голосову нотатку.
+7. Дочекатися transcript або побачити статус обробки.
+8. Запустити AI extraction зі transcript.
+9. Перевірити AI draft.
+10. Підтвердити або відредагувати draft.
+11. Переконатися, що final confirmed report створений після підтвердження.
+12. Переконатися, що задача з draft створена тільки після підтвердження.
+13. Повторити flow з текстовою нотаткою як manual fallback або альтернативний шлях.
 
 ### Manager flow
 
@@ -1154,8 +1164,9 @@ MVP можна вважати готовим до першого реально�
 - Company Admin може перевірити onboarding checklist;
 - представник може пройти повний daily flow з візитом;
 - представник може створити звіт через голосову нотатку, transcript і AI draft;
-- представник може створити звіт через текстову нотатку як fallback;
-- AI draft створюється і підтверджується користувачем;
+- представник може зберегти visit draft до AI processing;
+- представник може створити final confirmed report через текстову нотатку як manual fallback;
+- AI draft створюється і підтверджується або редагується користувачем перед створенням final confirmed report;
 - задачі створюються і відображаються відповідальним;
 - керівник бачить dashboard команди;
 - pilot review показує базові usage metrics;
