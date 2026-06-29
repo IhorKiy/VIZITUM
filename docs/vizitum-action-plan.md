@@ -141,7 +141,7 @@ Status legend:
 - [x] Implement transcription job.
 - [x] Implement extraction job.
 - [x] Implement AI draft confirmation endpoint.
-- [ ] Implement cleanup of temporary audio/transcript/draft after confirmation.
+- [x] Implement cleanup of temporary audio/transcript/draft after confirmation.
 - [ ] Implement 24-hour retry-window cleanup for failed processing.
 
 ## 11. Storage Backlog

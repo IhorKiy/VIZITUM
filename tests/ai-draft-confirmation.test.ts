@@ -116,6 +116,19 @@ describe("AI draft confirmation", () => {
             deleteMany: (query: unknown) => Promise<void>;
             createMany: (query: unknown) => Promise<void>;
           };
+          aiJob: {
+            findMany: (query: unknown) => Promise<
+              {
+                id: string;
+                inputObjectId: string | null;
+                temporaryTranscriptObjectId: string | null;
+              }[]
+            >;
+            updateMany: (query: unknown) => Promise<void>;
+          };
+          storageObject: {
+            updateMany: (query: unknown) => Promise<void>;
+          };
         }) => Promise<unknown>,
       ) =>
         callback({
@@ -144,6 +157,32 @@ describe("AI draft confirmation", () => {
               operations.push({ taskCreateMany: query });
             },
           },
+          aiJob: {
+            findMany: async (query: unknown) => {
+              operations.push({ aiJobFindMany: query });
+
+              return [
+                {
+                  id: "transcription-job-a",
+                  inputObjectId: "audio-object-a",
+                  temporaryTranscriptObjectId: "transcript-object-a",
+                },
+                {
+                  id: "extraction-job-a",
+                  inputObjectId: "transcript-object-a",
+                  temporaryTranscriptObjectId: null,
+                },
+              ];
+            },
+            updateMany: async (query: unknown) => {
+              operations.push({ aiJobUpdateMany: query });
+            },
+          },
+          storageObject: {
+            updateMany: async (query: unknown) => {
+              operations.push({ storageObjectUpdateMany: query });
+            },
+          },
         }),
     };
     const service = new AiService(prisma as never, {} as never, {} as never);
@@ -156,7 +195,7 @@ describe("AI draft confirmation", () => {
 
     assert.equal(response.report.id, "report-a");
     assert.equal(response.createdTaskCount, 1);
-    assert.equal(operations.length, 5);
+    assert.equal(operations.length, 8);
     const taskCreate = operations.find(
       (operation): operation is { taskCreateMany: { data: unknown[] } } =>
         typeof operation === "object" &&
@@ -177,5 +216,29 @@ describe("AI draft confirmation", () => {
       reportId: "report-a",
       dueDate: new Date("2026-07-05T00:00:00.000Z"),
     });
+
+    const storageCleanup = operations.find(
+      (
+        operation,
+      ): operation is {
+        storageObjectUpdateMany: { data: { status: string }; where: unknown };
+      } =>
+        typeof operation === "object" &&
+        operation !== null &&
+        "storageObjectUpdateMany" in operation,
+    );
+    const jobCleanup = operations.find(
+      (
+        operation,
+      ): operation is {
+        aiJobUpdateMany: { data: { temporaryDraft: unknown } };
+      } =>
+        typeof operation === "object" &&
+        operation !== null &&
+        "aiJobUpdateMany" in operation,
+    );
+
+    assert.equal(storageCleanup?.storageObjectUpdateMany.data.status, "expired");
+    assert.ok(jobCleanup?.aiJobUpdateMany.data.temporaryDraft);
   });
 });

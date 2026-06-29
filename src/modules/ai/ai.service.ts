@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { AiJob, Prisma, SegmentTemplate } from "@prisma/client";
+import { Prisma, type AiJob, type SegmentTemplate } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
@@ -529,6 +529,12 @@ export class AiService {
         });
       }
 
+      await cleanupTemporaryAiDataAfterConfirmation(tx, {
+        tenantId: context.tenantId,
+        visitId: job.visit.id,
+        confirmedAt,
+      });
+
       return {
         report,
         createdTaskCount: tasksToCreate.length,
@@ -627,7 +633,9 @@ type AiDraftTask = {
   dueDate: Date | null;
 };
 
-function extractTasksToCreate(confirmedData: Prisma.InputJsonObject): AiDraftTask[] {
+function extractTasksToCreate(
+  confirmedData: Prisma.InputJsonObject,
+): AiDraftTask[] {
   const tasks = confirmedData.tasksToCreate;
 
   if (!Array.isArray(tasks)) {
@@ -635,7 +643,11 @@ function extractTasksToCreate(confirmedData: Prisma.InputJsonObject): AiDraftTas
   }
 
   return tasks.flatMap((task): AiDraftTask[] => {
-    if (!isRecord(task) || typeof task.title !== "string" || !task.title.trim()) {
+    if (
+      !isRecord(task) ||
+      typeof task.title !== "string" ||
+      !task.title.trim()
+    ) {
       return [];
     }
 
@@ -651,6 +663,65 @@ function extractTasksToCreate(confirmedData: Prisma.InputJsonObject): AiDraftTas
         dueDate: parseDateOnly(task.dueDate),
       },
     ];
+  });
+}
+
+async function cleanupTemporaryAiDataAfterConfirmation(
+  tx: Prisma.TransactionClient,
+  input: {
+    tenantId: string;
+    visitId: string;
+    confirmedAt: Date;
+  },
+): Promise<void> {
+  const aiJobs = await tx.aiJob.findMany({
+    where: {
+      tenantId: input.tenantId,
+      visitId: input.visitId,
+    },
+    select: {
+      id: true,
+      inputObjectId: true,
+      temporaryTranscriptObjectId: true,
+    },
+  });
+  const storageObjectIds = new Set<string>();
+
+  for (const aiJob of aiJobs) {
+    if (aiJob.inputObjectId) {
+      storageObjectIds.add(aiJob.inputObjectId);
+    }
+
+    if (aiJob.temporaryTranscriptObjectId) {
+      storageObjectIds.add(aiJob.temporaryTranscriptObjectId);
+    }
+  }
+
+  if (storageObjectIds.size > 0) {
+    await tx.storageObject.updateMany({
+      where: {
+        tenantId: input.tenantId,
+        id: { in: [...storageObjectIds] },
+        purpose: { in: ["temporary_audio", "temporary_transcript"] },
+      },
+      data: {
+        status: "expired",
+        deletedAt: input.confirmedAt,
+      },
+    });
+  }
+
+  await tx.aiJob.updateMany({
+    where: {
+      tenantId: input.tenantId,
+      visitId: input.visitId,
+    },
+    data: {
+      inputObjectId: null,
+      temporaryTranscriptObjectId: null,
+      temporaryDraft: Prisma.DbNull,
+      expiresAt: input.confirmedAt,
+    },
   });
 }
 
