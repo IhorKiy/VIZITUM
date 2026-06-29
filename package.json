@@ -1,0 +1,38 @@
+{
+  "name": "vizitum",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "db:up": "sh scripts/db-up.sh",
+    "db:down": "sh scripts/db-down.sh",
+    "db:logs": "sh scripts/db-logs.sh",
+    "prisma:validate": "prisma validate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "test": "echo \"No test suite configured yet.\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IhorKiy/VIZITUM.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/IhorKiy/VIZITUM/issues"
+  },
+  "homepage": "https://github.com/IhorKiy/VIZITUM#readme",
+  "dependencies": {
+    "@prisma/client": "^7.8.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "prisma": "^7.8.0"
+  }
+}

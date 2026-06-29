@@ -1,0 +1,740 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TenantStatus {
+  draft
+  provisioning
+  ready
+  pilot_active
+  active
+  suspended
+  archived
+}
+
+enum PlanCode {
+  pilot
+  team
+  business
+}
+
+enum ProductMode {
+  team
+  business
+}
+
+enum DatabasePlacement {
+  shared
+  dedicated
+}
+
+enum SegmentTemplate {
+  distribution
+  service
+  partner_account
+}
+
+enum JobStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+enum UserStatus {
+  invited
+  active
+  suspended
+  deleted
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  expired
+  revoked
+}
+
+enum RoleCode {
+  company_admin
+  team_manager
+  field_representative
+}
+
+enum LocationStatus {
+  active
+  inactive
+  archived
+}
+
+enum AssignmentStatus {
+  active
+  inactive
+}
+
+enum ProductStatus {
+  active
+  inactive
+  archived
+}
+
+enum RouteStatus {
+  draft
+  published
+  in_progress
+  completed
+  cancelled
+}
+
+enum RouteItemStatus {
+  planned
+  visited
+  skipped
+}
+
+enum VisitStatus {
+  draft
+  in_progress
+  completed
+  cancelled
+}
+
+enum VisitNoteInputType {
+  text
+  audio
+}
+
+enum ReportStatus {
+  draft
+  confirmed
+  discarded
+}
+
+enum TaskStatus {
+  open
+  in_progress
+  done
+  cancelled
+}
+
+enum TaskPriority {
+  low
+  normal
+  high
+}
+
+enum ImportType {
+  users
+  locations
+  contacts
+  products
+  initial_visit_task_plan
+}
+
+enum ImportStatus {
+  uploaded
+  validated
+  validation_failed
+  confirmed
+  applied
+  failed
+  cancelled
+}
+
+enum ImportIssueSeverity {
+  error
+  warning
+}
+
+enum AiJobType {
+  transcription
+  extraction
+}
+
+enum AiJobStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+enum StorageObjectStatus {
+  active
+  deleted
+  expired
+}
+
+enum StorageObjectPurpose {
+  temporary_audio
+  temporary_transcript
+  import_file
+  export_file
+  attachment
+}
+
+model PlatformTenant {
+  id                String            @id @default(cuid())
+  name              String
+  slug              String            @unique
+  country           String
+  timezone          String
+  language          String
+  status            TenantStatus      @default(draft)
+  planCode          PlanCode          @default(pilot)
+  productMode       ProductMode       @default(team)
+  segmentTemplate   SegmentTemplate
+  databasePlacement DatabasePlacement @default(shared)
+  databaseKey       String
+  primaryDomain     String?
+  archivedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  provisioningJobs PlatformProvisioningJob[]
+  operationEvents  PlatformOperationEvent[]
+
+  @@index([status])
+  @@index([databasePlacement])
+  @@index([segmentTemplate])
+  @@map("platform_tenants")
+}
+
+model PlatformProvisioningJob {
+  id           String     @id @default(cuid())
+  tenantId     String
+  status       JobStatus  @default(queued)
+  step         String?
+  errorCode    String?
+  errorMessage String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tenant PlatformTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("platform_provisioning_jobs")
+}
+
+model PlatformOperationEvent {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  actorUserId String?
+  eventType   String
+  metadata    Json?
+  requestId   String?
+  createdAt   DateTime @default(now())
+
+  tenant PlatformTenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([eventType])
+  @@map("platform_operation_events")
+}
+
+model User {
+  id                   String     @id @default(cuid())
+  tenantId             String
+  email                String
+  name                 String
+  phone                String?
+  status               UserStatus @default(invited)
+  passwordHash         String?
+  lastLoginAt          DateTime?
+  lastSelectedRoleCode RoleCode?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  deletedAt            DateTime?
+
+  roles                    UserRole[]                @relation("UserRoles")
+  assignedRoles            UserRole[]                @relation("AssignedUserRoles")
+  createdInvites           Invite[]                  @relation("CreatedInvites")
+  acceptedInvites          Invite[]                  @relation("AcceptedInvites")
+  sessions                 Session[]
+  updatedSettings          TenantSetting[]           @relation("UpdatedTenantSettings")
+  createdLocationAssignments LocationAssignment[]    @relation("CreatedLocationAssignments")
+  assignedLocations        LocationAssignment[]      @relation("RepresentativeLocationAssignments")
+  routePlans               RoutePlan[]               @relation("RepresentativeRoutePlans")
+  createdRoutePlans        RoutePlan[]               @relation("CreatedRoutePlans")
+  visits                   Visit[]                   @relation("RepresentativeVisits")
+  visitNotes               VisitNote[]               @relation("CreatedVisitNotes")
+  confirmedReports         Report[]                  @relation("ConfirmedReports")
+  reports                  Report[]                  @relation("RepresentativeReports")
+  assignedTasks            Task[]                    @relation("AssignedTasks")
+  createdTasks             Task[]                    @relation("CreatedTasks")
+  uploadedImports          ImportJob[]               @relation("UploadedImports")
+  confirmedImports         ImportJob[]               @relation("ConfirmedImports")
+  createdStorageObjects    StorageObject[]           @relation("CreatedStorageObjects")
+  auditEvents              AuditEvent[]              @relation("ActorAuditEvents")
+
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+  @@index([tenantId, lastLoginAt])
+  @@map("users")
+}
+
+model UserRole {
+  id               String   @id @default(cuid())
+  tenantId         String
+  userId           String
+  roleCode         RoleCode
+  assignedByUserId String?
+  createdAt        DateTime @default(now())
+
+  user       User  @relation("UserRoles", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("AssignedUserRoles", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, userId, roleCode])
+  @@index([tenantId, roleCode])
+  @@index([assignedByUserId])
+  @@map("user_roles")
+}
+
+model Invite {
+  id               String       @id @default(cuid())
+  tenantId         String
+  email            String
+  roleCodes        RoleCode[]
+  tokenHash        String       @unique
+  status           InviteStatus @default(pending)
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  createdByUserId  String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  acceptedBy User? @relation("AcceptedInvites", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  createdBy  User? @relation("CreatedInvites", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, email])
+  @@index([tenantId, status])
+  @@index([expiresAt])
+  @@map("invites")
+}
+
+model Session {
+  id               String    @id @default(cuid())
+  tenantId         String
+  userId           String
+  sessionTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  lastSeenAt       DateTime?
+  userAgentHash    String?
+  ipHash           String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model TenantSetting {
+  id              String   @id @default(cuid())
+  tenantId        String
+  key             String
+  value           Json
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  updatedBy User? @relation("UpdatedTenantSettings", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, key])
+  @@map("tenant_settings")
+}
+
+model ProductCapability {
+  id             String   @id @default(cuid())
+  tenantId       String
+  capabilityCode String
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, capabilityCode])
+  @@map("product_capabilities")
+}
+
+model Location {
+  id           String         @id @default(cuid())
+  tenantId     String
+  externalCode String?
+  name         String
+  type         String?
+  status       LocationStatus @default(active)
+  addressLine  String
+  city         String
+  region       String?
+  territory    String?
+  latitude     Decimal?       @db.Decimal(10, 7)
+  longitude    Decimal?       @db.Decimal(10, 7)
+  notes        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  contacts    LocationContact[]
+  assignments LocationAssignment[]
+  routeItems  RouteItem[]
+  visits      Visit[]
+  reports     Report[]
+  tasks       Task[]
+
+  @@unique([tenantId, externalCode])
+  @@index([tenantId, status])
+  @@index([tenantId, city])
+  @@index([tenantId, region])
+  @@index([tenantId, territory])
+  @@map("locations")
+}
+
+model LocationContact {
+  id         String    @id @default(cuid())
+  tenantId   String
+  locationId String
+  name       String
+  roleTitle  String?
+  phone      String?
+  email      String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, locationId])
+  @@map("location_contacts")
+}
+
+model LocationAssignment {
+  id                   String           @id @default(cuid())
+  tenantId             String
+  locationId           String
+  representativeUserId String
+  status               AssignmentStatus @default(active)
+  assignedByUserId     String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  location       Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  representative User     @relation("RepresentativeLocationAssignments", fields: [representativeUserId], references: [id], onDelete: Cascade)
+  assignedBy     User?    @relation("CreatedLocationAssignments", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, locationId, representativeUserId])
+  @@index([tenantId, representativeUserId, status])
+  @@index([tenantId, locationId, status])
+  @@map("location_assignments")
+}
+
+model Product {
+  id            String        @id @default(cuid())
+  tenantId      String
+  externalCode  String?
+  name          String
+  sku           String?
+  category      String?
+  status        ProductStatus @default(active)
+  notApplicable Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  @@unique([tenantId, externalCode])
+  @@index([tenantId, status])
+  @@map("products")
+}
+
+model RoutePlan {
+  id                   String      @id @default(cuid())
+  tenantId             String
+  representativeUserId String
+  planDate             DateTime    @db.Date
+  status               RouteStatus @default(draft)
+  createdByUserId      String?
+  publishedAt          DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  representative User        @relation("RepresentativeRoutePlans", fields: [representativeUserId], references: [id], onDelete: Cascade)
+  createdBy      User?       @relation("CreatedRoutePlans", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items          RouteItem[]
+
+  @@unique([tenantId, representativeUserId, planDate])
+  @@index([tenantId, planDate])
+  @@index([tenantId, representativeUserId, planDate])
+  @@map("route_plans")
+}
+
+model RouteItem {
+  id               String          @id @default(cuid())
+  tenantId         String
+  routePlanId      String
+  locationId       String
+  sequence         Int
+  status           RouteItemStatus @default(planned)
+  plannedStartTime DateTime?
+  plannedEndTime   DateTime?
+  skipReason       String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  routePlan RoutePlan @relation(fields: [routePlanId], references: [id], onDelete: Cascade)
+  location  Location  @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  visit     Visit?
+
+  @@unique([tenantId, routePlanId, sequence])
+  @@index([tenantId, routePlanId])
+  @@index([tenantId, locationId])
+  @@map("route_items")
+}
+
+model Visit {
+  id                   String      @id @default(cuid())
+  tenantId             String
+  locationId           String
+  representativeUserId String
+  routeItemId          String?
+  visitType            String
+  status               VisitStatus @default(draft)
+  startedAt            DateTime?
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  location       Location    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  representative User        @relation("RepresentativeVisits", fields: [representativeUserId], references: [id], onDelete: Restrict)
+  routeItem      RouteItem?  @relation(fields: [routeItemId], references: [id], onDelete: SetNull)
+  notes          VisitNote[]
+  report         Report?
+  tasks          Task[]
+  aiJobs         AiJob[]
+
+  @@unique([routeItemId])
+  @@index([tenantId, representativeUserId, startedAt])
+  @@index([tenantId, locationId, startedAt])
+  @@index([tenantId, routeItemId])
+  @@index([tenantId, status])
+  @@index([tenantId, completedAt])
+  @@map("visits")
+}
+
+model VisitNote {
+  id                     String             @id @default(cuid())
+  tenantId               String
+  visitId                String
+  inputType              VisitNoteInputType
+  textContent            String?
+  temporaryAudioObjectId String?
+  createdByUserId        String
+  createdAt              DateTime           @default(now())
+  deletedAt              DateTime?
+
+  visit                Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  temporaryAudioObject StorageObject? @relation("VisitNoteTemporaryAudio", fields: [temporaryAudioObjectId], references: [id], onDelete: SetNull)
+  createdBy            User           @relation("CreatedVisitNotes", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, visitId])
+  @@index([temporaryAudioObjectId])
+  @@map("visit_notes")
+}
+
+model Report {
+  id                   String       @id @default(cuid())
+  tenantId             String
+  visitId              String       @unique
+  locationId           String
+  representativeUserId String
+  templateCode         SegmentTemplate
+  schemaVersion        String
+  status               ReportStatus @default(confirmed)
+  confirmedData        Json
+  confirmedByUserId    String
+  confirmedAt          DateTime
+  aiMetadata           Json?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  visit          Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  location       Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  representative User     @relation("RepresentativeReports", fields: [representativeUserId], references: [id], onDelete: Restrict)
+  confirmedBy    User     @relation("ConfirmedReports", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
+  tasks          Task[]
+
+  @@index([tenantId, confirmedAt])
+  @@index([tenantId, templateCode])
+  @@index([tenantId, representativeUserId, confirmedAt])
+  @@index([tenantId, locationId, confirmedAt])
+  @@map("reports")
+}
+
+model Task {
+  id               String       @id @default(cuid())
+  tenantId         String
+  title            String
+  description      String?
+  status           TaskStatus   @default(open)
+  priority         TaskPriority @default(normal)
+  assignedToUserId String?
+  createdByUserId  String?
+  locationId       String?
+  visitId          String?
+  reportId         String?
+  dueDate          DateTime?    @db.Date
+  completedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  assignedTo User?     @relation("AssignedTasks", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  createdBy  User?     @relation("CreatedTasks", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  visit      Visit?    @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  report     Report?   @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, assignedToUserId, status])
+  @@index([tenantId, dueDate])
+  @@index([tenantId, locationId])
+  @@index([tenantId, visitId])
+  @@map("tasks")
+}
+
+model ImportJob {
+  id                 String       @id @default(cuid())
+  tenantId           String
+  type               ImportType
+  status             ImportStatus @default(uploaded)
+  sourceFileObjectId String?
+  uploadedByUserId   String
+  confirmedByUserId  String?
+  rowCount           Int          @default(0)
+  validRowCount      Int          @default(0)
+  errorRowCount      Int          @default(0)
+  warningRowCount    Int          @default(0)
+  summary            Json?
+  createdAt          DateTime     @default(now())
+  validatedAt        DateTime?
+  confirmedAt        DateTime?
+  appliedAt          DateTime?
+  failedAt           DateTime?
+  updatedAt          DateTime     @updatedAt
+
+  sourceFile  StorageObject?   @relation("ImportSourceFile", fields: [sourceFileObjectId], references: [id], onDelete: SetNull)
+  uploadedBy  User             @relation("UploadedImports", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  confirmedBy User?            @relation("ConfirmedImports", fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  issues      ImportRowIssue[]
+
+  @@index([tenantId, type, createdAt])
+  @@index([tenantId, status])
+  @@map("import_jobs")
+}
+
+model ImportRowIssue {
+  id          String              @id @default(cuid())
+  tenantId    String
+  importJobId String
+  rowNumber   Int
+  fieldName   String?
+  severity    ImportIssueSeverity
+  code        String
+  message     String
+  rawValue    String?
+  createdAt   DateTime            @default(now())
+
+  importJob ImportJob @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, importJobId])
+  @@index([tenantId, importJobId, rowNumber])
+  @@map("import_row_issues")
+}
+
+model AiJob {
+  id                          String      @id @default(cuid())
+  tenantId                    String
+  visitId                     String
+  type                        AiJobType
+  status                      AiJobStatus @default(queued)
+  provider                    String
+  model                       String
+  promptVersion               String?
+  schemaVersion               String?
+  inputObjectId               String?
+  temporaryTranscriptObjectId String?
+  temporaryDraft              Json?
+  errorCode                   String?
+  errorMessage                String?
+  startedAt                   DateTime?
+  finishedAt                  DateTime?
+  expiresAt                   DateTime?
+  createdAt                   DateTime    @default(now())
+  updatedAt                   DateTime    @updatedAt
+
+  visit                     Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  inputObject               StorageObject? @relation("AiJobInputObject", fields: [inputObjectId], references: [id], onDelete: SetNull)
+  temporaryTranscriptObject StorageObject? @relation("AiJobTemporaryTranscript", fields: [temporaryTranscriptObjectId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, visitId])
+  @@index([tenantId, status])
+  @@index([expiresAt])
+  @@map("ai_jobs")
+}
+
+model StorageObject {
+  id              String               @id @default(cuid())
+  tenantId        String
+  bucket          String
+  objectKey       String
+  purpose         StorageObjectPurpose
+  contentType     String
+  sizeBytes       BigInt?
+  checksum        String?
+  status          StorageObjectStatus  @default(active)
+  expiresAt       DateTime?
+  createdByUserId String?
+  createdAt       DateTime             @default(now())
+  deletedAt       DateTime?
+
+  createdBy                  User?       @relation("CreatedStorageObjects", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  visitNotesAsTemporaryAudio VisitNote[] @relation("VisitNoteTemporaryAudio")
+  importJobsAsSourceFile     ImportJob[] @relation("ImportSourceFile")
+  aiJobsAsInputObject        AiJob[]     @relation("AiJobInputObject")
+  aiJobsAsTemporaryTranscript AiJob[]    @relation("AiJobTemporaryTranscript")
+
+  @@unique([bucket, objectKey])
+  @@index([tenantId, purpose])
+  @@index([tenantId, expiresAt])
+  @@index([tenantId, status])
+  @@map("storage_objects")
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  tenantId    String
+  actorUserId String?
+  entityType  String
+  entityId    String
+  eventType   String
+  metadata    Json?
+  requestId   String?
+  createdAt   DateTime @default(now())
+
+  actor User? @relation("ActorAuditEvents", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, actorUserId, createdAt])
+  @@map("audit_events")
+}

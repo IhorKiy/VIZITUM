@@ -459,8 +459,7 @@ Tenant-owned entity groups:
 - route items;
 - visits;
 - visit drafts;
-- transcripts;
-- AI outputs;
+- temporary transcripts and AI drafts during processing;
 - final reports;
 - tasks;
 - imports;
@@ -542,22 +541,23 @@ AI flow:
 ```mermaid
 flowchart TD
   Visit["Visit draft"] --> Note["Text or audio note"]
-  Note --> Store["Store raw note/audio reference"]
+  Note --> Store["Create temporary processing input"]
   Store --> Transcribe["Transcription job when audio"]
   Transcribe --> Extract["AI extraction job"]
   Note --> Extract
   Extract --> Draft["AI draft"]
   Draft --> Confirm["User confirms or edits"]
   Confirm --> Final["Final confirmed report"]
+  Confirm --> Cleanup["Delete temporary audio/transcript/draft"]
   Confirm --> Tasks["Create confirmed tasks"]
 ```
 
 Key rules:
 
 - AI provider for MVP: OpenAI;
-- raw audio stored in tenant-scoped storage;
-- raw notes, transcripts, AI outputs and final reports are stored for audit/debug;
-- raw notes, transcripts and AI outputs are not written to logs;
+- raw audio and transcripts are temporary processing inputs only;
+- only the final confirmed report and minimal AI processing metadata are retained after confirmation;
+- raw notes, transcripts and AI drafts are not written to logs;
 - AI draft never changes final business data without user confirmation;
 - tasks from AI draft are created only after confirmation;
 - manual text fallback is always available;
@@ -570,13 +570,13 @@ Low-level design must define:
 - job retry policy;
 - transcription status model;
 - AI output states: draft, confirmed, edited, discarded;
-- retention policy for raw audio and transcripts.
+- cleanup policy for temporary raw audio, transcripts and AI drafts.
 
 ## 15. Storage Architecture
 
 Storage is used for:
 
-- raw visit audio;
+- temporary visit audio during AI processing;
 - import files;
 - exports, if added later;
 - optional photos, post-MVP.
@@ -584,7 +584,7 @@ Storage is used for:
 Tenant-scoped path pattern:
 
 ```text
-tenants/{tenantId}/visit-audio/{visitId}/{fileId}.webm
+tenants/{tenantId}/tmp/audio/{visitId}/{fileId}.webm
 tenants/{tenantId}/imports/{importId}/{fileName}
 tenants/{tenantId}/exports/{exportId}/{fileName}
 ```
@@ -633,7 +633,7 @@ Security principles:
 - tenant isolation is a release-blocking requirement;
 - backend is source of truth for tenant context and permissions;
 - sensitive business data is not logged;
-- raw audio/transcripts/AI outputs are tenant-scoped;
+- raw audio, transcripts and AI drafts are tenant-scoped temporary processing data and are deleted after confirmation or retry-window expiry;
 - storage uses private buckets and signed access;
 - API validates all inputs;
 - password/session/token storage follows standard secure practices;
@@ -645,7 +645,7 @@ Privacy/legal for MVP:
 - user sees short in-app notice before first voice recording;
 - AI processing is transparent in the visit flow;
 - failed AI processing has manual fallback;
-- retention policy must be finalized before production pilot.
+- after confirmation, the system retains only the confirmed report and minimal processing metadata.
 
 ## 18. Reliability and Performance
 
@@ -718,24 +718,24 @@ Initial performance target:
 - Copyable pilot summary.
 - Basic operations monitoring.
 
-## 20. Open Questions for Low-Level Design
+## 20. Resolved Decisions for Low-Level Design
 
-These questions do not block HLD, but must be resolved before implementation:
+These decisions were raised as HLD follow-up questions and must be carried into LLD and implementation planning.
 
-- Exact Prisma schema and migration strategy.
-- Whether to use PostgreSQL RLS in addition to app-layer tenant filters.
-- Session implementation: cookie sessions, JWT, or hybrid.
-- Full permission key list and role-permission matrix as code.
-- API DTOs, pagination, filtering and error format.
-- Exact import templates and validation rules.
-- XLSX direct parser versus assisted conversion only for launch.
-- Browser audio format strategy: MediaRecorder detection, preferred `audio/webm;codecs=opus`, iOS/Safari fallback such as `audio/mp4` or `audio/mp4;codecs=mp4a.40.2`, accepted upload formats and backend normalization rules.
-- AI extraction schemas for `distribution`, `service`, `partner_account`.
-- Prompt versioning and retention policy for raw audio/transcripts.
-- Storage provider choice: S3, R2 or Supabase Storage.
-- API/workers runtime provider: Render, Fly.io or AWS ECS.
-- Observability vendor/tooling.
-- Backup/restore strategy for shared DB.
+- Prisma schema and migrations: Prisma schema is the source of truth for the database structure. All database structure changes go through reviewed Prisma migrations and are applied through controlled deploys, not manual production edits.
+- Tenant isolation: MVP uses app-layer tenant isolation through mandatory Prisma/backend tenant filters, centralized in service/repository access patterns, with tenant isolation tests. PostgreSQL RLS is deferred as a future hardening option.
+- Sessions: MVP uses secure HTTP-only cookie sessions for the web app, with expiration, logout/revoke behavior, and CSRF protection for cookie-based write requests. JWT access/refresh tokens are deferred until mobile app or external API requirements appear.
+- Permissions: Permission keys are defined as stable constants in code. Roles are mapped to permissions through a versioned role-permission matrix in code/seed configuration. Backend authorization checks use permissions, not only role names. For MVP, users store assigned roles in DB, while effective permissions come from the code-defined matrix.
+- API contracts: API uses explicit JSON DTO contracts for core resources, validated on the backend. List endpoints use a standard paginated response with `items`, `page`, `pageSize`, `total`, and `totalPages`. Filtering is done through whitelisted query parameters. Errors use a consistent format with `code`, `message`, optional `details`, optional `fieldErrors`, and `requestId`.
+- Import templates and validation: MVP defines separate fixed import templates for required launch data: users, locations/accounts, contacts, and initial visit/task plan. Each template defines required/optional columns, data types, uniqueness rules, and validation rules. Imports use a two-step flow: preview/validation first, then explicit confirmation. MVP import is all-or-nothing: invalid rows block the import and show row, field, and reason.
+- XLSX parsing: MVP supports direct `.xlsx` import for approved templates, with optional `.csv` fallback. The importer reads only the expected sheet, validates exact column names and data formats, and does not support arbitrary Excel layouts, merged cells, or formulas as business logic. Assisted conversion remains a fallback instruction for non-compliant files.
+- Browser audio format strategy: Frontend selects the recording MIME type through `MediaRecorder.isTypeSupported`, preferring `audio/webm;codecs=opus`. Safari/iOS falls back to `audio/mp4;codecs=mp4a.40.2`, then `audio/mp4`, then browser default. Backend accepts only whitelisted formats: WebM/Opus, MP4/AAC, M4A/AAC, and WAV fallback. Uploaded audio is normalized server-side into one internal transcription format, such as FLAC or WAV/PCM depending on the transcription provider. Original audio is not retained after confirmation.
+- AI extraction schemas: MVP defines separate versioned JSON schemas for `distribution`, `service`, and `partner_account` AI extraction. Each schema includes required fields, optional fields, confidence scores for AI-extracted values, source transcript references where available during processing, and suggested tasks. AI extraction creates an editable draft only; the user must review and confirm it before it becomes the official report. Schema version is stored with each confirmed report for audit and future compatibility.
+- Prompt versioning and retention: Raw audio and transcripts are temporary processing inputs only and are not retained after the user confirms the report. After successful transcription, extraction, and user confirmation, the system stores only the final confirmed report plus minimal processing metadata such as `promptVersion`, `schemaVersion`, model/provider, timestamp, and status. Raw audio and transcript are deleted automatically. If processing fails, temporary audio/transcript may be kept only for a short retry window, for example up to 24 hours, then deleted. If quality is poor, the representative can re-record or manually edit before confirmation.
+- Storage provider: Use an S3-compatible storage abstraction in the application code. MVP primary object storage is Cloudflare R2, mainly for temporary audio uploads, import validation files, generated exports, and future lightweight attachments. AWS S3 remains a compatible alternative if enterprise requirements demand it later. Supabase Storage is not selected unless Supabase becomes the broader platform choice.
+- API/workers runtime: Use Render for MVP API server and background workers. API and workers are deployed as separate services with shared environment configuration. Workers handle imports, transcription/extraction jobs, exports, and scheduled cleanup. The app remains container-ready/portable so it can move to Fly.io or AWS ECS later without changing core business logic.
+- Observability: MVP uses Sentry for frontend/backend error tracking and performance monitoring, plus structured JSON logs from Render API/workers. Each API request and background job includes `requestId`/`jobId` for correlation. Minimum tracked signals: API error rate, API latency, failed jobs, import failures, transcription/extraction failures, and storage cleanup failures. Production-critical failures trigger alerts. OpenTelemetry/distributed tracing is deferred until system complexity requires it.
+- Backup and restore: Use managed PostgreSQL provider backups for MVP: automated daily backups plus point-in-time recovery if the provider supports it. Keep at least 7-14 days of backups for MVP. Before production launch, perform a restore drill on staging by restoring a backup into a test/staging database and verifying that the app starts and key data is available. For the shared DB, restore operations must follow a documented manual runbook because a restore can affect all tenants. Before risky migrations, create a pre-migration backup/snapshot.
 
 ## 21. HLD Definition of Done
 
@@ -748,6 +748,6 @@ This HLD is sufficient when:
 - async jobs and AI flow are separated from request lifecycle;
 - security/privacy principles are captured;
 - company-level DPA or AI processing addendum and first-recording in-app notice are treated as release-blocking for production pilot;
-- raw audio/transcript retention policy is finalized before production pilot;
+- raw audio/transcript retention policy is resolved as temporary processing only, with only the confirmed report retained;
 - delivery phases are defined;
-- low-level design questions are clearly listed.
+- low-level design decisions are clearly captured for LLD.
