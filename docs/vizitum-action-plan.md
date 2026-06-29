@@ -115,7 +115,7 @@ Status legend:
 - [x] Implement route items.
 - [x] Implement visit creation.
 - [x] Implement manual text report flow.
-- [ ] Implement task creation and updates.
+- [x] Implement task creation and updates.
 
 ## 9. Imports Backlog
 
