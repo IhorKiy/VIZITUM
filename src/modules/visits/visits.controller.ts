@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -12,6 +13,8 @@ import {
 import type { VisitStatus } from "@prisma/client";
 import type { Request } from "express";
 
+import { AiService } from "../ai/ai.service";
+import type { CreateTranscriptionJobRequestBody } from "../ai/ai.types";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
   RequireAnyPermissions,
@@ -31,7 +34,10 @@ import type {
 @Controller("visits")
 @UseGuards(PermissionGuard)
 export class VisitsController {
-  constructor(private readonly visitsService: VisitsService) {}
+  constructor(
+    private readonly visitsService: VisitsService,
+    private readonly aiService: AiService,
+  ) {}
 
   @Get()
   @RequireAnyPermissions(
@@ -105,6 +111,23 @@ export class VisitsController {
     );
   }
 
+  @Post(":visitId/ai/transcription-jobs")
+  @RequirePermissions(
+    PERMISSIONS.VISITS_UPDATE_OWN,
+    PERMISSIONS.AI_USE_REPORTING,
+  )
+  createTranscriptionJob(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: CreateTranscriptionJobRequestBody,
+  ) {
+    return this.aiService.createTranscriptionJob(
+      getRequestContext(request),
+      visitId,
+      parseRequiredBodyString(body.inputObjectId, "inputObjectId"),
+    );
+  }
+
   @Post(":visitId/reports/confirm")
   @RequirePermissions(PERMISSIONS.REPORTS_CONFIRM_OWN)
   confirmReport(
@@ -157,4 +180,18 @@ function normalizeQueryString(value: string | undefined): string | undefined {
   const normalizedValue = value?.trim();
 
   return normalizedValue || undefined;
+}
+
+function parseRequiredBodyString(value: unknown, fieldName: string): string {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  throw new BadRequestException({
+    code: "REQUEST_BODY_INVALID",
+    message: `${fieldName} is required.`,
+    fieldErrors: {
+      [fieldName]: [`${fieldName} is required.`],
+    },
+  });
 }
