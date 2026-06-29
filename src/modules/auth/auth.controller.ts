@@ -1,0 +1,63 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+} from "@nestjs/common";
+import type { Request, Response } from "express";
+
+import { AuthService } from "./auth.service";
+import type { LoginRequestBody, SwitchRoleRequestBody } from "./auth.types";
+import { clearCsrfCookie } from "./csrf";
+import { clearSessionCookie, readSessionToken } from "./session-cookie";
+import { SessionService } from "./session.service";
+
+@Controller("auth")
+export class AuthController {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly sessionService: SessionService,
+  ) {}
+
+  @Post("login")
+  @HttpCode(200)
+  login(
+    @Body() body: LoginRequestBody,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.authService.login(body, request, response);
+  }
+
+  @Get("me")
+  me(@Req() request: Request) {
+    return this.authService.getCurrentUser(request);
+  }
+
+  @Post("role")
+  @HttpCode(200)
+  switchRole(@Body() body: SwitchRoleRequestBody, @Req() request: Request) {
+    return this.authService.switchRole(body, request);
+  }
+
+  @Post("logout")
+  @HttpCode(200)
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const token = readSessionToken(request);
+
+    if (token) {
+      await this.sessionService.revokeSessionByToken(token);
+    }
+
+    clearSessionCookie(response);
+    clearCsrfCookie(response);
+
+    return { ok: true };
+  }
+}

@@ -1,0 +1,17 @@
+import { Injectable } from "@nestjs/common";
+import { hash, verify } from "argon2";
+
+@Injectable()
+export class PasswordService {
+  hashPassword(password: string): Promise<string> {
+    return hash(password);
+  }
+
+  async verifyPassword(hashValue: string, password: string): Promise<boolean> {
+    try {
+      return await verify(hashValue, password);
+    } catch {
+      return false;
+    }
+  }
+}

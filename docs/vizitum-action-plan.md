@@ -52,47 +52,47 @@ Status legend:
 - [x] Add request ID middleware/interceptor.
 - [x] Add tenant resolver foundation.
 - [x] Add request context object.
-- [ ] Add permission constants and role-permission matrix in code.
+- [x] Add permission constants and role-permission matrix in code.
 
 ## 5. Backend Foundation Backlog
 
 - [x] Configure TypeScript backend project structure.
-- [ ] Configure linting and formatting.
+- [x] Configure linting and formatting.
 - [x] Add NestJS app shell.
-- [ ] Add modules from LLD:
-  - [ ] `platform`;
-  - [ ] `auth`;
-  - [ ] `tenancy`;
-  - [ ] `users`;
-  - [ ] `roles`;
-  - [ ] `locations`;
-  - [ ] `products`;
-  - [ ] `routes`;
-  - [ ] `visits`;
-  - [ ] `tasks`;
-  - [ ] `imports`;
-  - [ ] `ai`;
-  - [ ] `storage`;
-  - [ ] `audit`;
-  - [ ] `operations`.
-- [ ] Add global API error format:
-  - [ ] `code`;
-  - [ ] `message`;
-  - [ ] optional `details`;
-  - [ ] optional `fieldErrors`;
-  - [ ] `requestId`.
-- [ ] Add standard paginated response contract.
+- [x] Add modules from LLD:
+  - [x] `platform`;
+  - [x] `auth`;
+  - [x] `tenancy`;
+  - [x] `users`;
+  - [x] `roles`;
+  - [x] `locations`;
+  - [x] `products`;
+  - [x] `routes`;
+  - [x] `visits`;
+  - [x] `tasks`;
+  - [x] `imports`;
+  - [x] `ai`;
+  - [x] `storage`;
+  - [x] `audit`;
+  - [x] `operations`.
+- [x] Add global API error format:
+  - [x] `code`;
+  - [x] `message`;
+  - [x] optional `details`;
+  - [x] optional `fieldErrors`;
+  - [x] `requestId`.
+- [x] Add standard paginated response contract.
 
 ## 6. Auth and Authorization Backlog
 
-- [ ] Implement session model usage.
-- [ ] Implement secure HTTP-only session cookie.
-- [ ] Implement login endpoint.
-- [ ] Implement logout/revoke endpoint.
+- [x] Implement session model usage.
+- [x] Implement secure HTTP-only session cookie.
+- [x] Implement login endpoint.
+- [x] Implement logout/revoke endpoint.
 - [ ] Implement invite accept flow.
-- [ ] Implement CSRF protection for cookie-based write requests.
-- [ ] Implement permission guard.
-- [ ] Implement role switcher support.
+- [x] Implement CSRF protection for cookie-based write requests.
+- [x] Implement permission guard.
+- [x] Implement role switcher support.
 - [ ] Add tenant isolation tests for auth/session flows.
 
 ## 7. Tenant and Platform Backlog

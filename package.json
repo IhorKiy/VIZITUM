@@ -12,6 +12,9 @@
     "db:down": "sh scripts/db-down.sh",
     "db:logs": "sh scripts/db-logs.sh",
     "dev": "tsx watch src/main.ts",
+    "format": "prettier --write \"src/**/*.ts\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
+    "format:check": "prettier --check \"src/**/*.ts\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
+    "lint": "eslint src prisma.config.ts",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
@@ -37,17 +40,23 @@
     "@nestjs/platform-express": "^11.1.27",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "argon2": "^0.44.0",
     "dotenv": "^17.4.2",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/express": "^5.0.6",
     "@types/node": "^26.0.1",
     "@types/pg": "^8.20.0",
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.1",
     "prisma": "^7.8.0",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.0"
   }
 }
