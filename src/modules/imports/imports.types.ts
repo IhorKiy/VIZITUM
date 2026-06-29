@@ -1,9 +1,5 @@
 export type ImportTemplateType =
-  | "users"
-  | "locations"
-  | "contacts"
-  | "products"
-  | "initial_visit_task_plan";
+  "users" | "locations" | "contacts" | "products" | "initial_visit_task_plan";
 
 export type ImportTemplateColumn = {
   key: string;
@@ -40,4 +36,34 @@ export type ParsedImportFile = {
   templateType: ImportTemplateType;
   columns: string[];
   rows: ParsedImportRow[];
+};
+
+export type ImportPreviewIssueSeverity = "error" | "warning";
+
+export type ImportPreviewIssue = {
+  rowNumber: number;
+  fieldName?: string;
+  severity: ImportPreviewIssueSeverity;
+  code: string;
+  message: string;
+  rawValue?: string;
+};
+
+export type ImportValidationPreview = {
+  templateType: ImportTemplateType;
+  rowCount: number;
+  validRowCount: number;
+  errorRowCount: number;
+  warningRowCount: number;
+  canConfirm: boolean;
+  issues: ImportPreviewIssue[];
+};
+
+export type CreateImportValidationJobOptions = {
+  sourceFileObjectId?: string;
+};
+
+export type StoredImportValidationPreview = ImportValidationPreview & {
+  importJobId: string;
+  status: "validated" | "validation_failed";
 };

@@ -127,8 +127,8 @@ Status legend:
   - [x] initial visit/task plan.
 - [x] Implement `.xlsx` parser for approved templates.
 - [x] Implement `.csv` fallback parser.
-- [ ] Implement import validation preview.
-- [ ] Implement row issue storage.
+- [x] Implement import validation preview.
+- [x] Implement row issue storage.
 - [ ] Implement all-or-nothing confirm/apply flow.
 
 ## 10. AI Reporting Backlog
