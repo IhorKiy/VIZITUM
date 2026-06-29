@@ -110,7 +110,7 @@ Status legend:
 - [x] Implement locations CRUD.
 - [x] Implement contacts CRUD.
 - [x] Implement location assignments.
-- [ ] Implement products/SKU CRUD.
+- [x] Implement products/SKU CRUD.
 - [ ] Implement route plans.
 - [ ] Implement route items.
 - [ ] Implement visit creation.
