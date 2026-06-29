@@ -20,7 +20,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "start": "node dist/main.js",
-    "test": "echo \"No test suite configured yet.\""
+    "test": "node --import tsx --test \"tests/**/*.test.ts\""
   },
   "repository": {
     "type": "git",

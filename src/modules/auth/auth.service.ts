@@ -239,8 +239,11 @@ export class AuthService {
       throwAuthenticationRequired();
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: session.userId },
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: session.userId,
+        tenantId: session.tenantId,
+      },
       include: { roles: true },
     });
 
@@ -288,8 +291,11 @@ export class AuthService {
       throwAuthenticationRequired();
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: session.userId },
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: session.userId,
+        tenantId: session.tenantId,
+      },
       include: { roles: true },
     });
 

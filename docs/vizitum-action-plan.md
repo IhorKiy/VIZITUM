@@ -39,13 +39,13 @@ Status legend:
 ## 3. Current Working State
 
 - [x] Migration files reviewed.
-- [~] Foundation files need to be committed.
+- [x] Foundation files committed.
 - [~] Use this action plan as the running progress tracker.
 
 ## 4. Immediate Next Steps
 
 - [x] Review initial migration SQL for table names, enum names, indexes and relation constraints.
-- [ ] Commit documentation, Prisma schema, config, Docker scripts and initial migration.
+- [x] Commit documentation, Prisma schema, config, Docker scripts and initial migration.
 - [x] Create backend skeleton.
 - [x] Add `PrismaService`.
 - [x] Add health endpoint.
@@ -93,7 +93,7 @@ Status legend:
 - [x] Implement CSRF protection for cookie-based write requests.
 - [x] Implement permission guard.
 - [x] Implement role switcher support.
-- [ ] Add tenant isolation tests for auth/session flows.
+- [x] Add tenant isolation tests for auth/session flows.
 
 ## 7. Tenant and Platform Backlog
 
@@ -119,12 +119,12 @@ Status legend:
 
 ## 9. Imports Backlog
 
-- [ ] Create downloadable import templates:
-  - [ ] users;
-  - [ ] locations;
-  - [ ] contacts;
-  - [ ] products;
-  - [ ] initial visit/task plan.
+- [x] Create downloadable import templates:
+  - [x] users;
+  - [x] locations;
+  - [x] contacts;
+  - [x] products;
+  - [x] initial visit/task plan.
 - [ ] Implement `.xlsx` parser for approved templates.
 - [ ] Implement `.csv` fallback parser.
 - [ ] Implement import validation preview.

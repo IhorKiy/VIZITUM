@@ -87,8 +87,11 @@ export class PermissionGuard implements CanActivate {
       this.prisma.platformTenant.findUnique({
         where: { id: session.tenantId },
       }),
-      this.prisma.user.findUnique({
-        where: { id: session.userId },
+      this.prisma.user.findFirst({
+        where: {
+          id: session.userId,
+          tenantId: session.tenantId,
+        },
         include: { roles: true },
       }),
     ]);
