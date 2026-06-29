@@ -21,6 +21,8 @@ import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { VisitsService } from "./visits.service";
 import type {
+  AddTextVisitNoteRequestBody,
+  ConfirmReportRequestBody,
   CreateVisitRequestBody,
   UpdateVisitRequestBody,
 } from "./visits.types";
@@ -68,6 +70,34 @@ export class VisitsController {
     @Body() body: UpdateVisitRequestBody,
   ) {
     return this.visitsService.updateVisit(
+      getRequestContext(request),
+      visitId,
+      body,
+    );
+  }
+
+  @Post(":visitId/notes/text")
+  @RequirePermissions(PERMISSIONS.VISITS_UPDATE_OWN)
+  addTextNote(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: AddTextVisitNoteRequestBody,
+  ) {
+    return this.visitsService.addTextNote(
+      getRequestContext(request),
+      visitId,
+      body,
+    );
+  }
+
+  @Post(":visitId/reports/confirm")
+  @RequirePermissions(PERMISSIONS.REPORTS_CONFIRM_OWN)
+  confirmReport(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: ConfirmReportRequestBody,
+  ) {
+    return this.visitsService.confirmReport(
       getRequestContext(request),
       visitId,
       body,

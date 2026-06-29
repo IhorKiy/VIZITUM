@@ -15,9 +15,13 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
+  AddTextVisitNoteRequestBody,
+  ConfirmReportRequestBody,
   CreateVisitRequestBody,
   ListVisitsQuery,
+  ReportResponse,
   UpdateVisitRequestBody,
+  VisitNoteResponse,
   VisitResponse,
 } from "./visits.types";
 
@@ -170,6 +174,140 @@ export class VisitsService {
     });
 
     return toVisitResponse(updatedVisit);
+  }
+
+  async addTextNote(
+    context: RequestContext,
+    visitId: string,
+    body: AddTextVisitNoteRequestBody,
+  ): Promise<VisitNoteResponse> {
+    const visit = await this.findTenantVisit(context.tenantId, visitId);
+
+    this.assertCanUpdateVisit(context, visit.representativeUserId);
+
+    const textContent = normalizeRequiredString(body.textContent);
+
+    if (!textContent) {
+      throw new BadRequestException({
+        code: "VISIT_NOTE_INVALID",
+        message: "Text content is required.",
+        fieldErrors: {
+          textContent: ["Text content is required."],
+        },
+      });
+    }
+
+    if (!context.userId) {
+      throwMissingVisitPermission();
+    }
+
+    const note = await this.prisma.visitNote.create({
+      data: {
+        tenantId: context.tenantId,
+        visitId: visit.id,
+        inputType: "text",
+        textContent,
+        createdByUserId: context.userId,
+      },
+    });
+
+    return toVisitNoteResponse(note);
+  }
+
+  async confirmReport(
+    context: RequestContext,
+    visitId: string,
+    body: ConfirmReportRequestBody,
+  ): Promise<ReportResponse> {
+    if (!context.permissions.includes(PERMISSIONS.REPORTS_CONFIRM_OWN)) {
+      throwMissingVisitPermission();
+    }
+
+    const visit = await this.findTenantVisit(context.tenantId, visitId);
+
+    this.assertCanUpdateVisit(context, visit.representativeUserId);
+
+    if (!context.userId) {
+      throwMissingVisitPermission();
+    }
+
+    const confirmedByUserId = context.userId;
+    const confirmedData = normalizeJsonObject(body.confirmedData);
+    const schemaVersion =
+      normalizeRequiredString(body.schemaVersion) ?? "manual.v1";
+
+    if (!confirmedData) {
+      throw new BadRequestException({
+        code: "REPORT_INVALID",
+        message: "Confirmed report data is required.",
+        fieldErrors: {
+          confirmedData: ["Confirmed report data must be a JSON object."],
+        },
+      });
+    }
+
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: context.tenantId },
+      select: { segmentTemplate: true },
+    });
+
+    if (!tenant) {
+      throw new BadRequestException({
+        code: "TENANT_INVALID",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    const report = await this.prisma.$transaction(async (tx) => {
+      const confirmedAt = new Date();
+      const result = await tx.report.upsert({
+        where: { visitId: visit.id },
+        create: {
+          tenantId: context.tenantId,
+          visitId: visit.id,
+          locationId: visit.locationId,
+          representativeUserId: visit.representativeUserId,
+          templateCode: tenant.segmentTemplate,
+          schemaVersion,
+          status: "confirmed",
+          confirmedData,
+          confirmedByUserId,
+          confirmedAt,
+          aiMetadata: {
+            source: "manual_text",
+          },
+        },
+        update: {
+          schemaVersion,
+          status: "confirmed",
+          confirmedData,
+          confirmedByUserId,
+          confirmedAt,
+          aiMetadata: {
+            source: "manual_text",
+          },
+        },
+      });
+
+      await tx.visit.update({
+        where: { id: visit.id },
+        data: {
+          status: "completed",
+          completedAt: visit.completedAt ?? confirmedAt,
+        },
+      });
+
+      if (visit.routeItemId) {
+        await tx.routeItem.update({
+          where: { id: visit.routeItemId },
+          data: { status: "visited" },
+        });
+      }
+
+      return result;
+    });
+
+    return toReportResponse(report);
   }
 
   private async findTenantVisit(
@@ -372,6 +510,14 @@ function normalizeRequiredString(value: unknown): string | null {
   return normalizedValue || null;
 }
 
+function normalizeJsonObject(value: unknown): Prisma.InputJsonObject | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value;
+}
+
 function normalizeVisitStatus(value: unknown): VisitStatus | null {
   if (
     value === "draft" ||
@@ -433,6 +579,56 @@ function toVisitResponse(visit: VisitWithRelations): VisitResponse {
     cancelledAt: visit.cancelledAt?.toISOString() ?? null,
     createdAt: visit.createdAt.toISOString(),
     updatedAt: visit.updatedAt.toISOString(),
+  };
+}
+
+function toVisitNoteResponse(note: {
+  id: string;
+  visitId: string;
+  inputType: "text" | "audio";
+  textContent: string | null;
+  createdByUserId: string;
+  createdAt: Date;
+}): VisitNoteResponse {
+  return {
+    id: note.id,
+    visitId: note.visitId,
+    inputType: note.inputType,
+    textContent: note.textContent,
+    createdByUserId: note.createdByUserId,
+    createdAt: note.createdAt.toISOString(),
+  };
+}
+
+function toReportResponse(report: {
+  id: string;
+  visitId: string;
+  locationId: string;
+  representativeUserId: string;
+  templateCode: string;
+  schemaVersion: string;
+  status: string;
+  confirmedData: unknown;
+  confirmedByUserId: string;
+  confirmedAt: Date;
+  aiMetadata: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}): ReportResponse {
+  return {
+    id: report.id,
+    visitId: report.visitId,
+    locationId: report.locationId,
+    representativeUserId: report.representativeUserId,
+    templateCode: report.templateCode,
+    schemaVersion: report.schemaVersion,
+    status: report.status,
+    confirmedData: report.confirmedData,
+    confirmedByUserId: report.confirmedByUserId,
+    confirmedAt: report.confirmedAt.toISOString(),
+    aiMetadata: report.aiMetadata,
+    createdAt: report.createdAt.toISOString(),
+    updatedAt: report.updatedAt.toISOString(),
   };
 }
 

@@ -47,3 +47,37 @@ export type UpdateVisitRequestBody = {
   completedAt?: unknown;
   cancelledAt?: unknown;
 };
+
+export type VisitNoteResponse = {
+  id: string;
+  visitId: string;
+  inputType: "text" | "audio";
+  textContent: string | null;
+  createdByUserId: string;
+  createdAt: string;
+};
+
+export type AddTextVisitNoteRequestBody = {
+  textContent?: unknown;
+};
+
+export type ReportResponse = {
+  id: string;
+  visitId: string;
+  locationId: string;
+  representativeUserId: string;
+  templateCode: string;
+  schemaVersion: string;
+  status: string;
+  confirmedData: unknown;
+  confirmedByUserId: string;
+  confirmedAt: string;
+  aiMetadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConfirmReportRequestBody = {
+  confirmedData?: unknown;
+  schemaVersion?: unknown;
+};
