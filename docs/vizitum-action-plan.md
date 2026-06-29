@@ -108,7 +108,7 @@ Status legend:
 
 - [x] Implement admin users list/invite/update/role endpoints.
 - [x] Implement locations CRUD.
-- [ ] Implement contacts CRUD.
+- [x] Implement contacts CRUD.
 - [ ] Implement location assignments.
 - [ ] Implement products/SKU CRUD.
 - [ ] Implement route plans.

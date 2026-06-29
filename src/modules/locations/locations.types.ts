@@ -45,3 +45,26 @@ export type UpdateLocationRequestBody = Partial<
     status?: unknown;
   }
 >;
+
+export type LocationContactResponse = {
+  id: string;
+  locationId: string;
+  name: string;
+  roleTitle: string | null;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateLocationContactRequestBody = {
+  name?: unknown;
+  roleTitle?: unknown;
+  phone?: unknown;
+  email?: unknown;
+  notes?: unknown;
+};
+
+export type UpdateLocationContactRequestBody =
+  Partial<CreateLocationContactRequestBody>;

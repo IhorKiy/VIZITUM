@@ -14,9 +14,12 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
+  CreateLocationContactRequestBody,
   CreateLocationRequestBody,
   ListLocationsQuery,
+  LocationContactResponse,
   LocationResponse,
+  UpdateLocationContactRequestBody,
   UpdateLocationRequestBody,
 } from "./locations.types";
 
@@ -38,6 +41,16 @@ type LocationUpdateData = Partial<
     status: LocationStatus;
   }
 >;
+
+type LocationContactData = {
+  name: string;
+  roleTitle: string | null;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+};
+
+type LocationContactUpdateData = Partial<LocationContactData>;
 
 @Injectable()
 export class LocationsService {
@@ -129,6 +142,86 @@ export class LocationsService {
     return toLocationResponse(updatedLocation);
   }
 
+  async listContacts(
+    context: RequestContext,
+    locationId: string,
+  ): Promise<LocationContactResponse[]> {
+    const location = await this.findTenantLocation(
+      context.tenantId,
+      locationId,
+    );
+    const contacts = await this.prisma.locationContact.findMany({
+      where: {
+        tenantId: context.tenantId,
+        locationId: location.id,
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return contacts.map(toLocationContactResponse);
+  }
+
+  async createContact(
+    context: RequestContext,
+    locationId: string,
+    body: CreateLocationContactRequestBody,
+  ): Promise<LocationContactResponse> {
+    const location = await this.findTenantLocation(
+      context.tenantId,
+      locationId,
+    );
+    const data = parseCreateContactBody(body);
+    const contact = await this.prisma.locationContact.create({
+      data: {
+        tenantId: context.tenantId,
+        locationId: location.id,
+        ...data,
+      },
+    });
+
+    return toLocationContactResponse(contact);
+  }
+
+  async updateContact(
+    context: RequestContext,
+    locationId: string,
+    contactId: string,
+    body: UpdateLocationContactRequestBody,
+  ): Promise<LocationContactResponse> {
+    const contact = await this.findTenantContact(
+      context.tenantId,
+      locationId,
+      contactId,
+    );
+    const data = parseUpdateContactBody(body);
+    const updatedContact = await this.prisma.locationContact.update({
+      where: { id: contact.id },
+      data,
+    });
+
+    return toLocationContactResponse(updatedContact);
+  }
+
+  async deleteContact(
+    context: RequestContext,
+    locationId: string,
+    contactId: string,
+  ): Promise<{ ok: true }> {
+    const contact = await this.findTenantContact(
+      context.tenantId,
+      locationId,
+      contactId,
+    );
+
+    await this.prisma.locationContact.update({
+      where: { id: contact.id },
+      data: { deletedAt: new Date() },
+    });
+
+    return { ok: true };
+  }
+
   private async findTenantLocation(
     tenantId: string,
     locationId: string,
@@ -175,6 +268,32 @@ export class LocationsService {
         },
       });
     }
+  }
+
+  private async findTenantContact(
+    tenantId: string,
+    locationId: string,
+    contactId: string,
+  ) {
+    await this.findTenantLocation(tenantId, locationId);
+
+    const contact = await this.prisma.locationContact.findFirst({
+      where: {
+        id: contactId,
+        tenantId,
+        locationId,
+        deletedAt: null,
+      },
+    });
+
+    if (!contact) {
+      throw new NotFoundException({
+        code: "LOCATION_CONTACT_NOT_FOUND",
+        message: "Location contact was not found.",
+      });
+    }
+
+    return contact;
   }
 }
 
@@ -231,6 +350,52 @@ function parseCreateLocationBody(
     latitude: normalizeCoordinate(body.latitude),
     longitude: normalizeCoordinate(body.longitude),
     notes: normalizeOptionalString(body.notes),
+  };
+}
+
+function parseCreateContactBody(
+  body: CreateLocationContactRequestBody,
+): LocationContactData {
+  const name = normalizeRequiredString(body.name);
+
+  if (!name) {
+    throw new BadRequestException({
+      code: "LOCATION_CONTACT_INVALID",
+      message: "Contact name is required.",
+      fieldErrors: {
+        name: ["Name is required."],
+      },
+    });
+  }
+
+  return {
+    name,
+    roleTitle: normalizeOptionalString(body.roleTitle),
+    phone: normalizeOptionalString(body.phone),
+    email: normalizeOptionalString(body.email),
+    notes: normalizeOptionalString(body.notes),
+  };
+}
+
+function parseUpdateContactBody(
+  body: UpdateLocationContactRequestBody,
+): LocationContactUpdateData {
+  return {
+    ...(body.name !== undefined
+      ? { name: normalizeRequiredPatchString(body.name, "name") }
+      : {}),
+    ...(body.roleTitle !== undefined
+      ? { roleTitle: normalizeOptionalString(body.roleTitle) }
+      : {}),
+    ...(body.phone !== undefined
+      ? { phone: normalizeOptionalString(body.phone) }
+      : {}),
+    ...(body.email !== undefined
+      ? { email: normalizeOptionalString(body.email) }
+      : {}),
+    ...(body.notes !== undefined
+      ? { notes: normalizeOptionalString(body.notes) }
+      : {}),
   };
 }
 
@@ -368,5 +533,29 @@ function toLocationResponse(location: Location): LocationResponse {
     notes: location.notes,
     createdAt: location.createdAt.toISOString(),
     updatedAt: location.updatedAt.toISOString(),
+  };
+}
+
+function toLocationContactResponse(contact: {
+  id: string;
+  locationId: string;
+  name: string;
+  roleTitle: string | null;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): LocationContactResponse {
+  return {
+    id: contact.id,
+    locationId: contact.locationId,
+    name: contact.name,
+    roleTitle: contact.roleTitle,
+    phone: contact.phone,
+    email: contact.email,
+    notes: contact.notes,
+    createdAt: contact.createdAt.toISOString(),
+    updatedAt: contact.updatedAt.toISOString(),
   };
 }

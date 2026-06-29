@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -18,7 +19,9 @@ import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { LocationsService } from "./locations.service";
 import type {
+  CreateLocationContactRequestBody,
   CreateLocationRequestBody,
+  UpdateLocationContactRequestBody,
   UpdateLocationRequestBody,
 } from "./locations.types";
 
@@ -79,6 +82,62 @@ export class LocationsController {
       getRequestContext(request),
       locationId,
       body,
+    );
+  }
+
+  @Get(":locationId/contacts")
+  @RequirePermissions(PERMISSIONS.CONTACTS_READ)
+  listContacts(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+  ) {
+    return this.locationsService.listContacts(
+      getRequestContext(request),
+      locationId,
+    );
+  }
+
+  @Post(":locationId/contacts")
+  @RequirePermissions(PERMISSIONS.CONTACTS_MANAGE)
+  createContact(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+    @Body() body: CreateLocationContactRequestBody,
+  ) {
+    return this.locationsService.createContact(
+      getRequestContext(request),
+      locationId,
+      body,
+    );
+  }
+
+  @Patch(":locationId/contacts/:contactId")
+  @RequirePermissions(PERMISSIONS.CONTACTS_MANAGE)
+  updateContact(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+    @Param("contactId") contactId: string,
+    @Body() body: UpdateLocationContactRequestBody,
+  ) {
+    return this.locationsService.updateContact(
+      getRequestContext(request),
+      locationId,
+      contactId,
+      body,
+    );
+  }
+
+  @Delete(":locationId/contacts/:contactId")
+  @RequirePermissions(PERMISSIONS.CONTACTS_MANAGE)
+  deleteContact(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+    @Param("contactId") contactId: string,
+  ) {
+    return this.locationsService.deleteContact(
+      getRequestContext(request),
+      locationId,
+      contactId,
     );
   }
 }
