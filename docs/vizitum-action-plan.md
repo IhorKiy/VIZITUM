@@ -125,7 +125,7 @@ Status legend:
   - [x] contacts;
   - [x] products;
   - [x] initial visit/task plan.
-- [ ] Implement `.xlsx` parser for approved templates.
+- [x] Implement `.xlsx` parser for approved templates.
 - [ ] Implement `.csv` fallback parser.
 - [ ] Implement import validation preview.
 - [ ] Implement row issue storage.

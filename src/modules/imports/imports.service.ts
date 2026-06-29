@@ -1,13 +1,18 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
+import { execFileSync } from "node:child_process";
 
 import type {
   ImportTemplateDefinition,
   ImportTemplateDownload,
   ImportTemplateSummary,
   ImportTemplateType,
+  ParsedImportFile,
+  ParsedImportRow,
 } from "./imports.types";
 
 const CSV_CONTENT_TYPE = "text/csv; charset=utf-8";
+const FIRST_WORKSHEET_PATH = "xl/worksheets/sheet1.xml";
+const SHARED_STRINGS_PATH = "xl/sharedStrings.xml";
 
 const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
   {
@@ -248,6 +253,46 @@ export class ImportsService {
       body: buildCsvTemplate(template),
     };
   }
+
+  parseApprovedXlsxTemplate(
+    templateType: ImportTemplateType,
+    filePath: string,
+  ): ParsedImportFile {
+    const template = getTemplateDefinition(templateType);
+    const sharedStrings = readSharedStrings(filePath);
+    const worksheetXml = readXlsxEntry(filePath, FIRST_WORKSHEET_PATH);
+    const rows = parseWorksheetRows(worksheetXml, sharedStrings);
+    const [rawHeader, ...rawDataRows] = rows;
+    const columns = normalizeHeader(rawHeader ?? []);
+
+    assertApprovedHeader(template, columns);
+
+    return {
+      templateType,
+      columns,
+      rows: rawDataRows
+        .map((row) => mapRowToObject(columns, row))
+        .filter((row) => Object.values(row).some((value) => value !== "")),
+    };
+  }
+}
+
+function getTemplateDefinition(
+  templateType: ImportTemplateType,
+): ImportTemplateDefinition {
+  const template = IMPORT_TEMPLATES.find(
+    (candidate) => candidate.type === templateType,
+  );
+
+  if (!template) {
+    throw new BadRequestException({
+      code: "IMPORT_TEMPLATE_NOT_FOUND",
+      message: "Import template is not supported.",
+      details: { template: templateType },
+    });
+  }
+
+  return template;
 }
 
 function parseTemplateType(templateFile: string): ImportTemplateType {
@@ -286,4 +331,159 @@ function escapeCsvCell(value: string): string {
   }
 
   return `"${value.replaceAll('"', '""')}"`;
+}
+
+function readSharedStrings(filePath: string): string[] {
+  try {
+    return parseSharedStrings(readXlsxEntry(filePath, SHARED_STRINGS_PATH));
+  } catch (error) {
+    if (error instanceof BadRequestException) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
+function readXlsxEntry(filePath: string, entryPath: string): string {
+  try {
+    return execFileSync("unzip", ["-p", filePath, entryPath], {
+      encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    throw new BadRequestException({
+      code: "IMPORT_XLSX_INVALID",
+      message: "Uploaded file is not a supported .xlsx workbook.",
+      details: { entryPath },
+    });
+  }
+}
+
+function parseSharedStrings(xml: string): string[] {
+  return [...xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((match) =>
+    extractTextValue(match[1] ?? ""),
+  );
+}
+
+function parseWorksheetRows(
+  xml: string,
+  sharedStrings: readonly string[],
+): string[][] {
+  return [...xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)].map((rowMatch) => {
+    const row: string[] = [];
+
+    for (const cellMatch of (rowMatch[1] ?? "").matchAll(
+      /<c\b([^>]*)>([\s\S]*?)<\/c>/g,
+    )) {
+      const attributes = cellMatch[1] ?? "";
+      const body = cellMatch[2] ?? "";
+      const columnIndex = getCellColumnIndex(attributes);
+
+      if (columnIndex === null) {
+        continue;
+      }
+
+      row[columnIndex] = parseCellValue(attributes, body, sharedStrings);
+    }
+
+    return row.map((value) => value ?? "");
+  });
+}
+
+function getCellColumnIndex(attributes: string): number | null {
+  const reference = attributes.match(/\br="([A-Z]+)\d+"/)?.[1];
+
+  if (!reference) {
+    return null;
+  }
+
+  let columnNumber = 0;
+
+  for (const character of reference) {
+    columnNumber = columnNumber * 26 + character.charCodeAt(0) - 64;
+  }
+
+  return columnNumber - 1;
+}
+
+function parseCellValue(
+  attributes: string,
+  body: string,
+  sharedStrings: readonly string[],
+): string {
+  const cellType = attributes.match(/\bt="([^"]+)"/)?.[1];
+
+  if (cellType === "inlineStr") {
+    return extractTextValue(body).trim();
+  }
+
+  const rawValue = body.match(/<v>([\s\S]*?)<\/v>/)?.[1] ?? "";
+
+  if (cellType === "s") {
+    return sharedStrings[Number(rawValue)]?.trim() ?? "";
+  }
+
+  return decodeXmlValue(rawValue).trim();
+}
+
+function extractTextValue(xml: string): string {
+  return [...xml.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)]
+    .map((match) => decodeXmlValue(match[1] ?? ""))
+    .join("");
+}
+
+function decodeXmlValue(value: string): string {
+  return value
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&apos;", "'")
+    .replaceAll("&amp;", "&");
+}
+
+function normalizeHeader(header: readonly string[]): string[] {
+  return header.map((column) => column.trim().toLowerCase());
+}
+
+function assertApprovedHeader(
+  template: ImportTemplateDefinition,
+  columns: readonly string[],
+): void {
+  const approvedColumns = new Set(template.columns.map((column) => column.key));
+  const requiredColumns = template.columns
+    .filter((column) => column.required)
+    .map((column) => column.key);
+  const missingRequiredColumns = requiredColumns.filter(
+    (column) => !columns.includes(column),
+  );
+  const unknownColumns = columns.filter(
+    (column) => column && !approvedColumns.has(column),
+  );
+
+  if (missingRequiredColumns.length > 0 || unknownColumns.length > 0) {
+    throw new BadRequestException({
+      code: "IMPORT_XLSX_HEADER_INVALID",
+      message: "Uploaded workbook does not match the approved import template.",
+      details: {
+        template: template.type,
+        missingRequiredColumns,
+        unknownColumns,
+      },
+    });
+  }
+}
+
+function mapRowToObject(
+  columns: readonly string[],
+  row: readonly string[],
+): ParsedImportRow {
+  return columns.reduce<ParsedImportRow>((parsedRow, column, index) => {
+    if (column) {
+      parsedRow[column] = row[index]?.trim() ?? "";
+    }
+
+    return parsedRow;
+  }, {});
 }

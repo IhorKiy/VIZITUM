@@ -33,3 +33,11 @@ export type ImportTemplateDownload = {
   contentType: string;
   body: string;
 };
+
+export type ParsedImportRow = Record<string, string>;
+
+export type ParsedImportFile = {
+  templateType: ImportTemplateType;
+  columns: string[];
+  rows: ParsedImportRow[];
+};
