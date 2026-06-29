@@ -174,4 +174,77 @@ describe("import validation preview", () => {
       rawValue: "",
     });
   });
+
+  it("applies a validated import in one transaction", async () => {
+    const createdProducts: unknown[] = [];
+    const updatedJobs: unknown[] = [];
+    const prisma = {
+      importJob: {
+        findFirst: async () => ({
+          id: "import-job-products",
+          type: "products",
+          status: "validated",
+          errorRowCount: 0,
+          summary: {
+            templateType: "products",
+            columns: ["name", "external_code", "sku", "category"],
+            rows: [
+              {
+                name: "Product A",
+                external_code: "prod-a",
+                sku: "SKU-A",
+                category: "Category A",
+              },
+              {
+                name: "Product B",
+                external_code: "",
+                sku: "",
+                category: "",
+              },
+            ],
+            canConfirm: true,
+          },
+        }),
+      },
+      $transaction: async (
+        callback: (transaction: {
+          product: { create: (query: unknown) => Promise<void> };
+          importJob: { update: (query: unknown) => Promise<void> };
+        }) => Promise<unknown>,
+      ) =>
+        callback({
+          product: {
+            create: async (query: unknown) => {
+              createdProducts.push(query);
+            },
+          },
+          importJob: {
+            update: async (query: unknown) => {
+              updatedJobs.push(query);
+            },
+          },
+        }),
+    };
+
+    const service = new ImportsService(prisma as never);
+    const result = await service.confirmImportJob(
+      context as never,
+      "import-job-products",
+    );
+
+    assert.equal(result.status, "applied");
+    assert.equal(result.appliedRowCount, 2);
+    assert.equal(result.createdCounts.products, 2);
+    assert.equal(createdProducts.length, 2);
+    assert.equal(updatedJobs.length, 1);
+    assert.deepEqual(createdProducts[0], {
+      data: {
+        tenantId: "tenant-a",
+        externalCode: "prod-a",
+        name: "Product A",
+        sku: "SKU-A",
+        category: "Category A",
+      },
+    });
+  });
 });

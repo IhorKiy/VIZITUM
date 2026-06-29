@@ -129,7 +129,7 @@ Status legend:
 - [x] Implement `.csv` fallback parser.
 - [x] Implement import validation preview.
 - [x] Implement row issue storage.
-- [ ] Implement all-or-nothing confirm/apply flow.
+- [x] Implement all-or-nothing confirm/apply flow.
 
 ## 10. AI Reporting Backlog
 

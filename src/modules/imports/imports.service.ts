@@ -1,11 +1,17 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
-import type { Prisma, RoleCode } from "@prisma/client";
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import type { Prisma, RoleCode, TaskPriority } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
   CreateImportValidationJobOptions,
+  ImportApplyResult,
   ImportPreviewIssue,
   ImportTemplateDefinition,
   ImportTemplateDownload,
@@ -20,6 +26,20 @@ import type {
 const CSV_CONTENT_TYPE = "text/csv; charset=utf-8";
 const FIRST_WORKSHEET_PATH = "xl/worksheets/sheet1.xml";
 const SHARED_STRINGS_PATH = "xl/sharedStrings.xml";
+const DEFAULT_IMPORT_COUNTS: ImportApplyResult["createdCounts"] = {
+  users: 0,
+  userRoles: 0,
+  locations: 0,
+  locationAssignments: 0,
+  contacts: 0,
+  products: 0,
+  routePlans: 0,
+  routeItems: 0,
+  tasks: 0,
+};
+
+type ImportCreatedCounts = ImportApplyResult["createdCounts"];
+type PrismaTransaction = Prisma.TransactionClient;
 
 const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
   {
@@ -358,6 +378,8 @@ export class ImportsService {
           warningRowCount: preview.warningRowCount,
           summary: {
             templateType: preview.templateType,
+            columns: parsedFile.columns,
+            rows: parsedFile.rows,
             canConfirm: preview.canConfirm,
           },
           validatedAt: new Date(),
@@ -388,6 +410,425 @@ export class ImportsService {
       importJobId: importJob.id,
       status,
     };
+  }
+
+  async confirmImportJob(
+    context: RequestContext,
+    importJobId: string,
+  ): Promise<ImportApplyResult> {
+    if (!context.userId) {
+      throw new BadRequestException({
+        code: "IMPORT_CONFIRMER_REQUIRED",
+        message: "Authenticated user is required to confirm an import job.",
+      });
+    }
+
+    const confirmedByUserId = context.userId;
+    const prisma = this.getPrisma();
+    const importJob = await prisma.importJob.findFirst({
+      where: {
+        id: importJobId,
+        tenantId: context.tenantId,
+      },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        errorRowCount: true,
+        summary: true,
+      },
+    });
+
+    if (!importJob) {
+      throw new NotFoundException({
+        code: "IMPORT_JOB_NOT_FOUND",
+        message: "Import job was not found.",
+      });
+    }
+
+    if (importJob.status === "applied") {
+      throw new ConflictException({
+        code: "IMPORT_ALREADY_APPLIED",
+        message: "Import job has already been applied.",
+      });
+    }
+
+    if (importJob.status !== "validated" || importJob.errorRowCount > 0) {
+      throw new ConflictException({
+        code: "IMPORT_NOT_CONFIRMABLE",
+        message: "Only validated imports without errors can be confirmed.",
+      });
+    }
+
+    const parsedFile = parseStoredParsedFile(importJob.type, importJob.summary);
+    const createdCounts = await prisma.$transaction(async (transaction) => {
+      const counts = { ...DEFAULT_IMPORT_COUNTS };
+
+      switch (parsedFile.templateType) {
+        case "users":
+          await this.applyUsersImport(transaction, context, parsedFile, counts);
+          break;
+        case "locations":
+          await this.applyLocationsImport(
+            transaction,
+            context,
+            parsedFile,
+            counts,
+          );
+          break;
+        case "contacts":
+          await this.applyContactsImport(
+            transaction,
+            context,
+            parsedFile,
+            counts,
+          );
+          break;
+        case "products":
+          await this.applyProductsImport(
+            transaction,
+            context,
+            parsedFile,
+            counts,
+          );
+          break;
+        case "initial_visit_task_plan":
+          await this.applyInitialPlanImport(
+            transaction,
+            context,
+            parsedFile,
+            counts,
+          );
+          break;
+      }
+
+      await transaction.importJob.update({
+        where: { id: importJob.id },
+        data: {
+          status: "applied",
+          confirmedByUserId,
+          confirmedAt: new Date(),
+          appliedAt: new Date(),
+          summary: {
+            templateType: parsedFile.templateType,
+            columns: parsedFile.columns,
+            rows: parsedFile.rows,
+            canConfirm: true,
+            appliedCounts: counts,
+          },
+        },
+      });
+
+      return counts;
+    });
+
+    return {
+      importJobId: importJob.id,
+      status: "applied",
+      appliedRowCount: parsedFile.rows.length,
+      createdCounts,
+    };
+  }
+
+  private async applyUsersImport(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    parsedFile: ParsedImportFile,
+    counts: ImportCreatedCounts,
+  ): Promise<void> {
+    for (const row of parsedFile.rows) {
+      const roleCodes = parseRoleCodes(row.roles).filter(isTenantRoleCode);
+      const user = await transaction.user.create({
+        data: {
+          tenantId: context.tenantId,
+          email: normalizeValue(row.email),
+          name: requiredString(row.name),
+          phone: optionalString(row.phone),
+          status: "invited",
+        },
+        select: { id: true },
+      });
+
+      counts.users += 1;
+
+      if (roleCodes.length > 0) {
+        await transaction.userRole.createMany({
+          data: roleCodes.map((roleCode) => ({
+            tenantId: context.tenantId,
+            userId: user.id,
+            roleCode,
+            assignedByUserId: context.userId,
+          })),
+        });
+        counts.userRoles += roleCodes.length;
+      }
+    }
+  }
+
+  private async applyLocationsImport(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    parsedFile: ParsedImportFile,
+    counts: ImportCreatedCounts,
+  ): Promise<void> {
+    for (const row of parsedFile.rows) {
+      const location = await transaction.location.create({
+        data: {
+          tenantId: context.tenantId,
+          externalCode: optionalString(row.external_code),
+          name: requiredString(row.name),
+          type: optionalString(row.type),
+          addressLine: requiredString(row.address_line),
+          city: requiredString(row.city),
+          region: optionalString(row.region),
+          territory: optionalString(row.territory),
+          latitude: optionalNumber(row.latitude),
+          longitude: optionalNumber(row.longitude),
+          notes: optionalString(row.notes),
+        },
+        select: { id: true },
+      });
+
+      counts.locations += 1;
+
+      const representativeEmail = normalizeValue(
+        row.assigned_representative_email,
+      );
+
+      if (representativeEmail) {
+        const representative = await this.findExistingUserByEmailOrThrow(
+          transaction,
+          context.tenantId,
+          representativeEmail,
+        );
+
+        await transaction.locationAssignment.create({
+          data: {
+            tenantId: context.tenantId,
+            locationId: location.id,
+            representativeUserId: representative.id,
+            assignedByUserId: context.userId,
+            status: "active",
+          },
+        });
+        counts.locationAssignments += 1;
+      }
+    }
+  }
+
+  private async applyContactsImport(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    parsedFile: ParsedImportFile,
+    counts: ImportCreatedCounts,
+  ): Promise<void> {
+    for (const row of parsedFile.rows) {
+      const location = await this.resolveLocationReference(
+        transaction,
+        context.tenantId,
+        row.location_external_code,
+        row.location_name,
+      );
+
+      await transaction.locationContact.create({
+        data: {
+          tenantId: context.tenantId,
+          locationId: location.id,
+          name: requiredString(row.name),
+          roleTitle: optionalString(row.role_title),
+          phone: optionalString(row.phone),
+          email: optionalString(row.email),
+          notes: optionalString(row.notes),
+        },
+      });
+      counts.contacts += 1;
+    }
+  }
+
+  private async applyProductsImport(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    parsedFile: ParsedImportFile,
+    counts: ImportCreatedCounts,
+  ): Promise<void> {
+    for (const row of parsedFile.rows) {
+      await transaction.product.create({
+        data: {
+          tenantId: context.tenantId,
+          externalCode: optionalString(row.external_code),
+          name: requiredString(row.name),
+          sku: optionalString(row.sku),
+          category: optionalString(row.category),
+        },
+      });
+      counts.products += 1;
+    }
+  }
+
+  private async applyInitialPlanImport(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    parsedFile: ParsedImportFile,
+    counts: ImportCreatedCounts,
+  ): Promise<void> {
+    for (const row of parsedFile.rows) {
+      const representative = await this.findExistingUserByEmailOrThrow(
+        transaction,
+        context.tenantId,
+        normalizeValue(row.representative_email),
+        "field_representative",
+      );
+      const location = await this.resolveLocationReference(
+        transaction,
+        context.tenantId,
+        row.location_external_code,
+        row.location_name,
+      );
+      const planDate = parseDateOnly(row.plan_date);
+      const existingPlan = await transaction.routePlan.findUnique({
+        where: {
+          tenantId_representativeUserId_planDate: {
+            tenantId: context.tenantId,
+            representativeUserId: representative.id,
+            planDate,
+          },
+        },
+        select: { id: true },
+      });
+      const routePlan =
+        existingPlan ??
+        (await transaction.routePlan.create({
+          data: {
+            tenantId: context.tenantId,
+            representativeUserId: representative.id,
+            planDate,
+            createdByUserId: context.userId,
+          },
+          select: { id: true },
+        }));
+
+      if (!existingPlan) {
+        counts.routePlans += 1;
+      }
+
+      const sequence =
+        optionalPositiveInteger(row.sequence) ??
+        ((await transaction.routeItem.count({
+          where: {
+            tenantId: context.tenantId,
+            routePlanId: routePlan.id,
+          },
+        })) +
+          1);
+
+      await transaction.routeItem.create({
+        data: {
+          tenantId: context.tenantId,
+          routePlanId: routePlan.id,
+          locationId: location.id,
+          sequence,
+          plannedStartTime: optionalPlanDateTime(
+            row.plan_date,
+            row.planned_start_time,
+          ),
+          plannedEndTime: optionalPlanDateTime(
+            row.plan_date,
+            row.planned_end_time,
+          ),
+        },
+        select: { id: true },
+      });
+
+      counts.routeItems += 1;
+
+      const taskTitle = optionalString(row.task_title);
+
+      if (taskTitle) {
+        await transaction.task.create({
+          data: {
+            tenantId: context.tenantId,
+            title: taskTitle,
+            priority: parseTaskPriority(row.task_priority),
+            assignedToUserId: representative.id,
+            createdByUserId: context.userId,
+            locationId: location.id,
+            dueDate: row.task_due_date ? parseDateOnly(row.task_due_date) : null,
+          },
+        });
+        counts.tasks += 1;
+      }
+    }
+  }
+
+  private async findExistingUserByEmailOrThrow(
+    transaction: PrismaTransaction,
+    tenantId: string,
+    email: string,
+    requiredRoleCode?: RoleCode,
+  ): Promise<{ id: string }> {
+    const user = await transaction.user.findFirst({
+      where: {
+        tenantId,
+        email,
+        status: "active",
+        deletedAt: null,
+        roles: requiredRoleCode
+          ? { some: { tenantId, roleCode: requiredRoleCode } }
+          : undefined,
+      },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new BadRequestException({
+        code: "IMPORT_REFERENCE_NOT_FOUND",
+        message: "Import reference no longer resolves in this tenant.",
+      });
+    }
+
+    return user;
+  }
+
+  private async resolveLocationReference(
+    transaction: PrismaTransaction,
+    tenantId: string,
+    externalCodeInput: string | undefined,
+    nameInput: string | undefined,
+  ): Promise<{ id: string }> {
+    const externalCode = normalizeValue(externalCodeInput);
+
+    if (externalCode) {
+      const location = await transaction.location.findFirst({
+        where: {
+          tenantId,
+          externalCode,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+
+      if (!location) {
+        throwImportReferenceNotFound();
+      }
+
+      return location;
+    }
+
+    const name = normalizeValue(nameInput);
+    const locations = await transaction.location.findMany({
+      where: {
+        tenantId,
+        name,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (locations.length !== 1 || !locations[0]) {
+      throwImportReferenceNotFound();
+    }
+
+    return locations[0];
   }
 
   private async validateUsersPreview(
@@ -971,6 +1412,132 @@ export class ImportsService {
 
     return this.prisma;
   }
+}
+
+function parseStoredParsedFile(
+  templateType: ImportTemplateType,
+  summary: Prisma.JsonValue,
+): ParsedImportFile {
+  if (!isRecord(summary)) {
+    throwStoredImportInvalid();
+  }
+
+  const columns = summary.columns;
+  const rows = summary.rows;
+
+  if (
+    !Array.isArray(columns) ||
+    !columns.every((column) => typeof column === "string")
+  ) {
+    throwStoredImportInvalid();
+  }
+
+  if (!Array.isArray(rows) || !rows.every(isStringRecord)) {
+    throwStoredImportInvalid();
+  }
+
+  return {
+    templateType,
+    columns,
+    rows,
+  };
+}
+
+function requiredString(value: string | undefined): string {
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue) {
+    throw new BadRequestException({
+      code: "IMPORT_STORED_ROW_INVALID",
+      message: "Stored import row is missing a required value.",
+    });
+  }
+
+  return normalizedValue;
+}
+
+function optionalString(value: string | undefined): string | null {
+  const normalizedValue = value?.trim();
+
+  return normalizedValue || null;
+}
+
+function optionalNumber(value: string | undefined): number | null {
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return Number(normalizedValue);
+}
+
+function optionalPositiveInteger(value: string | undefined): number | null {
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return Number(normalizedValue);
+}
+
+function parseDateOnly(value: string | undefined): Date {
+  const normalizedValue = requiredString(value);
+
+  return new Date(`${normalizedValue}T00:00:00.000Z`);
+}
+
+function optionalPlanDateTime(
+  dateValue: string | undefined,
+  timeValue: string | undefined,
+): Date | null {
+  const normalizedTime = timeValue?.trim();
+
+  if (!normalizedTime) {
+    return null;
+  }
+
+  return new Date(`${requiredString(dateValue)}T${normalizedTime}:00.000Z`);
+}
+
+function parseTaskPriority(value: string | undefined): TaskPriority {
+  const normalizedValue = normalizeValue(value);
+
+  if (
+    normalizedValue === "low" ||
+    normalizedValue === "normal" ||
+    normalizedValue === "high"
+  ) {
+    return normalizedValue;
+  }
+
+  return "normal";
+}
+
+function throwStoredImportInvalid(): never {
+  throw new BadRequestException({
+    code: "IMPORT_STORED_SNAPSHOT_INVALID",
+    message: "Stored import snapshot is invalid.",
+  });
+}
+
+function throwImportReferenceNotFound(): never {
+  throw new BadRequestException({
+    code: "IMPORT_REFERENCE_NOT_FOUND",
+    message: "Import reference no longer resolves in this tenant.",
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isStringRecord(value: unknown): value is ParsedImportRow {
+  return (
+    isRecord(value) &&
+    Object.values(value).every((entry) => typeof entry === "string")
+  );
 }
 
 function getTemplateDefinition(

@@ -1,9 +1,18 @@
-import { Controller, Get, Param, Res, UseGuards } from "@nestjs/common";
-import type { Response } from "express";
+import {
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
+import type { Request, Response } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
+import type { RequestContext } from "../tenancy/request-context";
 import { ImportsService } from "./imports.service";
 
 @Controller("imports")
@@ -33,4 +42,24 @@ export class ImportsController {
 
     return template.body;
   }
+
+  @Post("jobs/:importJobId/confirm")
+  @RequirePermissions(PERMISSIONS.IMPORTS_CONFIRM)
+  confirmImportJob(
+    @Req() request: Request,
+    @Param("importJobId") importJobId: string,
+  ) {
+    return this.importsService.confirmImportJob(
+      getRequestContext(request),
+      importJobId,
+    );
+  }
+}
+
+function getRequestContext(request: Request): RequestContext {
+  if (!request.context) {
+    throw new Error("Request context was not initialized.");
+  }
+
+  return request.context;
 }

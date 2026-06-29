@@ -67,3 +67,20 @@ export type StoredImportValidationPreview = ImportValidationPreview & {
   importJobId: string;
   status: "validated" | "validation_failed";
 };
+
+export type ImportApplyResult = {
+  importJobId: string;
+  status: "applied";
+  appliedRowCount: number;
+  createdCounts: {
+    users: number;
+    userRoles: number;
+    locations: number;
+    locationAssignments: number;
+    contacts: number;
+    products: number;
+    routePlans: number;
+    routeItems: number;
+    tasks: number;
+  };
+};
