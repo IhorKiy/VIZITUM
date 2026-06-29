@@ -139,8 +139,8 @@ Status legend:
   - [x] `partner_account`.
 - [x] Implement temporary audio upload registration.
 - [x] Implement transcription job.
-- [ ] Implement extraction job.
-- [ ] Implement AI draft confirmation endpoint.
+- [x] Implement extraction job.
+- [x] Implement AI draft confirmation endpoint.
 - [ ] Implement cleanup of temporary audio/transcript/draft after confirmation.
 - [ ] Implement 24-hour retry-window cleanup for failed processing.
 

@@ -20,7 +20,7 @@ export type AiExtractionSchema = JsonSchema & {
 const mentionedProductSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "status"],
+  required: ["name", "status", "evidence"],
   properties: {
     name: {
       type: "string",
@@ -45,7 +45,7 @@ const mentionedProductSchema = {
 const taskToCreateSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "assignee"],
+  required: ["title", "description", "dueDate", "assignee", "priority"],
   properties: {
     title: {
       type: "string",
@@ -73,7 +73,7 @@ const taskToCreateSchema = {
 const locationUpdateSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["field", "proposedValue"],
+  required: ["field", "proposedValue", "reason"],
   properties: {
     field: {
       type: "string",

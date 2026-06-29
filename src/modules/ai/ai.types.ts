@@ -4,6 +4,15 @@ export type CreateTranscriptionJobRequestBody = {
   inputObjectId?: unknown;
 };
 
+export type CreateExtractionJobRequestBody = {
+  transcriptionJobId?: unknown;
+};
+
+export type ConfirmAiDraftRequestBody = {
+  extractionJobId?: unknown;
+  confirmedData?: unknown;
+};
+
 export type AiJobResponse = {
   id: string;
   visitId: string;
@@ -22,6 +31,25 @@ export type AiJobResponse = {
   updatedAt: string;
 };
 
+export type ConfirmAiDraftResponse = {
+  report: {
+    id: string;
+    visitId: string;
+    locationId: string;
+    representativeUserId: string;
+    templateCode: string;
+    schemaVersion: string;
+    status: string;
+    confirmedData: unknown;
+    confirmedByUserId: string;
+    confirmedAt: string;
+    aiMetadata: unknown;
+    createdAt: string;
+    updatedAt: string;
+  };
+  createdTaskCount: number;
+};
+
 export type TranscriptionAudioInput = {
   fileName: string;
   contentType: string;
@@ -30,4 +58,19 @@ export type TranscriptionAudioInput = {
 
 export type TranscriptionResult = {
   text: string;
+};
+
+export type ExtractionInput = {
+  transcript: string;
+  schemaName: string;
+  schema: unknown;
+  visitContext?: {
+    locationName?: string;
+    visitType?: string;
+    segmentTemplate?: string;
+  };
+};
+
+export type ExtractionResult = {
+  draft: Record<string, unknown>;
 };

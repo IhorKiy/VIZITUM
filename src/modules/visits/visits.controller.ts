@@ -14,7 +14,11 @@ import type { VisitStatus } from "@prisma/client";
 import type { Request } from "express";
 
 import { AiService } from "../ai/ai.service";
-import type { CreateTranscriptionJobRequestBody } from "../ai/ai.types";
+import type {
+  ConfirmAiDraftRequestBody,
+  CreateExtractionJobRequestBody,
+  CreateTranscriptionJobRequestBody,
+} from "../ai/ai.types";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
   RequireAnyPermissions,
@@ -125,6 +129,42 @@ export class VisitsController {
       getRequestContext(request),
       visitId,
       parseRequiredBodyString(body.inputObjectId, "inputObjectId"),
+    );
+  }
+
+  @Post(":visitId/ai/extraction-jobs")
+  @RequirePermissions(
+    PERMISSIONS.VISITS_UPDATE_OWN,
+    PERMISSIONS.AI_USE_REPORTING,
+  )
+  createExtractionJob(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: CreateExtractionJobRequestBody,
+  ) {
+    return this.aiService.createExtractionJob(
+      getRequestContext(request),
+      visitId,
+      parseRequiredBodyString(body.transcriptionJobId, "transcriptionJobId"),
+    );
+  }
+
+  @Post(":visitId/ai/drafts/confirm")
+  @RequirePermissions(
+    PERMISSIONS.VISITS_UPDATE_OWN,
+    PERMISSIONS.AI_USE_REPORTING,
+    PERMISSIONS.REPORTS_CONFIRM_OWN,
+  )
+  confirmAiDraft(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: ConfirmAiDraftRequestBody,
+  ) {
+    return this.aiService.confirmAiDraft(
+      getRequestContext(request),
+      visitId,
+      parseRequiredBodyString(body.extractionJobId, "extractionJobId"),
+      body.confirmedData,
     );
   }
 

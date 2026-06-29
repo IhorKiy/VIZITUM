@@ -14,19 +14,25 @@ import {
 } from "./ai-extraction.schemas";
 import type {
   AiJobResponse,
+  ConfirmAiDraftResponse,
+  ExtractionInput,
   TranscriptionAudioInput,
 } from "./ai.types";
+import { OpenAiExtractionClient } from "./openai-extraction.client";
 import { OpenAiTranscriptionClient } from "./openai-transcription.client";
 
 const AI_TEMPORARY_DATA_TTL_HOURS = 24;
 const OPENAI_PROVIDER = "openai";
 const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-transcribe";
+const DEFAULT_EXTRACTION_MODEL = "gpt-4.1-mini";
+const EXTRACTION_SCHEMA_VERSION = "visit-extraction.v1";
 
 @Injectable()
 export class AiService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transcriptionClient: OpenAiTranscriptionClient,
+    private readonly extractionClient: OpenAiExtractionClient,
   ) {}
 
   getExtractionSchema(segmentTemplate: SegmentTemplate): AiExtractionSchema {
@@ -189,10 +195,359 @@ export class AiService {
       return toAiJobResponse(updatedJob);
     }
   }
+
+  async createExtractionJob(
+    context: RequestContext,
+    visitId: string,
+    transcriptionJobId: string,
+  ): Promise<AiJobResponse> {
+    const [visit, transcriptionJob] = await Promise.all([
+      this.prisma.visit.findFirst({
+        where: {
+          id: visitId,
+          tenantId: context.tenantId,
+        },
+        include: {
+          location: true,
+        },
+      }),
+      this.prisma.aiJob.findFirst({
+        where: {
+          id: transcriptionJobId,
+          tenantId: context.tenantId,
+          visitId,
+          type: "transcription",
+          status: "succeeded",
+        },
+      }),
+    ]);
+
+    if (!visit) {
+      throw new NotFoundException({
+        code: "VISIT_NOT_FOUND",
+        message: "Visit was not found.",
+      });
+    }
+
+    if (
+      !context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) ||
+      context.userId !== visit.representativeUserId
+    ) {
+      throw new BadRequestException({
+        code: "AI_VISIT_SCOPE_INVALID",
+        message: "Extraction jobs can only be created for own visits.",
+      });
+    }
+
+    if (!transcriptionJob) {
+      throw new BadRequestException({
+        code: "EXTRACTION_INPUT_INVALID",
+        message: "Extraction requires a succeeded transcription job.",
+      });
+    }
+
+    const transcriptText = extractTranscriptText(transcriptionJob.temporaryDraft);
+
+    if (!transcriptText) {
+      throw new BadRequestException({
+        code: "EXTRACTION_TRANSCRIPT_MISSING",
+        message: "Succeeded transcription job does not include transcript text.",
+      });
+    }
+
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: context.tenantId },
+      select: { segmentTemplate: true },
+    });
+
+    if (!tenant) {
+      throw new BadRequestException({
+        code: "TENANT_INVALID",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    const job = await this.prisma.aiJob.create({
+      data: {
+        tenantId: context.tenantId,
+        visitId: visit.id,
+        type: "extraction",
+        status: "queued",
+        provider: OPENAI_PROVIDER,
+        model: getExtractionModel(),
+        promptVersion: "extraction.v1",
+        schemaVersion: EXTRACTION_SCHEMA_VERSION,
+        inputObjectId: transcriptionJob.temporaryTranscriptObjectId,
+        temporaryDraft: {
+          sourceTranscriptionJobId: transcriptionJob.id,
+          transcriptText,
+          visitContext: {
+            locationName: visit.location.name,
+            visitType: visit.visitType,
+            segmentTemplate: tenant.segmentTemplate,
+          },
+        },
+        expiresAt: buildTemporaryDataExpiry(),
+      },
+    });
+
+    return toAiJobResponse(job);
+  }
+
+  async runExtractionJob(jobId: string): Promise<AiJobResponse> {
+    const job = await this.prisma.aiJob.findFirst({
+      where: {
+        id: jobId,
+        type: "extraction",
+      },
+      include: {
+        visit: true,
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException({
+        code: "AI_JOB_NOT_FOUND",
+        message: "AI job was not found.",
+      });
+    }
+
+    if (job.status === "succeeded" || job.status === "cancelled") {
+      return toAiJobResponse(job);
+    }
+
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: job.tenantId },
+      select: { segmentTemplate: true },
+    });
+
+    if (!tenant) {
+      throw new BadRequestException({
+        code: "TENANT_INVALID",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    const extractionInput = buildExtractionInput(
+      job.temporaryDraft,
+      this.getExtractionSchema(tenant.segmentTemplate),
+      tenant.segmentTemplate,
+    );
+
+    await this.prisma.aiJob.update({
+      where: { id: job.id },
+      data: {
+        status: "running",
+        startedAt: job.startedAt ?? new Date(),
+        errorCode: null,
+        errorMessage: null,
+      },
+    });
+
+    try {
+      const extraction = await this.extractionClient.extract(
+        extractionInput,
+        job.model,
+      );
+      const updatedJob = await this.prisma.aiJob.update({
+        where: { id: job.id },
+        data: {
+          status: "succeeded",
+          temporaryDraft: extraction.draft as Prisma.InputJsonObject,
+          finishedAt: new Date(),
+          expiresAt: job.expiresAt ?? buildTemporaryDataExpiry(),
+        },
+      });
+
+      return toAiJobResponse(updatedJob);
+    } catch (error) {
+      const updatedJob = await this.prisma.aiJob.update({
+        where: { id: job.id },
+        data: {
+          status: "failed",
+          errorCode: "EXTRACTION_FAILED",
+          errorMessage:
+            error instanceof Error ? error.message : "Extraction failed.",
+          finishedAt: new Date(),
+          expiresAt: job.expiresAt ?? buildTemporaryDataExpiry(),
+        },
+      });
+
+      return toAiJobResponse(updatedJob);
+    }
+  }
+
+  async confirmAiDraft(
+    context: RequestContext,
+    visitId: string,
+    extractionJobId: string,
+    confirmedDataInput?: unknown,
+  ): Promise<ConfirmAiDraftResponse> {
+    if (
+      !context.permissions.includes(PERMISSIONS.REPORTS_CONFIRM_OWN) ||
+      !context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) ||
+      !context.userId
+    ) {
+      throw new BadRequestException({
+        code: "AI_DRAFT_CONFIRM_FORBIDDEN",
+        message: "You cannot confirm this AI draft.",
+      });
+    }
+
+    const job = await this.prisma.aiJob.findFirst({
+      where: {
+        id: extractionJobId,
+        tenantId: context.tenantId,
+        visitId,
+        type: "extraction",
+        status: "succeeded",
+      },
+      include: {
+        visit: true,
+      },
+    });
+
+    if (!job) {
+      throw new BadRequestException({
+        code: "AI_DRAFT_NOT_CONFIRMABLE",
+        message: "A succeeded extraction job is required.",
+      });
+    }
+
+    if (context.userId !== job.visit.representativeUserId) {
+      throw new BadRequestException({
+        code: "AI_VISIT_SCOPE_INVALID",
+        message: "AI drafts can only be confirmed for own visits.",
+      });
+    }
+
+    const confirmedData =
+      normalizeJsonObject(confirmedDataInput) ??
+      normalizeJsonObject(job.temporaryDraft);
+
+    if (!confirmedData) {
+      throw new BadRequestException({
+        code: "AI_DRAFT_INVALID",
+        message: "AI draft or confirmed data must be a JSON object.",
+      });
+    }
+
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: context.tenantId },
+      select: { segmentTemplate: true },
+    });
+
+    if (!tenant) {
+      throw new BadRequestException({
+        code: "TENANT_INVALID",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    const confirmedByUserId = context.userId;
+    const edited = confirmedDataInput !== undefined;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const confirmedAt = new Date();
+      const report = await tx.report.upsert({
+        where: { visitId: job.visit.id },
+        create: {
+          tenantId: context.tenantId,
+          visitId: job.visit.id,
+          locationId: job.visit.locationId,
+          representativeUserId: job.visit.representativeUserId,
+          templateCode: tenant.segmentTemplate,
+          schemaVersion: job.schemaVersion ?? EXTRACTION_SCHEMA_VERSION,
+          status: "confirmed",
+          confirmedData,
+          confirmedByUserId,
+          confirmedAt,
+          aiMetadata: {
+            source: "ai_draft",
+            extractionJobId: job.id,
+            provider: job.provider,
+            model: job.model,
+            edited,
+          },
+        },
+        update: {
+          schemaVersion: job.schemaVersion ?? EXTRACTION_SCHEMA_VERSION,
+          status: "confirmed",
+          confirmedData,
+          confirmedByUserId,
+          confirmedAt,
+          aiMetadata: {
+            source: "ai_draft",
+            extractionJobId: job.id,
+            provider: job.provider,
+            model: job.model,
+            edited,
+          },
+        },
+      });
+
+      await tx.visit.update({
+        where: { id: job.visit.id },
+        data: {
+          status: "completed",
+          completedAt: job.visit.completedAt ?? confirmedAt,
+        },
+      });
+
+      if (job.visit.routeItemId) {
+        await tx.routeItem.update({
+          where: { id: job.visit.routeItemId },
+          data: { status: "visited" },
+        });
+      }
+
+      await tx.task.deleteMany({
+        where: {
+          tenantId: context.tenantId,
+          reportId: report.id,
+        },
+      });
+
+      const tasksToCreate = extractTasksToCreate(confirmedData);
+
+      if (tasksToCreate.length > 0) {
+        await tx.task.createMany({
+          data: tasksToCreate.map((task) => ({
+            tenantId: context.tenantId,
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            assignedToUserId:
+              task.assignee === "representative"
+                ? job.visit.representativeUserId
+                : null,
+            createdByUserId: confirmedByUserId,
+            locationId: job.visit.locationId,
+            visitId: job.visit.id,
+            reportId: report.id,
+            dueDate: task.dueDate,
+          })),
+        });
+      }
+
+      return {
+        report,
+        createdTaskCount: tasksToCreate.length,
+      };
+    });
+
+    return {
+      report: toReportResponse(result.report),
+      createdTaskCount: result.createdTaskCount,
+    };
+  }
 }
 
 function getTranscriptionModel(): string {
   return process.env.OPENAI_TRANSCRIPTION_MODEL || DEFAULT_TRANSCRIPTION_MODEL;
+}
+
+function getExtractionModel(): string {
+  return process.env.OPENAI_EXTRACTION_MODEL || DEFAULT_EXTRACTION_MODEL;
 }
 
 function buildTemporaryDataExpiry(): Date {
@@ -208,6 +563,159 @@ function buildTemporaryTranscriptObjectKey(job: AiJob): string {
     "transcripts",
     `${job.id}.json`,
   ].join("/");
+}
+
+function extractTranscriptText(value: Prisma.JsonValue): string | null {
+  if (!isRecord(value) || typeof value.text !== "string") {
+    return null;
+  }
+
+  return value.text.trim() || null;
+}
+
+function buildExtractionInput(
+  value: Prisma.JsonValue,
+  schema: AiExtractionSchema,
+  segmentTemplate: SegmentTemplate,
+): ExtractionInput {
+  if (!isRecord(value) || typeof value.transcriptText !== "string") {
+    throw new BadRequestException({
+      code: "EXTRACTION_INPUT_INVALID",
+      message: "Extraction job is missing transcript text.",
+    });
+  }
+
+  const visitContext = isRecord(value.visitContext)
+    ? {
+        locationName:
+          typeof value.visitContext.locationName === "string"
+            ? value.visitContext.locationName
+            : undefined,
+        visitType:
+          typeof value.visitContext.visitType === "string"
+            ? value.visitContext.visitType
+            : undefined,
+        segmentTemplate,
+      }
+    : { segmentTemplate };
+
+  return {
+    transcript: value.transcriptText,
+    schemaName: `${segmentTemplate}_visit_extraction`,
+    schema,
+    visitContext,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeJsonObject(value: unknown): Prisma.InputJsonObject | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value;
+}
+
+type AiDraftTask = {
+  title: string;
+  description: string | null;
+  priority: "low" | "normal" | "high";
+  assignee: "representative" | "manager" | "unassigned";
+  dueDate: Date | null;
+};
+
+function extractTasksToCreate(confirmedData: Prisma.InputJsonObject): AiDraftTask[] {
+  const tasks = confirmedData.tasksToCreate;
+
+  if (!Array.isArray(tasks)) {
+    return [];
+  }
+
+  return tasks.flatMap((task): AiDraftTask[] => {
+    if (!isRecord(task) || typeof task.title !== "string" || !task.title.trim()) {
+      return [];
+    }
+
+    return [
+      {
+        title: task.title.trim(),
+        description:
+          typeof task.description === "string" && task.description.trim()
+            ? task.description.trim()
+            : null,
+        priority: parseTaskPriority(task.priority),
+        assignee: parseTaskAssignee(task.assignee),
+        dueDate: parseDateOnly(task.dueDate),
+      },
+    ];
+  });
+}
+
+function parseTaskPriority(value: unknown): "low" | "normal" | "high" {
+  if (value === "low" || value === "normal" || value === "high") {
+    return value;
+  }
+
+  return "normal";
+}
+
+function parseTaskAssignee(
+  value: unknown,
+): "representative" | "manager" | "unassigned" {
+  if (
+    value === "representative" ||
+    value === "manager" ||
+    value === "unassigned"
+  ) {
+    return value;
+  }
+
+  return "unassigned";
+}
+
+function parseDateOnly(value: unknown): Date | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toReportResponse(report: {
+  id: string;
+  visitId: string;
+  locationId: string;
+  representativeUserId: string;
+  templateCode: string;
+  schemaVersion: string;
+  status: string;
+  confirmedData: unknown;
+  confirmedByUserId: string;
+  confirmedAt: Date;
+  aiMetadata: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}): ConfirmAiDraftResponse["report"] {
+  return {
+    id: report.id,
+    visitId: report.visitId,
+    locationId: report.locationId,
+    representativeUserId: report.representativeUserId,
+    templateCode: report.templateCode,
+    schemaVersion: report.schemaVersion,
+    status: report.status,
+    confirmedData: report.confirmedData,
+    confirmedByUserId: report.confirmedByUserId,
+    confirmedAt: report.confirmedAt.toISOString(),
+    aiMetadata: report.aiMetadata,
+    createdAt: report.createdAt.toISOString(),
+    updatedAt: report.updatedAt.toISOString(),
+  };
 }
 
 function toAiJobResponse(job: AiJob): AiJobResponse {
