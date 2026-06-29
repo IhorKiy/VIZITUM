@@ -111,8 +111,8 @@ Status legend:
 - [x] Implement contacts CRUD.
 - [x] Implement location assignments.
 - [x] Implement products/SKU CRUD.
-- [ ] Implement route plans.
-- [ ] Implement route items.
+- [x] Implement route plans.
+- [x] Implement route items.
 - [ ] Implement visit creation.
 - [ ] Implement manual text report flow.
 - [ ] Implement task creation and updates.
