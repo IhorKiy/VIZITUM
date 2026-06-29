@@ -7,13 +7,16 @@
     "doc": "docs"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "db:up": "sh scripts/db-up.sh",
     "db:down": "sh scripts/db-down.sh",
     "db:logs": "sh scripts/db-logs.sh",
+    "dev": "tsx watch src/main.ts",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:studio": "prisma studio",
+    "start": "node dist/main.js",
     "test": "echo \"No test suite configured yet.\""
   },
   "repository": {
@@ -29,10 +32,22 @@
   },
   "homepage": "https://github.com/IhorKiy/VIZITUM#readme",
   "dependencies": {
+    "@nestjs/common": "^11.1.27",
+    "@nestjs/core": "^11.1.27",
+    "@nestjs/platform-express": "^11.1.27",
+    "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "pg": "^8.22.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
-    "prisma": "^7.8.0"
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.0.1",
+    "@types/pg": "^8.20.0",
+    "prisma": "^7.8.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
   }
 }
