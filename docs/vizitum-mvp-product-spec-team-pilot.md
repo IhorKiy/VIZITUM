@@ -174,13 +174,13 @@ Executive не налаштовує tenant, імпорти, ролі, маршр
 - Як Platform Owner, я хочу обрати segment template, щоб tenant отримав релевантні поля, типи візитів і AI schema.
 - Як Platform Owner, я хочу запросити одного або кількох Company Admin, щоб клієнт сам керував користувачами, ролями і налаштуваннями всередині tenant.
 - Як Platform Owner, я хочу бачити provisioning, health і статус import jobs, щоб розуміти, чи tenant технічно готовий до запуску.
-- Як Platform Owner, я хочу бачити pilot metrics, щоб провести review з клієнтом.
+- Як Platform Owner, я хочу бачити pilot monitoring metrics, щоб підтримувати запуск пілоту і допомагати клієнту підготувати review.
 
 ### Company Admin
 
 - Як Company Admin, я хочу імпортувати точки з CSV/XLSX, щоб швидко перенести базу клієнтів.
 - Як Company Admin, я хочу імпортувати представників, щоб запросити команду без ручного створення кожного користувача.
-- Як Company Admin, я хочу імпортувати продукти/SKU, щоб представники могли фіксувати, що обговорювали на візиті.
+- Як Company Admin, я хочу імпортувати продукти/SKU або позначити їх як not applicable, щоб tenant відповідав сценарію конкретного пілоту.
 - Як Company Admin, я хочу перевірити ролі, щоб керівник бачив команду, а представники бачили свої робочі дані.
 - Як Company Admin, я хочу налаштувати базові довідники, поля і шаблон візиту, щоб tenant відповідав процесу компанії.
 - Як Company Admin, я хочу налаштувати брендінг tenant, щоб інтерфейс виглядав як робочий простір компанії.
@@ -454,6 +454,19 @@ Voice reporting є обов'язковою частиною MVP, бо GTM і п�
 
 У MVP voice не означає native mobile app, offline-first recording або складну audio UX. Достатньо надійного mobile web/PWA flow: записати або завантажити audio, отримати transcript, побачити structured draft, підтвердити або відредагувати результат.
 
+#### Browser audio format options
+
+Для першого voice flow не треба жорстко прив'язуватися до одного MIME type у продуктову логіку. Client має робити runtime feature detection через `MediaRecorder.isTypeSupported(...)`, записувати фактичний `mimeType` разом з файлом і передавати його backend.
+
+Порядок вибору для MVP:
+
+- `audio/webm;codecs=opus` - preferred browser recording format, якщо підтримується; добре підходить для Chrome/Edge/Firefox і Android web через малий розмір та нормальну якість голосу.
+- `audio/mp4` або `audio/mp4;codecs=mp4a.40.2` - fallback для Safari/iOS, де WebM/Opus може бути недоступним або нестабільним.
+- `audio/aac` або `audio/mpeg` - допустимі як upload fallback, якщо користувач завантажує файл з native recorder.
+- `audio/wav` - допустимий як debug/manual fallback, але не preferred для mobile recording через великий розмір файлів.
+
+Backend MVP має приймати щонайменше `webm/opus` і `mp4/aac`, зберігати raw audio у tenant-scoped storage і, якщо потрібно для transcription provider, нормалізувати audio у backend job. Якщо browser recording не підтримується або permission denied, UI має дозволити audio upload або ручний текстовий fallback.
+
 #### Visit report states
 
 - `visit draft` створюється, коли представник починає візит або додає текстову/голосову нотатку. Draft можна зберегти до transcription, AI extraction або підтвердження.
@@ -619,6 +632,8 @@ Default success thresholds для 7-10 денного пілоту:
 - Team Manager відкрив dashboard мінімум 3 рази протягом пілоту;
 - створено мінімум 10 задач або follow-up actions, якщо сценарій пілоту передбачає задачі;
 - клієнт може назвати щонайменше 3 управлінські інсайти з dashboard або AI summaries: точки без покриття, повторювані заперечення, проблемні продукти/SKU, прострочені задачі або наступні дії.
+
+Team Manager впливає на pilot review через операційні метрики, dashboard usage і якість роботи команди, але в `Team Pilot` не запускає pilot review самостійно, якщо не має додаткової ролі Company Admin.
 
 Пороги можна адаптувати під розмір команди і сегмент до старту пілоту, але вони мають бути зафіксовані в pilot setup. Після старту пілоту success criteria не змінюються, щоб review залишався чесним decision point, а не ретроспективним поясненням.
 
@@ -860,7 +875,7 @@ MVP має підтримувати три production-ready templates для п�
 
 Матриця нижче описує базові права окремої ролі. Якщо користувач має кілька ролей, його effective permissions є сумою прав цих ролей. Наприклад, `Company Admin + Team Manager` не бачить team dashboard як Company Admin, але бачить його через роль Team Manager; `Team Manager + Field Representative` може і керувати командою, і проходити власний mobile-first daily flow.
 
-`Full tenant view` для Team Manager означає read access до операційних даних tenant. Права створення, редагування, імпорту, tenant settings або role management надаються окремо й не випливають автоматично з full tenant view.
+`Full tenant view` для Team Manager означає read access до операційних даних tenant. Права створення, редагування, імпорту, tenant settings або role management надаються окремо й не випливають автоматично з full tenant view. Опційні права Team Manager на створення або редагування master locations не входять у default MVP role; їх можна увімкнути тільки як явний permission override для конкретного tenant або залишити post-MVP.
 
 | Дія | Company Admin | Team Manager | Field Representative | Executive / Business |
 | --- | --- | --- | --- | --- |
@@ -996,6 +1011,8 @@ Tenant import endpoints мають вимагати tenant context із session/
 ### Security and privacy
 
 - Tenant isolation є критичною вимогою MVP.
+- Перед першим записом голосової нотатки користувач має побачити коротке in-app повідомлення про запис, транскрипцію, зберігання і AI processing та підтвердити згоду/ознайомлення у межах tenant policy.
+- Для pilot onboarding потрібна company-level згода або DPA/AI processing addendum, якщо клієнт передає у Vizitum голосові нотатки, transcripts, персональні дані співробітників/контактів або комерційно чутливу інформацію.
 - Raw audio, raw notes, transcripts і AI outputs не пишуться у logs.
 - Усі storage paths мають бути tenant-scoped.
 - Усі exports мають перевіряти роль і tenant context.
@@ -1089,6 +1106,8 @@ MVP має комфортно працювати для tenant з:
 
 ## 13. Implementation phases
 
+Усі Phase 0-4 входять у MVP launch scope. Нумерація фаз описує порядок реалізації, а не поділ на MVP і post-MVP.
+
 ### Phase 0: Foundation
 
 - Repo/app structure.
@@ -1136,17 +1155,17 @@ MVP має комфортно працювати для tenant з:
 - Imports.
 - Onboarding checklist.
 - Pilot review metrics.
-- Export or copyable pilot summary.
+- Dashboard and copyable pilot summary.
 - Basic operations monitoring.
 
-## 14. Open product decisions
+## 14. Product decisions status
 
-Ці питання не блокують старт технічного дизайну, але їх варто закрити до активної реалізації відповідних модулів:
+Ці питання не блокують старт технічного дизайну. Поточний стан рішень для MVP:
 
-- Який саме browser audio format використовуємо у mobile web/PWA для першого voice flow?
-- Які поля location є обов'язковими для кожного MVP template?
-- Чи потрібен експорт pilot review у PDF/CSV, чи достатньо dashboard і copyable summary?
-- Яка мінімальна юридична згода потрібна для обробки голосових нотаток і AI processing?
+- Browser audio format: для першого voice flow використовуємо runtime detection. Preferred `audio/webm;codecs=opus`; fallback для iOS/Safari - `audio/mp4` або `audio/mp4;codecs=mp4a.40.2`; upload fallback приймає `m4a/aac/mp3/wav/webm` з backend normalization за потреби.
+- Обов'язкові location fields для кожного MVP template: поки залишаємо поточні поля і не додаємо template-specific mandatory fields до старту реалізації.
+- Pilot review export: PDF/CSV export у MVP не потрібен. Достатньо dashboard і copyable summary.
+- Юридична згода для voice + AI processing: питання стоїть зараз, бо voice flow створює raw audio, transcript і AI output, які можуть містити персональні дані, контакти клієнтів, комерційні домовленості або інші чутливі дані. Мінімально для MVP потрібні company-level умови/DPA або AI processing addendum під час pilot onboarding і короткий in-app consent/notice перед першим записом голосової нотатки. Точний текст має бути погоджений юридично перед production pilot.
 
 Вже узгоджені рішення з user flow:
 
