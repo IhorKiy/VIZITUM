@@ -13,6 +13,7 @@ import type { PermissionCode } from "../roles/permissions";
 import { RolesService } from "../roles/roles.service";
 import type { RequestContext } from "../tenancy/request-context";
 import { REQUIRED_PERMISSIONS_METADATA } from "./permissions.decorator";
+import { REQUIRED_ANY_PERMISSIONS_METADATA } from "./permissions.decorator";
 import { readSessionToken } from "./session-cookie";
 import { SessionService } from "./session.service";
 
@@ -32,22 +33,35 @@ export class PermissionGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
+    const requiredAnyPermissions = this.reflector.getAllAndOverride<
+      PermissionCode[]
+    >(REQUIRED_ANY_PERMISSIONS_METADATA, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
-    if (!requiredPermissions?.length) {
+    if (!requiredPermissions?.length && !requiredAnyPermissions?.length) {
       return true;
     }
 
     const request = context.switchToHttp().getRequest<Request>();
     const requestContext = await this.buildRequestContext(request);
-    const hasRequiredPermissions = requiredPermissions.every((permission) =>
-      requestContext.permissions.includes(permission),
-    );
+    const hasRequiredPermissions =
+      !requiredPermissions?.length ||
+      requiredPermissions.every((permission) =>
+        requestContext.permissions.includes(permission),
+      );
+    const hasAnyRequiredPermission =
+      !requiredAnyPermissions?.length ||
+      requiredAnyPermissions.some((permission) =>
+        requestContext.permissions.includes(permission),
+      );
 
-    if (!hasRequiredPermissions) {
+    if (!hasRequiredPermissions || !hasAnyRequiredPermission) {
       throw new ForbiddenException({
         code: "MISSING_PERMISSION",
         message: "You do not have permission to perform this action.",
-        details: { requiredPermissions },
+        details: { requiredPermissions, requiredAnyPermissions },
       });
     }
 

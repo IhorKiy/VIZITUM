@@ -113,7 +113,7 @@ Status legend:
 - [x] Implement products/SKU CRUD.
 - [x] Implement route plans.
 - [x] Implement route items.
-- [ ] Implement visit creation.
+- [x] Implement visit creation.
 - [ ] Implement manual text report flow.
 - [ ] Implement task creation and updates.
 
