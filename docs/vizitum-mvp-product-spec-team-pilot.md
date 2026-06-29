@@ -73,6 +73,22 @@ MVP segment templates:
 - BI-конструктор.
 - Marketplace інтеграцій.
 
+### Підтверджені архітектурні рішення для MVP
+
+Ці рішення фіксують межі `Vizitum Team Pilot` перед high-level technical design. Вони є стартовими припущеннями для HLD і мають бути деталізовані на low-level design етапі.
+
+- MVP scope: перший реліз - `Vizitum Team Pilot` для pilot/team клієнтів у shared DB.
+- Product mode: `team`; `Business` capabilities залишаються post-MVP extension.
+- Database placement: shared DB для першого релізу; dedicated DB self-service не входить у MVP.
+- Deployment target: у HLD фіксується recommended default deployment model.
+- ORM: Prisma.
+- Auth: власний backend auth з tenant-aware sessions/invite links.
+- AI provider: OpenAI для першого transcription/extraction flow.
+- Primary demo template: `distribution / trade reps`.
+- Supported MVP templates: `distribution`, `service`, `partner_account`.
+- Offline level: mobile-first web/PWA з локальним кешем, але без full offline-first гарантій.
+- Legal/privacy: company-level згода/DPA або AI processing addendum підтверджується Company Admin під час pilot onboarding; перед першим voice recording користувач бачить короткий in-app notice.
+
 ## 3. Ролі MVP
 
 MVP має підтримувати кілька ролей на одному користувачі всередині tenant. Ролі не є взаємовиключними: effective permissions користувача формуються як об'єднання призначених ролей з урахуванням tenant product mode і access scope.
@@ -98,7 +114,7 @@ MVP має підтримувати кілька ролей на одному к
 - бачити health, provisioning, migration і import job status;
 - бачити базові usage/pilot metrics.
 
-Platform Owner не створює користувачів клієнта вручну, не призначає ролі всередині команди, не налаштовує маршрути і не керує операційними довідниками tenant, якщо це не тимчасова assisted setup дія для запуску пілоту.
+Platform Owner не створює користувачів клієнта вручну, не призначає ролі всередині команди, не налаштовує маршрути і не керує операційними довідниками tenant. Під час assisted setup команда Vizitum може підготувати файл, виконати conversion або створити import draft/job для перевірки, але застосування імпорту і підтвердження даних робить Company Admin.
 
 ### Company Admin
 
@@ -292,7 +308,7 @@ MVP має підтримувати assisted import для:
 - users;
 - products/SKU.
 
-Основний оператор імпорту в продукті - Company Admin. Команда Vizitum може допомагати через assisted setup / internal ops під час запуску пілоту: підготувати файл, виконати assisted conversion, запустити імпорт від імені операційної підтримки або допомогти розібрати помилки. Але правильність даних, ролей і налаштувань підтверджує Company Admin всередині tenant.
+Основний оператор імпорту в продукті - Company Admin. Команда Vizitum може допомагати через assisted setup / internal ops під час запуску пілоту: підготувати файл, виконати assisted conversion, створити import draft/job для перевірки або допомогти розібрати помилки. Але застосування імпорту, а також правильність даних, ролей і налаштувань підтверджує Company Admin всередині tenant.
 
 Перші формати: CSV як обов'язковий, XLSX як бажаний для pilot launch, якщо його можна підтримати без окремого складного mapping-builder. У user flows клієнт може надати стартові дані у CSV/XLSX, тому MVP має або приймати XLSX напряму, або мати assisted conversion у CSV без зміни бізнес-процесу для клієнта.
 
@@ -337,7 +353,7 @@ Acceptance criteria:
 - система показує помилки валідації по рядках;
 - імпорт не створює записи без tenant context;
 - імпорт зберігає history: хто, коли, який файл, скільки рядків успішно/з помилками;
-- import history має показувати, чи імпорт виконав Company Admin напряму, чи команда Vizitum у межах assisted setup;
+- import history має показувати, чи імпорт був створений Company Admin напряму, чи підготовлений командою Vizitum у межах assisted setup, а також хто з Company Admin підтвердив застосування;
 - дублікати email у users є blocking error, якщо email вже існує в цьому tenant;
 - дублікати name/address у locations є warning з дією `merge` або `skip` у preview перед застосуванням.
 
@@ -967,7 +983,7 @@ MVP має підтримувати три production-ready templates для п�
 - `GET /api/platform/tenants/{tenantId}/assisted-imports`
 - `GET /api/platform/tenants/{tenantId}/import-jobs`
 
-Platform import endpoints не є основним API для імпорту клієнтських даних. Вони потрібні тільки для assisted setup / internal ops: підготовка файлу, assisted conversion, запуск або моніторинг import job від імені операційної підтримки. Основний product flow для імпорту точок, користувачів і продуктів/SKU проходить через Tenant API з роллю Company Admin.
+Platform import endpoints не є основним API для імпорту клієнтських даних. Вони потрібні тільки для assisted setup / internal ops: підготовка файлу, assisted conversion, створення draft/import job для перевірки або моніторинг import job від імені операційної підтримки. Застосування імпорту клієнтських даних проходить через Tenant API з роллю Company Admin.
 
 ### Tenant API
 
@@ -1063,7 +1079,7 @@ MVP має комфортно працювати для tenant з:
 1. Створити pilot tenant.
 2. Обрати segment template `distribution`, `service` або `partner_account`.
 3. Запросити одного або кількох Company Admin.
-4. Імпортувати або підтвердити точки і користувачів як Company Admin; імпортувати продукти/SKU або позначити їх як not applicable для пілоту. Якщо потрібен assisted setup, команда Vizitum може допомогти з підготовкою або запуском імпорту.
+4. Імпортувати або підтвердити точки і користувачів як Company Admin; імпортувати продукти/SKU або позначити їх як not applicable для пілоту. Якщо потрібен assisted setup, команда Vizitum може допомогти з підготовкою файлу, conversion або створенням import draft/job, але Company Admin підтверджує застосування.
 5. Перевірити onboarding checklist.
 6. Запросити Team Manager і Field Representative.
 7. Перевести tenant у `pilot_active`.
