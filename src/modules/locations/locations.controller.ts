@@ -19,6 +19,7 @@ import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { LocationsService } from "./locations.service";
 import type {
+  CreateLocationAssignmentRequestBody,
   CreateLocationContactRequestBody,
   CreateLocationRequestBody,
   UpdateLocationContactRequestBody,
@@ -138,6 +139,46 @@ export class LocationsController {
       getRequestContext(request),
       locationId,
       contactId,
+    );
+  }
+
+  @Get(":locationId/assignments")
+  @RequirePermissions(PERMISSIONS.LOCATIONS_READ)
+  listAssignments(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+  ) {
+    return this.locationsService.listAssignments(
+      getRequestContext(request),
+      locationId,
+    );
+  }
+
+  @Post(":locationId/assignments")
+  @RequirePermissions(PERMISSIONS.LOCATIONS_ASSIGN)
+  createAssignment(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+    @Body() body: CreateLocationAssignmentRequestBody,
+  ) {
+    return this.locationsService.createAssignment(
+      getRequestContext(request),
+      locationId,
+      body,
+    );
+  }
+
+  @Patch(":locationId/assignments/:assignmentId/deactivate")
+  @RequirePermissions(PERMISSIONS.LOCATIONS_ASSIGN)
+  deactivateAssignment(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+    @Param("assignmentId") assignmentId: string,
+  ) {
+    return this.locationsService.deactivateAssignment(
+      getRequestContext(request),
+      locationId,
+      assignmentId,
     );
   }
 }

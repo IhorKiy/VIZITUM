@@ -1,4 +1,4 @@
-import type { LocationStatus } from "@prisma/client";
+import type { AssignmentStatus, LocationStatus } from "@prisma/client";
 
 export type LocationResponse = {
   id: string;
@@ -68,3 +68,22 @@ export type CreateLocationContactRequestBody = {
 
 export type UpdateLocationContactRequestBody =
   Partial<CreateLocationContactRequestBody>;
+
+export type LocationAssignmentResponse = {
+  id: string;
+  locationId: string;
+  representativeUserId: string;
+  representative: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  status: AssignmentStatus;
+  assignedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateLocationAssignmentRequestBody = {
+  representativeUserId?: unknown;
+};

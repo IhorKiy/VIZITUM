@@ -14,9 +14,11 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
+  CreateLocationAssignmentRequestBody,
   CreateLocationContactRequestBody,
   CreateLocationRequestBody,
   ListLocationsQuery,
+  LocationAssignmentResponse,
   LocationContactResponse,
   LocationResponse,
   UpdateLocationContactRequestBody,
@@ -222,6 +224,101 @@ export class LocationsService {
     return { ok: true };
   }
 
+  async listAssignments(
+    context: RequestContext,
+    locationId: string,
+  ): Promise<LocationAssignmentResponse[]> {
+    const location = await this.findTenantLocation(
+      context.tenantId,
+      locationId,
+    );
+    const assignments = await this.prisma.locationAssignment.findMany({
+      where: {
+        tenantId: context.tenantId,
+        locationId: location.id,
+      },
+      include: {
+        representative: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return assignments.map(toLocationAssignmentResponse);
+  }
+
+  async createAssignment(
+    context: RequestContext,
+    locationId: string,
+    body: CreateLocationAssignmentRequestBody,
+  ): Promise<LocationAssignmentResponse> {
+    const representativeUserId = normalizeId(body.representativeUserId);
+
+    if (!representativeUserId) {
+      throw new BadRequestException({
+        code: "LOCATION_ASSIGNMENT_INVALID",
+        message: "Representative user id is required.",
+        fieldErrors: {
+          representativeUserId: ["Representative user id is required."],
+        },
+      });
+    }
+
+    const [location, representative] = await Promise.all([
+      this.findTenantLocation(context.tenantId, locationId),
+      this.findTenantFieldRepresentative(
+        context.tenantId,
+        representativeUserId,
+      ),
+    ]);
+
+    const assignment = await this.prisma.locationAssignment.upsert({
+      where: {
+        tenantId_locationId_representativeUserId: {
+          tenantId: context.tenantId,
+          locationId: location.id,
+          representativeUserId: representative.id,
+        },
+      },
+      create: {
+        tenantId: context.tenantId,
+        locationId: location.id,
+        representativeUserId: representative.id,
+        assignedByUserId: context.userId,
+        status: "active",
+      },
+      update: {
+        assignedByUserId: context.userId,
+        status: "active",
+      },
+      include: {
+        representative: true,
+      },
+    });
+
+    return toLocationAssignmentResponse(assignment);
+  }
+
+  async deactivateAssignment(
+    context: RequestContext,
+    locationId: string,
+    assignmentId: string,
+  ): Promise<LocationAssignmentResponse> {
+    const assignment = await this.findTenantAssignment(
+      context.tenantId,
+      locationId,
+      assignmentId,
+    );
+    const updatedAssignment = await this.prisma.locationAssignment.update({
+      where: { id: assignment.id },
+      data: { status: "inactive" },
+      include: {
+        representative: true,
+      },
+    });
+
+    return toLocationAssignmentResponse(updatedAssignment);
+  }
+
   private async findTenantLocation(
     tenantId: string,
     locationId: string,
@@ -294,6 +391,68 @@ export class LocationsService {
     }
 
     return contact;
+  }
+
+  private async findTenantFieldRepresentative(
+    tenantId: string,
+    userId: string,
+  ) {
+    const representative = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        tenantId,
+        deletedAt: null,
+        status: "active",
+        roles: {
+          some: {
+            tenantId,
+            roleCode: "field_representative",
+          },
+        },
+      },
+    });
+
+    if (!representative) {
+      throw new BadRequestException({
+        code: "REPRESENTATIVE_INVALID",
+        message: "Representative must be an active field representative.",
+        fieldErrors: {
+          representativeUserId: [
+            "Representative must be an active field representative.",
+          ],
+        },
+      });
+    }
+
+    return representative;
+  }
+
+  private async findTenantAssignment(
+    tenantId: string,
+    locationId: string,
+    assignmentId: string,
+  ) {
+    await this.findTenantLocation(tenantId, locationId);
+
+    const assignment = await this.prisma.locationAssignment.findFirst({
+      where: {
+        id: assignmentId,
+        tenantId,
+        locationId,
+      },
+      include: {
+        representative: true,
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException({
+        code: "LOCATION_ASSIGNMENT_NOT_FOUND",
+        message: "Location assignment was not found.",
+      });
+    }
+
+    return assignment;
   }
 }
 
@@ -484,6 +643,16 @@ function normalizeOptionalString(value: unknown): string | null {
   return normalizedValue || null;
 }
 
+function normalizeId(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+
+  return normalizedValue || null;
+}
+
 function normalizeCoordinate(value: unknown): number | null {
   if (value === undefined || value === null || value === "") {
     return null;
@@ -557,5 +726,35 @@ function toLocationContactResponse(contact: {
     notes: contact.notes,
     createdAt: contact.createdAt.toISOString(),
     updatedAt: contact.updatedAt.toISOString(),
+  };
+}
+
+function toLocationAssignmentResponse(assignment: {
+  id: string;
+  locationId: string;
+  representativeUserId: string;
+  representative: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  status: "active" | "inactive";
+  assignedByUserId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): LocationAssignmentResponse {
+  return {
+    id: assignment.id,
+    locationId: assignment.locationId,
+    representativeUserId: assignment.representativeUserId,
+    representative: {
+      id: assignment.representative.id,
+      email: assignment.representative.email,
+      name: assignment.representative.name,
+    },
+    status: assignment.status,
+    assignedByUserId: assignment.assignedByUserId,
+    createdAt: assignment.createdAt.toISOString(),
+    updatedAt: assignment.updatedAt.toISOString(),
   };
 }
