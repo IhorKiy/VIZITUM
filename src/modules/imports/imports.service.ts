@@ -275,6 +275,26 @@ export class ImportsService {
         .filter((row) => Object.values(row).some((value) => value !== "")),
     };
   }
+
+  parseApprovedCsvTemplate(
+    templateType: ImportTemplateType,
+    content: Buffer | string,
+  ): ParsedImportFile {
+    const template = getTemplateDefinition(templateType);
+    const rows = parseCsvRows(content.toString("utf8"));
+    const [rawHeader, ...rawDataRows] = rows;
+    const columns = normalizeHeader(rawHeader ?? []);
+
+    assertApprovedHeader(template, columns);
+
+    return {
+      templateType,
+      columns,
+      rows: rawDataRows
+        .map((row) => mapRowToObject(columns, row))
+        .filter((row) => Object.values(row).some((value) => value !== "")),
+    };
+  }
 }
 
 function getTemplateDefinition(
@@ -331,6 +351,82 @@ function escapeCsvCell(value: string): string {
   }
 
   return `"${value.replaceAll('"', '""')}"`;
+}
+
+function parseCsvRows(content: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let index = content.charCodeAt(0) === 0xfeff ? 1 : 0;
+  let inQuotes = false;
+
+  while (index < content.length) {
+    const character = content[index];
+    const nextCharacter = content[index + 1];
+
+    if (inQuotes) {
+      if (character === '"' && nextCharacter === '"') {
+        cell += '"';
+        index += 2;
+        continue;
+      }
+
+      if (character === '"') {
+        inQuotes = false;
+        index += 1;
+        continue;
+      }
+
+      cell += character;
+      index += 1;
+      continue;
+    }
+
+    if (character === '"') {
+      inQuotes = true;
+      index += 1;
+      continue;
+    }
+
+    if (character === ",") {
+      row.push(cell);
+      cell = "";
+      index += 1;
+      continue;
+    }
+
+    if (character === "\n" || character === "\r") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+
+      if (character === "\r" && nextCharacter === "\n") {
+        index += 2;
+      } else {
+        index += 1;
+      }
+
+      continue;
+    }
+
+    cell += character;
+    index += 1;
+  }
+
+  if (inQuotes) {
+    throw new BadRequestException({
+      code: "IMPORT_CSV_INVALID",
+      message: "Uploaded CSV has an unterminated quoted field.",
+    });
+  }
+
+  if (cell !== "" || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows;
 }
 
 function readSharedStrings(filePath: string): string[] {
