@@ -50,6 +50,12 @@ export type ConfirmAiDraftResponse = {
   createdTaskCount: number;
 };
 
+export type AiCleanupResult = {
+  inspectedJobCount: number;
+  expiredStorageObjectCount: number;
+  cleanedJobCount: number;
+};
+
 export type TranscriptionAudioInput = {
   fileName: string;
   contentType: string;

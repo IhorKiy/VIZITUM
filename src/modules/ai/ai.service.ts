@@ -13,6 +13,7 @@ import {
   type AiExtractionSchema,
 } from "./ai-extraction.schemas";
 import type {
+  AiCleanupResult,
   AiJobResponse,
   ConfirmAiDraftResponse,
   ExtractionInput,
@@ -544,6 +545,97 @@ export class AiService {
     return {
       report: toReportResponse(result.report),
       createdTaskCount: result.createdTaskCount,
+    };
+  }
+
+  async cleanupExpiredFailedAiJobs(now = new Date()): Promise<AiCleanupResult> {
+    const failedJobs = await this.prisma.aiJob.findMany({
+      where: {
+        status: "failed",
+        expiresAt: { lte: now },
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        inputObjectId: true,
+        temporaryTranscriptObjectId: true,
+      },
+    });
+
+    if (failedJobs.length === 0) {
+      return {
+        inspectedJobCount: 0,
+        expiredStorageObjectCount: 0,
+        cleanedJobCount: 0,
+      };
+    }
+
+    const storageObjectIdsByTenant = failedJobs.reduce<
+      Map<string, Set<string>>
+    >((groups, job) => {
+      const storageObjectIds = groups.get(job.tenantId) ?? new Set<string>();
+
+      if (job.inputObjectId) {
+        storageObjectIds.add(job.inputObjectId);
+      }
+
+      if (job.temporaryTranscriptObjectId) {
+        storageObjectIds.add(job.temporaryTranscriptObjectId);
+      }
+
+      groups.set(job.tenantId, storageObjectIds);
+
+      return groups;
+    }, new Map());
+    const jobIds = failedJobs.map((job) => job.id);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      let expiredStorageObjectCount = 0;
+
+      for (const [tenantId, storageObjectIds] of storageObjectIdsByTenant) {
+        if (storageObjectIds.size === 0) {
+          continue;
+        }
+
+        const updateResult = await tx.storageObject.updateMany({
+          where: {
+            tenantId,
+            id: { in: [...storageObjectIds] },
+            purpose: { in: ["temporary_audio", "temporary_transcript"] },
+            status: "active",
+          },
+          data: {
+            status: "expired",
+            deletedAt: now,
+          },
+        });
+
+        expiredStorageObjectCount += updateResult.count;
+      }
+
+      const cleanedJobs = await tx.aiJob.updateMany({
+        where: {
+          id: { in: jobIds },
+          status: "failed",
+        },
+        data: {
+          inputObjectId: null,
+          temporaryTranscriptObjectId: null,
+          temporaryDraft: Prisma.DbNull,
+          expiresAt: now,
+        },
+      });
+
+      return {
+        expiredStorageObjectCount,
+        cleanedJobCount: cleanedJobs.count,
+      };
+    });
+
+    return {
+      inspectedJobCount: failedJobs.length,
+      expiredStorageObjectCount: result.expiredStorageObjectCount,
+      cleanedJobCount: result.cleanedJobCount,
     };
   }
 }
