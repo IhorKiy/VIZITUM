@@ -107,7 +107,7 @@ Status legend:
 ## 8. Field Operations Backlog
 
 - [x] Implement admin users list/invite/update/role endpoints.
-- [ ] Implement locations CRUD.
+- [x] Implement locations CRUD.
 - [ ] Implement contacts CRUD.
 - [ ] Implement location assignments.
 - [ ] Implement products/SKU CRUD.
