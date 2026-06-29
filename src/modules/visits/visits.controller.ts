@@ -24,6 +24,7 @@ import type {
   AddTextVisitNoteRequestBody,
   ConfirmReportRequestBody,
   CreateVisitRequestBody,
+  RegisterAudioUploadRequestBody,
   UpdateVisitRequestBody,
 } from "./visits.types";
 
@@ -84,6 +85,20 @@ export class VisitsController {
     @Body() body: AddTextVisitNoteRequestBody,
   ) {
     return this.visitsService.addTextNote(
+      getRequestContext(request),
+      visitId,
+      body,
+    );
+  }
+
+  @Post(":visitId/notes/audio/register")
+  @RequirePermissions(PERMISSIONS.VISITS_UPDATE_OWN)
+  registerTemporaryAudioUpload(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: RegisterAudioUploadRequestBody,
+  ) {
+    return this.visitsService.registerTemporaryAudioUpload(
       getRequestContext(request),
       visitId,
       body,

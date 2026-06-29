@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { Prisma, VisitStatus } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 
 import {
   createPaginatedResponse,
@@ -19,11 +20,25 @@ import type {
   ConfirmReportRequestBody,
   CreateVisitRequestBody,
   ListVisitsQuery,
+  RegisterAudioUploadRequestBody,
+  RegisteredAudioUploadResponse,
   ReportResponse,
   UpdateVisitRequestBody,
   VisitNoteResponse,
   VisitResponse,
 } from "./visits.types";
+
+const TEMPORARY_AUDIO_TTL_HOURS = 24;
+const MAX_TEMPORARY_AUDIO_SIZE_BYTES = 50 * 1024 * 1024;
+const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
+  "audio/webm",
+  "audio/webm;codecs=opus",
+  "audio/mp4",
+  "audio/mp4;codecs=mp4a.40.2",
+  "audio/aac",
+  "audio/mpeg",
+  "audio/wav",
+]);
 
 type VisitWithRelations = Prisma.VisitGetPayload<{
   include: {
@@ -212,6 +227,91 @@ export class VisitsService {
     });
 
     return toVisitNoteResponse(note);
+  }
+
+  async registerTemporaryAudioUpload(
+    context: RequestContext,
+    visitId: string,
+    body: RegisterAudioUploadRequestBody,
+  ): Promise<RegisteredAudioUploadResponse> {
+    const visit = await this.findTenantVisit(context.tenantId, visitId);
+
+    this.assertCanUpdateVisit(context, visit.representativeUserId);
+
+    if (!context.userId) {
+      throwMissingVisitPermission();
+    }
+
+    const fileName = normalizeAudioFileName(body.fileName);
+    const contentType = normalizeAudioContentType(body.contentType);
+    const sizeBytes = normalizeAudioSizeBytes(body.sizeBytes);
+    const checksum = normalizeOptionalString(body.checksum);
+
+    if (!fileName || !contentType) {
+      throw new BadRequestException({
+        code: "AUDIO_UPLOAD_INVALID",
+        message: "Audio file name and supported content type are required.",
+        fieldErrors: {
+          fileName: fileName ? [] : ["File name is required."],
+          contentType: contentType
+            ? []
+            : ["Supported audio content type is required."],
+        },
+      });
+    }
+
+    const expiresAt = new Date(
+      Date.now() + TEMPORARY_AUDIO_TTL_HOURS * 60 * 60 * 1000,
+    );
+    const objectKey = buildTemporaryAudioObjectKey(
+      context.tenantId,
+      visit.id,
+      fileName,
+    );
+    const createdByUserId = context.userId;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const storageObject = await tx.storageObject.create({
+        data: {
+          tenantId: context.tenantId,
+          bucket: process.env.S3_BUCKET || "vizitum",
+          objectKey,
+          purpose: "temporary_audio",
+          contentType,
+          sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
+          checksum,
+          status: "active",
+          expiresAt,
+          createdByUserId,
+        },
+      });
+      const note = await tx.visitNote.create({
+        data: {
+          tenantId: context.tenantId,
+          visitId: visit.id,
+          inputType: "audio",
+          temporaryAudioObjectId: storageObject.id,
+          createdByUserId,
+        },
+      });
+
+      return { note, storageObject };
+    });
+
+    return {
+      note: toVisitNoteResponse(result.note),
+      storageObject: {
+        id: result.storageObject.id,
+        bucket: result.storageObject.bucket,
+        objectKey: result.storageObject.objectKey,
+        contentType: result.storageObject.contentType,
+        sizeBytes: result.storageObject.sizeBytes?.toString() ?? null,
+        checksum: result.storageObject.checksum,
+        expiresAt:
+          result.storageObject.expiresAt?.toISOString() ??
+          expiresAt.toISOString(),
+      },
+    };
   }
 
   async confirmReport(
@@ -518,6 +618,93 @@ function normalizeJsonObject(value: unknown): Prisma.InputJsonObject | null {
   return value;
 }
 
+function normalizeOptionalString(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+
+  return normalizedValue || null;
+}
+
+function normalizeAudioFileName(value: unknown): string | null {
+  const normalizedValue = normalizeRequiredString(value);
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return normalizedValue
+    .replaceAll("\\", "/")
+    .split("/")
+    .at(-1)
+    ?.replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 120) || null;
+}
+
+function normalizeAudioContentType(value: unknown): string | null {
+  const normalizedValue = normalizeRequiredString(value)?.toLowerCase();
+
+  if (
+    !normalizedValue ||
+    !SUPPORTED_AUDIO_CONTENT_TYPES.has(normalizedValue)
+  ) {
+    return null;
+  }
+
+  return normalizedValue;
+}
+
+function normalizeAudioSizeBytes(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+
+  if (
+    !Number.isInteger(parsedValue) ||
+    parsedValue <= 0 ||
+    parsedValue > MAX_TEMPORARY_AUDIO_SIZE_BYTES
+  ) {
+    throw new BadRequestException({
+      code: "AUDIO_UPLOAD_SIZE_INVALID",
+      message: "Audio size must be a positive integer up to 50 MB.",
+      fieldErrors: {
+        sizeBytes: ["Audio size must be a positive integer up to 50 MB."],
+      },
+    });
+  }
+
+  return parsedValue;
+}
+
+function buildTemporaryAudioObjectKey(
+  tenantId: string,
+  visitId: string,
+  fileName: string,
+): string {
+  return [
+    "tenants",
+    tenantId,
+    "visits",
+    visitId,
+    "audio",
+    randomUUID(),
+    fileName,
+  ].join("/");
+}
+
 function normalizeVisitStatus(value: unknown): VisitStatus | null {
   if (
     value === "draft" ||
@@ -587,6 +774,7 @@ function toVisitNoteResponse(note: {
   visitId: string;
   inputType: "text" | "audio";
   textContent: string | null;
+  temporaryAudioObjectId?: string | null;
   createdByUserId: string;
   createdAt: Date;
 }): VisitNoteResponse {
@@ -595,6 +783,7 @@ function toVisitNoteResponse(note: {
     visitId: note.visitId,
     inputType: note.inputType,
     textContent: note.textContent,
+    temporaryAudioObjectId: note.temporaryAudioObjectId ?? null,
     createdByUserId: note.createdByUserId,
     createdAt: note.createdAt.toISOString(),
   };

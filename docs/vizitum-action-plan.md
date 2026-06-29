@@ -133,11 +133,11 @@ Status legend:
 
 ## 10. AI Reporting Backlog
 
-- [ ] Represent AI extraction schemas as JSON Schema or Zod schemas:
-  - [ ] `distribution`;
-  - [ ] `service`;
-  - [ ] `partner_account`.
-- [ ] Implement temporary audio upload registration.
+- [x] Represent AI extraction schemas as JSON Schema or Zod schemas:
+  - [x] `distribution`;
+  - [x] `service`;
+  - [x] `partner_account`.
+- [x] Implement temporary audio upload registration.
 - [ ] Implement transcription job.
 - [ ] Implement extraction job.
 - [ ] Implement AI draft confirmation endpoint.

@@ -53,12 +53,33 @@ export type VisitNoteResponse = {
   visitId: string;
   inputType: "text" | "audio";
   textContent: string | null;
+  temporaryAudioObjectId: string | null;
   createdByUserId: string;
   createdAt: string;
 };
 
 export type AddTextVisitNoteRequestBody = {
   textContent?: unknown;
+};
+
+export type RegisterAudioUploadRequestBody = {
+  fileName?: unknown;
+  contentType?: unknown;
+  sizeBytes?: unknown;
+  checksum?: unknown;
+};
+
+export type RegisteredAudioUploadResponse = {
+  note: VisitNoteResponse;
+  storageObject: {
+    id: string;
+    bucket: string;
+    objectKey: string;
+    contentType: string;
+    sizeBytes: string | null;
+    checksum: string | null;
+    expiresAt: string;
+  };
 };
 
 export type ReportResponse = {
