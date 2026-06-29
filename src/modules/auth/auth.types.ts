@@ -11,6 +11,13 @@ export type SwitchRoleRequestBody = {
   roleCode?: unknown;
 };
 
+export type AcceptInviteRequestBody = {
+  token?: unknown;
+  name?: unknown;
+  password?: unknown;
+  phone?: unknown;
+};
+
 export type AuthUserResponse = {
   id: string;
   email: string;

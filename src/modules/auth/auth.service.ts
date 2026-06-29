@@ -8,11 +8,13 @@ import type { Request, Response } from "express";
 import { PrismaService } from "../prisma/prisma.service";
 import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
+import { hashValue } from "./auth-crypto";
 import { PasswordService } from "./password.service";
 import { createCsrfToken, writeCsrfCookie } from "./csrf";
 import { readSessionToken, writeSessionCookie } from "./session-cookie";
 import { SessionService } from "./session.service";
 import type {
+  AcceptInviteRequestBody,
   LoginRequestBody,
   LoginResponse,
   SwitchRoleRequestBody,
@@ -98,6 +100,129 @@ export class AuthService {
       },
       roleCodes,
       permissions,
+    };
+  }
+
+  async acceptInvite(
+    body: AcceptInviteRequestBody,
+    request: Request,
+    response: Response,
+  ): Promise<LoginResponse> {
+    const token = normalizeToken(body.token);
+    const name = normalizeName(body.name);
+    const password = normalizeNewPassword(body.password);
+    const phone = normalizeOptionalString(body.phone);
+
+    if (!token || !name || !password) {
+      throw new BadRequestException({
+        code: "INVITE_ACCEPTANCE_INVALID",
+        message: "Invite token, name and password are required.",
+        fieldErrors: {
+          token: token ? [] : ["Invite token is required."],
+          name: name ? [] : ["Name is required."],
+          password: password ? [] : ["Password must be at least 8 characters."],
+        },
+      });
+    }
+
+    const invite = await this.prisma.invite.findUnique({
+      where: { tokenHash: hashValue(token) },
+    });
+
+    if (!invite || invite.status !== "pending") {
+      throwInvalidInvite();
+    }
+
+    if (invite.expiresAt <= new Date()) {
+      await this.prisma.invite.update({
+        where: { id: invite.id },
+        data: { status: "expired" },
+      });
+      throwInvalidInvite();
+    }
+
+    const passwordHash = await this.passwordService.hashPassword(password);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const acceptedUser = await tx.user.upsert({
+        where: {
+          tenantId_email: {
+            tenantId: invite.tenantId,
+            email: invite.email,
+          },
+        },
+        create: {
+          tenantId: invite.tenantId,
+          email: invite.email,
+          name,
+          phone,
+          passwordHash,
+          status: "active",
+          lastSelectedRoleCode: invite.roleCodes[0] ?? null,
+        },
+        update: {
+          name,
+          phone,
+          passwordHash,
+          status: "active",
+          lastSelectedRoleCode: invite.roleCodes[0] ?? null,
+          deletedAt: null,
+        },
+      });
+
+      for (const roleCode of invite.roleCodes) {
+        await tx.userRole.upsert({
+          where: {
+            tenantId_userId_roleCode: {
+              tenantId: invite.tenantId,
+              userId: acceptedUser.id,
+              roleCode,
+            },
+          },
+          create: {
+            tenantId: invite.tenantId,
+            userId: acceptedUser.id,
+            roleCode,
+            assignedByUserId: invite.createdByUserId,
+          },
+          update: {},
+        });
+      }
+
+      await tx.invite.update({
+        where: { id: invite.id },
+        data: {
+          status: "accepted",
+          acceptedAt: new Date(),
+          acceptedByUserId: acceptedUser.id,
+        },
+      });
+
+      return acceptedUser;
+    });
+
+    const { token: sessionToken } = await this.sessionService.createSession({
+      tenantId: invite.tenantId,
+      userId: user.id,
+      userAgent: request.header("user-agent"),
+      ipAddress: request.ip,
+    });
+
+    writeSessionCookie(response, sessionToken);
+    writeCsrfCookie(response, createCsrfToken(sessionToken));
+
+    const roleCodes = invite.roleCodes;
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        status: user.status,
+        lastSelectedRoleCode: user.lastSelectedRoleCode,
+      },
+      roleCodes,
+      permissions: this.rolesService.getPermissionsForRoles(roleCodes),
     };
   }
 
@@ -230,6 +355,48 @@ function normalizeRoleCode(value: unknown) {
   return null;
 }
 
+function normalizeToken(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const token = value.trim();
+
+  return token || null;
+}
+
+function normalizeName(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const name = value.trim();
+
+  return name || null;
+}
+
+function normalizeNewPassword(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 8) {
+    return null;
+  }
+
+  return value;
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim();
+
+  return normalizedValue || null;
+}
+
 function throwInvalidCredentials(): never {
   throw new UnauthorizedException({
     code: "INVALID_CREDENTIALS",
@@ -241,5 +408,12 @@ function throwAuthenticationRequired(): never {
   throw new UnauthorizedException({
     code: "AUTHENTICATION_REQUIRED",
     message: "Authentication is required.",
+  });
+}
+
+function throwInvalidInvite(): never {
+  throw new BadRequestException({
+    code: "INVITE_INVALID",
+    message: "Invite token is invalid or expired.",
   });
 }

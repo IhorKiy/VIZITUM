@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import type { PlatformTenant } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type {
@@ -33,7 +38,33 @@ export class TenancyService {
       });
     }
 
+    this.assertTenantCanServeRequests(tenant);
+
     return { tenant, slug };
+  }
+
+  private assertTenantCanServeRequests(tenant: PlatformTenant): void {
+    if (
+      tenant.status === "ready" ||
+      tenant.status === "pilot_active" ||
+      tenant.status === "active"
+    ) {
+      return;
+    }
+
+    if (tenant.status === "suspended" || tenant.status === "archived") {
+      throw new ForbiddenException({
+        code: "TENANT_UNAVAILABLE",
+        message: "Tenant is not available.",
+        details: { status: tenant.status },
+      });
+    }
+
+    throw new ForbiddenException({
+      code: "TENANT_NOT_READY",
+      message: "Tenant is not ready to serve requests.",
+      details: { status: tenant.status },
+    });
   }
 
   private extractTenantSlug(input: TenantResolutionInput): string | null {

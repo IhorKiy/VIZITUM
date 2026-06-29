@@ -1,13 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import type { Session } from "@prisma/client";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
 import { PrismaService } from "../prisma/prisma.service";
-import {
-  HASH_ALGORITHM,
-  SESSION_TOKEN_BYTES,
-  SESSION_TTL_DAYS,
-} from "./auth.constants";
+import { SESSION_TOKEN_BYTES, SESSION_TTL_DAYS } from "./auth.constants";
+import { hashValue } from "./auth-crypto";
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -81,8 +78,4 @@ export class SessionService {
       data: { revokedAt: new Date() },
     });
   }
-}
-
-function hashValue(value: string): string {
-  return createHash(HASH_ALGORITHM).update(value).digest("hex");
 }

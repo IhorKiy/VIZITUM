@@ -10,7 +10,11 @@ import {
 import type { Request, Response } from "express";
 
 import { AuthService } from "./auth.service";
-import type { LoginRequestBody, SwitchRoleRequestBody } from "./auth.types";
+import type {
+  AcceptInviteRequestBody,
+  LoginRequestBody,
+  SwitchRoleRequestBody,
+} from "./auth.types";
 import { clearCsrfCookie } from "./csrf";
 import { clearSessionCookie, readSessionToken } from "./session-cookie";
 import { SessionService } from "./session.service";
@@ -41,6 +45,16 @@ export class AuthController {
   @HttpCode(200)
   switchRole(@Body() body: SwitchRoleRequestBody, @Req() request: Request) {
     return this.authService.switchRole(body, request);
+  }
+
+  @Post("invites/accept")
+  @HttpCode(200)
+  acceptInvite(
+    @Body() body: AcceptInviteRequestBody,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return this.authService.acceptInvite(body, request, response);
   }
 
   @Post("logout")

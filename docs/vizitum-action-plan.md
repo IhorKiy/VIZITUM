@@ -89,7 +89,7 @@ Status legend:
 - [x] Implement secure HTTP-only session cookie.
 - [x] Implement login endpoint.
 - [x] Implement logout/revoke endpoint.
-- [ ] Implement invite accept flow.
+- [x] Implement invite accept flow.
 - [x] Implement CSRF protection for cookie-based write requests.
 - [x] Implement permission guard.
 - [x] Implement role switcher support.
@@ -97,15 +97,16 @@ Status legend:
 
 ## 7. Tenant and Platform Backlog
 
-- [ ] Implement platform tenant creation service.
-- [ ] Implement tenant slug lookup.
-- [ ] Implement tenant status handling.
-- [ ] Implement tenant provisioning job record.
-- [ ] Seed initial roles/capabilities for `team` mode.
-- [ ] Add platform operation events.
+- [x] Implement platform tenant creation service.
+- [x] Implement tenant slug lookup.
+- [x] Implement tenant status handling.
+- [x] Implement tenant provisioning job record.
+- [x] Seed initial roles/capabilities for `team` mode.
+- [x] Add platform operation events.
 
 ## 8. Field Operations Backlog
 
+- [x] Implement admin users list/invite/update/role endpoints.
 - [ ] Implement locations CRUD.
 - [ ] Implement contacts CRUD.
 - [ ] Implement location assignments.
