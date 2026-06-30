@@ -159,6 +159,8 @@ Status legend:
 - [x] Add job ID/request ID correlation.
 - [x] Add basic worker failure visibility.
 - [x] Add backup/restore runbook.
+- [x] Add production-critical alerts runbook and readiness checklist.
+- [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
 - [ ] Perform restore drill before production pilot.
 
 ## 13. Frontend Backlog
@@ -173,7 +175,7 @@ Status legend:
 - [x] Connect field visits page to authenticated session and visits API with demo fallback.
 - [x] Connect admin import templates page to imports API with demo fallback.
 - [x] Connect Team Manager dashboard to live route, visit and task metrics.
-- [ ] Define and configure production-critical alerts before pilot launch.
+- [x] Define production-critical alerts before pilot launch.
 
 ## 14. Release Readiness
 
