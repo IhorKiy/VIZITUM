@@ -12,6 +12,8 @@ jobs:
     name: Backend Checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vizitum_ci
 
     steps:
       - name: Checkout
@@ -52,5 +54,3 @@ jobs:
 
       - name: Restore drill wrapper
         run: npm run restore:drill:check
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vizitum
