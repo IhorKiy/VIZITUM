@@ -9,6 +9,7 @@ import type { Request, Response } from "express";
 
 import { REQUEST_ID_HEADER } from "./request-id.middleware";
 import type { ApiErrorResponse, ApiFieldErrors } from "./api-error.types";
+import { JsonLogger } from "./json-logger.service";
 
 type HttpExceptionPayload = {
   code?: unknown;
@@ -19,6 +20,8 @@ type HttpExceptionPayload = {
 
 @Catch()
 export class ApiErrorFilter implements ExceptionFilter {
+  private readonly logger = new JsonLogger();
+
   catch(exception: unknown, host: ArgumentsHost) {
     const http = host.switchToHttp();
     const request = http.getRequest<Request>();
@@ -28,6 +31,17 @@ export class ApiErrorFilter implements ExceptionFilter {
 
     const status = this.getStatus(exception);
     const body = this.toErrorResponse(exception, requestId);
+
+    this.logger.logError({
+      requestId,
+      method: request.method,
+      path: request.originalUrl || request.url,
+      statusCode: status,
+      errorName:
+        exception instanceof Error ? exception.constructor.name : undefined,
+      errorCode: body.code,
+      stack: exception instanceof Error ? exception.stack : undefined,
+    });
 
     response.status(status).json(body);
   }

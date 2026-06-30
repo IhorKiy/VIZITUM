@@ -713,13 +713,12 @@ export class ImportsService {
 
       const sequence =
         optionalPositiveInteger(row.sequence) ??
-        ((await transaction.routeItem.count({
+        (await transaction.routeItem.count({
           where: {
             tenantId: context.tenantId,
             routePlanId: routePlan.id,
           },
-        })) +
-          1);
+        })) + 1;
 
       await transaction.routeItem.create({
         data: {
@@ -752,7 +751,9 @@ export class ImportsService {
             assignedToUserId: representative.id,
             createdByUserId: context.userId,
             locationId: location.id,
-            dueDate: row.task_due_date ? parseDateOnly(row.task_due_date) : null,
+            dueDate: row.task_due_date
+              ? parseDateOnly(row.task_due_date)
+              : null,
           },
         });
         counts.tasks += 1;

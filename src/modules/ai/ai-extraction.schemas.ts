@@ -28,16 +28,12 @@ const mentionedProductSchema = {
     },
     status: {
       type: "string",
-      enum: [
-        "presented",
-        "interested",
-        "issue",
-        "competitor_mentioned",
-      ],
+      enum: ["presented", "interested", "issue", "competitor_mentioned"],
     },
     evidence: {
       type: "string",
-      description: "Short phrase from the note or transcript supporting this extraction.",
+      description:
+        "Short phrase from the note or transcript supporting this extraction.",
     },
   },
 } satisfies JsonSchema;

@@ -8,6 +8,7 @@ import { Prisma, type AiJob, type SegmentTemplate } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { JsonLogger } from "../../common/json-logger.service";
 import {
   getAiExtractionSchema,
   type AiExtractionSchema,
@@ -30,6 +31,8 @@ const EXTRACTION_SCHEMA_VERSION = "visit-extraction.v1";
 
 @Injectable()
 export class AiService {
+  private readonly logger = new JsonLogger();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly transcriptionClient: OpenAiTranscriptionClient,
@@ -102,6 +105,15 @@ export class AiService {
       },
     });
 
+    this.logger.logJob({
+      jobId: job.id,
+      jobType: job.type,
+      status: job.status,
+      tenantId: job.tenantId,
+      visitId: job.visitId,
+      requestId: context.requestId,
+    });
+
     return toAiJobResponse(job);
   }
 
@@ -127,7 +139,7 @@ export class AiService {
       return toAiJobResponse(job);
     }
 
-    await this.prisma.aiJob.update({
+    const runningJob = await this.prisma.aiJob.update({
       where: { id: job.id },
       data: {
         status: "running",
@@ -136,6 +148,7 @@ export class AiService {
         errorMessage: null,
       },
     });
+    this.logger.logJob(toJobLogEntry(runningJob));
 
     try {
       const transcription = await this.transcriptionClient.transcribe(
@@ -179,6 +192,8 @@ export class AiService {
         });
       });
 
+      this.logger.logJob(toJobLogEntry(updatedJob));
+
       return toAiJobResponse(updatedJob);
     } catch (error) {
       const updatedJob = await this.prisma.aiJob.update({
@@ -192,6 +207,8 @@ export class AiService {
           expiresAt: job.expiresAt ?? buildTemporaryDataExpiry(),
         },
       });
+
+      this.logger.logJob(toJobLogEntry(updatedJob));
 
       return toAiJobResponse(updatedJob);
     }
@@ -247,12 +264,15 @@ export class AiService {
       });
     }
 
-    const transcriptText = extractTranscriptText(transcriptionJob.temporaryDraft);
+    const transcriptText = extractTranscriptText(
+      transcriptionJob.temporaryDraft,
+    );
 
     if (!transcriptText) {
       throw new BadRequestException({
         code: "EXTRACTION_TRANSCRIPT_MISSING",
-        message: "Succeeded transcription job does not include transcript text.",
+        message:
+          "Succeeded transcription job does not include transcript text.",
       });
     }
 
@@ -290,6 +310,15 @@ export class AiService {
         },
         expiresAt: buildTemporaryDataExpiry(),
       },
+    });
+
+    this.logger.logJob({
+      jobId: job.id,
+      jobType: job.type,
+      status: job.status,
+      tenantId: job.tenantId,
+      visitId: job.visitId,
+      requestId: context.requestId,
     });
 
     return toAiJobResponse(job);
@@ -335,7 +364,7 @@ export class AiService {
       tenant.segmentTemplate,
     );
 
-    await this.prisma.aiJob.update({
+    const runningJob = await this.prisma.aiJob.update({
       where: { id: job.id },
       data: {
         status: "running",
@@ -344,6 +373,7 @@ export class AiService {
         errorMessage: null,
       },
     });
+    this.logger.logJob(toJobLogEntry(runningJob));
 
     try {
       const extraction = await this.extractionClient.extract(
@@ -360,6 +390,8 @@ export class AiService {
         },
       });
 
+      this.logger.logJob(toJobLogEntry(updatedJob));
+
       return toAiJobResponse(updatedJob);
     } catch (error) {
       const updatedJob = await this.prisma.aiJob.update({
@@ -373,6 +405,8 @@ export class AiService {
           expiresAt: job.expiresAt ?? buildTemporaryDataExpiry(),
         },
       });
+
+      this.logger.logJob(toJobLogEntry(updatedJob));
 
       return toAiJobResponse(updatedJob);
     }
@@ -632,12 +666,42 @@ export class AiService {
       };
     });
 
+    this.logger.log(
+      {
+        message: "ai_failed_job_cleanup",
+        inspectedJobCount: failedJobs.length,
+        expiredStorageObjectCount: result.expiredStorageObjectCount,
+        cleanedJobCount: result.cleanedJobCount,
+      },
+      "AiCleanup",
+    );
+
     return {
       inspectedJobCount: failedJobs.length,
       expiredStorageObjectCount: result.expiredStorageObjectCount,
       cleanedJobCount: result.cleanedJobCount,
     };
   }
+}
+
+function toJobLogEntry(job: AiJob): {
+  jobId: string;
+  jobType: string;
+  status: string;
+  tenantId: string;
+  visitId: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+} {
+  return {
+    jobId: job.id,
+    jobType: job.type,
+    status: job.status,
+    tenantId: job.tenantId,
+    visitId: job.visitId,
+    errorCode: job.errorCode,
+    errorMessage: job.errorMessage,
+  };
 }
 
 function getTranscriptionModel(): string {

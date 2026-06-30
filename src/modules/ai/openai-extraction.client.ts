@@ -6,7 +6,10 @@ const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 @Injectable()
 export class OpenAiExtractionClient {
-  async extract(input: ExtractionInput, model: string): Promise<ExtractionResult> {
+  async extract(
+    input: ExtractionInput,
+    model: string,
+  ): Promise<ExtractionResult> {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {

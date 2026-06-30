@@ -154,10 +154,10 @@ Status legend:
 
 ## 12. Observability and Operations Backlog
 
-- [ ] Add structured JSON logging.
+- [x] Add structured JSON logging.
 - [ ] Add Sentry configuration.
-- [ ] Add job ID/request ID correlation.
-- [ ] Add basic worker failure visibility.
+- [x] Add job ID/request ID correlation.
+- [x] Add basic worker failure visibility.
 - [ ] Add backup/restore runbook.
 - [ ] Perform restore drill before production pilot.
 
