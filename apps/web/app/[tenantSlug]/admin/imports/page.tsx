@@ -1,18 +1,53 @@
 import { AppShell } from "../../../../components/app-shell";
+import {
+  buildApiUrl,
+  listImportTemplates,
+  type ImportTemplateSummary,
+} from "../../../../lib/api-client";
 
 type ImportsPageProps = {
   params: Promise<{ tenantSlug: string }>;
 };
 
-const templates = [
-  ["Users", "Required before role-based pilot access"],
-  ["Locations", "Accounts, contacts and assignment base"],
-  ["Products", "SKU and assortment reference"],
-  ["Initial plan", "First visits and tasks"],
-] as const;
+const demoTemplates: ImportTemplateSummary[] = [
+  {
+    type: "users",
+    label: "Users",
+    fileName: "users.csv",
+    downloadPath: "/api/imports/templates/users.csv",
+    requiredColumns: ["email", "name", "role_code"],
+    optionalColumns: ["phone", "external_id"],
+  },
+  {
+    type: "locations",
+    label: "Locations",
+    fileName: "locations.csv",
+    downloadPath: "/api/imports/templates/locations.csv",
+    requiredColumns: ["name", "address_line", "city"],
+    optionalColumns: ["external_id", "channel"],
+  },
+  {
+    type: "products",
+    label: "Products",
+    fileName: "products.csv",
+    downloadPath: "/api/imports/templates/products.csv",
+    requiredColumns: ["sku", "name"],
+    optionalColumns: ["brand", "category"],
+  },
+  {
+    type: "initial_visit_task_plan",
+    label: "Initial plan",
+    fileName: "initial_visit_task_plan.csv",
+    downloadPath: "/api/imports/templates/initial_visit_task_plan.csv",
+    requiredColumns: ["location_reference", "planned_date"],
+    optionalColumns: ["task_title", "task_due_date"],
+  },
+];
 
 export default async function ImportsPage({ params }: ImportsPageProps) {
   const { tenantSlug } = await params;
+  const templatesResult = await listImportTemplates();
+  const templates = templatesResult.ok ? templatesResult.data : demoTemplates;
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin">
@@ -26,28 +61,51 @@ export default async function ImportsPage({ params }: ImportsPageProps) {
           </p>
         </div>
         <div className="toolbar">
-          <button className="secondary-button" type="button">
+          <a
+            className="secondary-button"
+            href={buildApiUrl("/imports/templates")}
+          >
             Download templates
-          </button>
+          </a>
           <button className="primary-button" type="button">
             Upload file
           </button>
         </div>
       </header>
 
+      {!templatesResult.ok ? (
+        <section className="notice-panel" aria-label="API status">
+          <div>
+            <p className="eyebrow">Demo mode</p>
+            <h2>Import templates are not connected</h2>
+            <p>
+              Showing sample templates until the Nest API returns an
+              authenticated imports response. Reason: {templatesResult.message}
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       <section className="import-grid">
         <div className="panel">
           <h2>Approved templates</h2>
           <div className="field-stack">
-            {templates.map(([name, description]) => (
-              <article className="import-row" key={name}>
+            {templates.map((template) => (
+              <article className="import-row" key={template.type}>
                 <div>
-                  <h2>{name}</h2>
-                  <p>{description}</p>
+                  <h2>{template.label}</h2>
+                  <p>
+                    {template.fileName} · {template.requiredColumns.length}{" "}
+                    required, {template.optionalColumns.length} optional columns
+                  </p>
                 </div>
-                <button className="icon-button" type="button" title="Download">
+                <a
+                  className="icon-button"
+                  href={buildApiUrl(template.downloadPath)}
+                  title={`Download ${template.label}`}
+                >
                   D
-                </button>
+                </a>
               </article>
             ))}
           </div>

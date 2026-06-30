@@ -1,11 +1,23 @@
 import { AppShell } from "../../../components/app-shell";
 import { FieldRecordingNotice } from "../../../components/field-recording-notice";
+import {
+  getCurrentSession,
+  listVisits,
+  type Visit,
+} from "../../../lib/api-client";
 
 type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
 };
 
-const visits = [
+type FieldVisit = {
+  name: string;
+  address: string;
+  status: string;
+  next: string;
+};
+
+const demoVisits: FieldVisit[] = [
   {
     name: "Silpo Obolon",
     address: "Heroiv Dnipra Ave, Kyiv",
@@ -28,6 +40,22 @@ const visits = [
 
 export default async function FieldPage({ params }: FieldPageProps) {
   const { tenantSlug } = await params;
+  const sessionResult = await getCurrentSession();
+  const visitsResult = sessionResult.ok
+    ? await listVisits()
+    : {
+        ok: false as const,
+        status: sessionResult.status,
+        message: sessionResult.message,
+      };
+  const visits =
+    visitsResult.ok && visitsResult.data.items.length > 0
+      ? visitsResult.data.items.map(toFieldVisit)
+      : demoVisits;
+  const isDemoMode = !visitsResult.ok;
+  const representativeName = sessionResult.ok
+    ? sessionResult.data.user.name
+    : "Demo representative";
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -36,8 +64,8 @@ export default async function FieldPage({ params }: FieldPageProps) {
           <p className="eyebrow">Field flow</p>
           <h1>Today&apos;s visits</h1>
           <p>
-            Mobile-first workspace for route execution, voice notes and manual
-            report confirmation.
+            {representativeName} has a mobile-first workspace for route
+            execution, voice notes and manual report confirmation.
           </p>
         </div>
         <div className="toolbar" aria-label="Visit actions">
@@ -52,6 +80,19 @@ export default async function FieldPage({ params }: FieldPageProps) {
 
       <FieldRecordingNotice tenantSlug={tenantSlug} />
 
+      {isDemoMode ? (
+        <section className="notice-panel" aria-label="API status">
+          <div>
+            <p className="eyebrow">Demo mode</p>
+            <h2>Backend session is not connected</h2>
+            <p>
+              Showing sample visits until the Nest API returns an authenticated
+              session. Reason: {visitsResult.message}
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       <section className="dashboard-grid" aria-label="Field workspace">
         <div className="field-stack">
           {visits.map((visit, index) => (
@@ -62,9 +103,10 @@ export default async function FieldPage({ params }: FieldPageProps) {
                   <p className="visit-meta">{visit.address}</p>
                 </div>
                 <span
-                  className={`status-pill ${
-                    index === 0 ? "active" : index === 1 ? "info" : "warning"
-                  }`}
+                  className={`status-pill ${resolveStatusTone(
+                    visit.status,
+                    index,
+                  )}`}
                 >
                   {visit.status}
                 </span>
@@ -91,11 +133,21 @@ export default async function FieldPage({ params }: FieldPageProps) {
             <tbody>
               <tr>
                 <th scope="row">Completed</th>
-                <td>4</td>
+                <td>
+                  {
+                    visits.filter((visit) => visit.status === "Completed")
+                      .length
+                  }
+                </td>
               </tr>
               <tr>
                 <th scope="row">Remaining</th>
-                <td>3</td>
+                <td>
+                  {
+                    visits.filter((visit) => visit.status !== "Completed")
+                      .length
+                  }
+                </td>
               </tr>
               <tr>
                 <th scope="row">Reports waiting</th>
@@ -111,4 +163,39 @@ export default async function FieldPage({ params }: FieldPageProps) {
       </section>
     </AppShell>
   );
+}
+
+function toFieldVisit(visit: Visit): FieldVisit {
+  return {
+    name: visit.location.name,
+    address: [visit.location.addressLine, visit.location.city]
+      .filter(Boolean)
+      .join(", "),
+    status: formatVisitStatus(visit.status),
+    next:
+      visit.status === "completed"
+        ? "Review confirmed report"
+        : visit.status === "cancelled"
+          ? "Route item cancelled"
+          : "Add note and confirm report",
+  };
+}
+
+function formatVisitStatus(status: Visit["status"]): string {
+  return status
+    .split("_")
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
+}
+
+function resolveStatusTone(status: string, index: number): string {
+  if (status === "Completed") {
+    return "active";
+  }
+
+  if (status === "Cancelled") {
+    return "warning";
+  }
+
+  return index === 1 ? "info" : "warning";
 }

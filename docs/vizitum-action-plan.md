@@ -169,6 +169,10 @@ Status legend:
 - [x] Add mobile-first field flow shell.
 - [x] Add Company Admin onboarding/import shell.
 - [x] Add Team Manager dashboard shell.
+- [x] Add shared server-side API client for Next.js frontend.
+- [x] Connect field visits page to authenticated session and visits API with demo fallback.
+- [x] Connect admin import templates page to imports API with demo fallback.
+- [ ] Connect Team Manager dashboard to live route, visit and task metrics.
 
 ## 14. Release Readiness
 
