@@ -45,10 +45,10 @@ Use `docs/runbooks/restore-drill-record-template.md` to record evidence, finding
 DATABASE_URL="<restored-staging-database-url>" npm run restore:drill:check
 ```
 
-Set `API_HEALTH_URL` as well when the restored API is running and reachable:
+Set `API_READINESS_URL` as well when the restored API is running and reachable:
 
 ```sh
-DATABASE_URL="<restored-staging-database-url>" API_HEALTH_URL="https://<staging-api>/api/health" npm run restore:drill:check
+DATABASE_URL="<restored-staging-database-url>" API_READINESS_URL="https://<staging-api>/api/health/readiness" npm run restore:drill:check
 ```
 
 6. Verify the app can read:
@@ -82,13 +82,13 @@ DATABASE_URL="<restored-staging-database-url>" API_HEALTH_URL="https://<staging-
    - full production restore.
 7. Update service `DATABASE_URL` only after approval.
 8. Start API and workers.
-9. Verify health endpoint, login, tenant lookup and key read flows.
+9. Verify readiness endpoint, login, tenant lookup and key read flows.
 10. Watch JSON logs, Sentry and provider metrics for errors.
 11. Document the final restore timestamp and any tenant-facing impact.
 
 ## Post-Restore Checks
 
-- API health returns healthy.
+- API readiness returns healthy.
 - Login works for a known admin test account.
 - Tenant isolation checks pass.
 - Imports cannot partially apply invalid rows.

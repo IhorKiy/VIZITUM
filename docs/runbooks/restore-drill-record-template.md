@@ -34,47 +34,47 @@ Use this template for each staging or recovery restore drill before the producti
 
 Record pass/fail and a short note for each command.
 
-| Check | Result | Evidence |
-| --- | --- | --- |
-| `npm run restore:drill:check` |  |  |
-| `npm run prisma:validate` |  |  |
-| `npm run build` |  |  |
-| `npm test` |  |  |
-| `npm run lint` |  |  |
-| `npm run web:typecheck` |  |  |
-| `npm run web:build` |  |  |
-| `npm run format:check` |  |  |
-| API `/api/health` returns healthy |  |  |
+| Check                                       | Result | Evidence |
+| ------------------------------------------- | ------ | -------- |
+| `npm run restore:drill:check`               |        |          |
+| `npm run prisma:validate`                   |        |          |
+| `npm run build`                             |        |          |
+| `npm test`                                  |        |          |
+| `npm run lint`                              |        |          |
+| `npm run web:typecheck`                     |        |          |
+| `npm run web:build`                         |        |          |
+| `npm run format:check`                      |        |          |
+| API `/api/health/readiness` returns healthy |        |          |
 
 ## Data Read Checks
 
-| Data area | Result | Evidence |
-| --- | --- | --- |
-| Tenant registry is readable |  |  |
-| Active users and roles are readable |  |  |
-| Locations and contacts are readable |  |  |
-| Visits and confirmed reports are readable |  |  |
-| Tasks are readable |  |  |
-| Import job metadata is readable |  |  |
-| AI job metadata is readable without raw temporary transcript/audio payloads |  |  |
+| Data area                                                                   | Result | Evidence |
+| --------------------------------------------------------------------------- | ------ | -------- |
+| Tenant registry is readable                                                 |        |          |
+| Active users and roles are readable                                         |        |          |
+| Locations and contacts are readable                                         |        |          |
+| Visits and confirmed reports are readable                                   |        |          |
+| Tasks are readable                                                          |        |          |
+| Import job metadata is readable                                             |        |          |
+| AI job metadata is readable without raw temporary transcript/audio payloads |        |          |
 
 ## Temporary Data Lifecycle Checks
 
-| Check | Result | Evidence |
-| --- | --- | --- |
-| Expired temporary storage objects are visible for cleanup |  |  |
-| Confirmed reports do not require raw audio/transcripts |  |  |
-| Failed AI cleanup can run without missing-object crashes |  |  |
-| Storage cleanup failures would be visible in logs |  |  |
+| Check                                                     | Result | Evidence |
+| --------------------------------------------------------- | ------ | -------- |
+| Expired temporary storage objects are visible for cleanup |        |          |
+| Confirmed reports do not require raw audio/transcripts    |        |          |
+| Failed AI cleanup can run without missing-object crashes  |        |          |
+| Storage cleanup failures would be visible in logs         |        |          |
 
 ## Observability Checks
 
-| Check | Result | Evidence |
-| --- | --- | --- |
-| JSON logs include `requestId` for API requests |  |  |
-| Job logs include `jobId` where applicable |  |  |
-| Sentry environment/release is configured for staging/recovery |  |  |
-| Health monitor target is known |  |  |
+| Check                                                         | Result | Evidence |
+| ------------------------------------------------------------- | ------ | -------- |
+| JSON logs include `requestId` for API requests                |        |          |
+| Job logs include `jobId` where applicable                     |        |          |
+| Sentry environment/release is configured for staging/recovery |        |          |
+| Health monitor target is known                                |        |          |
 
 ## Findings
 

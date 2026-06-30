@@ -24,10 +24,10 @@ run_check "Frontend typecheck" npm run web:typecheck
 run_check "Frontend production build" npm run web:build
 run_check "Formatting check" npm run format:check
 
-if [ -n "${API_HEALTH_URL:-}" ]; then
-  run_check "API health endpoint" curl -fsS "$API_HEALTH_URL"
+if [ -n "${API_READINESS_URL:-}" ]; then
+  run_check "API readiness endpoint" curl -fsS "$API_READINESS_URL"
 else
-  printf '\nSkipping API health endpoint check. Set API_HEALTH_URL to enable it.\n'
+  printf '\nSkipping API readiness endpoint check. Set API_READINESS_URL to enable it.\n'
 fi
 
 printf '\nRestore drill command checks completed.\n'
