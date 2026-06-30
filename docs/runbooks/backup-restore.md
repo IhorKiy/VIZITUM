@@ -33,6 +33,7 @@ Do not restore the shared production database without approval from the operatio
 ## Staging Restore Drill
 
 Run before the production pilot and after major backup-provider changes.
+Use `docs/runbooks/restore-drill-record-template.md` to record evidence, findings and sign-off.
 
 1. Choose a recent production-like backup or snapshot.
 2. Restore it into a staging or recovery database, not into production.
