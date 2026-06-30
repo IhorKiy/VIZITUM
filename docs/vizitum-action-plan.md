@@ -159,6 +159,7 @@ Status legend:
 - [x] Add job ID/request ID correlation.
 - [x] Add basic worker failure visibility.
 - [x] Add production readiness endpoint for alert and restore-drill checks.
+- [x] Add platform operations summary endpoint.
 - [x] Add scheduled cleanup worker entrypoint.
 - [x] Add production deployment runbook for API, web and cleanup worker.
 - [x] Add production launch readiness record template.

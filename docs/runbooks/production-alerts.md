@@ -103,6 +103,16 @@ Important correlation fields:
 - `statusCode`;
 - `path`.
 
+## Operations Summary
+
+Platform operators can inspect production counters through:
+
+```text
+GET https://<api-domain>/api/operations/summary
+```
+
+The endpoint requires `platform.operations.read` and returns aggregate counts only: tenant statuses, provisioning backlog, recent import/AI failures and temporary storage cleanup backlog. It must not expose raw notes, transcripts, audio contents or report free text.
+
 ## Cleanup Worker
 
 Run temporary data cleanup as a scheduled worker task:
