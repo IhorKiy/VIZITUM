@@ -4,7 +4,7 @@ import { buildTenantNav, normalizeTenantName } from "../lib/navigation";
 
 type AppShellProps = {
   tenantSlug: string;
-  activeArea: "field" | "admin" | "manager";
+  activeArea: "field" | "admin" | "manager" | "operations";
   children: React.ReactNode;
 };
 

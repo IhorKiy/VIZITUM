@@ -183,6 +183,7 @@ Status legend:
 - [x] Connect field visits page to authenticated session and visits API with demo fallback.
 - [x] Connect admin import templates page to imports API with demo fallback.
 - [x] Connect Team Manager dashboard to live route, visit and task metrics.
+- [x] Connect Platform Operations page to operations summary API with demo fallback.
 - [x] Define production-critical alerts before pilot launch.
 
 ## 14. Release Readiness

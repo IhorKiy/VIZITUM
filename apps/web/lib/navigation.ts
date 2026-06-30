@@ -1,4 +1,4 @@
-export type RoleArea = "field" | "admin" | "manager";
+export type RoleArea = "field" | "admin" | "manager" | "operations";
 
 export type NavItem = {
   label: string;
@@ -26,6 +26,12 @@ export function buildTenantNav(tenantSlug: string): NavItem[] {
       href: `/${tenantSlug}/manager`,
       area: "manager",
       icon: "M",
+    },
+    {
+      label: "Ops",
+      href: `/${tenantSlug}/operations`,
+      area: "operations",
+      icon: "O",
     },
   ];
 }

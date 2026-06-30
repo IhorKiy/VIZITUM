@@ -117,6 +117,36 @@ export type ImportTemplateSummary = {
   optionalColumns: string[];
 };
 
+export type OperationsSummary = {
+  generatedAt: string;
+  windowHours: number;
+  tenants: {
+    total: number;
+    byStatus: Record<string, number>;
+  };
+  provisioning: {
+    queued: number;
+    running: number;
+    failedRecent: number;
+  };
+  imports: {
+    failedRecent: number;
+    validationFailedRecent: number;
+    pendingConfirmation: number;
+  };
+  ai: {
+    queued: number;
+    running: number;
+    failedRecent: number;
+    expiredFailedAwaitingCleanup: number;
+  };
+  storage: {
+    expiredTemporaryAwaitingCleanup: number;
+    deletedRecent: number;
+  };
+  requestId?: string;
+};
+
 export type ApiResult<TData> =
   { ok: true; data: TData } | { ok: false; status: number; message: string };
 
@@ -150,6 +180,12 @@ export async function listImportTemplates(): Promise<
   ApiResult<ImportTemplateSummary[]>
 > {
   return apiGet<ImportTemplateSummary[]>("/imports/templates");
+}
+
+export async function getOperationsSummary(): Promise<
+  ApiResult<OperationsSummary>
+> {
+  return apiGet<OperationsSummary>("/operations/summary");
 }
 
 export function buildApiUrl(path: string): string {
