@@ -159,6 +159,7 @@ Status legend:
 - [x] Add job ID/request ID correlation.
 - [x] Add basic worker failure visibility.
 - [x] Add production readiness endpoint for alert and restore-drill checks.
+- [x] Add scheduled cleanup worker entrypoint.
 - [x] Add backup/restore runbook.
 - [x] Add production-critical alerts runbook and readiness checklist.
 - [x] Add restore drill record template.

@@ -75,6 +75,18 @@ AI job failures:
 message="ai_job_status" status="failed"
 ```
 
+Cleanup worker failures:
+
+```text
+message="worker_task_failed"
+```
+
+Cleanup worker success summary:
+
+```text
+message="worker_cleanup_completed"
+```
+
 HTTP access latency and status:
 
 ```text
@@ -90,6 +102,16 @@ Important correlation fields:
 - `errorCode`;
 - `statusCode`;
 - `path`.
+
+## Cleanup Worker
+
+Run temporary data cleanup as a scheduled worker task:
+
+```sh
+npm run worker:cleanup:prod
+```
+
+The worker uses `WORKER_TASK=cleanup`, runs AI failed-job cleanup and expired temporary storage deletion, then emits `worker_cleanup_completed`. If storage deletion failures are detected, the process exits with a non-zero status so the hosting scheduler can alert.
 
 ## Health Check
 

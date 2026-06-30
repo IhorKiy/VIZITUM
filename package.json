@@ -25,6 +25,8 @@
     "restore:drill:check": "sh scripts/restore-drill-check.sh",
     "start": "node dist/main.js",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+    "worker:cleanup": "WORKER_TASK=cleanup tsx src/worker.ts",
+    "worker:cleanup:prod": "WORKER_TASK=cleanup node dist/worker.js",
     "web:build": "npm run build --workspace @vizitum/web",
     "web:dev": "npm run dev --workspace @vizitum/web",
     "web:start": "npm run start --workspace @vizitum/web",

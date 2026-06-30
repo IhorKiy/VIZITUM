@@ -34,17 +34,18 @@ Use this template for each staging or recovery restore drill before the producti
 
 Record pass/fail and a short note for each command.
 
-| Check                                       | Result | Evidence |
-| ------------------------------------------- | ------ | -------- |
-| `npm run restore:drill:check`               |        |          |
-| `npm run prisma:validate`                   |        |          |
-| `npm run build`                             |        |          |
-| `npm test`                                  |        |          |
-| `npm run lint`                              |        |          |
-| `npm run web:typecheck`                     |        |          |
-| `npm run web:build`                         |        |          |
-| `npm run format:check`                      |        |          |
-| API `/api/health/readiness` returns healthy |        |          |
+| Check                                               | Result | Evidence |
+| --------------------------------------------------- | ------ | -------- |
+| `npm run restore:drill:check`                       |        |          |
+| `npm run prisma:validate`                           |        |          |
+| `npm run build`                                     |        |          |
+| `npm test`                                          |        |          |
+| `npm run lint`                                      |        |          |
+| `npm run web:typecheck`                             |        |          |
+| `npm run web:build`                                 |        |          |
+| `npm run format:check`                              |        |          |
+| `npm run worker:cleanup:prod` or staging equivalent |        |          |
+| API `/api/health/readiness` returns healthy         |        |          |
 
 ## Data Read Checks
 

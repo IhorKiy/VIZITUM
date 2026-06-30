@@ -66,6 +66,7 @@ DATABASE_URL="<restored-staging-database-url>" API_READINESS_URL="https://<stagi
 - expired temporary storage objects are marked for cleanup;
 - confirmed reports remain available;
 - raw audio/transcripts are not required for normal report viewing.
+- `npm run worker:cleanup:prod` can run against the restored database without missing-object crashes.
 
 8. Record the drill date, backup timestamp, result and issues found.
 
