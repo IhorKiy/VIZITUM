@@ -247,4 +247,69 @@ describe("import validation preview", () => {
       },
     });
   });
+
+  it("does not mark an import applied when row application fails", async () => {
+    const createdProducts: unknown[] = [];
+    const updatedJobs: unknown[] = [];
+    const prisma = {
+      importJob: {
+        findFirst: async () => ({
+          id: "import-job-products",
+          type: "products",
+          status: "validated",
+          errorRowCount: 0,
+          summary: {
+            templateType: "products",
+            columns: ["name", "external_code", "sku", "category"],
+            rows: [
+              {
+                name: "Product A",
+                external_code: "prod-a",
+                sku: "SKU-A",
+                category: "Category A",
+              },
+              {
+                name: "Product B",
+                external_code: "prod-b",
+                sku: "SKU-B",
+                category: "Category B",
+              },
+            ],
+            canConfirm: true,
+          },
+        }),
+      },
+      $transaction: async (
+        callback: (transaction: {
+          product: { create: (query: unknown) => Promise<void> };
+          importJob: { update: (query: unknown) => Promise<void> };
+        }) => Promise<unknown>,
+      ) =>
+        callback({
+          product: {
+            create: async (query: unknown) => {
+              createdProducts.push(query);
+
+              if (createdProducts.length === 2) {
+                throw new Error("Simulated product write failure.");
+              }
+            },
+          },
+          importJob: {
+            update: async (query: unknown) => {
+              updatedJobs.push(query);
+            },
+          },
+        }),
+    };
+
+    const service = new ImportsService(prisma as never);
+
+    await assert.rejects(
+      () => service.confirmImportJob(context as never, "import-job-products"),
+      /Simulated product write failure/,
+    );
+    assert.equal(createdProducts.length, 2);
+    assert.equal(updatedJobs.length, 0);
+  });
 });

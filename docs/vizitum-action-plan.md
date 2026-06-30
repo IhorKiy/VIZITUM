@@ -173,8 +173,8 @@ Status legend:
 ## 14. Release Readiness
 
 - [x] Tenant isolation tests exist in CI.
-- [ ] Import failure cannot partially corrupt applied data.
+- [x] Import failure cannot partially corrupt applied data.
 - [x] Failed transcription/AI does not block manual report.
 - [ ] Production-critical alerts configured.
-- [ ] Company-level DPA or AI processing addendum flow documented.
+- [x] Company-level DPA or AI processing addendum flow documented.
 - [ ] First-recording in-app notice implemented.
