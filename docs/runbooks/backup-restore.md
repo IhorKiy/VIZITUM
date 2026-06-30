@@ -42,9 +42,13 @@ Use `docs/runbooks/restore-drill-record-template.md` to record evidence, finding
 5. Run:
 
 ```sh
-npm run prisma:validate
-npm run build
-npm test
+DATABASE_URL="<restored-staging-database-url>" npm run restore:drill:check
+```
+
+Set `API_HEALTH_URL` as well when the restored API is running and reachable:
+
+```sh
+DATABASE_URL="<restored-staging-database-url>" API_HEALTH_URL="https://<staging-api>/api/health" npm run restore:drill:check
 ```
 
 6. Verify the app can read:

@@ -36,9 +36,14 @@ Record pass/fail and a short note for each command.
 
 | Check | Result | Evidence |
 | --- | --- | --- |
+| `npm run restore:drill:check` |  |  |
 | `npm run prisma:validate` |  |  |
 | `npm run build` |  |  |
 | `npm test` |  |  |
+| `npm run lint` |  |  |
+| `npm run web:typecheck` |  |  |
+| `npm run web:build` |  |  |
+| `npm run format:check` |  |  |
 | API `/api/health` returns healthy |  |  |
 
 ## Data Read Checks
@@ -86,4 +91,3 @@ Record pass/fail and a short note for each command.
 - [ ] Failed and must be repeated.
 
 Reviewer sign-off:
-

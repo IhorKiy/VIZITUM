@@ -22,6 +22,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:studio": "prisma studio",
+    "restore:drill:check": "sh scripts/restore-drill-check.sh",
     "start": "node dist/main.js",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "web:build": "npm run build --workspace @vizitum/web",

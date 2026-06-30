@@ -161,6 +161,7 @@ Status legend:
 - [x] Add backup/restore runbook.
 - [x] Add production-critical alerts runbook and readiness checklist.
 - [x] Add restore drill record template.
+- [x] Add automated restore drill command checks.
 - [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
 - [ ] Perform restore drill before production pilot.
 
