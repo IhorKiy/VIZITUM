@@ -146,11 +146,11 @@ Status legend:
 
 ## 11. Storage Backlog
 
-- [ ] Implement S3-compatible storage abstraction.
-- [ ] Configure Cloudflare R2 env handling.
-- [ ] Implement short-lived signed URL flow.
-- [ ] Implement storage object registry usage.
-- [ ] Implement cleanup worker for expired temporary objects.
+- [x] Implement S3-compatible storage abstraction.
+- [x] Configure Cloudflare R2 env handling.
+- [x] Implement short-lived signed URL flow.
+- [x] Implement storage object registry usage.
+- [x] Implement cleanup worker for expired temporary objects.
 
 ## 12. Observability and Operations Backlog
 

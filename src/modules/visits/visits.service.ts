@@ -14,6 +14,7 @@ import {
 } from "../../common/pagination";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
+import { StorageService } from "../storage/storage.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
   AddTextVisitNoteRequestBody,
@@ -49,7 +50,10 @@ type VisitWithRelations = Prisma.VisitGetPayload<{
 
 @Injectable()
 export class VisitsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageService?: StorageService,
+  ) {}
 
   async listVisits(
     context: RequestContext,
@@ -274,7 +278,7 @@ export class VisitsService {
       const storageObject = await tx.storageObject.create({
         data: {
           tenantId: context.tenantId,
-          bucket: process.env.S3_BUCKET || "vizitum",
+          bucket: this.storageService?.getDefaultBucket() ?? "vizitum",
           objectKey,
           purpose: "temporary_audio",
           contentType,
@@ -298,6 +302,13 @@ export class VisitsService {
       return { note, storageObject };
     });
 
+    const uploadUrl = this.storageService
+      ? await this.storageService.createPresignedUploadUrl(
+          context,
+          result.storageObject.id,
+        )
+      : undefined;
+
     return {
       note: toVisitNoteResponse(result.note),
       storageObject: {
@@ -311,6 +322,16 @@ export class VisitsService {
           result.storageObject.expiresAt?.toISOString() ??
           expiresAt.toISOString(),
       },
+      ...(uploadUrl
+        ? {
+            uploadUrl: {
+              url: uploadUrl.url,
+              method: "PUT",
+              expiresAt: uploadUrl.expiresAt,
+              headers: uploadUrl.headers,
+            },
+          }
+        : {}),
     };
   }
 
@@ -639,21 +660,20 @@ function normalizeAudioFileName(value: unknown): string | null {
     return null;
   }
 
-  return normalizedValue
-    .replaceAll("\\", "/")
-    .split("/")
-    .at(-1)
-    ?.replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 120) || null;
+  return (
+    normalizedValue
+      .replaceAll("\\", "/")
+      .split("/")
+      .at(-1)
+      ?.replace(/[^a-zA-Z0-9._-]/g, "_")
+      .slice(0, 120) || null
+  );
 }
 
 function normalizeAudioContentType(value: unknown): string | null {
   const normalizedValue = normalizeRequiredString(value)?.toLowerCase();
 
-  if (
-    !normalizedValue ||
-    !SUPPORTED_AUDIO_CONTENT_TYPES.has(normalizedValue)
-  ) {
+  if (!normalizedValue || !SUPPORTED_AUDIO_CONTENT_TYPES.has(normalizedValue)) {
     return null;
   }
 

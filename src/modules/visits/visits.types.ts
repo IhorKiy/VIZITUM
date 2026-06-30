@@ -80,6 +80,12 @@ export type RegisteredAudioUploadResponse = {
     checksum: string | null;
     expiresAt: string;
   };
+  uploadUrl?: {
+    url: string;
+    method: "PUT";
+    expiresAt: string;
+    headers: Record<string, string>;
+  };
 };
 
 export type ReportResponse = {

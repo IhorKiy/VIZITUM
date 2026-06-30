@@ -1,0 +1,290 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import type { Prisma, StorageObject } from "@prisma/client";
+
+import { PrismaService } from "../prisma/prisma.service";
+import { PERMISSIONS } from "../roles/permissions";
+import type { RequestContext } from "../tenancy/request-context";
+import { S3StorageClient } from "./s3-storage.client";
+import { StorageConfigService } from "./storage.config";
+import type {
+  PresignedStorageUrlResponse,
+  StorageCleanupResult,
+  StorageObjectResponse,
+} from "./storage.types";
+
+const DEFAULT_SIGNED_URL_TTL_SECONDS = 300;
+const MAX_SIGNED_URL_TTL_SECONDS = 900;
+const CLEANUP_BATCH_SIZE = 100;
+
+@Injectable()
+export class StorageService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageConfig: StorageConfigService,
+    private readonly s3Storage: S3StorageClient,
+  ) {}
+
+  getDefaultBucket(): string {
+    return this.storageConfig.getDefaultBucket();
+  }
+
+  async getStorageObject(
+    context: RequestContext,
+    storageObjectId: string,
+  ): Promise<StorageObjectResponse> {
+    const storageObject = await this.findTenantStorageObject(
+      context.tenantId,
+      storageObjectId,
+    );
+
+    this.assertCanReadStorageObject(context, storageObject);
+
+    return toStorageObjectResponse(storageObject);
+  }
+
+  async createPresignedUploadUrl(
+    context: RequestContext,
+    storageObjectId: string,
+    expiresInSeconds?: number,
+  ): Promise<PresignedStorageUrlResponse> {
+    const storageObject = await this.findTenantStorageObject(
+      context.tenantId,
+      storageObjectId,
+    );
+
+    this.assertCanWriteStorageObject(context, storageObject);
+    assertActiveStorageObject(storageObject);
+
+    const signedUrl = this.s3Storage.createPresignedObjectUrl({
+      bucket: storageObject.bucket,
+      objectKey: storageObject.objectKey,
+      method: "PUT",
+      contentType: storageObject.contentType,
+      expiresInSeconds: expiresInSeconds ?? DEFAULT_SIGNED_URL_TTL_SECONDS,
+    });
+
+    return {
+      url: signedUrl.url,
+      method: "PUT",
+      expiresAt: signedUrl.expiresAt.toISOString(),
+      headers: signedUrl.headers,
+    };
+  }
+
+  async createPresignedDownloadUrl(
+    context: RequestContext,
+    storageObjectId: string,
+    expiresInSeconds?: number,
+  ): Promise<PresignedStorageUrlResponse> {
+    const storageObject = await this.findTenantStorageObject(
+      context.tenantId,
+      storageObjectId,
+    );
+
+    this.assertCanReadStorageObject(context, storageObject);
+    assertActiveStorageObject(storageObject);
+
+    const signedUrl = this.s3Storage.createPresignedObjectUrl({
+      bucket: storageObject.bucket,
+      objectKey: storageObject.objectKey,
+      method: "GET",
+      expiresInSeconds: expiresInSeconds ?? DEFAULT_SIGNED_URL_TTL_SECONDS,
+    });
+
+    return {
+      url: signedUrl.url,
+      method: "GET",
+      expiresAt: signedUrl.expiresAt.toISOString(),
+      headers: signedUrl.headers,
+    };
+  }
+
+  async cleanupExpiredTemporaryObjects(
+    now = new Date(),
+  ): Promise<StorageCleanupResult> {
+    const expiredObjects = await this.prisma.storageObject.findMany({
+      where: {
+        status: "expired",
+        deletedAt: null,
+        expiresAt: { lte: now },
+        purpose: { in: ["temporary_audio", "temporary_transcript"] },
+      },
+      orderBy: { expiresAt: "asc" },
+      take: CLEANUP_BATCH_SIZE,
+    });
+    let deletedObjectCount = 0;
+    let failedObjectCount = 0;
+
+    for (const storageObject of expiredObjects) {
+      try {
+        await this.s3Storage.deleteObject(
+          storageObject.bucket,
+          storageObject.objectKey,
+        );
+        await this.prisma.storageObject.update({
+          where: { id: storageObject.id },
+          data: {
+            status: "deleted",
+            deletedAt: now,
+          },
+        });
+        deletedObjectCount += 1;
+      } catch {
+        failedObjectCount += 1;
+      }
+    }
+
+    return {
+      scannedObjectCount: expiredObjects.length,
+      deletedObjectCount,
+      failedObjectCount,
+    };
+  }
+
+  private async findTenantStorageObject(
+    tenantId: string,
+    storageObjectId: string,
+  ): Promise<StorageObject> {
+    const normalizedId = normalizeId(storageObjectId);
+
+    if (!normalizedId) {
+      throw new BadRequestException({
+        code: "STORAGE_OBJECT_INVALID",
+        message: "Storage object id is required.",
+      });
+    }
+
+    const storageObject = await this.prisma.storageObject.findFirst({
+      where: {
+        id: normalizedId,
+        tenantId,
+      },
+    });
+
+    if (!storageObject) {
+      throw new NotFoundException({
+        code: "STORAGE_OBJECT_NOT_FOUND",
+        message: "Storage object was not found.",
+      });
+    }
+
+    return storageObject;
+  }
+
+  private assertCanWriteStorageObject(
+    context: RequestContext,
+    storageObject: StorageObject,
+  ): void {
+    const canUploadImport =
+      storageObject.purpose === "import_file" &&
+      context.permissions.includes(PERMISSIONS.IMPORTS_UPLOAD);
+    const canUpdateOwnVisitArtifact =
+      ["temporary_audio", "temporary_transcript"].includes(
+        storageObject.purpose,
+      ) &&
+      context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) &&
+      (!storageObject.createdByUserId ||
+        storageObject.createdByUserId === context.userId);
+
+    if (!canUploadImport && !canUpdateOwnVisitArtifact) {
+      throwMissingStoragePermission();
+    }
+  }
+
+  private assertCanReadStorageObject(
+    context: RequestContext,
+    storageObject: StorageObject,
+  ): void {
+    const canReadImport =
+      storageObject.purpose === "import_file" &&
+      context.permissions.includes(PERMISSIONS.IMPORTS_READ);
+    const canReadOwnVisitArtifact =
+      ["temporary_audio", "temporary_transcript"].includes(
+        storageObject.purpose,
+      ) &&
+      context.permissions.includes(PERMISSIONS.VISITS_READ_OWN) &&
+      (!storageObject.createdByUserId ||
+        storageObject.createdByUserId === context.userId);
+    const canReadTeamVisitArtifact =
+      ["temporary_audio", "temporary_transcript"].includes(
+        storageObject.purpose,
+      ) && context.permissions.includes(PERMISSIONS.VISITS_READ_TEAM);
+
+    if (
+      !canReadImport &&
+      !canReadOwnVisitArtifact &&
+      !canReadTeamVisitArtifact
+    ) {
+      throwMissingStoragePermission();
+    }
+  }
+}
+
+function normalizeId(value: string | undefined): string | undefined {
+  const normalizedValue = value?.trim();
+
+  return normalizedValue ? normalizedValue : undefined;
+}
+
+export function normalizeSignedUrlTtl(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const parsedValue = Number(value);
+
+  if (
+    !Number.isInteger(parsedValue) ||
+    parsedValue <= 0 ||
+    parsedValue > MAX_SIGNED_URL_TTL_SECONDS
+  ) {
+    throw new BadRequestException({
+      code: "SIGNED_URL_TTL_INVALID",
+      message: "Signed URL TTL must be between 1 and 900 seconds.",
+      fieldErrors: {
+        expiresInSeconds: ["TTL must be between 1 and 900 seconds."],
+      },
+    });
+  }
+
+  return parsedValue;
+}
+
+function assertActiveStorageObject(storageObject: StorageObject): void {
+  if (storageObject.status !== "active") {
+    throw new BadRequestException({
+      code: "STORAGE_OBJECT_NOT_ACTIVE",
+      message: "Storage object is not active.",
+    });
+  }
+}
+
+function throwMissingStoragePermission(): never {
+  throw new ForbiddenException({
+    code: "MISSING_PERMISSION",
+    message: "You do not have permission to access this storage object.",
+  });
+}
+
+function toStorageObjectResponse(
+  storageObject: Prisma.StorageObjectGetPayload<Record<string, never>>,
+): StorageObjectResponse {
+  return {
+    id: storageObject.id,
+    bucket: storageObject.bucket,
+    objectKey: storageObject.objectKey,
+    purpose: storageObject.purpose,
+    contentType: storageObject.contentType,
+    sizeBytes: storageObject.sizeBytes?.toString() ?? null,
+    checksum: storageObject.checksum,
+    status: storageObject.status,
+    expiresAt: storageObject.expiresAt?.toISOString() ?? null,
+    createdAt: storageObject.createdAt.toISOString(),
+    deletedAt: storageObject.deletedAt?.toISOString() ?? null,
+  };
+}
