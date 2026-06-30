@@ -40,3 +40,9 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Web typecheck
+        run: npm run web:typecheck
+
+      - name: Web build
+        run: npm run web:build

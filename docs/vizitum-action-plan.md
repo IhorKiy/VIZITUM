@@ -163,12 +163,12 @@ Status legend:
 
 ## 13. Frontend Backlog
 
-- [ ] Create Next.js frontend shell.
-- [ ] Add tenant-aware routing.
-- [ ] Add role-based navigation.
-- [ ] Add mobile-first field flow shell.
-- [ ] Add Company Admin onboarding/import shell.
-- [ ] Add Team Manager dashboard shell.
+- [x] Create Next.js frontend shell.
+- [x] Add tenant-aware routing.
+- [x] Add role-based navigation.
+- [x] Add mobile-first field flow shell.
+- [x] Add Company Admin onboarding/import shell.
+- [x] Add Team Manager dashboard shell.
 
 ## 14. Release Readiness
 
@@ -177,4 +177,4 @@ Status legend:
 - [x] Failed transcription/AI does not block manual report.
 - [ ] Production-critical alerts configured.
 - [x] Company-level DPA or AI processing addendum flow documented.
-- [ ] First-recording in-app notice implemented.
+- [x] First-recording in-app notice implemented.

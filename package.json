@@ -6,21 +6,28 @@
   "directories": {
     "doc": "docs"
   },
+  "workspaces": [
+    "apps/web"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "db:up": "sh scripts/db-up.sh",
     "db:down": "sh scripts/db-down.sh",
     "db:logs": "sh scripts/db-logs.sh",
     "dev": "tsx watch src/main.ts",
-    "format": "prettier --write \"src/**/*.ts\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
-    "format:check": "prettier --check \"src/**/*.ts\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
+    "format": "prettier --write \"src/**/*.ts\" \"apps/web/**/*.{ts,tsx,css,json}\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
+    "format:check": "prettier --check \"src/**/*.ts\" \"apps/web/**/*.{ts,tsx,css,json}\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
     "lint": "eslint src prisma.config.ts",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "start": "node dist/main.js",
-    "test": "node --import tsx --test \"tests/**/*.test.ts\""
+    "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+    "web:build": "npm run build --workspace @vizitum/web",
+    "web:dev": "npm run dev --workspace @vizitum/web",
+    "web:start": "npm run start --workspace @vizitum/web",
+    "web:typecheck": "npm run typecheck --workspace @vizitum/web"
   },
   "repository": {
     "type": "git",
