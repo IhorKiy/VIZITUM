@@ -125,6 +125,53 @@ describe("auth tenant isolation", () => {
       },
     ]);
   });
+
+  it("resolves login tenant from an explicit tenant slug body", async () => {
+    const tenantResolutionInputs: unknown[] = [];
+    const authService = new AuthService(
+      {
+        user: {
+          findUnique: async () => null,
+        },
+      } as never,
+      { verifyPassword: async () => false } as never,
+      new RolesService(),
+      createSessionService(createSession()) as never,
+      {
+        resolveTenant: async (input: unknown) => {
+          tenantResolutionInputs.push(input);
+          return {
+            tenant: { id: "tenant-a" },
+            slug: "tenant-a",
+          };
+        },
+      } as never,
+    );
+
+    await assert.rejects(
+      () =>
+        authService.login(
+          {
+            email: "USER@EXAMPLE.COM",
+            password: "secret",
+            tenantSlug: "Tenant-A",
+          },
+          {
+            header: (name: string) =>
+              name.toLowerCase() === "host" ? "localhost:4000" : undefined,
+            path: "/api/auth/login",
+          } as never,
+          {} as never,
+        ),
+      UnauthorizedException,
+    );
+    assert.deepEqual(tenantResolutionInputs, [
+      {
+        host: "localhost:4000",
+        path: "tenant-a",
+      },
+    ]);
+  });
 });
 
 function createSession() {

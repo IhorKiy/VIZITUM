@@ -5,6 +5,7 @@ import type { PermissionCode } from "../roles/permissions";
 export type LoginRequestBody = {
   email?: unknown;
   password?: unknown;
+  tenantSlug?: unknown;
 };
 
 export type SwitchRoleRequestBody = {

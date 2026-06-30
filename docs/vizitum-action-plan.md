@@ -176,6 +176,7 @@ Status legend:
 - [x] Create Next.js frontend shell.
 - [x] Add tenant-aware routing.
 - [x] Add role-based navigation.
+- [x] Add tenant-aware login page connected to backend session login.
 - [x] Add mobile-first field flow shell.
 - [x] Add Company Admin onboarding/import shell.
 - [x] Add Team Manager dashboard shell.

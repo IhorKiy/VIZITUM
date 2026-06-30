@@ -42,9 +42,10 @@ export class AuthService {
       throwInvalidCredentials();
     }
 
+    const tenantSlug = normalizeTenantSlug(body.tenantSlug);
     const { tenant } = await this.tenancyService.resolveTenant({
       host: request.header("host"),
-      path: request.path,
+      path: tenantSlug ?? request.path,
     });
 
     const user = await this.prisma.user.findUnique({
@@ -347,6 +348,16 @@ function normalizePassword(value: unknown): string | null {
   }
 
   return value || null;
+}
+
+function normalizeTenantSlug(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toLowerCase();
+
+  return normalizedValue || null;
 }
 
 function normalizeRoleCode(value: unknown) {

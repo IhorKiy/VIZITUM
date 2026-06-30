@@ -391,6 +391,68 @@ select {
   font-weight: 800;
 }
 
+.login-surface {
+  align-items: center;
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.login-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 24px;
+  margin: 0 auto;
+  max-width: 430px;
+  padding: 24px;
+  width: 100%;
+}
+
+.login-panel h1 {
+  font-size: 32px;
+  margin: 4px 0 0;
+}
+
+.login-copy {
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+
+.form-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.form-stack label {
+  color: var(--ink);
+  display: grid;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 7px;
+}
+
+.form-stack input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  min-height: 42px;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.form-error {
+  background: #fff0f0;
+  border: 1px solid #e4b4b4;
+  border-radius: 8px;
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 12px;
+}
+
 @media (max-width: 920px) {
   .app-shell {
     display: block;

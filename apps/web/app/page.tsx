@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  redirect("/demo-team/field");
+  redirect("/demo-team/login");
 }
