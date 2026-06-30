@@ -172,7 +172,8 @@ Status legend:
 - [x] Add shared server-side API client for Next.js frontend.
 - [x] Connect field visits page to authenticated session and visits API with demo fallback.
 - [x] Connect admin import templates page to imports API with demo fallback.
-- [ ] Connect Team Manager dashboard to live route, visit and task metrics.
+- [x] Connect Team Manager dashboard to live route, visit and task metrics.
+- [ ] Define and configure production-critical alerts before pilot launch.
 
 ## 14. Release Readiness
 

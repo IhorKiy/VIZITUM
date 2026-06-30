@@ -13,6 +13,12 @@ export type AuthSession = {
 };
 
 export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";
+export type RouteStatus =
+  "draft" | "published" | "in_progress" | "completed" | "cancelled";
+export type RouteItemStatus =
+  "planned" | "in_progress" | "completed" | "skipped";
+export type TaskStatus = "open" | "in_progress" | "done" | "cancelled";
+export type TaskPriority = "low" | "normal" | "high";
 
 export type Visit = {
   id: string;
@@ -35,6 +41,61 @@ export type Visit = {
   startedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RoutePlan = {
+  id: string;
+  representativeUserId: string;
+  representative: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  planDate: string;
+  status: RouteStatus;
+  publishedAt: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: Array<{
+    id: string;
+    locationId: string;
+    location: {
+      id: string;
+      name: string;
+      addressLine: string;
+      city: string;
+    };
+    sequence: number;
+    status: RouteItemStatus;
+    plannedStartTime: string | null;
+    plannedEndTime: string | null;
+    skipReason: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+};
+
+export type Task = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignedToUserId: string | null;
+  assignedTo: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  createdByUserId: string | null;
+  locationId: string | null;
+  visitId: string | null;
+  reportId: string | null;
+  dueDate: string | null;
+  completedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -67,6 +128,22 @@ export async function listVisits(): Promise<
   ApiResult<PaginatedResponse<Visit>>
 > {
   return apiGet<PaginatedResponse<Visit>>("/visits?pageSize=50");
+}
+
+export async function listTodayRoutes(): Promise<ApiResult<RoutePlan[]>> {
+  return apiGet<RoutePlan[]>("/routes/today");
+}
+
+export async function listTasks(
+  query = "pageSize=50",
+): Promise<ApiResult<PaginatedResponse<Task>>> {
+  return apiGet<PaginatedResponse<Task>>(`/tasks?${query}`);
+}
+
+export async function listHighPriorityTasks(): Promise<
+  ApiResult<PaginatedResponse<Task>>
+> {
+  return listTasks("pageSize=50&priority=high");
 }
 
 export async function listImportTemplates(): Promise<
