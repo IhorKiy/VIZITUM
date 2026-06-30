@@ -162,3 +162,4 @@ Before launch, record evidence that:
 - Redis/provider alerts are enabled;
 - operational owner receives primary and secondary notifications;
 - restore drill is scheduled or completed according to `docs/runbooks/backup-restore.md`.
+- production services follow `docs/runbooks/production-deployment.md`.
