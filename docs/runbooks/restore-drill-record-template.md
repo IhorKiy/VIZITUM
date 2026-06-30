@@ -38,6 +38,7 @@ Record pass/fail and a short note for each command.
 | --------------------------------------------------- | ------ | -------- |
 | `npm run restore:drill:check`                       |        |          |
 | `npm run prisma:validate`                           |        |          |
+| `npm run prisma:generate`                           |        |          |
 | `npm run build`                                     |        |          |
 | `npm test`                                          |        |          |
 | `npm run lint`                                      |        |          |

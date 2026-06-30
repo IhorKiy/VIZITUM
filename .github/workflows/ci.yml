@@ -29,6 +29,9 @@ jobs:
       - name: Validate Prisma schema
         run: npm run prisma:validate
 
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
       - name: Check formatting
         run: npm run format:check
 
@@ -46,3 +49,8 @@ jobs:
 
       - name: Web build
         run: npm run web:build
+
+      - name: Restore drill wrapper
+        run: npm run restore:drill:check
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vizitum

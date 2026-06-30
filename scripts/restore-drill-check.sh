@@ -17,6 +17,7 @@ fi
 echo "Running restore drill checks against DATABASE_URL=${DATABASE_URL}"
 
 run_check "Prisma schema validation" npm run prisma:validate
+run_check "Prisma client generation" npm run prisma:generate
 run_check "Backend TypeScript build" npm run build
 run_check "Backend tests" npm test
 run_check "Backend lint" npm run lint
