@@ -10,6 +10,7 @@ import type { Request, Response } from "express";
 import { REQUEST_ID_HEADER } from "./request-id.middleware";
 import type { ApiErrorResponse, ApiFieldErrors } from "./api-error.types";
 import { JsonLogger } from "./json-logger.service";
+import { SentryService } from "./sentry.service";
 
 type HttpExceptionPayload = {
   code?: unknown;
@@ -21,6 +22,7 @@ type HttpExceptionPayload = {
 @Catch()
 export class ApiErrorFilter implements ExceptionFilter {
   private readonly logger = new JsonLogger();
+  private readonly sentry = new SentryService();
 
   catch(exception: unknown, host: ArgumentsHost) {
     const http = host.switchToHttp();
@@ -42,6 +44,19 @@ export class ApiErrorFilter implements ExceptionFilter {
       errorCode: body.code,
       stack: exception instanceof Error ? exception.stack : undefined,
     });
+
+    if (status >= 500) {
+      void this.sentry.captureException({
+        exception,
+        requestId,
+        method: request.method,
+        path: request.originalUrl || request.url,
+        statusCode: status,
+        errorCode: body.code,
+        module: "api",
+        operation: "request",
+      });
+    }
 
     response.status(status).json(body);
   }

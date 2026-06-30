@@ -155,10 +155,10 @@ Status legend:
 ## 12. Observability and Operations Backlog
 
 - [x] Add structured JSON logging.
-- [ ] Add Sentry configuration.
+- [x] Add Sentry configuration.
 - [x] Add job ID/request ID correlation.
 - [x] Add basic worker failure visibility.
-- [ ] Add backup/restore runbook.
+- [x] Add backup/restore runbook.
 - [ ] Perform restore drill before production pilot.
 
 ## 13. Frontend Backlog
@@ -172,9 +172,9 @@ Status legend:
 
 ## 14. Release Readiness
 
-- [ ] Tenant isolation tests exist in CI.
+- [x] Tenant isolation tests exist in CI.
 - [ ] Import failure cannot partially corrupt applied data.
-- [ ] Failed transcription/AI does not block manual report.
+- [x] Failed transcription/AI does not block manual report.
 - [ ] Production-critical alerts configured.
 - [ ] Company-level DPA or AI processing addendum flow documented.
 - [ ] First-recording in-app notice implemented.
