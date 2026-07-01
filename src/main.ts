@@ -14,6 +14,7 @@ async function bootstrap() {
   const logger = new JsonLogger();
   const app = await NestFactory.create(AppModule, { logger });
   const port = Number(process.env.PORT ?? 4000);
+  const host = process.env.HOST ?? "0.0.0.0";
 
   app.use(applyRequestId);
   app.use(applyAccessLog);
@@ -21,7 +22,7 @@ async function bootstrap() {
   app.setGlobalPrefix("api");
   app.useGlobalFilters(new ApiErrorFilter());
 
-  await app.listen(port, "127.0.0.1");
+  await app.listen(port, host);
 }
 
 void bootstrap();
