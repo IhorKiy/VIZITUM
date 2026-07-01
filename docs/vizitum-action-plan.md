@@ -170,6 +170,8 @@ Status legend:
 - [x] Add automated restore drill command checks.
 - [x] Add restore drill wrapper check to CI.
 - [x] Add production alerts endpoint verification command.
+- [x] Configure staging API, web, PostgreSQL, Redis, R2, cleanup worker and uptime monitor.
+- [x] Run staging `npm run alerts:check` for API readiness and web URL.
 - [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
 - [ ] Perform restore drill before production pilot.
 
@@ -199,3 +201,14 @@ Status legend:
 - [ ] Production-critical alerts configured.
 - [x] Company-level DPA or AI processing addendum flow documented.
 - [x] First-recording in-app notice implemented.
+
+## 15. Remaining Ops Steps Before Production Pilot
+
+- [x] Keep staging API, web, PostgreSQL, Redis, R2, cleanup worker and UptimeRobot monitor as the validated baseline.
+- [ ] Capture provider evidence links/screenshots for Render, Vercel, UptimeRobot, Cloudflare R2 and Sentry in the launch readiness packet.
+- [!] Choose a PostgreSQL plan/provider with automated backups because Render Free Tier shows backups/export/PITR unavailable.
+- [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
+- [ ] Configure platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
+- [ ] Run product smoke checks against staging: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation.
+- [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md`.
+- [ ] Create production services only after backup evidence, restore drill and smoke checks are complete.
