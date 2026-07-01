@@ -18,6 +18,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"apps/web/**/*.{ts,tsx,css,json}\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
     "format:check": "prettier --check \"src/**/*.ts\" \"apps/web/**/*.{ts,tsx,css,json}\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
     "lint": "eslint src prisma.config.ts",
+    "prebuild": "npm run prisma:generate",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",

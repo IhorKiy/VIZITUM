@@ -9,8 +9,8 @@ Deploy these services from the same repository and release SHA.
 | Service | Type | Build Command | Start Command | Required Health/Alert |
 | --- | --- | --- | --- | --- |
 | Web | Next.js frontend | `npm ci && npm run web:build` | `npm run web:start` | Frontend Sentry project and route smoke check |
-| API | Web service | `npm ci && npm run build` | `npm start` | `GET /api/health/readiness` |
-| Cleanup worker | Scheduled job / cron worker | `npm ci && npm run build` | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
+| API | Web service | `npm ci && npm run prisma:generate && npm run build` | `npm start` | `GET /api/health/readiness` |
+| Cleanup worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
 
 The cleanup worker is intentionally a one-shot task. Schedule it at least hourly for the pilot unless provider limits or storage policy require a shorter interval.
 

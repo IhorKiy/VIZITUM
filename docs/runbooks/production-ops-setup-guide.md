@@ -58,7 +58,7 @@
 Створіть API service з такими командами:
 
 ```sh
-npm ci && npm run build
+npm ci && npm run prisma:generate && npm run build
 npm start
 ```
 
@@ -131,7 +131,7 @@ Production recommendation:
 Run this as scheduled job, at least hourly for pilot:
 
 ```sh
-npm ci && npm run build
+npm ci && npm run prisma:generate && npm run build
 npm run worker:cleanup:prod
 ```
 
