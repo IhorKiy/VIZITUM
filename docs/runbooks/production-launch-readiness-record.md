@@ -20,7 +20,7 @@ Use this record before starting a production pilot. It collects evidence from de
 | CI                 | Latest `main` checks pass                                                                                        |        |            |
 | Deployment         | `docs/runbooks/production-deployment.md` completed                                                               |        |            |
 | API readiness      | `/api/health/readiness` returns ready                                                                            |        |            |
-| Alerts             | `docs/runbooks/production-alerts.md` readiness verification completed                                            |        |            |
+| Alerts             | `docs/runbooks/production-alerts.md` readiness verification and `npm run alerts:check` completed                 |        |            |
 | Restore drill      | `docs/runbooks/restore-drill-record-template.md` completed                                                       |        |            |
 | Backups            | Automated backups and retention confirmed                                                                        |        |            |
 | Sentry             | API, web and worker release tags visible                                                                         |        |            |

@@ -135,7 +135,7 @@ Expected healthy response:
 
 ```json
 {
-  "status": "ok",
+  "status": "ready",
   "checks": {
     "database": {
       "status": "ok"
@@ -149,6 +149,20 @@ Expected healthy response:
 ```
 
 The readiness endpoint checks database connectivity and critical environment variables. If it returns `503`, treat the incident as API-impacting until proven otherwise.
+
+## Automated Endpoint Check
+
+After production alert rules are configured, run the endpoint check from a trusted operator machine:
+
+```sh
+API_READINESS_URL="https://<api-domain>/api/health/readiness" \
+WEB_URL="https://<web-domain>" \
+OPERATIONS_SUMMARY_URL="https://<api-domain>/api/operations/summary" \
+OPERATIONS_SUMMARY_BEARER_TOKEN="<platform-operator-token>" \
+npm run alerts:check
+```
+
+`API_READINESS_URL` is required. `WEB_URL` and `OPERATIONS_SUMMARY_URL` are optional but recommended for the launch readiness record. This command verifies live endpoint health; provider-side alert rules in Sentry, hosting, PostgreSQL and Redis still require console evidence.
 
 ## Incident Response Checklist
 
@@ -167,6 +181,7 @@ Before launch, record evidence that:
 - Sentry receives a test API error in `production` or production-like staging;
 - Sentry receives a test frontend error from the deployed web app;
 - `/api/health/readiness` uptime monitor alerts on a forced failure or synthetic failing check;
+- `npm run alerts:check` passes against production or production-like staging;
 - log queries return `http_request`, `request_failed` and `ai_job_status` records;
 - PostgreSQL backup alerts are enabled;
 - Redis/provider alerts are enabled;
