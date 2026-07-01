@@ -3,6 +3,7 @@ import {
   getOperationsSummary,
   type OperationsSummary,
 } from "../../../lib/api-client";
+import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 
 type OperationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -50,6 +51,38 @@ const demoSummary: OperationsSummary = {
 export default async function OperationsPage({ params }: OperationsPageProps) {
   const { tenantSlug } = await params;
   const summaryResult = await getOperationsSummary();
+  const demoFallbackEnabled = isDemoFallbackEnabled();
+
+  if (!summaryResult.ok && !demoFallbackEnabled) {
+    return (
+      <AppShell tenantSlug={tenantSlug} activeArea="operations">
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">Platform operations</p>
+            <h1>Production readiness</h1>
+            <p>
+              Live operational counters are required in production before pilot
+              readiness can be reviewed.
+            </p>
+          </div>
+          <div className="toolbar">
+            <a className="primary-button" href={`/${tenantSlug}/login`}>
+              Sign in
+            </a>
+          </div>
+        </header>
+
+        <section className="notice-panel" aria-label="API status">
+          <div>
+            <p className="eyebrow">Connection required</p>
+            <h2>Operations summary is not connected</h2>
+            <p>{summaryResult.message}</p>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
   const summary = summaryResult.ok ? summaryResult.data : demoSummary;
   const metrics = buildMetrics(summary);
   const tenantRows = Object.entries(summary.tenants.byStatus);
@@ -72,7 +105,7 @@ export default async function OperationsPage({ params }: OperationsPageProps) {
         </div>
       </header>
 
-      {!summaryResult.ok ? (
+      {!summaryResult.ok && demoFallbackEnabled ? (
         <section className="notice-panel" aria-label="API status">
           <div>
             <p className="eyebrow">Demo mode</p>

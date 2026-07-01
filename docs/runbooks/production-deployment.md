@@ -33,6 +33,7 @@ Configure these variables for API and worker services unless marked otherwise.
 | `S3_FORCE_PATH_STYLE` | yes | yes | no | Usually `true` for R2 |
 | `APP_BASE_URL` | yes | no | yes | Public web origin |
 | `API_BASE_URL` | yes | no | yes | Public API origin; frontend uses `/api` base where configured |
+| `ENABLE_DEMO_FALLBACK` | no | no | optional | Leave unset or `false` in production so API/auth failures do not show demo data |
 | `SENTRY_DSN` | yes | yes | yes | Separate projects or environment tags are preferred |
 | `SENTRY_ENVIRONMENT` | yes | yes | yes | `production` |
 | `SENTRY_RELEASE` | yes | yes | yes | Git SHA or release version |

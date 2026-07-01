@@ -4,6 +4,7 @@ import {
   listImportTemplates,
   type ImportTemplateSummary,
 } from "../../../../lib/api-client";
+import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
 
 type ImportsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -47,6 +48,38 @@ const demoTemplates: ImportTemplateSummary[] = [
 export default async function ImportsPage({ params }: ImportsPageProps) {
   const { tenantSlug } = await params;
   const templatesResult = await listImportTemplates();
+  const demoFallbackEnabled = isDemoFallbackEnabled();
+
+  if (!templatesResult.ok && !demoFallbackEnabled) {
+    return (
+      <AppShell tenantSlug={tenantSlug} activeArea="admin">
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">Company admin</p>
+            <h1>Onboarding imports</h1>
+            <p>
+              Live import templates are required in production before import
+              setup can continue.
+            </p>
+          </div>
+          <div className="toolbar">
+            <a className="primary-button" href={`/${tenantSlug}/login`}>
+              Sign in
+            </a>
+          </div>
+        </header>
+
+        <section className="notice-panel" aria-label="API status">
+          <div>
+            <p className="eyebrow">Connection required</p>
+            <h2>Import templates are not connected</h2>
+            <p>{templatesResult.message}</p>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
   const templates = templatesResult.ok ? templatesResult.data : demoTemplates;
 
   return (
@@ -73,7 +106,7 @@ export default async function ImportsPage({ params }: ImportsPageProps) {
         </div>
       </header>
 
-      {!templatesResult.ok ? (
+      {!templatesResult.ok && demoFallbackEnabled ? (
         <section className="notice-panel" aria-label="API status">
           <div>
             <p className="eyebrow">Demo mode</p>

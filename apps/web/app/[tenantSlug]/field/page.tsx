@@ -5,6 +5,7 @@ import {
   listVisits,
   type Visit,
 } from "../../../lib/api-client";
+import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 
 type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -48,11 +49,43 @@ export default async function FieldPage({ params }: FieldPageProps) {
         status: sessionResult.status,
         message: sessionResult.message,
       };
+  const demoFallbackEnabled = isDemoFallbackEnabled();
+
+  if (!visitsResult.ok && !demoFallbackEnabled) {
+    return (
+      <AppShell tenantSlug={tenantSlug} activeArea="field">
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">Field flow</p>
+            <h1>Today&apos;s visits</h1>
+            <p>
+              Live visit data is required in production before field work can
+              continue.
+            </p>
+          </div>
+          <div className="toolbar" aria-label="Session actions">
+            <a className="primary-button" href={`/${tenantSlug}/login`}>
+              Sign in
+            </a>
+          </div>
+        </header>
+
+        <section className="notice-panel" aria-label="API status">
+          <div>
+            <p className="eyebrow">Connection required</p>
+            <h2>Backend session is not connected</h2>
+            <p>{visitsResult.message}</p>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
   const visits =
     visitsResult.ok && visitsResult.data.items.length > 0
       ? visitsResult.data.items.map(toFieldVisit)
       : demoVisits;
-  const isDemoMode = !visitsResult.ok;
+  const isDemoMode = !visitsResult.ok && demoFallbackEnabled;
   const representativeName = sessionResult.ok
     ? sessionResult.data.user.name
     : "Demo representative";

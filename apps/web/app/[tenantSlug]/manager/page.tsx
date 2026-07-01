@@ -8,6 +8,7 @@ import {
   type Task,
   type Visit,
 } from "../../../lib/api-client";
+import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 
 type ManagerPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -89,6 +90,44 @@ export default async function ManagerPage({ params }: ManagerPageProps) {
     visitsResult.ok &&
     tasksResult.ok &&
     highPriorityTasksResult.ok;
+  const demoFallbackEnabled = isDemoFallbackEnabled();
+  const apiFailureMessage = [
+    routesResult,
+    visitsResult,
+    tasksResult,
+    highPriorityTasksResult,
+  ].find((result) => !result.ok)?.message;
+
+  if (!hasLiveData && !demoFallbackEnabled) {
+    return (
+      <AppShell tenantSlug={tenantSlug} activeArea="manager">
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">Team manager</p>
+            <h1>Operations dashboard</h1>
+            <p>
+              Live route, visit and task metrics are required in production
+              before manager review can continue.
+            </p>
+          </div>
+          <div className="toolbar">
+            <a className="primary-button" href={`/${tenantSlug}/login`}>
+              Sign in
+            </a>
+          </div>
+        </header>
+
+        <section className="notice-panel" aria-label="API status">
+          <div>
+            <p className="eyebrow">Connection required</p>
+            <h2>Manager metrics are not connected</h2>
+            <p>{apiFailureMessage}</p>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
   const routes = routesResult.ok ? routesResult.data : [];
   const visits = visitsResult.ok ? visitsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
@@ -111,13 +150,6 @@ export default async function ManagerPage({ params }: ManagerPageProps) {
     hasLiveData && (routes.length > 0 || tasks.length > 0)
       ? buildAttentionItems(routes, tasks)
       : demoAttentionItems;
-  const apiFailureMessage = [
-    routesResult,
-    visitsResult,
-    tasksResult,
-    highPriorityTasksResult,
-  ].find((result) => !result.ok)?.message;
-
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager">
       <header className="page-header">
@@ -139,7 +171,7 @@ export default async function ManagerPage({ params }: ManagerPageProps) {
         </div>
       </header>
 
-      {!hasLiveData ? (
+      {!hasLiveData && demoFallbackEnabled ? (
         <section className="notice-panel" aria-label="API status">
           <div>
             <p className="eyebrow">Demo mode</p>
