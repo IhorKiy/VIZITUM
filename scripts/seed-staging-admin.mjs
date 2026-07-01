@@ -38,6 +38,10 @@ const adminPassword = normalizeRequired(
   process.env.SEED_ADMIN_PASSWORD,
   "SEED_ADMIN_PASSWORD",
 );
+const adminRoleCodes = normalizeRoleCodes(
+  process.env.SEED_ADMIN_ROLE_CODES ||
+    "company_admin,team_manager,field_representative",
+);
 
 if (adminPassword.length < 8) {
   throw new Error("SEED_ADMIN_PASSWORD must be at least 8 characters.");
@@ -118,32 +122,34 @@ try {
         name: adminName,
         passwordHash,
         status: "active",
-        lastSelectedRoleCode: "company_admin",
+        lastSelectedRoleCode: adminRoleCodes[0],
       },
       update: {
         name: adminName,
         passwordHash,
         status: "active",
-        lastSelectedRoleCode: "company_admin",
+        lastSelectedRoleCode: adminRoleCodes[0],
         deletedAt: null,
       },
     });
 
-    await tx.userRole.upsert({
-      where: {
-        tenantId_userId_roleCode: {
+    for (const roleCode of adminRoleCodes) {
+      await tx.userRole.upsert({
+        where: {
+          tenantId_userId_roleCode: {
+            tenantId: tenant.id,
+            userId: user.id,
+            roleCode,
+          },
+        },
+        create: {
           tenantId: tenant.id,
           userId: user.id,
-          roleCode: "company_admin",
+          roleCode,
         },
-      },
-      create: {
-        tenantId: tenant.id,
-        userId: user.id,
-        roleCode: "company_admin",
-      },
-      update: {},
-    });
+        update: {},
+      });
+    }
 
     await tx.platformOperationEvent.create({
       data: {
@@ -168,7 +174,7 @@ try {
         tenantStatus: result.tenant.status,
         adminEmail: result.user.email,
         adminStatus: result.user.status,
-        adminRole: "company_admin",
+        adminRoleCodes,
       },
       null,
       2,
@@ -194,4 +200,28 @@ function normalizeEmail(value) {
 
 function normalizeSlug(value) {
   return value.trim().toLowerCase();
+}
+
+function normalizeRoleCodes(value) {
+  const roleCodes = value
+    .split(",")
+    .map((roleCode) => roleCode.trim())
+    .filter(Boolean);
+  const allowedRoleCodes = new Set([
+    "company_admin",
+    "team_manager",
+    "field_representative",
+  ]);
+
+  if (!roleCodes.length) {
+    throw new Error("SEED_ADMIN_ROLE_CODES must include at least one role.");
+  }
+
+  for (const roleCode of roleCodes) {
+    if (!allowedRoleCodes.has(roleCode)) {
+      throw new Error(`Unsupported staging admin role: ${roleCode}.`);
+    }
+  }
+
+  return roleCodes;
 }

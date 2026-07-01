@@ -21,18 +21,24 @@ export default async function LoginPage({
 
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
-    const response = await fetch(buildApiUrl("/auth/login"), {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        password,
-        tenantSlug,
-      }),
-    });
+    let response: Response;
+
+    try {
+      response = await fetch(buildApiUrl("/auth/login"), {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          tenantSlug,
+        }),
+      });
+    } catch {
+      redirect(`/${tenantSlug}/login?error=network`);
+    }
 
     if (!response.ok) {
       redirect(`/${tenantSlug}/login?error=invalid`);
@@ -63,7 +69,9 @@ export default async function LoginPage({
 
         {error ? (
           <div className="form-error" role="alert">
-            Invalid email or password.
+            {error === "network"
+              ? "Could not reach the API. Check the staging API URL."
+              : "Invalid email or password."}
           </div>
         ) : null}
 
