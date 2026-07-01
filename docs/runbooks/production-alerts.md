@@ -178,6 +178,7 @@ npm run alerts:check
 
 Before launch, record evidence that:
 
+- `docs/runbooks/production-ops-setup-guide.md` has been followed for provider setup;
 - Sentry receives a test API error in `production` or production-like staging;
 - Sentry receives a test frontend error from the deployed web app;
 - `/api/health/readiness` uptime monitor alerts on a forced failure or synthetic failing check;

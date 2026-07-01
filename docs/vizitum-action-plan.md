@@ -165,6 +165,7 @@ Status legend:
 - [x] Add production launch readiness record template.
 - [x] Add backup/restore runbook.
 - [x] Add production-critical alerts runbook and readiness checklist.
+- [x] Add step-by-step production ops setup guide.
 - [x] Add restore drill record template.
 - [x] Add automated restore drill command checks.
 - [x] Add restore drill wrapper check to CI.
