@@ -12,6 +12,12 @@ import { SessionService } from "./session.service";
   imports: [RolesModule, TenancyModule],
   controllers: [AuthController],
   providers: [AuthService, PasswordService, PermissionGuard, SessionService],
-  exports: [AuthService, PasswordService, PermissionGuard, SessionService],
+  exports: [
+    AuthService,
+    PasswordService,
+    PermissionGuard,
+    SessionService,
+    RolesModule,
+  ],
 })
 export class AuthModule {}
