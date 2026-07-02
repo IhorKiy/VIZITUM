@@ -71,11 +71,11 @@ npm run alerts:check
 
 | Item | Owner | Severity | Target Date | Notes |
 | ---- | ----- | -------- | ----------- | ----- |
-| Configure operations token and rerun operations summary alert check | Ihor Kiyanych | Medium | Before production pilot | Current tenant user does not have operations permission; alert check still skips operations summary without token. |
+| Configure production operations token and rerun production operations summary alert check | Ihor Kiyanych | Medium | Before production pilot | Staging token check passed on 2026-07-02; repeat with production services after they exist. |
 
 ## Sign-Off
 
 - Operator: Codex with Ihor Kiyanych staging login
 - Reviewer:
-- Decision: Passed with follow-up. Field recording/audio fallback, Admin import and Manager flows are verified; remaining follow-up is operations token verification and production ops gates.
+- Decision: Passed with follow-up. Field recording/audio fallback, Admin import, Manager flows and staging operations summary check are verified; remaining follow-up is production ops gates.
 - Timestamp: 2026-07-02 19:20 Europe/Kiev

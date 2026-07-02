@@ -12,7 +12,7 @@ Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creatio
 
 The product-facing staging UX has passed the controlled product smoke path: Field visit creation, browser recording/upload, audio file fallback, manual report confirmation, Admin import template/validation/confirm, Manager dashboard export and Manager task assignment passed against staging.
 
-Before a self-serve customer pilot, rerun production-like smoke checks against staging with `docs/runbooks/expanded-staging-product-smoke.md` for the newly wired flows and keep the remaining operations token, alert and backup/restore gates tracked in the launch readiness record.
+Before a self-serve customer pilot, keep the accepted staging product smoke as the baseline and track remaining alert, backup and restore gates in the launch readiness record.
 
 ## Passed Smoke Surfaces
 
@@ -32,7 +32,7 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 
 | Issue                                                         | Area       | Severity | Why It Matters                                                                                                              | Recommended Decision                                                                        |
 | ------------------------------------------------------------- | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Operations summary endpoint is not verified with bearer token | Operations | Medium   | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured. | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`. |
+| Production operations summary is not verified yet             | Operations | Medium   | Production services and production operator token do not exist yet.                                                        | Repeat the staging-verified operations summary check after production services are created. |
 
 ## Non-Blocking UX Gaps
 
@@ -65,13 +65,13 @@ Required before self-serve:
 - production-like field smoke test for visit creation, audio upload and report confirmation;
 - production-like import smoke test before broad self-serve rollout;
 - production-like manager smoke test for CSV export and task assignment;
-- operations token verification if operations page is used in pilot operations.
+- production operations token verification after production services are created.
 
 ## Next Product Actions
 
 1. Decide pilot scope: assisted pilot or self-serve pilot.
 2. Keep the audio MIME alias hardening fix in the next deploy for broader browser/file compatibility.
-3. Configure platform operations token and rerun alert check with operations summary.
+3. Repeat platform operations token and operations summary alert check for production after production services are created.
 4. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
 
 ## Action Plan Mapping
