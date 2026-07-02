@@ -13,24 +13,23 @@ The staging UX is acceptable for an internal/assisted pilot only if the pilot sc
 
 ## Passed Smoke Surfaces
 
-| Surface                    | Status  | Notes                                                                                       |
-| -------------------------- | ------- | ------------------------------------------------------------------------------------------- |
-| Tenant login               | Pass    | Tenant-aware login posts `tenantSlug` to backend and forwards session cookies.              |
-| Invite acceptance          | Pass    | Invite acceptance page exists and creates session after accepted invite.                    |
-| Field page load            | Pass    | Authenticated session loads visits API and disables demo fallback by default in production. |
-| Admin imports page load    | Pass    | Import templates, CSV validation, row issues and confirm/apply use backend import APIs.     |
-| Manager dashboard load     | Pass    | Reads routes, visits and tasks and builds live aggregate cards when APIs return data.       |
-| Operations page load       | Partial | Page exists and live API path exists; operations bearer token env still needs verification. |
-| Manual report confirmation | Pass    | Smoke report confirmation passed according to staging evidence packet.                      |
+| Surface                    | Status  | Notes                                                                                                                     |
+| -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Tenant login               | Pass    | Tenant-aware login posts `tenantSlug` to backend and forwards session cookies.                                            |
+| Invite acceptance          | Pass    | Invite acceptance page exists and creates session after accepted invite.                                                  |
+| Field page load            | Pass    | Authenticated session loads visits API and disables demo fallback by default in production.                               |
+| Admin imports page load    | Pass    | Import templates, CSV validation, row issues and confirm/apply use backend import APIs.                                   |
+| Manager dashboard load     | Pass    | Reads routes, visits and tasks, builds live aggregate cards, exports CSV and creates manager tasks when APIs return data. |
+| Operations page load       | Partial | Page exists and live API path exists; operations bearer token env still needs verification.                               |
+| Manual report confirmation | Pass    | Smoke report confirmation passed according to staging evidence packet.                                                    |
 
 ## Pilot-Blocking Issues
 
 These should be resolved or explicitly accepted before inviting non-internal pilot users.
 
-| Issue                                                         | Area       | Severity | Why It Matters                                                                                                                           | Recommended Decision                                                                                               |
-| ------------------------------------------------------------- | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Manager action buttons are not wired                          | Manager    | Medium   | `Export` and `Assign task` are visible but disabled. Manager read dashboard can still be useful, but these workflows are not self-serve. | Assisted pilot can use read-only manager review. Self-serve pilot needs task assignment/export or hidden controls. |
-| Operations summary endpoint is not verified with bearer token | Operations | Medium   | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured.              | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.                        |
+| Issue                                                         | Area       | Severity | Why It Matters                                                                                                              | Recommended Decision                                                                        |
+| ------------------------------------------------------------- | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Operations summary endpoint is not verified with bearer token | Operations | Medium   | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured. | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`. |
 
 ## Non-Blocking UX Gaps
 
@@ -64,7 +63,7 @@ Required before self-serve:
 
 - production-like field smoke test for visit creation, audio upload and report confirmation;
 - production-like import smoke test before broad self-serve rollout;
-- manager task assignment or hidden action controls;
+- production-like manager smoke test for CSV export and task assignment;
 - operations token verification if operations page is used in pilot operations.
 
 ## Next Product Actions

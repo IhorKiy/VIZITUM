@@ -196,6 +196,7 @@ Status legend:
 - [x] Connect admin CSV import validation and confirm flow to backend imports endpoints.
 - [x] Show admin import row-level validation issues before confirmation.
 - [x] Connect Team Manager dashboard to live route, visit and task metrics.
+- [x] Connect Team Manager task assignment and dashboard CSV export controls.
 - [x] Connect Platform Operations page to operations summary API with demo fallback.
 - [x] Disable demo fallback by default in production frontend.
 - [x] Disable unavailable assisted-pilot action controls.

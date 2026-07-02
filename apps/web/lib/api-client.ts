@@ -280,6 +280,17 @@ export async function listTasks(
   return apiGet<PaginatedResponse<Task>>(`/tasks?${query}`);
 }
 
+export async function createTask(input: {
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  assignedToUserId?: string;
+  locationId?: string;
+  dueDate?: string;
+}): Promise<ApiResult<Task>> {
+  return apiPost<Task>("/tasks", input);
+}
+
 export async function listHighPriorityTasks(): Promise<
   ApiResult<PaginatedResponse<Task>>
 > {

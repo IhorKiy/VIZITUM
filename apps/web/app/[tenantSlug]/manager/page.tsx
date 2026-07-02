@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
+
 import { AppShell } from "../../../components/app-shell";
 import {
+  createTask,
   listHighPriorityTasks,
   listTasks,
   listTodayRoutes,
@@ -12,6 +15,10 @@ import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 
 type ManagerPageProps = {
   params: Promise<{ tenantSlug: string }>;
+  searchParams: Promise<{
+    task?: string;
+    error?: string;
+  }>;
 };
 
 type ManagerMetric = {
@@ -32,6 +39,16 @@ type AttentionItem = {
   tone: "info" | "warning";
   area: string;
   detail: string;
+};
+
+type TaskAssigneeOption = {
+  id: string;
+  label: string;
+};
+
+type TaskLocationOption = {
+  id: string;
+  label: string;
 };
 
 const demoMetrics: ManagerMetric[] = [
@@ -76,8 +93,45 @@ const demoAttentionItems: AttentionItem[] = [
   },
 ];
 
-export default async function ManagerPage({ params }: ManagerPageProps) {
+export default async function ManagerPage({
+  params,
+  searchParams,
+}: ManagerPageProps) {
   const { tenantSlug } = await params;
+  const { task, error } = await searchParams;
+
+  async function createManagerTaskAction(formData: FormData) {
+    "use server";
+
+    const title = String(formData.get("title") ?? "").trim();
+    const description = String(formData.get("description") ?? "").trim();
+    const priority = parseTaskPriorityInput(formData.get("priority"));
+    const assignedToUserId = String(
+      formData.get("assignedToUserId") ?? "",
+    ).trim();
+    const locationId = String(formData.get("locationId") ?? "").trim();
+    const dueDate = String(formData.get("dueDate") ?? "").trim();
+
+    if (!title) {
+      redirect(`/${tenantSlug}/manager?error=task`);
+    }
+
+    const result = await createTask({
+      title,
+      priority,
+      ...(description ? { description } : {}),
+      ...(assignedToUserId ? { assignedToUserId } : {}),
+      ...(locationId ? { locationId } : {}),
+      ...(dueDate ? { dueDate } : {}),
+    });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/manager?error=task`);
+    }
+
+    redirect(`/${tenantSlug}/manager?task=created`);
+  }
+
   const [routesResult, visitsResult, tasksResult, highPriorityTasksResult] =
     await Promise.all([
       listTodayRoutes(),
@@ -150,6 +204,10 @@ export default async function ManagerPage({ params }: ManagerPageProps) {
     hasLiveData && (routes.length > 0 || tasks.length > 0)
       ? buildAttentionItems(routes, tasks)
       : demoAttentionItems;
+  const assigneeOptions = buildTaskAssigneeOptions(routes);
+  const locationOptions = buildTaskLocationOptions(routes);
+  const managerCsv = buildManagerCsv(metrics, representatives, attentionItems);
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager">
       <header className="page-header">
@@ -162,14 +220,40 @@ export default async function ManagerPage({ params }: ManagerPageProps) {
           </p>
         </div>
         <div className="toolbar">
-          <button className="secondary-button" disabled type="button">
+          <a
+            className="secondary-button"
+            download="vizitum-manager-dashboard.csv"
+            href={`data:text/csv;charset=utf-8,${encodeURIComponent(
+              managerCsv,
+            )}`}
+          >
             Export
-          </button>
-          <button className="primary-button" disabled type="button">
+          </a>
+          <a className="primary-button" href="#assign-task">
             Assign task
-          </button>
+          </a>
         </div>
       </header>
+
+      {task === "created" ? (
+        <section className="notice-panel success" aria-label="Task status">
+          <div>
+            <p className="eyebrow">Task assigned</p>
+            <h2>Task created</h2>
+            <p>The new task is now visible in the team task queue.</p>
+          </div>
+        </section>
+      ) : null}
+
+      {error === "task" ? (
+        <section className="notice-panel danger" aria-label="Task error">
+          <div>
+            <p className="eyebrow">Task not assigned</p>
+            <h2>Create task failed</h2>
+            <p>Add a task title and try again.</p>
+          </div>
+        </section>
+      ) : null}
 
       {!hasLiveData && demoFallbackEnabled ? (
         <section className="notice-panel" aria-label="API status">
@@ -240,6 +324,68 @@ export default async function ManagerPage({ params }: ManagerPageProps) {
               </article>
             ))}
           </div>
+        </div>
+
+        <div className="panel" id="assign-task">
+          <h2>Assign task</h2>
+          <form action={createManagerTaskAction} className="visit-form compact">
+            <label>
+              Title
+              <textarea
+                name="title"
+                placeholder="Follow up with location or representative"
+                required
+                rows={2}
+              />
+            </label>
+            <label>
+              Details
+              <textarea
+                name="description"
+                placeholder="Optional context for the assignee"
+                rows={3}
+              />
+            </label>
+            <label>
+              Assignee
+              <select name="assignedToUserId">
+                <option value="">Unassigned</option>
+                {assigneeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Location
+              <select name="locationId">
+                <option value="">No location</option>
+                {locationOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="form-row">
+              <label>
+                Priority
+                <select name="priority" defaultValue="normal" required>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
+              <label>
+                Due date
+                <input name="dueDate" type="date" />
+              </label>
+            </div>
+            <button className="primary-button" type="submit">
+              Create task
+            </button>
+          </form>
         </div>
       </section>
     </AppShell>
@@ -355,6 +501,74 @@ function buildAttentionItems(
           detail: "Routes and high-priority tasks are clear right now.",
         },
       ];
+}
+
+function buildTaskAssigneeOptions(routes: RoutePlan[]): TaskAssigneeOption[] {
+  const options = new Map<string, TaskAssigneeOption>();
+
+  routes.forEach((route) => {
+    options.set(route.representative.id, {
+      id: route.representative.id,
+      label: route.representative.name,
+    });
+  });
+
+  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function buildTaskLocationOptions(routes: RoutePlan[]): TaskLocationOption[] {
+  const options = new Map<string, TaskLocationOption>();
+
+  routes.forEach((route) => {
+    route.items.forEach((item) => {
+      options.set(item.location.id, {
+        id: item.location.id,
+        label: item.location.name,
+      });
+    });
+  });
+
+  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function buildManagerCsv(
+  metrics: ManagerMetric[],
+  representatives: RepresentativeSummary[],
+  attentionItems: AttentionItem[],
+): string {
+  return [
+    ["Section", "Name", "Value", "Detail"],
+    ...metrics.map((metric) => [
+      "Metric",
+      metric.label,
+      metric.value,
+      metric.detail,
+    ]),
+    ...representatives.map((representative) => [
+      "Representative",
+      representative.name,
+      representative.route,
+      representative.reports,
+    ]),
+    ...attentionItems.map((item) => [
+      "Attention",
+      item.title,
+      item.area,
+      item.detail,
+    ]),
+  ]
+    .map((row) => row.map(escapeCsvCell).join(","))
+    .join("\n");
+}
+
+function escapeCsvCell(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function parseTaskPriorityInput(value: FormDataEntryValue | null) {
+  return value === "low" || value === "normal" || value === "high"
+    ? value
+    : "normal";
 }
 
 function formatRouteStatus(status: RoutePlan["status"]): string {
