@@ -222,7 +222,7 @@ Status legend:
 - [x] Configure staging platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
 - [x] Run product smoke checks against staging: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation work.
 - [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` after self-serve Field, Admin import and Manager actions deploy. 2026-07-02 recheck passed Field recording/audio fallback, Admin import and Manager flows.
-- [ ] Defer paid PostgreSQL backup/restore setup until the final production-pilot gate.
+- [x] Defer paid PostgreSQL backup/restore setup until the final production-pilot gate.
 - [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md` after selecting a paid PostgreSQL plan/provider.
 - [ ] Create production services only after backup evidence, restore drill and smoke checks are complete.
 
@@ -230,7 +230,7 @@ Status legend:
 
 ### Now, without paid infrastructure
 
-- [~] Capture provider evidence links/screenshots for the current staging baseline: Render API, Render cron, Vercel web, UptimeRobot, Cloudflare R2 and Sentry.
+- [x] Capture provider evidence links/screenshots for the current staging baseline: Render API, Render cron, Vercel web, UptimeRobot, Cloudflare R2 and Sentry. Sentry remains partial until an actual staging event/release is visible.
 - [ ] Configure production-critical alert rules where free tiers allow it: Sentry, UptimeRobot and hosting provider notifications.
 - [x] Platform operations summary token path is implemented and verified on staging with `OPERATIONS_SUMMARY_URL`.
 - [x] Review the staging UX after smoke pass and list any pilot-blocking product issues.
@@ -244,3 +244,49 @@ Status legend:
 - [ ] Create production services with separate DB, Redis, R2 bucket, Sentry environment and uptime monitor.
 - [ ] Repeat smoke checks against production: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation.
 - [ ] Update `docs/runbooks/production-launch-readiness-record.md` from No-go to Go only after backup evidence, restore drill and production smoke checks pass.
+
+## 17. Product Development Roadmap After Staging Baseline
+
+### Track A: Pilot usability polish
+
+- [ ] Run a short internal dogfood cycle with 2-3 realistic field scenarios: planned visit, unplanned note, audio fallback and manager follow-up task.
+- [ ] Capture friction points from the dogfood cycle in `docs/runbooks/staging-ux-review.md`.
+- [ ] Improve empty states, loading states and error copy on Field, Admin imports and Manager dashboard screens.
+- [ ] Add clearer success states and recovery guidance for audio upload/transcription failures.
+- [ ] Review mobile layout on common field-device widths before each pilot candidate build.
+
+### Track B: Pilot data model completeness
+
+- [ ] Finalize the minimum customer onboarding dataset: users, locations, contacts, products/SKUs and initial route/task plan.
+- [ ] Add sample customer import packs for demo/pilot preparation without exposing real customer data.
+- [ ] Define the first pilot reporting templates for distribution, service and partner-account visit types.
+- [ ] Review which report fields must be structured versus free-text before the first pilot.
+
+### Track C: Manager and admin workflows
+
+- [ ] Add manager filters for route, assignee, visit status and date range.
+- [ ] Add admin review screens for import history and applied row counts.
+- [ ] Add lightweight user lifecycle controls: deactivate user, resend invite and reset role assignment.
+- [ ] Add tenant-level settings for company name, default route visibility and allowed report types.
+
+### Track D: AI reporting quality
+
+- [ ] Collect anonymized staging examples for each supported report type.
+- [ ] Evaluate AI extraction outputs against expected structured fields.
+- [ ] Add confidence/error states that let the field user confirm manually when AI output is weak.
+- [ ] Keep the manual report path as the reliable fallback for every pilot flow.
+
+### Track E: Commercial and pilot readiness
+
+- [ ] Prepare pilot demo script based on the accepted staging smoke path.
+- [ ] Create a one-page pilot onboarding checklist for a customer admin.
+- [ ] Define pilot success metrics: visits completed, reports confirmed, manager tasks created and import success rate.
+- [ ] Prepare support process for pilot week: incident contact, response window and issue triage labels.
+
+### Track F: Final production-pilot gate
+
+- [ ] Select or upgrade PostgreSQL with automated backups, export and restore support.
+- [ ] Run restore drill into a recovery database and attach evidence to `docs/runbooks/restore-drill-record-template.md`.
+- [ ] Create production services with separate database, Redis, R2 bucket, Sentry environment and uptime monitor.
+- [ ] Repeat expanded smoke checks against production.
+- [ ] Move `docs/runbooks/production-launch-readiness-record.md` from No-go to Go only after backup evidence, restore drill and production smoke checks pass.
