@@ -209,6 +209,25 @@ Status legend:
 - [!] Choose a PostgreSQL plan/provider with automated backups because Render Free Tier shows backups/export/PITR unavailable.
 - [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
 - [ ] Configure platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
-- [~] Run product smoke checks against staging: login, tenant lookup, field flow, imports and manager dashboard work; manual report confirmation still needs verification.
-- [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md`.
+- [x] Run product smoke checks against staging: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation work.
+- [ ] Defer paid PostgreSQL backup/restore setup until the final production-pilot gate.
+- [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md` after selecting a paid PostgreSQL plan/provider.
 - [ ] Create production services only after backup evidence, restore drill and smoke checks are complete.
+
+## 16. Next Plan
+
+### Now, without paid infrastructure
+
+- [ ] Capture provider evidence links/screenshots for the current staging baseline: Render API, Render cron, Vercel web, UptimeRobot, Cloudflare R2 and Sentry.
+- [ ] Configure production-critical alert rules where free tiers allow it: Sentry, UptimeRobot and hosting provider notifications.
+- [ ] Decide whether platform operations summary is required for the pilot; if yes, implement/configure a platform operator token path and verify `OPERATIONS_SUMMARY_URL`.
+- [ ] Review the staging UX after smoke pass and list any pilot-blocking product issues.
+- [ ] Prepare production env var checklist from the validated staging values, with production-specific names and buckets.
+
+### Final gate before production pilot
+
+- [ ] Upgrade/select PostgreSQL with automated backups and export/restore support.
+- [ ] Run restore drill into a recovery database and attach evidence to `docs/runbooks/restore-drill-record-template.md`.
+- [ ] Create production services with separate DB, Redis, R2 bucket, Sentry environment and uptime monitor.
+- [ ] Repeat smoke checks against production: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation.
+- [ ] Update `docs/runbooks/production-launch-readiness-record.md` from No-go to Go only after backup evidence, restore drill and production smoke checks pass.
