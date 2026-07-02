@@ -303,7 +303,7 @@ textarea {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.report-form {
+.visit-form {
   border-top: 1px solid var(--line);
   display: grid;
   gap: 10px;
@@ -311,7 +311,7 @@ textarea {
   padding-top: 12px;
 }
 
-.report-form label {
+.visit-form label {
   color: var(--ink);
   display: grid;
   font-size: 13px;
@@ -319,7 +319,7 @@ textarea {
   gap: 6px;
 }
 
-.report-form textarea {
+.visit-form textarea {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -329,7 +329,7 @@ textarea {
   resize: vertical;
 }
 
-.report-form textarea:focus {
+.visit-form textarea:focus {
   border-color: var(--accent);
   outline: 2px solid rgba(23, 107, 95, 0.16);
 }

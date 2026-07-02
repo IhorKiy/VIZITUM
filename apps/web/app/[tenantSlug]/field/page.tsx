@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "../../../components/app-shell";
 import { FieldRecordingNotice } from "../../../components/field-recording-notice";
 import {
+  addTextVisitNote,
   confirmManualReport,
   getCurrentSession,
   listVisits,
@@ -12,7 +13,7 @@ import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 
 type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ report?: string; error?: string }>;
+  searchParams: Promise<{ note?: string; report?: string; error?: string }>;
 };
 
 type FieldVisit = {
@@ -56,7 +57,26 @@ export default async function FieldPage({
   searchParams,
 }: FieldPageProps) {
   const { tenantSlug } = await params;
-  const { report, error } = await searchParams;
+  const { note, report, error } = await searchParams;
+
+  async function addTextNoteAction(formData: FormData) {
+    "use server";
+
+    const visitId = String(formData.get("visitId") ?? "").trim();
+    const textContent = String(formData.get("textContent") ?? "").trim();
+
+    if (!visitId || !textContent) {
+      redirect(`/${tenantSlug}/field?error=note`);
+    }
+
+    const result = await addTextVisitNote(visitId, textContent);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/field?error=note`);
+    }
+
+    redirect(`/${tenantSlug}/field?note=saved`);
+  }
 
   async function confirmReportAction(formData: FormData) {
     "use server";
@@ -158,12 +178,32 @@ export default async function FieldPage({
 
       <FieldRecordingNotice tenantSlug={tenantSlug} />
 
+      {note === "saved" ? (
+        <section className="notice-panel success" aria-label="Note status">
+          <div>
+            <p className="eyebrow">Note saved</p>
+            <h2>Text note added</h2>
+            <p>The note was attached to the visit.</p>
+          </div>
+        </section>
+      ) : null}
+
       {report === "confirmed" ? (
         <section className="notice-panel success" aria-label="Report status">
           <div>
             <p className="eyebrow">Report confirmed</p>
             <h2>Manual report saved</h2>
             <p>The visit was marked completed and the report was confirmed.</p>
+          </div>
+        </section>
+      ) : null}
+
+      {error === "note" ? (
+        <section className="notice-panel danger" aria-label="Note error">
+          <div>
+            <p className="eyebrow">Note not saved</p>
+            <h2>Text note failed</h2>
+            <p>Add note text and try again.</p>
           </div>
         </section>
       ) : null}
@@ -212,14 +252,28 @@ export default async function FieldPage({
               <p className="visit-meta">{visit.next}</p>
               <div className="visit-actions">
                 <button className="secondary-button" disabled type="button">
-                  Text note
-                </button>
-                <button className="secondary-button" disabled type="button">
                   Voice note
                 </button>
               </div>
               {visit.canConfirm ? (
-                <form action={confirmReportAction} className="report-form">
+                <form action={addTextNoteAction} className="visit-form">
+                  <input name="visitId" type="hidden" value={visit.id} />
+                  <label>
+                    Text note
+                    <textarea
+                      name="textContent"
+                      placeholder="Add shelf notes, agreements or observations"
+                      required
+                      rows={2}
+                    />
+                  </label>
+                  <button className="secondary-button" type="submit">
+                    Save note
+                  </button>
+                </form>
+              ) : null}
+              {visit.canConfirm ? (
+                <form action={confirmReportAction} className="visit-form">
                   <input name="visitId" type="hidden" value={visit.id} />
                   <label>
                     Visit summary

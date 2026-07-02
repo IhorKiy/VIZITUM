@@ -163,6 +163,16 @@ export type Report = {
   updatedAt: string;
 };
 
+export type VisitNote = {
+  id: string;
+  visitId: string;
+  inputType: "text" | "audio";
+  textContent: string | null;
+  temporaryAudioObjectId: string | null;
+  createdByUserId: string;
+  createdAt: string;
+};
+
 export type ApiResult<TData> =
   { ok: true; data: TData } | { ok: false; status: number; message: string };
 
@@ -211,6 +221,15 @@ export async function confirmManualReport(
   return apiPost<Report>(`/visits/${visitId}/reports/confirm`, {
     schemaVersion: "manual.v1",
     confirmedData,
+  });
+}
+
+export async function addTextVisitNote(
+  visitId: string,
+  textContent: string,
+): Promise<ApiResult<VisitNote>> {
+  return apiPost<VisitNote>(`/visits/${visitId}/notes/text`, {
+    textContent,
   });
 }
 
