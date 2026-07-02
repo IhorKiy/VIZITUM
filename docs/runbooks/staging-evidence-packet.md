@@ -43,11 +43,8 @@ Use this packet to collect evidence for the current staging baseline before crea
 
 ## Next Evidence Actions
 
-1. Add Render screenshots/links for API, Postgres, Redis and cleanup cron.
-2. Add Vercel deployment and environment screenshots/links.
-3. Add Cloudflare R2 bucket and CORS screenshots/links.
-4. Add Sentry project/release evidence.
-5. Add UptimeRobot monitor screenshot/link.
-6. Keep the audio MIME alias hardening fix in the next deploy for broader browser/file compatibility.
-7. Continue provider evidence capture for Sentry and UptimeRobot screenshots/links.
-8. Decide assisted vs self-serve pilot scope from `docs/runbooks/staging-ux-review.md`.
+1. Add Sentry project/release/environment screenshot or link.
+2. Add UptimeRobot readiness monitor screenshot or link.
+3. Add stricter Cloudflare R2 CORS screenshot if audit evidence requires it.
+4. Choose paid PostgreSQL backup/export/PITR path before production pilot.
+5. Run restore drill after selecting a backup-capable PostgreSQL plan/provider.
