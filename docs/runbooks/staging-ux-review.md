@@ -9,7 +9,9 @@ Mitigation update: unavailable assisted-pilot action controls were disabled in t
 
 ## Summary
 
-The staging UX is acceptable for an internal/assisted pilot only if the pilot scope is limited to guided smoke flows and read-oriented dashboards. It is not yet acceptable as a fully self-serve customer pilot because several visible buttons are presentational and do not start the underlying workflow.
+The product-facing staging UX is now code-complete enough for a controlled pilot smoke pass: Field visit creation, browser voice recording with file upload fallback, manual report confirmation, Admin import validation/confirm, Manager dashboard export and Manager task assignment are wired to backend flows.
+
+Before a self-serve customer pilot, rerun production-like smoke checks against staging for the newly wired flows and keep the remaining operations token, alert and backup/restore gates tracked in the launch readiness record.
 
 ## Passed Smoke Surfaces
 
@@ -49,15 +51,14 @@ For the first controlled pilot, use one of these scopes.
 Recommended for the current state.
 
 - Vizitum team handles imports/setup.
-- Field users can log in and view assigned visits.
-- Manual report confirmation path is validated through guided smoke.
-- Manager dashboard is used as read-only review.
+- Field users can log in, create visits, record/upload voice notes and confirm manual reports after smoke recheck.
+- Manager dashboard can be used for review, CSV export and task assignment after smoke recheck.
 - Operations page is internal only.
-- Unavailable controls are disabled before external user sessions.
+- Production ops gates remain outside the product UI and must be completed before production pilot.
 
 ### Self-Serve Pilot
 
-Do not use this scope until the blocking UI actions are implemented.
+Do not use this scope until the newly wired product actions pass staging smoke and the relevant operations gates are configured or explicitly accepted.
 
 Required before self-serve:
 
@@ -69,8 +70,8 @@ Required before self-serve:
 ## Next Product Actions
 
 1. Decide pilot scope: assisted pilot or self-serve pilot.
-2. If assisted pilot: keep unavailable controls disabled until the matching workflows exist.
-3. If self-serve pilot: smoke-test field visit creation, browser recording and report confirmation before rollout.
+2. If assisted pilot: rerun the core staging smoke path with the newly wired self-serve actions.
+3. If self-serve pilot: smoke-test field visit creation, browser recording, import validation/confirm, manager export and task assignment before rollout.
 4. Configure platform operations token and rerun alert check with operations summary.
 5. Repeat UX review against staging after the chosen fixes.
 
@@ -78,4 +79,4 @@ Required before self-serve:
 
 This review completes the planning artifact for: `Review the staging UX after smoke pass and list any pilot-blocking product issues`.
 
-It does not close the product fixes themselves. Those should become implementation tasks once the pilot scope decision is made.
+The original product UI blockers have been converted into implemented workflows. The remaining work is staging/production verification and external operations readiness.
