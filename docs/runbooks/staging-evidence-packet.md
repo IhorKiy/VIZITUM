@@ -28,7 +28,7 @@ Use this packet to collect evidence for the current staging baseline before crea
 | Sentry                 | API project exists, DSN configured, staging release/environment visible                       | Partial        | TODO: add Sentry project/release screenshot/link                                                                                                                                                                                   |
 | UptimeRobot            | Readiness monitor exists and status is Up                                                     | Pass           | TODO: add monitor screenshot/link                                                                                                                                                                                                  |
 | Alerts endpoint check  | `npm run alerts:check` passed for API readiness and web URL                                   | Pass           | 2026-07-02 command passed with `OK: readiness is ready`, `OK: HTTP 200`, and operations summary skipped because `OPERATIONS_SUMMARY_URL` is not configured.                                                                         |
-| Product smoke          | Login, tenant lookup, field, imports, manager dashboard and manual report confirmation passed | Follow-up      | Expanded smoke on 2026-07-02 passed login, Field visit/text note/manual report, Manager dashboard/export/task and expected Operations permission state. After `dc130b2`, Admin template paths are corrected but direct API-domain browser downloads return 401; local follow-up adds a Next proxy route. Browser audio/file upload checks still need repeat in a real mic/file-picker browser. |
+| Product smoke          | Login, tenant lookup, field, imports, manager dashboard and manual report confirmation passed | Follow-up      | Expanded smoke on 2026-07-02 passed login, Field visit/text note/manual report, Admin template proxy/validation/confirm, Manager dashboard/export/task and expected Operations permission state. Admin import job `cmr3rwtzh00012bd75jhtliyt` validated 1 row with 0 errors and applied 1 row. Browser audio/file upload checks still need repeat in a real mic/file-picker browser. |
 | Staging UX review      | Pilot-blocking UX issues are listed after smoke pass                                          | Pass           | Product UI blockers are implemented; see `docs/runbooks/staging-ux-review.md` for the required re-smoke scope.                                                                                                                     |
 
 ## Known Gaps
@@ -39,7 +39,7 @@ Use this packet to collect evidence for the current staging baseline before crea
 | Restore drill                          | Requires a backup/export-capable PostgreSQL plan or provider                                  | Must pass before production pilot                                                                                                                                       |
 | Operations summary endpoint check      | Platform operator token env value is not configured yet                                       | Token path exists; configure `PLATFORM_OPERATIONS_TOKEN_SHA256` or staging `PLATFORM_OPERATIONS_TOKEN`, then rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL` |
 | Full production alert rules            | Production services do not exist yet                                                          | Configure after production services are created                                                                                                                         |
-| Expanded self-serve product smoke      | 2026-07-02 smoke found Admin template download auth and browser automation limitations        | Must repeat before self-serve pilot after deploying the authenticated template download proxy and rerunning audio/import upload checks.                                  |
+| Expanded self-serve product smoke      | 2026-07-02 smoke passed Field, Admin and Manager core flows with audio limitations            | Audio recording/upload must repeat before self-serve pilot in a real mic/file-picker browser.                                                                             |
 
 ## Next Evidence Actions
 
@@ -48,6 +48,6 @@ Use this packet to collect evidence for the current staging baseline before crea
 3. Add Cloudflare R2 bucket and CORS screenshots/links.
 4. Add Sentry project/release evidence.
 5. Add UptimeRobot monitor screenshot/link.
-6. Deploy the Admin import template download proxy fix and rerun Admin template, validation and confirm smoke.
-7. Repeat browser voice and audio fallback checks in a browser/device that supports microphone and file upload.
+6. Repeat browser voice and audio fallback checks in a browser/device that supports microphone and file upload.
+7. Configure operations summary token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
 8. Decide assisted vs self-serve pilot scope from `docs/runbooks/staging-ux-review.md`.
