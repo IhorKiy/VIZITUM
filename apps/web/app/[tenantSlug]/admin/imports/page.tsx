@@ -1,13 +1,29 @@
+import { redirect } from "next/navigation";
+
 import { AppShell } from "../../../../components/app-shell";
 import {
   buildApiUrl,
+  confirmImportJob,
   listImportTemplates,
+  validateCsvImport,
   type ImportTemplateSummary,
 } from "../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
 
 type ImportsPageProps = {
   params: Promise<{ tenantSlug: string }>;
+  searchParams: Promise<{
+    applied?: string;
+    canConfirm?: string;
+    errors?: string;
+    importJobId?: string;
+    status?: string;
+    template?: string;
+    rows?: string;
+    valid?: string;
+    warnings?: string;
+    error?: string;
+  }>;
 };
 
 const demoTemplates: ImportTemplateSummary[] = [
@@ -45,8 +61,68 @@ const demoTemplates: ImportTemplateSummary[] = [
   },
 ];
 
-export default async function ImportsPage({ params }: ImportsPageProps) {
+export default async function ImportsPage({
+  params,
+  searchParams,
+}: ImportsPageProps) {
   const { tenantSlug } = await params;
+  const validationState = await searchParams;
+
+  async function validateImportAction(formData: FormData) {
+    "use server";
+
+    const templateType = String(formData.get("templateType") ?? "").trim();
+    const importFile = formData.get("importFile");
+
+    if (
+      !templateType ||
+      !(importFile instanceof File) ||
+      importFile.size === 0
+    ) {
+      redirect(`/${tenantSlug}/admin/imports?error=upload`);
+    }
+
+    const csvText = await importFile.text();
+    const result = await validateCsvImport(templateType, csvText);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/imports?error=validation`);
+    }
+
+    const query = new URLSearchParams({
+      canConfirm: String(result.data.canConfirm),
+      errors: String(result.data.errorRowCount),
+      importJobId: result.data.importJobId,
+      rows: String(result.data.rowCount),
+      status: result.data.status,
+      template: result.data.templateType,
+      valid: String(result.data.validRowCount),
+      warnings: String(result.data.warningRowCount),
+    });
+
+    redirect(`/${tenantSlug}/admin/imports?${query.toString()}`);
+  }
+
+  async function confirmImportAction(formData: FormData) {
+    "use server";
+
+    const importJobId = String(formData.get("importJobId") ?? "").trim();
+
+    if (!importJobId) {
+      redirect(`/${tenantSlug}/admin/imports?error=confirm`);
+    }
+
+    const result = await confirmImportJob(importJobId);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/imports?error=confirm`);
+    }
+
+    redirect(
+      `/${tenantSlug}/admin/imports?applied=${result.data.appliedRowCount}`,
+    );
+  }
+
   const templatesResult = await listImportTemplates();
   const demoFallbackEnabled = isDemoFallbackEnabled();
 
@@ -81,6 +157,11 @@ export default async function ImportsPage({ params }: ImportsPageProps) {
   }
 
   const templates = templatesResult.ok ? templatesResult.data : demoTemplates;
+  const selectedTemplate =
+    templates.find((template) => template.type === validationState.template) ??
+    templates[0];
+  const canConfirmImport =
+    validationState.canConfirm === "true" && validationState.importJobId;
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin">
@@ -100,11 +181,31 @@ export default async function ImportsPage({ params }: ImportsPageProps) {
           >
             Download templates
           </a>
-          <button className="primary-button" disabled type="button">
-            Upload file
-          </button>
         </div>
       </header>
+
+      {validationState.applied ? (
+        <section className="notice-panel success" aria-label="Import status">
+          <div>
+            <p className="eyebrow">Import applied</p>
+            <h2>Rows imported</h2>
+            <p>{validationState.applied} rows were applied successfully.</p>
+          </div>
+        </section>
+      ) : null}
+
+      {validationState.error ? (
+        <section className="notice-panel danger" aria-label="Import error">
+          <div>
+            <p className="eyebrow">Import failed</p>
+            <h2>Check the file and try again</h2>
+            <p>
+              Upload a CSV from an approved template and confirm only validated
+              imports.
+            </p>
+          </div>
+        </section>
+      ) : null}
 
       {!templatesResult.ok && demoFallbackEnabled ? (
         <section className="notice-panel" aria-label="API status">
@@ -145,33 +246,75 @@ export default async function ImportsPage({ params }: ImportsPageProps) {
         </div>
 
         <div className="panel">
-          <h2>Validation queue</h2>
+          <h2>Upload and validate</h2>
+          <form action={validateImportAction} className="visit-form">
+            <label>
+              Template
+              <select
+                defaultValue={selectedTemplate?.type}
+                name="templateType"
+                required
+              >
+                {templates.map((template) => (
+                  <option key={template.type} value={template.type}>
+                    {template.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              CSV file
+              <input
+                accept=".csv,text/csv"
+                name="importFile"
+                required
+                type="file"
+              />
+            </label>
+            <button className="primary-button" type="submit">
+              Validate file
+            </button>
+          </form>
+        </div>
+
+        <div className="panel">
+          <h2>Validation result</h2>
           <table className="table">
-            <thead>
-              <tr>
-                <th>File</th>
-                <th>Status</th>
-                <th>Rows</th>
-              </tr>
-            </thead>
             <tbody>
               <tr>
-                <td>locations-july.xlsx</td>
-                <td>Validated</td>
-                <td>128</td>
+                <th scope="row">Status</th>
+                <td>{validationState.status ?? "No file validated"}</td>
               </tr>
               <tr>
-                <td>users-pilot.csv</td>
-                <td>Needs fix</td>
-                <td>18</td>
+                <th scope="row">Rows</th>
+                <td>{validationState.rows ?? "0"}</td>
               </tr>
               <tr>
-                <td>initial-plan.xlsx</td>
-                <td>Ready</td>
-                <td>64</td>
+                <th scope="row">Valid</th>
+                <td>{validationState.valid ?? "0"}</td>
+              </tr>
+              <tr>
+                <th scope="row">Errors</th>
+                <td>{validationState.errors ?? "0"}</td>
+              </tr>
+              <tr>
+                <th scope="row">Warnings</th>
+                <td>{validationState.warnings ?? "0"}</td>
               </tr>
             </tbody>
           </table>
+          {canConfirmImport ? (
+            <form action={confirmImportAction} className="confirm-inline-form">
+              <input
+                name="importJobId"
+                type="hidden"
+                value={validationState.importJobId}
+              />
+              <button className="primary-button" type="submit">
+                Confirm import
+              </button>
+            </form>
+          ) : null}
         </div>
       </section>
     </AppShell>

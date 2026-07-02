@@ -117,6 +117,34 @@ export type ImportTemplateSummary = {
   optionalColumns: string[];
 };
 
+export type ImportValidationIssue = {
+  rowNumber: number;
+  fieldName?: string;
+  severity: "error" | "warning";
+  code: string;
+  message: string;
+  rawValue?: string;
+};
+
+export type StoredImportValidationPreview = {
+  templateType: string;
+  rowCount: number;
+  validRowCount: number;
+  errorRowCount: number;
+  warningRowCount: number;
+  canConfirm: boolean;
+  issues: ImportValidationIssue[];
+  importJobId: string;
+  status: "validated" | "validation_failed";
+};
+
+export type ImportApplyResult = {
+  importJobId: string;
+  status: "applied";
+  appliedRowCount: number;
+  createdCounts: Record<string, number>;
+};
+
 export type OperationsSummary = {
   generatedAt: string;
   windowHours: number;
@@ -225,6 +253,22 @@ export async function listImportTemplates(): Promise<
   ApiResult<ImportTemplateSummary[]>
 > {
   return apiGet<ImportTemplateSummary[]>("/imports/templates");
+}
+
+export async function validateCsvImport(
+  templateType: string,
+  csvText: string,
+): Promise<ApiResult<StoredImportValidationPreview>> {
+  return apiPost<StoredImportValidationPreview>("/imports/jobs/validate", {
+    templateType,
+    csvText,
+  });
+}
+
+export async function confirmImportJob(
+  importJobId: string,
+): Promise<ApiResult<ImportApplyResult>> {
+  return apiPost<ImportApplyResult>(`/imports/jobs/${importJobId}/confirm`, {});
 }
 
 export async function getOperationsSummary(): Promise<

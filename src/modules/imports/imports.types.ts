@@ -63,6 +63,11 @@ export type CreateImportValidationJobOptions = {
   sourceFileObjectId?: string;
 };
 
+export type CreateImportValidationJobRequestBody = {
+  templateType?: unknown;
+  csvText?: unknown;
+};
+
 export type StoredImportValidationPreview = ImportValidationPreview & {
   importJobId: string;
   status: "validated" | "validation_failed";

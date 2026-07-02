@@ -30,7 +30,7 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 | Issue | Area | Severity | Why It Matters | Recommended Decision |
 | --- | --- | --- | --- | --- |
 | Field action buttons are partially wired | Field | Medium | Text note capture, voice note upload fallback and manual report confirmation are now available from the Field page. `New visit` and refresh remain disabled until their workflows exist. | Assisted pilot can proceed with guided/manual report confirmation. Self-serve pilot still needs browser recording and visit creation flows. |
-| Admin upload flow is not wired from UI | Admin imports | High | `Upload file` is visible but disabled until file selection, validation preview and confirmation are implemented. Assisted setup can still use backend/API, but self-serve admin onboarding is not ready. | Assisted pilot can proceed with operator-assisted imports. Self-serve pilot requires upload/preview/confirm UI. |
+| Admin import issue details are summarized | Admin imports | Medium | CSV upload, validation counts and confirm/apply are now available from the Admin imports page. Detailed row issue display is still summarized by counts. | Assisted pilot can proceed. Self-serve pilot should add row-level issue review before broad rollout. |
 | Manager action buttons are not wired | Manager | Medium | `Export` and `Assign task` are visible but disabled. Manager read dashboard can still be useful, but these workflows are not self-serve. | Assisted pilot can use read-only manager review. Self-serve pilot needs task assignment/export or hidden controls. |
 | Operations summary endpoint is not verified with bearer token | Operations | Medium | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured. | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`. |
 
@@ -65,7 +65,7 @@ Do not use this scope until the blocking UI actions are implemented.
 Required before self-serve:
 
 - browser voice recording and visit creation UI;
-- admin import upload, validation preview and apply UI;
+- row-level import issue review before broad self-serve rollout;
 - manager task assignment or hidden action controls;
 - operations token verification if operations page is used in pilot operations.
 

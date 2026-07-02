@@ -1,4 +1,6 @@
 import {
+  Body,
+  BadRequestException,
   Controller,
   Get,
   Param,
@@ -14,6 +16,10 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { ImportsService } from "./imports.service";
+import type {
+  CreateImportValidationJobRequestBody,
+  ImportTemplateType,
+} from "./imports.types";
 
 @Controller("imports")
 @UseGuards(PermissionGuard)
@@ -43,6 +49,25 @@ export class ImportsController {
     return template.body;
   }
 
+  @Post("jobs/validate")
+  @RequirePermissions(PERMISSIONS.IMPORTS_UPLOAD)
+  createValidationJob(
+    @Req() request: Request,
+    @Body() body: CreateImportValidationJobRequestBody,
+  ) {
+    const templateType = parseImportTemplateType(body.templateType);
+    const csvText = parseCsvText(body.csvText);
+    const parsedFile = this.importsService.parseApprovedCsvTemplate(
+      templateType,
+      csvText,
+    );
+
+    return this.importsService.createImportValidationJob(
+      getRequestContext(request),
+      parsedFile,
+    );
+  }
+
   @Post("jobs/:importJobId/confirm")
   @RequirePermissions(PERMISSIONS.IMPORTS_CONFIRM)
   confirmImportJob(
@@ -54,6 +79,40 @@ export class ImportsController {
       importJobId,
     );
   }
+}
+
+function parseImportTemplateType(value: unknown): ImportTemplateType {
+  if (
+    value === "users" ||
+    value === "locations" ||
+    value === "contacts" ||
+    value === "products" ||
+    value === "initial_visit_task_plan"
+  ) {
+    return value;
+  }
+
+  throw new BadRequestException({
+    code: "IMPORT_TEMPLATE_INVALID",
+    message: "Import template type is required.",
+    fieldErrors: {
+      templateType: ["Import template type is required."],
+    },
+  });
+}
+
+function parseCsvText(value: unknown): string {
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+
+  throw new BadRequestException({
+    code: "IMPORT_FILE_INVALID",
+    message: "CSV file content is required.",
+    fieldErrors: {
+      csvText: ["CSV file content is required."],
+    },
+  });
 }
 
 function getRequestContext(request: Request): RequestContext {
