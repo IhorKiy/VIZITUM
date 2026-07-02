@@ -29,6 +29,7 @@ Use this packet to collect evidence for the current staging baseline before crea
 | UptimeRobot | Readiness monitor exists and status is Up | Pass | TODO: add monitor screenshot/link |
 | Alerts endpoint check | `npm run alerts:check` passed for API readiness and web URL | Pass | TODO: paste command output or terminal screenshot |
 | Product smoke | Login, tenant lookup, field, imports, manager dashboard and manual report confirmation passed | Pass | Smoke visit `cmr34awsr000b1sejj2ncbq0k`; smoke report `cmr34rbkb000d1scj5kht6f80` |
+| Staging UX review | Pilot-blocking UX issues are listed after smoke pass | Pass | See `docs/runbooks/staging-ux-review.md`. |
 
 ## Known Gaps
 
@@ -47,3 +48,4 @@ Use this packet to collect evidence for the current staging baseline before crea
 4. Add Sentry project/release evidence.
 5. Add UptimeRobot monitor screenshot/link.
 6. Paste the `npm run alerts:check` output.
+7. Decide assisted vs self-serve pilot scope from `docs/runbooks/staging-ux-review.md`.

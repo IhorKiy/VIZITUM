@@ -222,7 +222,7 @@ Status legend:
 - [~] Capture provider evidence links/screenshots for the current staging baseline: Render API, Render cron, Vercel web, UptimeRobot, Cloudflare R2 and Sentry.
 - [ ] Configure production-critical alert rules where free tiers allow it: Sentry, UptimeRobot and hosting provider notifications.
 - [~] Platform operations summary is useful but not launch-blocking for the pilot; token path is implemented, env configuration and `OPERATIONS_SUMMARY_URL` verification remain open.
-- [ ] Review the staging UX after smoke pass and list any pilot-blocking product issues.
+- [x] Review the staging UX after smoke pass and list any pilot-blocking product issues.
 - [x] Prepare production env var checklist from the validated staging values, with production-specific names and buckets.
 
 ### Final gate before production pilot
