@@ -191,6 +191,7 @@ Status legend:
 - [x] Connect Team Manager dashboard to live route, visit and task metrics.
 - [x] Connect Platform Operations page to operations summary API with demo fallback.
 - [x] Disable demo fallback by default in production frontend.
+- [x] Disable unavailable assisted-pilot action controls.
 - [x] Define production-critical alerts before pilot launch.
 
 ## 14. Release Readiness

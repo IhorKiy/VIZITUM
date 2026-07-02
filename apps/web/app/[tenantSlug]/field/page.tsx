@@ -102,10 +102,15 @@ export default async function FieldPage({ params }: FieldPageProps) {
           </p>
         </div>
         <div className="toolbar" aria-label="Visit actions">
-          <button className="icon-button" type="button" title="Refresh">
+          <button
+            className="icon-button"
+            disabled
+            type="button"
+            title="Refresh"
+          >
             R
           </button>
-          <button className="primary-button" type="button">
+          <button className="primary-button" disabled type="button">
             New visit
           </button>
         </div>
@@ -146,13 +151,13 @@ export default async function FieldPage({ params }: FieldPageProps) {
               </header>
               <p className="visit-meta">{visit.next}</p>
               <div className="visit-actions">
-                <button className="secondary-button" type="button">
+                <button className="secondary-button" disabled type="button">
                   Text note
                 </button>
-                <button className="secondary-button" type="button">
+                <button className="secondary-button" disabled type="button">
                   Voice note
                 </button>
-                <button className="primary-button" type="button">
+                <button className="primary-button" disabled type="button">
                   Confirm
                 </button>
               </div>

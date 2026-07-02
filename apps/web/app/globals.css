@@ -207,6 +207,16 @@ select {
   width: 40px;
 }
 
+.primary-button:disabled,
+.secondary-button:disabled,
+.icon-button:disabled {
+  background: var(--surface-muted);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .dashboard-grid,
 .manager-grid,
 .import-grid {

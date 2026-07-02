@@ -100,7 +100,7 @@ export default async function ImportsPage({ params }: ImportsPageProps) {
           >
             Download templates
           </a>
-          <button className="primary-button" type="button">
+          <button className="primary-button" disabled type="button">
             Upload file
           </button>
         </div>

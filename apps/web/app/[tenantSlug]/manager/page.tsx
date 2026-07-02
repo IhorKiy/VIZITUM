@@ -162,10 +162,10 @@ export default async function ManagerPage({ params }: ManagerPageProps) {
           </p>
         </div>
         <div className="toolbar">
-          <button className="secondary-button" type="button">
+          <button className="secondary-button" disabled type="button">
             Export
           </button>
-          <button className="primary-button" type="button">
+          <button className="primary-button" disabled type="button">
             Assign task
           </button>
         </div>
