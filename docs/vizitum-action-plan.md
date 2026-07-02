@@ -205,7 +205,7 @@ Status legend:
 ## 15. Remaining Ops Steps Before Production Pilot
 
 - [x] Keep staging API, web, PostgreSQL, Redis, R2, cleanup worker and UptimeRobot monitor as the validated baseline.
-- [ ] Capture provider evidence links/screenshots for Render, Vercel, UptimeRobot, Cloudflare R2 and Sentry in the launch readiness packet.
+- [~] Capture provider evidence links/screenshots for Render, Vercel, UptimeRobot, Cloudflare R2 and Sentry in the staging evidence packet.
 - [!] Choose a PostgreSQL plan/provider with automated backups because Render Free Tier shows backups/export/PITR unavailable.
 - [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
 - [ ] Configure platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
@@ -218,7 +218,7 @@ Status legend:
 
 ### Now, without paid infrastructure
 
-- [ ] Capture provider evidence links/screenshots for the current staging baseline: Render API, Render cron, Vercel web, UptimeRobot, Cloudflare R2 and Sentry.
+- [~] Capture provider evidence links/screenshots for the current staging baseline: Render API, Render cron, Vercel web, UptimeRobot, Cloudflare R2 and Sentry.
 - [ ] Configure production-critical alert rules where free tiers allow it: Sentry, UptimeRobot and hosting provider notifications.
 - [ ] Decide whether platform operations summary is required for the pilot; if yes, implement/configure a platform operator token path and verify `OPERATIONS_SUMMARY_URL`.
 - [ ] Review the staging UX after smoke pass and list any pilot-blocking product issues.
