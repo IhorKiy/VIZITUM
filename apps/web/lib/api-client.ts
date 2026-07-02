@@ -147,6 +147,22 @@ export type OperationsSummary = {
   requestId?: string;
 };
 
+export type Report = {
+  id: string;
+  visitId: string;
+  locationId: string;
+  representativeUserId: string;
+  templateCode: string;
+  schemaVersion: string;
+  status: string;
+  confirmedData: unknown;
+  confirmedByUserId: string;
+  confirmedAt: string;
+  aiMetadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ApiResult<TData> =
   { ok: true; data: TData } | { ok: false; status: number; message: string };
 
@@ -188,6 +204,16 @@ export async function getOperationsSummary(): Promise<
   return apiGet<OperationsSummary>("/operations/summary");
 }
 
+export async function confirmManualReport(
+  visitId: string,
+  confirmedData: Record<string, string>,
+): Promise<ApiResult<Report>> {
+  return apiPost<Report>(`/visits/${visitId}/reports/confirm`, {
+    schemaVersion: "manual.v1",
+    confirmedData,
+  });
+}
+
 export function buildApiUrl(path: string): string {
   return `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -223,15 +249,56 @@ async function apiGet<TData>(path: string): Promise<ApiResult<TData>> {
   };
 }
 
+async function apiPost<TData>(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<ApiResult<TData>> {
+  const baseUrl = getApiBaseUrl();
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        ...(await buildRequestHeaders()),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      status: 0,
+      message: error instanceof Error ? error.message : "API request failed.",
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      message: await readErrorMessage(response),
+    };
+  }
+
+  return {
+    ok: true,
+    data: (await response.json()) as TData,
+  };
+}
+
 async function buildRequestHeaders(): Promise<HeadersInit> {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const cookieHeader = cookieStore.toString();
   const requestId = headerStore.get("x-request-id");
+  const csrfToken = cookieStore.get("vizitum_csrf")?.value;
 
   return {
     ...(cookieHeader ? { cookie: cookieHeader } : {}),
     ...(requestId ? { "x-request-id": requestId } : {}),
+    ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
   };
 }
 

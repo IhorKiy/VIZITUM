@@ -1,6 +1,9 @@
+import { redirect } from "next/navigation";
+
 import { AppShell } from "../../../components/app-shell";
 import { FieldRecordingNotice } from "../../../components/field-recording-notice";
 import {
+  confirmManualReport,
   getCurrentSession,
   listVisits,
   type Visit,
@@ -9,38 +12,75 @@ import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 
 type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
+  searchParams: Promise<{ report?: string; error?: string }>;
 };
 
 type FieldVisit = {
+  id: string;
   name: string;
   address: string;
   status: string;
   next: string;
+  canConfirm: boolean;
 };
 
 const demoVisits: FieldVisit[] = [
   {
+    id: "demo-visit-1",
     name: "Silpo Obolon",
     address: "Heroiv Dnipra Ave, Kyiv",
     status: "In progress",
     next: "Record shelf notes",
+    canConfirm: false,
   },
   {
+    id: "demo-visit-2",
     name: "Pharmacy 24",
     address: "Lvivska St, Kyiv",
     status: "Planned",
     next: "Check service agreement",
+    canConfirm: false,
   },
   {
+    id: "demo-visit-3",
     name: "Partner Hub",
     address: "Volodymyrska St, Kyiv",
     status: "Follow-up",
     next: "Confirm next order",
+    canConfirm: false,
   },
 ];
 
-export default async function FieldPage({ params }: FieldPageProps) {
+export default async function FieldPage({
+  params,
+  searchParams,
+}: FieldPageProps) {
   const { tenantSlug } = await params;
+  const { report, error } = await searchParams;
+
+  async function confirmReportAction(formData: FormData) {
+    "use server";
+
+    const visitId = String(formData.get("visitId") ?? "").trim();
+    const summary = String(formData.get("summary") ?? "").trim();
+    const nextSteps = String(formData.get("nextSteps") ?? "").trim();
+
+    if (!visitId || !summary) {
+      redirect(`/${tenantSlug}/field?error=report`);
+    }
+
+    const result = await confirmManualReport(visitId, {
+      summary,
+      ...(nextSteps ? { nextSteps } : {}),
+    });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/field?error=report`);
+    }
+
+    redirect(`/${tenantSlug}/field?report=confirmed`);
+  }
+
   const sessionResult = await getCurrentSession();
   const visitsResult = sessionResult.ok
     ? await listVisits()
@@ -118,6 +158,26 @@ export default async function FieldPage({ params }: FieldPageProps) {
 
       <FieldRecordingNotice tenantSlug={tenantSlug} />
 
+      {report === "confirmed" ? (
+        <section className="notice-panel success" aria-label="Report status">
+          <div>
+            <p className="eyebrow">Report confirmed</p>
+            <h2>Manual report saved</h2>
+            <p>The visit was marked completed and the report was confirmed.</p>
+          </div>
+        </section>
+      ) : null}
+
+      {error === "report" ? (
+        <section className="notice-panel danger" aria-label="Report error">
+          <div>
+            <p className="eyebrow">Report not saved</p>
+            <h2>Manual report confirmation failed</h2>
+            <p>Add a short summary and try again.</p>
+          </div>
+        </section>
+      ) : null}
+
       {isDemoMode ? (
         <section className="notice-panel" aria-label="API status">
           <div>
@@ -157,10 +217,32 @@ export default async function FieldPage({ params }: FieldPageProps) {
                 <button className="secondary-button" disabled type="button">
                   Voice note
                 </button>
-                <button className="primary-button" disabled type="button">
-                  Confirm
-                </button>
               </div>
+              {visit.canConfirm ? (
+                <form action={confirmReportAction} className="report-form">
+                  <input name="visitId" type="hidden" value={visit.id} />
+                  <label>
+                    Visit summary
+                    <textarea
+                      name="summary"
+                      placeholder="What happened during this visit?"
+                      required
+                      rows={3}
+                    />
+                  </label>
+                  <label>
+                    Next steps
+                    <textarea
+                      name="nextSteps"
+                      placeholder="Optional follow-up, blockers or tasks"
+                      rows={2}
+                    />
+                  </label>
+                  <button className="primary-button" type="submit">
+                    Confirm report
+                  </button>
+                </form>
+              ) : null}
             </article>
           ))}
         </div>
@@ -205,6 +287,7 @@ export default async function FieldPage({ params }: FieldPageProps) {
 
 function toFieldVisit(visit: Visit): FieldVisit {
   return {
+    id: visit.id,
     name: visit.location.name,
     address: [visit.location.addressLine, visit.location.city]
       .filter(Boolean)
@@ -216,6 +299,7 @@ function toFieldVisit(visit: Visit): FieldVisit {
         : visit.status === "cancelled"
           ? "Route item cancelled"
           : "Add note and confirm report",
+    canConfirm: visit.status !== "completed" && visit.status !== "cancelled",
   };
 }
 

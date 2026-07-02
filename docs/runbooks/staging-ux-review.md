@@ -5,7 +5,7 @@ Use this record after staging smoke checks to decide whether the current fronten
 Review date: 2026-07-02
 Reviewed surface: repository frontend routes and staging smoke evidence
 Tenant: `vizitum-staging`
-Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review.
+Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes a minimal manual report confirmation form for assigned visits.
 
 ## Summary
 
@@ -29,7 +29,7 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 
 | Issue | Area | Severity | Why It Matters | Recommended Decision |
 | --- | --- | --- | --- | --- |
-| Field action buttons are not wired | Field | High | `Text note`, `Voice note`, `Confirm`, `New visit` and refresh do not submit or navigate yet. They are now disabled in the assisted-pilot UI, which avoids false confirmation but does not provide self-serve capture. | Assisted pilot can proceed with guided/manual backend-supported flows. Self-serve pilot still requires the minimum report/confirmation flow. |
+| Field action buttons are partially wired | Field | Medium | Manual report confirmation is now available from the Field page. `Text note`, `Voice note`, `New visit` and refresh remain disabled until their workflows exist. | Assisted pilot can proceed with guided/manual report confirmation. Self-serve pilot still needs text note, voice note and visit creation flows. |
 | Admin upload flow is not wired from UI | Admin imports | High | `Upload file` is visible but disabled until file selection, validation preview and confirmation are implemented. Assisted setup can still use backend/API, but self-serve admin onboarding is not ready. | Assisted pilot can proceed with operator-assisted imports. Self-serve pilot requires upload/preview/confirm UI. |
 | Manager action buttons are not wired | Manager | Medium | `Export` and `Assign task` are visible but disabled. Manager read dashboard can still be useful, but these workflows are not self-serve. | Assisted pilot can use read-only manager review. Self-serve pilot needs task assignment/export or hidden controls. |
 | Operations summary endpoint is not verified with bearer token | Operations | Medium | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured. | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`. |
@@ -64,7 +64,7 @@ Do not use this scope until the blocking UI actions are implemented.
 
 Required before self-serve:
 
-- field report capture and confirm UI;
+- text note, voice note and visit creation UI;
 - admin import upload, validation preview and apply UI;
 - manager task assignment or hidden action controls;
 - operations token verification if operations page is used in pilot operations.
