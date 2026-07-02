@@ -20,7 +20,7 @@ describe("import templates", () => {
     );
     assert.equal(
       service.listTemplates()[0]?.downloadPath,
-      "/api/imports/templates/users.csv",
+      "/imports/templates/users.csv",
     );
   });
 

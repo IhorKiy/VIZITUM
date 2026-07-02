@@ -254,7 +254,7 @@ export class ImportsService {
       type: template.type,
       label: template.label,
       fileName: template.fileName,
-      downloadPath: `/api/imports/templates/${template.type}.csv`,
+      downloadPath: `/imports/templates/${template.type}.csv`,
       requiredColumns: template.columns
         .filter((column) => column.required)
         .map((column) => column.key),
