@@ -221,7 +221,7 @@ Status legend:
 - [x] Implement platform operator bearer token path for operations summary endpoint checks.
 - [ ] Configure platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
 - [x] Run product smoke checks against staging: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation work.
-- [!] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` after self-serve Field, Admin import and Manager actions deploy. 2026-07-02 recheck passed Field recording, Admin import and Manager flows; audio file fallback failed and needs MIME alias fix deploy/retest.
+- [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` after self-serve Field, Admin import and Manager actions deploy. 2026-07-02 recheck passed Field recording/audio fallback, Admin import and Manager flows.
 - [ ] Defer paid PostgreSQL backup/restore setup until the final production-pilot gate.
 - [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md` after selecting a paid PostgreSQL plan/provider.
 - [ ] Create production services only after backup evidence, restore drill and smoke checks are complete.
@@ -235,7 +235,7 @@ Status legend:
 - [~] Platform operations summary is useful but not launch-blocking for the pilot; token path is implemented, env configuration and `OPERATIONS_SUMMARY_URL` verification remain open.
 - [x] Review the staging UX after smoke pass and list any pilot-blocking product issues.
 - [x] Prepare production env var checklist from the validated staging values, with production-specific names and buckets.
-- [!] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` for field visit creation, browser voice recording, import validation/confirm, manager CSV export and manager task assignment. Field recording, Admin import and Manager flows passed on staging; deploy MIME alias fix and repeat audio file fallback.
+- [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` for field visit creation, browser voice recording, import validation/confirm, manager CSV export and manager task assignment. Field recording/audio fallback, Admin import and Manager flows passed on staging.
 
 ### Final gate before production pilot
 

@@ -6,11 +6,11 @@ Review date: 2026-07-02
 Reviewed surface: repository frontend routes and staging smoke evidence
 Tenant: `vizitum-staging`
 Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, browser voice recording with file upload fallback and a minimal manual report confirmation form for assigned visits.
-Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note, browser recording/upload and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment. It did not fully clear self-serve readiness because audio file fallback failed on staging; a MIME alias fix is pending deploy and retest.
+Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note, browser recording/upload, audio file fallback and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment.
 
 ## Summary
 
-The product-facing staging UX is close to a controlled pilot smoke pass: Field visit creation, browser recording/upload, manual report confirmation, Admin import template/validation/confirm, Manager dashboard export and Manager task assignment passed against staging. Audio file fallback needs a repeat smoke after the MIME alias fix deploy.
+The product-facing staging UX has passed the controlled product smoke path: Field visit creation, browser recording/upload, audio file fallback, manual report confirmation, Admin import template/validation/confirm, Manager dashboard export and Manager task assignment passed against staging.
 
 Before a self-serve customer pilot, rerun production-like smoke checks against staging with `docs/runbooks/expanded-staging-product-smoke.md` for the newly wired flows and keep the remaining operations token, alert and backup/restore gates tracked in the launch readiness record.
 
@@ -32,7 +32,6 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 
 | Issue                                                         | Area       | Severity | Why It Matters                                                                                                              | Recommended Decision                                                                        |
 | ------------------------------------------------------------- | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Audio file fallback failed on staging                         | Field      | Medium   | Existing audio upload is part of the self-serve field flow and some browsers label valid audio with MIME aliases.             | Deploy the MIME alias fix and repeat audio fallback with a manually selected audio file.     |
 | Operations summary endpoint is not verified with bearer token | Operations | Medium   | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured. | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`. |
 
 ## Non-Blocking UX Gaps
@@ -71,10 +70,9 @@ Required before self-serve:
 ## Next Product Actions
 
 1. Decide pilot scope: assisted pilot or self-serve pilot.
-2. Deploy the audio fallback MIME alias fix and repeat file upload smoke using `docs/runbooks/expanded-staging-product-smoke.md`.
-3. If self-serve pilot: keep browser recording in the accepted path and repeat audio fallback before rollout using the expanded smoke checklist.
-4. Configure platform operations token and rerun alert check with operations summary.
-5. Repeat UX review against staging after the chosen fixes.
+2. Keep the audio MIME alias hardening fix in the next deploy for broader browser/file compatibility.
+3. Configure platform operations token and rerun alert check with operations summary.
+4. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
 
 ## Action Plan Mapping
 
