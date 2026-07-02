@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { getCurrentSession } from "../lib/api-client";
 import { buildTenantNav, normalizeTenantName } from "../lib/navigation";
 
 type AppShellProps = {
@@ -8,8 +9,16 @@ type AppShellProps = {
   children: React.ReactNode;
 };
 
-export function AppShell({ tenantSlug, activeArea, children }: AppShellProps) {
-  const navItems = buildTenantNav(tenantSlug);
+export async function AppShell({
+  tenantSlug,
+  activeArea,
+  children,
+}: AppShellProps) {
+  const sessionResult = await getCurrentSession();
+  const navItems = buildTenantNav(
+    tenantSlug,
+    sessionResult.ok ? sessionResult.data.permissions : undefined,
+  );
 
   return (
     <div className="app-shell">

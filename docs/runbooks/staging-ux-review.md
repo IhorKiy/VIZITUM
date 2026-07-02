@@ -39,7 +39,6 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 | ------------------------------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Demo fallback exists for local development             | All app pages | Acceptable because production fallback is disabled by default. Keep `ENABLE_DEMO_FALLBACK` unset/false in production.        |
 | Operations page is platform-oriented but tenant-routed | Operations    | Acceptable for internal operators during pilot; revisit if exposing to customer tenants.                                     |
-| Mobile bottom nav includes operations                  | Navigation    | Acceptable for internal testing; customer-visible role filtering should be revisited before broad rollout.                   |
 | Import history list is not exposed yet                 | Admin imports | Current upload result is live; add a historical import jobs list only if self-serve admin onboarding needs audit visibility. |
 
 ## Recommended Pilot Scope

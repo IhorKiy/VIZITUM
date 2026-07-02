@@ -200,6 +200,7 @@ Status legend:
 - [x] Connect Platform Operations page to operations summary API with demo fallback.
 - [x] Disable demo fallback by default in production frontend.
 - [x] Disable unavailable assisted-pilot action controls.
+- [x] Filter tenant navigation by authenticated session permissions.
 - [x] Define production-critical alerts before pilot launch.
 
 ## 14. Release Readiness
