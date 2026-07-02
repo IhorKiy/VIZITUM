@@ -11,7 +11,7 @@ Mitigation update: unavailable assisted-pilot action controls were disabled in t
 
 The product-facing staging UX is now code-complete enough for a controlled pilot smoke pass: Field visit creation, browser voice recording with file upload fallback, manual report confirmation, Admin import validation/confirm, Manager dashboard export and Manager task assignment are wired to backend flows.
 
-Before a self-serve customer pilot, rerun production-like smoke checks against staging for the newly wired flows and keep the remaining operations token, alert and backup/restore gates tracked in the launch readiness record.
+Before a self-serve customer pilot, rerun production-like smoke checks against staging with `docs/runbooks/expanded-staging-product-smoke.md` for the newly wired flows and keep the remaining operations token, alert and backup/restore gates tracked in the launch readiness record.
 
 ## Passed Smoke Surfaces
 
@@ -70,8 +70,8 @@ Required before self-serve:
 ## Next Product Actions
 
 1. Decide pilot scope: assisted pilot or self-serve pilot.
-2. If assisted pilot: rerun the core staging smoke path with the newly wired self-serve actions.
-3. If self-serve pilot: smoke-test field visit creation, browser recording, import validation/confirm, manager export and task assignment before rollout.
+2. If assisted pilot: rerun the core staging smoke path with the newly wired self-serve actions using `docs/runbooks/expanded-staging-product-smoke.md`.
+3. If self-serve pilot: smoke-test field visit creation, browser recording, import validation/confirm, manager export and task assignment before rollout using the expanded smoke checklist.
 4. Configure platform operations token and rerun alert check with operations summary.
 5. Repeat UX review against staging after the chosen fixes.
 
