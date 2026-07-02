@@ -77,6 +77,7 @@ Required environment:
 - `S3_FORCE_PATH_STYLE`
 - `APP_BASE_URL`
 - `API_BASE_URL`
+- `PLATFORM_OPERATIONS_TOKEN_SHA256`
 - `SENTRY_DSN`
 - `SENTRY_ENVIRONMENT`
 - `SENTRY_RELEASE`
@@ -165,6 +166,34 @@ Required tags/environment:
 - `environment=production`
 - `release=<git-sha-or-release-version>`
 - service name where possible: `api`, `web`, `worker`
+
+## Platform Operations Token
+
+The operations summary endpoint is intentionally machine-readable for readiness checks, but it must not use a broad user session token.
+
+Recommended setup:
+
+1. Generate a long random token in a password manager or provider secret tool.
+2. Store only its SHA-256 hash in API env:
+
+```sh
+PLATFORM_OPERATIONS_TOKEN_SHA256="<sha256-token-hash>"
+```
+
+3. Keep the raw token only in the secure operator secret store.
+4. Use it only for:
+
+```text
+Authorization: Bearer <platform-operator-token>
+```
+
+Staging-only shortcut:
+
+```sh
+PLATFORM_OPERATIONS_TOKEN="<raw-token>"
+```
+
+Do not use the plaintext fallback for production if the provider supports hashed secret setup.
 
 Data safety recommendation:
 

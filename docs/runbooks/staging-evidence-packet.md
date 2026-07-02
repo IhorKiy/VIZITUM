@@ -36,7 +36,7 @@ Use this packet to collect evidence for the current staging baseline before crea
 | --- | --- | --- |
 | PostgreSQL backup/export/PITR evidence | Render Free Tier shows backups/export/PITR unavailable | Must be resolved before production pilot |
 | Restore drill | Requires a backup/export-capable PostgreSQL plan or provider | Must pass before production pilot |
-| Operations summary endpoint check | Platform operator token path is not configured yet | Not blocking unless operations dashboard is required for pilot |
+| Operations summary endpoint check | Platform operator token env value is not configured yet | Token path exists; configure `PLATFORM_OPERATIONS_TOKEN_SHA256` or staging `PLATFORM_OPERATIONS_TOKEN`, then rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL` |
 | Full production alert rules | Production services do not exist yet | Configure after production services are created |
 
 ## Next Evidence Actions

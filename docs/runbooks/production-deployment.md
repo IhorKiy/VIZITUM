@@ -34,6 +34,8 @@ Configure these variables for API and worker services unless marked otherwise.
 | `APP_BASE_URL` | yes | no | yes | Public web origin |
 | `API_BASE_URL` | yes | no | yes | Public API origin; frontend uses `/api` base where configured |
 | `ENABLE_DEMO_FALLBACK` | no | no | optional | Leave unset or `false` in production so API/auth failures do not show demo data |
+| `PLATFORM_OPERATIONS_TOKEN_SHA256` | yes | no | no | Preferred hash for machine access to `/api/operations/summary` |
+| `PLATFORM_OPERATIONS_TOKEN` | optional | no | no | Plaintext fallback for staging only when hash-based setup is not available |
 | `SENTRY_DSN` | yes | yes | yes | Separate projects or environment tags are preferred |
 | `SENTRY_ENVIRONMENT` | yes | yes | yes | `production` |
 | `SENTRY_RELEASE` | yes | yes | yes | Git SHA or release version |

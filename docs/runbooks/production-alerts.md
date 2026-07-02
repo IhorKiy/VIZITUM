@@ -113,6 +113,12 @@ GET https://<api-domain>/api/operations/summary
 
 The endpoint requires `platform.operations.read` and returns aggregate counts only: tenant statuses, provisioning backlog, recent import/AI failures and temporary storage cleanup backlog. It must not expose raw notes, transcripts, audio contents or report free text.
 
+Machine access for endpoint checks can use:
+
+- `Authorization: Bearer <platform-operator-token>`;
+- API env `PLATFORM_OPERATIONS_TOKEN_SHA256=<sha256-token-hash>` preferred;
+- API env `PLATFORM_OPERATIONS_TOKEN=<token>` only as a staging/simple fallback.
+
 ## Cleanup Worker
 
 Run temporary data cleanup as a scheduled worker task:

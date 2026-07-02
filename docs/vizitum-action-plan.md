@@ -208,6 +208,7 @@ Status legend:
 - [~] Capture provider evidence links/screenshots for Render, Vercel, UptimeRobot, Cloudflare R2 and Sentry in the staging evidence packet.
 - [!] Choose a PostgreSQL plan/provider with automated backups because Render Free Tier shows backups/export/PITR unavailable.
 - [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
+- [x] Implement platform operator bearer token path for operations summary endpoint checks.
 - [ ] Configure platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
 - [x] Run product smoke checks against staging: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation work.
 - [ ] Defer paid PostgreSQL backup/restore setup until the final production-pilot gate.
@@ -220,7 +221,7 @@ Status legend:
 
 - [~] Capture provider evidence links/screenshots for the current staging baseline: Render API, Render cron, Vercel web, UptimeRobot, Cloudflare R2 and Sentry.
 - [ ] Configure production-critical alert rules where free tiers allow it: Sentry, UptimeRobot and hosting provider notifications.
-- [ ] Decide whether platform operations summary is required for the pilot; if yes, implement/configure a platform operator token path and verify `OPERATIONS_SUMMARY_URL`.
+- [~] Platform operations summary is useful but not launch-blocking for the pilot; token path is implemented, env configuration and `OPERATIONS_SUMMARY_URL` verification remain open.
 - [ ] Review the staging UX after smoke pass and list any pilot-blocking product issues.
 - [ ] Prepare production env var checklist from the validated staging values, with production-specific names and buckets.
 

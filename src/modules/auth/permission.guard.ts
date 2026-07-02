@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import {
   CanActivate,
   ExecutionContext,
@@ -9,9 +11,10 @@ import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 
 import { PrismaService } from "../prisma/prisma.service";
-import type { PermissionCode } from "../roles/permissions";
+import { PERMISSIONS, type PermissionCode } from "../roles/permissions";
 import { RolesService } from "../roles/roles.service";
 import type { RequestContext } from "../tenancy/request-context";
+import { hashValue } from "./auth-crypto";
 import { REQUIRED_PERMISSIONS_METADATA } from "./permissions.decorator";
 import { REQUIRED_ANY_PERMISSIONS_METADATA } from "./permissions.decorator";
 import { readSessionToken } from "./session-cookie";
@@ -71,6 +74,12 @@ export class PermissionGuard implements CanActivate {
   }
 
   private async buildRequestContext(request: Request): Promise<RequestContext> {
+    const platformTokenContext = buildPlatformOperationsContext(request);
+
+    if (platformTokenContext) {
+      return platformTokenContext;
+    }
+
     const token = readSessionToken(request);
 
     if (!token) {
@@ -111,6 +120,60 @@ export class PermissionGuard implements CanActivate {
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
     };
   }
+}
+
+function buildPlatformOperationsContext(
+  request: Request,
+): RequestContext | null {
+  const token = readBearerToken(request);
+
+  if (!token || !isValidPlatformOperationsToken(token)) {
+    return null;
+  }
+
+  return {
+    requestId: request.requestId ?? "unknown",
+    tenantId: "platform",
+    tenantSlug: "platform",
+    roleCodes: [],
+    permissions: [PERMISSIONS.PLATFORM_OPERATIONS_READ],
+  };
+}
+
+function readBearerToken(request: Request): string | null {
+  const authorization = request.header("authorization")?.trim();
+
+  if (!authorization?.toLowerCase().startsWith("bearer ")) {
+    return null;
+  }
+
+  const token = authorization.slice("bearer ".length).trim();
+
+  return token || null;
+}
+
+function isValidPlatformOperationsToken(token: string): boolean {
+  const expectedHash = process.env.PLATFORM_OPERATIONS_TOKEN_SHA256?.trim();
+  const tokenHash = hashValue(token);
+
+  if (expectedHash) {
+    return secureHashEquals(tokenHash, expectedHash);
+  }
+
+  const expectedToken = process.env.PLATFORM_OPERATIONS_TOKEN?.trim();
+
+  if (!expectedToken) {
+    return false;
+  }
+
+  return secureHashEquals(tokenHash, hashValue(expectedToken));
+}
+
+function secureHashEquals(actualHash: string, expectedHash: string): boolean {
+  const actual = Buffer.from(actualHash, "hex");
+  const expected = Buffer.from(expectedHash, "hex");
+
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 function throwUnauthorized(): never {

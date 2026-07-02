@@ -126,6 +126,52 @@ describe("auth tenant isolation", () => {
     ]);
   });
 
+  it("allows platform operations bearer token for operations summary checks", async () => {
+    const previousToken = process.env.PLATFORM_OPERATIONS_TOKEN;
+    process.env.PLATFORM_OPERATIONS_TOKEN = "operator-token";
+
+    try {
+      let sessionLookupCount = 0;
+      const reflector = {
+        getAllAndOverride: (key: string) =>
+          key === "requiredPermissions"
+            ? [PERMISSIONS.PLATFORM_OPERATIONS_READ]
+            : undefined,
+      };
+      const guard = new PermissionGuard(
+        {} as never,
+        reflector as never,
+        new RolesService(),
+        {
+          findActiveSessionByToken: async () => {
+            sessionLookupCount += 1;
+            return null;
+          },
+        } as never,
+      );
+      const request = createRequest(undefined, "Bearer operator-token");
+
+      await assert.equal(
+        await guard.canActivate(createExecutionContext(request)),
+        true,
+      );
+      assert.equal(sessionLookupCount, 0);
+      assert.deepEqual(request.context, {
+        requestId: "request-a",
+        tenantId: "platform",
+        tenantSlug: "platform",
+        roleCodes: [],
+        permissions: [PERMISSIONS.PLATFORM_OPERATIONS_READ],
+      });
+    } finally {
+      if (previousToken === undefined) {
+        delete process.env.PLATFORM_OPERATIONS_TOKEN;
+      } else {
+        process.env.PLATFORM_OPERATIONS_TOKEN = previousToken;
+      }
+    }
+  });
+
   it("resolves login tenant from an explicit tenant slug body", async () => {
     const tenantResolutionInputs: unknown[] = [];
     const authService = new AuthService(
@@ -195,13 +241,22 @@ function createSessionService(session: ReturnType<typeof createSession>) {
   };
 }
 
-function createRequest(token: string) {
+function createRequest(token?: string, authorization?: string) {
   return {
     requestId: "request-a",
-    header: (name: string) =>
-      name.toLowerCase() === "cookie"
-        ? `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`
-        : undefined,
+    header: (name: string) => {
+      const headerName = name.toLowerCase();
+
+      if (headerName === "authorization") {
+        return authorization;
+      }
+
+      if (headerName === "cookie" && token) {
+        return `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`;
+      }
+
+      return undefined;
+    },
   };
 }
 
