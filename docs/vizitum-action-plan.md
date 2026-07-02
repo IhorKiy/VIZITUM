@@ -187,6 +187,7 @@ Status legend:
 - [x] Add Team Manager dashboard shell.
 - [x] Add shared server-side API client for Next.js frontend.
 - [x] Connect field visits page to authenticated session and visits API with demo fallback.
+- [x] Connect Field page new visit creation to backend visits endpoint.
 - [x] Connect Field page text notes to backend visit notes endpoint.
 - [x] Connect Field page voice note upload fallback to backend audio registration flow.
 - [x] Connect Field page manual report confirmation to backend reports endpoint.

@@ -5,8 +5,11 @@ import { FieldRecordingNotice } from "../../../components/field-recording-notice
 import {
   addTextVisitNote,
   confirmManualReport,
+  createVisit,
   getCurrentSession,
+  listLocations,
   listVisits,
+  type Location,
   type Visit,
   uploadAudioVisitNote,
 } from "../../../lib/api-client";
@@ -18,6 +21,7 @@ type FieldPageProps = {
     audio?: string;
     note?: string;
     report?: string;
+    visit?: string;
     error?: string;
   }>;
 };
@@ -29,6 +33,12 @@ type FieldVisit = {
   status: string;
   next: string;
   canConfirm: boolean;
+};
+
+type FieldLocation = {
+  id: string;
+  name: string;
+  address: string;
 };
 
 const demoVisits: FieldVisit[] = [
@@ -58,12 +68,54 @@ const demoVisits: FieldVisit[] = [
   },
 ];
 
+const demoLocations: FieldLocation[] = [
+  {
+    id: "demo-location-1",
+    name: "Silpo Obolon",
+    address: "Heroiv Dnipra Ave, Kyiv",
+  },
+  {
+    id: "demo-location-2",
+    name: "Pharmacy 24",
+    address: "Lvivska St, Kyiv",
+  },
+  {
+    id: "demo-location-3",
+    name: "Partner Hub",
+    address: "Volodymyrska St, Kyiv",
+  },
+];
+
 export default async function FieldPage({
   params,
   searchParams,
 }: FieldPageProps) {
   const { tenantSlug } = await params;
-  const { audio, note, report, error } = await searchParams;
+  const { audio, note, report, visit, error } = await searchParams;
+
+  async function createVisitAction(formData: FormData) {
+    "use server";
+
+    const locationId = String(formData.get("locationId") ?? "").trim();
+    const visitType = String(formData.get("visitType") ?? "").trim();
+    const actionSessionResult = await getCurrentSession();
+
+    if (!locationId || !visitType || !actionSessionResult.ok) {
+      redirect(`/${tenantSlug}/field?error=visit`);
+    }
+
+    const result = await createVisit(
+      locationId,
+      actionSessionResult.data.user.id,
+      visitType,
+    );
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/field?error=visit`);
+    }
+
+    redirect(`/${tenantSlug}/field?visit=created`);
+  }
 
   async function addTextNoteAction(formData: FormData) {
     "use server";
@@ -134,6 +186,13 @@ export default async function FieldPage({
         status: sessionResult.status,
         message: sessionResult.message,
       };
+  const locationsResult = sessionResult.ok
+    ? await listLocations()
+    : {
+        ok: false as const,
+        status: sessionResult.status,
+        message: sessionResult.message,
+      };
   const demoFallbackEnabled = isDemoFallbackEnabled();
 
   if (!visitsResult.ok && !demoFallbackEnabled) {
@@ -170,7 +229,12 @@ export default async function FieldPage({
     visitsResult.ok && visitsResult.data.items.length > 0
       ? visitsResult.data.items.map(toFieldVisit)
       : demoVisits;
+  const locations =
+    locationsResult.ok && locationsResult.data.items.length > 0
+      ? locationsResult.data.items.map(toFieldLocation)
+      : demoLocations;
   const isDemoMode = !visitsResult.ok && demoFallbackEnabled;
+  const canCreateLiveVisit = locationsResult.ok && locations.length > 0;
   const representativeName = sessionResult.ok
     ? sessionResult.data.user.name
     : "Demo representative";
@@ -195,9 +259,9 @@ export default async function FieldPage({
           >
             R
           </button>
-          <button className="primary-button" disabled type="button">
+          <a className="primary-button" href="#new-visit">
             New visit
-          </button>
+          </a>
         </div>
       </header>
 
@@ -233,6 +297,16 @@ export default async function FieldPage({
         </section>
       ) : null}
 
+      {visit === "created" ? (
+        <section className="notice-panel success" aria-label="Visit status">
+          <div>
+            <p className="eyebrow">Visit started</p>
+            <h2>New visit created</h2>
+            <p>The visit is ready for notes and report confirmation.</p>
+          </div>
+        </section>
+      ) : null}
+
       {error === "audio" ? (
         <section className="notice-panel danger" aria-label="Audio error">
           <div>
@@ -259,6 +333,16 @@ export default async function FieldPage({
             <p className="eyebrow">Report not saved</p>
             <h2>Manual report confirmation failed</h2>
             <p>Add a short summary and try again.</p>
+          </div>
+        </section>
+      ) : null}
+
+      {error === "visit" ? (
+        <section className="notice-panel danger" aria-label="Visit error">
+          <div>
+            <p className="eyebrow">Visit not created</p>
+            <h2>New visit failed</h2>
+            <p>Select an active location and try again.</p>
           </div>
         </section>
       ) : null}
@@ -359,6 +443,39 @@ export default async function FieldPage({
         </div>
 
         <aside className="panel" aria-labelledby="field-summary-title">
+          <section id="new-visit" className="field-panel-section">
+            <h2>New visit</h2>
+            {canCreateLiveVisit ? (
+              <form action={createVisitAction} className="visit-form compact">
+                <label>
+                  Location
+                  <select name="locationId" required>
+                    {locations.map((location) => (
+                      <option key={location.id} value={location.id}>
+                        {location.name} · {location.address}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Visit type
+                  <select name="visitType" required>
+                    <option value="field_visit">Field visit</option>
+                    <option value="service_visit">Service visit</option>
+                    <option value="partner_check_in">Partner check-in</option>
+                  </select>
+                </label>
+                <button className="primary-button" type="submit">
+                  Start visit
+                </button>
+              </form>
+            ) : (
+              <p className="empty-state">
+                Active locations are required before starting a live visit.
+              </p>
+            )}
+          </section>
+
           <h2 id="field-summary-title">Route summary</h2>
           <table className="table">
             <tbody>
@@ -411,6 +528,14 @@ function toFieldVisit(visit: Visit): FieldVisit {
           ? "Route item cancelled"
           : "Add note and confirm report",
     canConfirm: visit.status !== "completed" && visit.status !== "cancelled",
+  };
+}
+
+function toFieldLocation(location: Location): FieldLocation {
+  return {
+    id: location.id,
+    name: location.name,
+    address: [location.addressLine, location.city].filter(Boolean).join(", "),
   };
 }
 

@@ -45,6 +45,23 @@ export type Visit = {
   updatedAt: string;
 };
 
+export type Location = {
+  id: string;
+  externalCode: string | null;
+  name: string;
+  type: string | null;
+  status: "active" | "inactive" | "archived";
+  addressLine: string;
+  city: string;
+  region: string | null;
+  territory: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type RoutePlan = {
   id: string;
   representativeUserId: string;
@@ -231,6 +248,26 @@ export async function listVisits(): Promise<
   ApiResult<PaginatedResponse<Visit>>
 > {
   return apiGet<PaginatedResponse<Visit>>("/visits?pageSize=50");
+}
+
+export async function createVisit(
+  locationId: string,
+  representativeUserId: string,
+  visitType: string,
+): Promise<ApiResult<Visit>> {
+  return apiPost<Visit>("/visits", {
+    locationId,
+    representativeUserId,
+    visitType,
+  });
+}
+
+export async function listLocations(): Promise<
+  ApiResult<PaginatedResponse<Location>>
+> {
+  return apiGet<PaginatedResponse<Location>>(
+    "/locations?pageSize=100&status=active",
+  );
 }
 
 export async function listTodayRoutes(): Promise<ApiResult<RoutePlan[]>> {
