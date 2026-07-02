@@ -6,11 +6,11 @@ Review date: 2026-07-02
 Reviewed surface: repository frontend routes and staging smoke evidence
 Tenant: `vizitum-staging`
 Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, browser voice recording with file upload fallback and a minimal manual report confirmation form for assigned visits.
-Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment. It did not fully clear self-serve readiness because browser microphone access was unavailable and the Codex browser runtime could not automate native audio file upload.
+Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note, browser recording/upload and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment. It did not fully clear self-serve readiness because audio file fallback failed on staging; a MIME alias fix is pending deploy and retest.
 
 ## Summary
 
-The product-facing staging UX is close to a controlled pilot smoke pass: Field visit creation, manual report confirmation, Admin import template/validation/confirm, Manager dashboard export and Manager task assignment passed against staging. Audio recording/upload needs a repeat smoke in a browser with real microphone and file-picker support.
+The product-facing staging UX is close to a controlled pilot smoke pass: Field visit creation, browser recording/upload, manual report confirmation, Admin import template/validation/confirm, Manager dashboard export and Manager task assignment passed against staging. Audio file fallback needs a repeat smoke after the MIME alias fix deploy.
 
 Before a self-serve customer pilot, rerun production-like smoke checks against staging with `docs/runbooks/expanded-staging-product-smoke.md` for the newly wired flows and keep the remaining operations token, alert and backup/restore gates tracked in the launch readiness record.
 
@@ -32,7 +32,7 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 
 | Issue                                                         | Area       | Severity | Why It Matters                                                                                                              | Recommended Decision                                                                        |
 | ------------------------------------------------------------- | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Audio recording/upload not verified in the smoke environment  | Field      | Medium   | Voice note capture is part of the self-serve field flow and must be proven on a real browser/device.                         | Repeat browser recording and audio fallback with microphone and file upload support.         |
+| Audio file fallback failed on staging                         | Field      | Medium   | Existing audio upload is part of the self-serve field flow and some browsers label valid audio with MIME aliases.             | Deploy the MIME alias fix and repeat audio fallback with a manually selected audio file.     |
 | Operations summary endpoint is not verified with bearer token | Operations | Medium   | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured. | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`. |
 
 ## Non-Blocking UX Gaps
@@ -71,8 +71,8 @@ Required before self-serve:
 ## Next Product Actions
 
 1. Decide pilot scope: assisted pilot or self-serve pilot.
-2. If assisted pilot: rerun any remaining core staging smoke path that depends on browser microphone/file upload using `docs/runbooks/expanded-staging-product-smoke.md`.
-3. If self-serve pilot: smoke-test browser recording and audio fallback before rollout using the expanded smoke checklist.
+2. Deploy the audio fallback MIME alias fix and repeat file upload smoke using `docs/runbooks/expanded-staging-product-smoke.md`.
+3. If self-serve pilot: keep browser recording in the accepted path and repeat audio fallback before rollout using the expanded smoke checklist.
 4. Configure platform operations token and rerun alert check with operations summary.
 5. Repeat UX review against staging after the chosen fixes.
 

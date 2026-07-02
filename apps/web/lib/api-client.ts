@@ -502,12 +502,12 @@ function getApiBaseUrl(): string {
 
 function normalizeAudioContentType(audioFile: File): string {
   const explicitType = audioFile.type.trim().toLowerCase();
-
-  if (explicitType) {
-    return explicitType;
-  }
-
   const extension = audioFile.name.split(".").pop()?.toLowerCase();
+  const aliasedType = normalizeAudioContentTypeAlias(explicitType, extension);
+
+  if (aliasedType) {
+    return aliasedType;
+  }
 
   if (extension === "mp3") {
     return "audio/mpeg";
@@ -522,4 +522,40 @@ function normalizeAudioContentType(audioFile: File): string {
   }
 
   return "audio/webm";
+}
+
+function normalizeAudioContentTypeAlias(
+  contentType: string,
+  extension: string | undefined,
+): string | null {
+  if (
+    contentType === "audio/mp4" ||
+    contentType === "audio/mp4;codecs=mp4a.40.2" ||
+    contentType === "audio/aac" ||
+    contentType === "audio/mpeg" ||
+    contentType === "audio/wav" ||
+    contentType === "audio/webm" ||
+    contentType === "audio/webm;codecs=opus"
+  ) {
+    return contentType;
+  }
+
+  if (contentType === "audio/mp3") {
+    return "audio/mpeg";
+  }
+
+  if (contentType === "audio/wave" || contentType === "audio/x-wav") {
+    return "audio/wav";
+  }
+
+  if (
+    contentType === "audio/m4a" ||
+    contentType === "audio/x-m4a" ||
+    (contentType === "video/mp4" &&
+      (extension === "m4a" || extension === "mp4" || extension === "aac"))
+  ) {
+    return "audio/mp4";
+  }
+
+  return null;
 }

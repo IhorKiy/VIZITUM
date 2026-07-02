@@ -40,6 +40,14 @@ const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
   "audio/mpeg",
   "audio/wav",
 ]);
+const AUDIO_CONTENT_TYPE_ALIASES = new Map([
+  ["audio/m4a", "audio/mp4"],
+  ["audio/mp3", "audio/mpeg"],
+  ["audio/wave", "audio/wav"],
+  ["audio/x-m4a", "audio/mp4"],
+  ["audio/x-wav", "audio/wav"],
+  ["video/mp4", "audio/mp4"],
+]);
 
 type VisitWithRelations = Prisma.VisitGetPayload<{
   include: {
@@ -247,7 +255,7 @@ export class VisitsService {
     }
 
     const fileName = normalizeAudioFileName(body.fileName);
-    const contentType = normalizeAudioContentType(body.contentType);
+    const contentType = normalizeAudioContentType(body.contentType, fileName);
     const sizeBytes = normalizeAudioSizeBytes(body.sizeBytes);
     const checksum = normalizeOptionalString(body.checksum);
 
@@ -676,14 +684,44 @@ function normalizeAudioFileName(value: unknown): string | null {
   );
 }
 
-function normalizeAudioContentType(value: unknown): string | null {
+function normalizeAudioContentType(
+  value: unknown,
+  fileName?: string | null,
+): string | null {
   const normalizedValue = normalizeRequiredString(value)?.toLowerCase();
+  const aliasedValue = normalizedValue
+    ? (AUDIO_CONTENT_TYPE_ALIASES.get(normalizedValue) ?? normalizedValue)
+    : null;
 
-  if (!normalizedValue || !SUPPORTED_AUDIO_CONTENT_TYPES.has(normalizedValue)) {
-    return null;
+  if (aliasedValue && SUPPORTED_AUDIO_CONTENT_TYPES.has(aliasedValue)) {
+    return aliasedValue;
   }
 
-  return normalizedValue;
+  return normalizeAudioContentTypeFromFileName(fileName);
+}
+
+function normalizeAudioContentTypeFromFileName(
+  fileName: string | null | undefined,
+): string | null {
+  const extension = fileName?.split(".").pop()?.toLowerCase();
+
+  if (extension === "mp3") {
+    return "audio/mpeg";
+  }
+
+  if (extension === "m4a" || extension === "mp4" || extension === "aac") {
+    return "audio/mp4";
+  }
+
+  if (extension === "wav") {
+    return "audio/wav";
+  }
+
+  if (extension === "webm") {
+    return "audio/webm";
+  }
+
+  return null;
 }
 
 function normalizeAudioSizeBytes(value: unknown): number | null {
