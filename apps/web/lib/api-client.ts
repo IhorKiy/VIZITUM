@@ -467,7 +467,7 @@ async function apiPost<TData>(
   };
 }
 
-async function buildRequestHeaders(): Promise<HeadersInit> {
+export async function buildRequestHeaders(): Promise<HeadersInit> {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const cookieHeader = cookieStore.toString();

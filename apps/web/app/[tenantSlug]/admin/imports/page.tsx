@@ -244,7 +244,7 @@ export default async function ImportsPage({
                 </div>
                 <a
                   className="icon-button"
-                  href={buildApiUrl(template.downloadPath)}
+                  href={`/${tenantSlug}/admin/imports/templates/${template.type}.csv`}
                   title={`Download ${template.label}`}
                 >
                   D
