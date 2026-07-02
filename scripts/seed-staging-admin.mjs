@@ -42,6 +42,10 @@ const adminRoleCodes = normalizeRoleCodes(
   process.env.SEED_ADMIN_ROLE_CODES ||
     "company_admin,team_manager,field_representative",
 );
+const seedSmokeData = parseBoolean(process.env.SEED_SMOKE_DATA ?? "true");
+const confirmSmokeReport = parseBoolean(
+  process.env.SEED_CONFIRM_SMOKE_REPORT ?? "false",
+);
 
 if (adminPassword.length < 8) {
   throw new Error("SEED_ADMIN_PASSWORD must be at least 8 characters.");
@@ -151,6 +155,14 @@ try {
       });
     }
 
+    const smokeData = seedSmokeData
+      ? await seedSmokeVisitData(tx, tenant.id, user.id)
+      : null;
+    const smokeReport =
+      smokeData && confirmSmokeReport
+        ? await seedSmokeReport(tx, tenant, user.id, smokeData)
+        : null;
+
     await tx.platformOperationEvent.create({
       data: {
         tenantId: tenant.id,
@@ -163,7 +175,7 @@ try {
       },
     });
 
-    return { tenant, user };
+    return { tenant, user, smokeData, smokeReport };
   });
 
   console.log(
@@ -175,6 +187,8 @@ try {
         adminEmail: result.user.email,
         adminStatus: result.user.status,
         adminRoleCodes,
+        smokeVisitId: result.smokeData?.visit.id,
+        smokeReportId: result.smokeReport?.id,
       },
       null,
       2,
@@ -224,4 +238,200 @@ function normalizeRoleCodes(value) {
   }
 
   return roleCodes;
+}
+
+async function seedSmokeVisitData(tx, tenantId, userId) {
+  const location = await tx.location.upsert({
+    where: {
+      tenantId_externalCode: {
+        tenantId,
+        externalCode: "smoke-location-1",
+      },
+    },
+    create: {
+      tenantId,
+      externalCode: "smoke-location-1",
+      name: "Smoke Test Location",
+      type: "retail",
+      status: "active",
+      addressLine: "1 Test Street",
+      city: "Kyiv",
+      region: "Kyiv",
+      territory: "Staging",
+    },
+    update: {
+      name: "Smoke Test Location",
+      status: "active",
+      deletedAt: null,
+    },
+  });
+
+  await tx.locationAssignment.upsert({
+    where: {
+      tenantId_locationId_representativeUserId: {
+        tenantId,
+        locationId: location.id,
+        representativeUserId: userId,
+      },
+    },
+    create: {
+      tenantId,
+      locationId: location.id,
+      representativeUserId: userId,
+      status: "active",
+      assignedByUserId: userId,
+    },
+    update: {
+      status: "active",
+      assignedByUserId: userId,
+    },
+  });
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const routePlan = await tx.routePlan.upsert({
+    where: {
+      tenantId_representativeUserId_planDate: {
+        tenantId,
+        representativeUserId: userId,
+        planDate: today,
+      },
+    },
+    create: {
+      tenantId,
+      representativeUserId: userId,
+      planDate: today,
+      status: "published",
+      createdByUserId: userId,
+      publishedAt: new Date(),
+    },
+    update: {
+      status: "published",
+      publishedAt: new Date(),
+    },
+  });
+
+  const routeItem = await tx.routeItem.upsert({
+    where: {
+      tenantId_routePlanId_sequence: {
+        tenantId,
+        routePlanId: routePlan.id,
+        sequence: 1,
+      },
+    },
+    create: {
+      tenantId,
+      routePlanId: routePlan.id,
+      locationId: location.id,
+      sequence: 1,
+      status: "planned",
+    },
+    update: {
+      locationId: location.id,
+      status: "planned",
+    },
+  });
+
+  const visit = await tx.visit.upsert({
+    where: { routeItemId: routeItem.id },
+    create: {
+      tenantId,
+      locationId: location.id,
+      representativeUserId: userId,
+      routeItemId: routeItem.id,
+      visitType: "smoke_test",
+      status: "in_progress",
+      startedAt: new Date(),
+    },
+    update: {
+      locationId: location.id,
+      representativeUserId: userId,
+      status: "in_progress",
+      completedAt: null,
+      cancelledAt: null,
+    },
+  });
+
+  return { location, routePlan, routeItem, visit };
+}
+
+async function seedSmokeReport(tx, tenant, userId, smokeData) {
+  const confirmedAt = new Date();
+
+  await tx.visitNote.create({
+    data: {
+      tenantId: tenant.id,
+      visitId: smokeData.visit.id,
+      inputType: "text",
+      textContent: "Smoke test manual report note.",
+      createdByUserId: userId,
+    },
+  });
+
+  const report = await tx.report.upsert({
+    where: { visitId: smokeData.visit.id },
+    create: {
+      tenantId: tenant.id,
+      visitId: smokeData.visit.id,
+      locationId: smokeData.location.id,
+      representativeUserId: userId,
+      templateCode: tenant.segmentTemplate,
+      schemaVersion: "manual.v1",
+      status: "confirmed",
+      confirmedData: {
+        smokeTest: true,
+        summary: "Manual report confirmation smoke test.",
+      },
+      confirmedByUserId: userId,
+      confirmedAt,
+      aiMetadata: {
+        source: "manual_text",
+        smokeTest: true,
+      },
+    },
+    update: {
+      schemaVersion: "manual.v1",
+      status: "confirmed",
+      confirmedData: {
+        smokeTest: true,
+        summary: "Manual report confirmation smoke test.",
+      },
+      confirmedByUserId: userId,
+      confirmedAt,
+      aiMetadata: {
+        source: "manual_text",
+        smokeTest: true,
+      },
+    },
+  });
+
+  await tx.visit.update({
+    where: { id: smokeData.visit.id },
+    data: {
+      status: "completed",
+      completedAt: confirmedAt,
+    },
+  });
+
+  await tx.routeItem.update({
+    where: { id: smokeData.routeItem.id },
+    data: { status: "visited" },
+  });
+
+  return report;
+}
+
+function parseBoolean(value) {
+  const normalizedValue = value.trim().toLowerCase();
+
+  if (["1", "true", "yes"].includes(normalizedValue)) {
+    return true;
+  }
+
+  if (["0", "false", "no"].includes(normalizedValue)) {
+    return false;
+  }
+
+  throw new Error(`Invalid boolean value: ${value}.`);
 }

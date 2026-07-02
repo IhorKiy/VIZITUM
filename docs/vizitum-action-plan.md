@@ -209,6 +209,6 @@ Status legend:
 - [!] Choose a PostgreSQL plan/provider with automated backups because Render Free Tier shows backups/export/PITR unavailable.
 - [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
 - [ ] Configure platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
-- [~] Run product smoke checks against staging: login and tenant lookup work; field flow, imports, manager dashboard and manual report confirmation still need verification.
+- [~] Run product smoke checks against staging: login, tenant lookup, field flow, imports and manager dashboard work; manual report confirmation still needs verification.
 - [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md`.
 - [ ] Create production services only after backup evidence, restore drill and smoke checks are complete.
