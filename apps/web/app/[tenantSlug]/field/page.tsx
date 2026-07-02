@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AppShell } from "../../../components/app-shell";
 import { FieldRecordingNotice } from "../../../components/field-recording-notice";
+import { FieldVoiceNoteRecorder } from "../../../components/field-voice-note-recorder";
 import {
   addTextVisitNote,
   confirmManualReport,
@@ -401,12 +402,7 @@ export default async function FieldPage({
                   <input name="visitId" type="hidden" value={visit.id} />
                   <label>
                     Voice note
-                    <input
-                      accept="audio/webm,audio/mp4,audio/aac,audio/mpeg,audio/wav,.m4a,.mp3,.wav,.webm"
-                      name="audioFile"
-                      required
-                      type="file"
-                    />
+                    <FieldVoiceNoteRecorder inputName="audioFile" />
                   </label>
                   <button className="secondary-button" type="submit">
                     Upload voice note

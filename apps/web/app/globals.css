@@ -368,6 +368,28 @@ textarea {
   padding-top: 0;
 }
 
+.voice-recorder {
+  display: grid;
+  gap: 8px;
+}
+
+.voice-recorder-controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.voice-recorder-player {
+  max-width: 100%;
+  width: 100%;
+}
+
+.form-hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
 .import-issues-panel {
   grid-column: 1 / -1;
   overflow-x: auto;

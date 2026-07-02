@@ -190,6 +190,7 @@ Status legend:
 - [x] Connect Field page new visit creation to backend visits endpoint.
 - [x] Connect Field page text notes to backend visit notes endpoint.
 - [x] Connect Field page voice note upload fallback to backend audio registration flow.
+- [x] Add browser voice recording control to Field page audio upload flow.
 - [x] Connect Field page manual report confirmation to backend reports endpoint.
 - [x] Connect admin import templates page to imports API with demo fallback.
 - [x] Connect admin CSV import validation and confirm flow to backend imports endpoints.

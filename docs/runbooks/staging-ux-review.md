@@ -5,7 +5,7 @@ Use this record after staging smoke checks to decide whether the current fronten
 Review date: 2026-07-02
 Reviewed surface: repository frontend routes and staging smoke evidence
 Tenant: `vizitum-staging`
-Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, voice note upload fallback and a minimal manual report confirmation form for assigned visits.
+Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, browser voice recording with file upload fallback and a minimal manual report confirmation form for assigned visits.
 
 ## Summary
 
@@ -27,11 +27,10 @@ The staging UX is acceptable for an internal/assisted pilot only if the pilot sc
 
 These should be resolved or explicitly accepted before inviting non-internal pilot users.
 
-| Issue                                                         | Area       | Severity | Why It Matters                                                                                                                                                                           | Recommended Decision                                                                                                                               |
-| ------------------------------------------------------------- | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Field voice recording is still file-upload based              | Field      | Medium   | New visit creation, text note capture, voice note upload fallback and manual report confirmation are now available from the Field page. Browser microphone recording is still not wired. | Assisted pilot can proceed with guided/manual report confirmation. Self-serve pilot still needs in-browser recording if file upload is not enough. |
-| Manager action buttons are not wired                          | Manager    | Medium   | `Export` and `Assign task` are visible but disabled. Manager read dashboard can still be useful, but these workflows are not self-serve.                                                 | Assisted pilot can use read-only manager review. Self-serve pilot needs task assignment/export or hidden controls.                                 |
-| Operations summary endpoint is not verified with bearer token | Operations | Medium   | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured.                                                              | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.                                                        |
+| Issue                                                         | Area       | Severity | Why It Matters                                                                                                                           | Recommended Decision                                                                                               |
+| ------------------------------------------------------------- | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Manager action buttons are not wired                          | Manager    | Medium   | `Export` and `Assign task` are visible but disabled. Manager read dashboard can still be useful, but these workflows are not self-serve. | Assisted pilot can use read-only manager review. Self-serve pilot needs task assignment/export or hidden controls. |
+| Operations summary endpoint is not verified with bearer token | Operations | Medium   | Operations page may show connection-required state until `PLATFORM_OPERATIONS_TOKEN_SHA256` and alert check are configured.              | Configure staging token env and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.                        |
 
 ## Non-Blocking UX Gaps
 
@@ -63,7 +62,7 @@ Do not use this scope until the blocking UI actions are implemented.
 
 Required before self-serve:
 
-- browser voice recording if file upload is not enough for self-serve;
+- production-like field smoke test for visit creation, audio upload and report confirmation;
 - production-like import smoke test before broad self-serve rollout;
 - manager task assignment or hidden action controls;
 - operations token verification if operations page is used in pilot operations.
@@ -72,7 +71,7 @@ Required before self-serve:
 
 1. Decide pilot scope: assisted pilot or self-serve pilot.
 2. If assisted pilot: keep unavailable controls disabled until the matching workflows exist.
-3. If self-serve pilot: smoke-test field visit creation and decide whether browser recording is required before rollout.
+3. If self-serve pilot: smoke-test field visit creation, browser recording and report confirmation before rollout.
 4. Configure platform operations token and rerun alert check with operations summary.
 5. Repeat UX review against staging after the chosen fixes.
 
