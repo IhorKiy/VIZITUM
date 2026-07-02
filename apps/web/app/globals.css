@@ -319,16 +319,27 @@ textarea {
   gap: 6px;
 }
 
+.visit-form input[type="file"],
 .visit-form textarea {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
+  max-width: 100%;
+}
+
+.visit-form input[type="file"] {
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+.visit-form textarea {
   min-height: 86px;
   padding: 10px 12px;
   resize: vertical;
 }
 
+.visit-form input[type="file"]:focus,
 .visit-form textarea:focus {
   border-color: var(--accent);
   outline: 2px solid rgba(23, 107, 95, 0.16);

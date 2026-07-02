@@ -173,6 +173,25 @@ export type VisitNote = {
   createdAt: string;
 };
 
+export type RegisteredAudioUpload = {
+  note: VisitNote;
+  storageObject: {
+    id: string;
+    bucket: string;
+    objectKey: string;
+    contentType: string;
+    sizeBytes: string | null;
+    checksum: string | null;
+    expiresAt: string;
+  };
+  uploadUrl?: {
+    url: string;
+    method: "PUT";
+    expiresAt: string;
+    headers: Record<string, string>;
+  };
+};
+
 export type ApiResult<TData> =
   { ok: true; data: TData } | { ok: false; status: number; message: string };
 
@@ -231,6 +250,49 @@ export async function addTextVisitNote(
   return apiPost<VisitNote>(`/visits/${visitId}/notes/text`, {
     textContent,
   });
+}
+
+export async function uploadAudioVisitNote(
+  visitId: string,
+  audioFile: File,
+): Promise<ApiResult<RegisteredAudioUpload>> {
+  const contentType = normalizeAudioContentType(audioFile);
+  const registrationResult = await apiPost<RegisteredAudioUpload>(
+    `/visits/${visitId}/notes/audio/register`,
+    {
+      fileName: audioFile.name || "voice-note.webm",
+      contentType,
+      sizeBytes: audioFile.size,
+    },
+  );
+
+  if (!registrationResult.ok || !registrationResult.data.uploadUrl) {
+    return registrationResult;
+  }
+
+  try {
+    const uploadResponse = await fetch(registrationResult.data.uploadUrl.url, {
+      method: registrationResult.data.uploadUrl.method,
+      headers: registrationResult.data.uploadUrl.headers,
+      body: audioFile,
+    });
+
+    if (!uploadResponse.ok) {
+      return {
+        ok: false,
+        status: uploadResponse.status,
+        message: `Audio upload failed with ${uploadResponse.status}.`,
+      };
+    }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      status: 0,
+      message: error instanceof Error ? error.message : "Audio upload failed.",
+    };
+  }
+
+  return registrationResult;
 }
 
 export function buildApiUrl(path: string): string {
@@ -338,4 +400,28 @@ function getApiBaseUrl(): string {
     process.env.API_BASE_URL?.trim() || "http://127.0.0.1:4000/api";
 
   return rawBaseUrl.endsWith("/") ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+}
+
+function normalizeAudioContentType(audioFile: File): string {
+  const explicitType = audioFile.type.trim().toLowerCase();
+
+  if (explicitType) {
+    return explicitType;
+  }
+
+  const extension = audioFile.name.split(".").pop()?.toLowerCase();
+
+  if (extension === "mp3") {
+    return "audio/mpeg";
+  }
+
+  if (extension === "m4a" || extension === "mp4" || extension === "aac") {
+    return "audio/mp4";
+  }
+
+  if (extension === "wav") {
+    return "audio/wav";
+  }
+
+  return "audio/webm";
 }

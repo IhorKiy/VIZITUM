@@ -8,12 +8,18 @@ import {
   getCurrentSession,
   listVisits,
   type Visit,
+  uploadAudioVisitNote,
 } from "../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 
 type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ note?: string; report?: string; error?: string }>;
+  searchParams: Promise<{
+    audio?: string;
+    note?: string;
+    report?: string;
+    error?: string;
+  }>;
 };
 
 type FieldVisit = {
@@ -57,7 +63,7 @@ export default async function FieldPage({
   searchParams,
 }: FieldPageProps) {
   const { tenantSlug } = await params;
-  const { note, report, error } = await searchParams;
+  const { audio, note, report, error } = await searchParams;
 
   async function addTextNoteAction(formData: FormData) {
     "use server";
@@ -76,6 +82,25 @@ export default async function FieldPage({
     }
 
     redirect(`/${tenantSlug}/field?note=saved`);
+  }
+
+  async function uploadAudioNoteAction(formData: FormData) {
+    "use server";
+
+    const visitId = String(formData.get("visitId") ?? "").trim();
+    const audioFile = formData.get("audioFile");
+
+    if (!visitId || !(audioFile instanceof File) || audioFile.size === 0) {
+      redirect(`/${tenantSlug}/field?error=audio`);
+    }
+
+    const result = await uploadAudioVisitNote(visitId, audioFile);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/field?error=audio`);
+    }
+
+    redirect(`/${tenantSlug}/field?audio=uploaded`);
   }
 
   async function confirmReportAction(formData: FormData) {
@@ -178,6 +203,16 @@ export default async function FieldPage({
 
       <FieldRecordingNotice tenantSlug={tenantSlug} />
 
+      {audio === "uploaded" ? (
+        <section className="notice-panel success" aria-label="Audio status">
+          <div>
+            <p className="eyebrow">Voice note uploaded</p>
+            <h2>Audio attached</h2>
+            <p>The temporary voice note was uploaded for processing.</p>
+          </div>
+        </section>
+      ) : null}
+
       {note === "saved" ? (
         <section className="notice-panel success" aria-label="Note status">
           <div>
@@ -194,6 +229,16 @@ export default async function FieldPage({
             <p className="eyebrow">Report confirmed</p>
             <h2>Manual report saved</h2>
             <p>The visit was marked completed and the report was confirmed.</p>
+          </div>
+        </section>
+      ) : null}
+
+      {error === "audio" ? (
+        <section className="notice-panel danger" aria-label="Audio error">
+          <div>
+            <p className="eyebrow">Voice note not uploaded</p>
+            <h2>Audio upload failed</h2>
+            <p>Choose a supported audio file up to 50 MB and try again.</p>
           </div>
         </section>
       ) : null}
@@ -250,11 +295,6 @@ export default async function FieldPage({
                 </span>
               </header>
               <p className="visit-meta">{visit.next}</p>
-              <div className="visit-actions">
-                <button className="secondary-button" disabled type="button">
-                  Voice note
-                </button>
-              </div>
               {visit.canConfirm ? (
                 <form action={addTextNoteAction} className="visit-form">
                   <input name="visitId" type="hidden" value={visit.id} />
@@ -269,6 +309,23 @@ export default async function FieldPage({
                   </label>
                   <button className="secondary-button" type="submit">
                     Save note
+                  </button>
+                </form>
+              ) : null}
+              {visit.canConfirm ? (
+                <form action={uploadAudioNoteAction} className="visit-form">
+                  <input name="visitId" type="hidden" value={visit.id} />
+                  <label>
+                    Voice note
+                    <input
+                      accept="audio/webm,audio/mp4,audio/aac,audio/mpeg,audio/wav,.m4a,.mp3,.wav,.webm"
+                      name="audioFile"
+                      required
+                      type="file"
+                    />
+                  </label>
+                  <button className="secondary-button" type="submit">
+                    Upload voice note
                   </button>
                 </form>
               ) : null}
