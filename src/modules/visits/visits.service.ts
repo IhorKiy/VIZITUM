@@ -585,7 +585,9 @@ function buildVisitWhere(
   query: ListVisitsQuery,
 ): Prisma.VisitWhereInput {
   const requestedRepresentativeId = normalizeId(query.representativeUserId);
-  const canReadTeam = context.permissions.includes(PERMISSIONS.VISITS_READ_TEAM);
+  const canReadTeam = context.permissions.includes(
+    PERMISSIONS.VISITS_READ_TEAM,
+  );
   const canReadOwn = context.permissions.includes(PERMISSIONS.VISITS_READ_OWN);
   const representativeFilter = canReadTeam
     ? requestedRepresentativeId
