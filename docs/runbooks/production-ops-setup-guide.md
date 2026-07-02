@@ -40,6 +40,8 @@
 9. Виконати restore drill на staging/recovery DB.
 10. Заповнити `docs/runbooks/production-launch-readiness-record.md`.
 
+Use `docs/runbooks/production-env-checklist.md` when converting validated staging settings into production environment variables.
+
 ## Environments
 
 Мінімально потрібні два середовища:

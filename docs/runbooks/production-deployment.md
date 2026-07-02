@@ -72,7 +72,7 @@ If the release includes database changes, apply Prisma migrations through the ap
 9. Verify Sentry release/environment tags appear for API, worker and web.
 10. Record deployment timestamp, release SHA, operator and verification notes.
 
-Use `docs/runbooks/production-ops-setup-guide.md` for first-time provider setup and `docs/runbooks/production-launch-readiness-record.md` to collect final pilot-launch evidence across deploy, alerts, restore drill and smoke checks.
+Use `docs/runbooks/production-ops-setup-guide.md` for first-time provider setup, `docs/runbooks/production-env-checklist.md` for production env var preparation and `docs/runbooks/production-launch-readiness-record.md` to collect final pilot-launch evidence across deploy, alerts, restore drill and smoke checks.
 
 ## Post-Deploy Smoke Checks
 
