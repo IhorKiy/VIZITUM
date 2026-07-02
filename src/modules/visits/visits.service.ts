@@ -585,19 +585,23 @@ function buildVisitWhere(
   query: ListVisitsQuery,
 ): Prisma.VisitWhereInput {
   const requestedRepresentativeId = normalizeId(query.representativeUserId);
-  const representativeFilter = context.permissions.includes(
-    PERMISSIONS.VISITS_READ_TEAM,
-  )
+  const canReadTeam = context.permissions.includes(PERMISSIONS.VISITS_READ_TEAM);
+  const canReadOwn = context.permissions.includes(PERMISSIONS.VISITS_READ_OWN);
+  const representativeFilter = canReadTeam
     ? requestedRepresentativeId
-    : context.userId;
+    : canReadOwn
+      ? context.userId
+      : null;
 
-  if (!representativeFilter) {
+  if (!canReadTeam && !representativeFilter) {
     throwMissingVisitPermission();
   }
 
   return {
     tenantId: context.tenantId,
-    representativeUserId: representativeFilter,
+    ...(representativeFilter
+      ? { representativeUserId: representativeFilter }
+      : {}),
     ...(query.locationId ? { locationId: query.locationId } : {}),
     ...(query.status ? { status: query.status } : {}),
   };

@@ -26,7 +26,7 @@ Use this record before starting a production pilot. It collects evidence from de
 | Sentry             | API, web and worker release tags visible                                                                         | Partial | Sentry API project created and `SENTRY_DSN`, `SENTRY_ENVIRONMENT=staging`, `SENTRY_RELEASE=staging-initial` configured. Web/worker release tag evidence still needs screenshots or links. |
 | Cleanup worker     | Latest scheduled cleanup run succeeded                                                                           | Pass | Render cron job `vizitum-cleanup-staging` completed successfully and logged `worker_cleanup_completed` with zero failed storage objects. |
 | Operations summary | `/api/operations/summary` returns aggregate counters and the web operations page renders for an operator account | Pending | Not verified. `alerts:check` skipped operations summary because `OPERATIONS_SUMMARY_URL` and bearer token were not configured. |
-| Smoke checks       | Login, tenant lookup, field, imports, manager dashboard, manual report confirmation pass                         | Pending | Not performed during staging ops setup. |
+| Smoke checks       | Login, tenant lookup, field, imports, manager dashboard, manual report confirmation pass                         | Partial | Staging tenant `vizitum-staging` and active admin user were seeded; login now works. Field, imports, manager dashboard and manual report confirmation smoke checks still need to be completed. |
 | Data protection    | Raw audio/transcript retention policy verified                                                                   | Partial | Cloudflare R2 bucket `vizitum-staging` configured with private access and CORS for the Vercel staging origin. Full audio/transcript lifecycle and restore drill still pending. |
 
 ## Open Risks
@@ -37,7 +37,7 @@ Use this record before starting a production pilot. It collects evidence from de
 | Restore drill has not been performed. | High | Ihor Kiyanych | Restore a recent staging/production-like backup into a recovery database and complete `docs/runbooks/restore-drill-record-template.md`. | Yes |
 | Operations summary endpoint is not verified. | Medium | Ihor Kiyanych | Configure platform operator token and run `alerts:check` with `OPERATIONS_SUMMARY_URL` and `OPERATIONS_SUMMARY_BEARER_TOKEN`. | No |
 | Backup retention is unavailable on the current Render Free Tier database. | High | Ihor Kiyanych | Upgrade production PostgreSQL to a paid instance type or choose a managed PostgreSQL provider/plan with automated backups, retention evidence and restore path before launch. | Yes |
-| Full product smoke checks were not run. | High | Ihor Kiyanych | Run login, tenant lookup, field, imports, manager dashboard and manual report confirmation smoke checks against staging. | Yes |
+| Full product smoke checks are only partially complete. | High | Ihor Kiyanych | Complete field, imports, manager dashboard and manual report confirmation smoke checks against staging. | Yes |
 
 ## Go / No-Go
 
