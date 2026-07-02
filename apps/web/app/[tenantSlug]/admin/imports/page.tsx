@@ -4,9 +4,11 @@ import { AppShell } from "../../../../components/app-shell";
 import {
   buildApiUrl,
   confirmImportJob,
+  getImportValidationJob,
   listImportTemplates,
   validateCsvImport,
   type ImportTemplateSummary,
+  type ImportValidationIssue,
 } from "../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
 
@@ -160,8 +162,15 @@ export default async function ImportsPage({
   const selectedTemplate =
     templates.find((template) => template.type === validationState.template) ??
     templates[0];
+  const validationPreviewResult = validationState.importJobId
+    ? await getImportValidationJob(validationState.importJobId)
+    : null;
+  const validationPreview =
+    validationPreviewResult?.ok === true ? validationPreviewResult.data : null;
   const canConfirmImport =
-    validationState.canConfirm === "true" && validationState.importJobId;
+    Boolean(validationPreview?.canConfirm) ||
+    (validationState.canConfirm === "true" && validationState.importJobId);
+  const importIssues = validationPreview?.issues ?? [];
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin">
@@ -283,23 +292,41 @@ export default async function ImportsPage({
             <tbody>
               <tr>
                 <th scope="row">Status</th>
-                <td>{validationState.status ?? "No file validated"}</td>
+                <td>
+                  {validationPreview?.status ??
+                    validationState.status ??
+                    "No file validated"}
+                </td>
               </tr>
               <tr>
                 <th scope="row">Rows</th>
-                <td>{validationState.rows ?? "0"}</td>
+                <td>
+                  {validationPreview?.rowCount ?? validationState.rows ?? "0"}
+                </td>
               </tr>
               <tr>
                 <th scope="row">Valid</th>
-                <td>{validationState.valid ?? "0"}</td>
+                <td>
+                  {validationPreview?.validRowCount ??
+                    validationState.valid ??
+                    "0"}
+                </td>
               </tr>
               <tr>
                 <th scope="row">Errors</th>
-                <td>{validationState.errors ?? "0"}</td>
+                <td>
+                  {validationPreview?.errorRowCount ??
+                    validationState.errors ??
+                    "0"}
+                </td>
               </tr>
               <tr>
                 <th scope="row">Warnings</th>
-                <td>{validationState.warnings ?? "0"}</td>
+                <td>
+                  {validationPreview?.warningRowCount ??
+                    validationState.warnings ??
+                    "0"}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -308,7 +335,9 @@ export default async function ImportsPage({
               <input
                 name="importJobId"
                 type="hidden"
-                value={validationState.importJobId}
+                value={
+                  validationPreview?.importJobId ?? validationState.importJobId
+                }
               />
               <button className="primary-button" type="submit">
                 Confirm import
@@ -316,7 +345,54 @@ export default async function ImportsPage({
             </form>
           ) : null}
         </div>
+
+        <div className="panel import-issues-panel">
+          <h2>Row issues</h2>
+          {importIssues.length > 0 ? (
+            <ImportIssuesTable issues={importIssues} />
+          ) : (
+            <p className="empty-state">
+              {validationPreview || validationState.importJobId
+                ? "No row-level issues were found."
+                : "Validate a CSV file to review row-level errors and warnings."}
+            </p>
+          )}
+        </div>
       </section>
     </AppShell>
+  );
+}
+
+function ImportIssuesTable({ issues }: { issues: ImportValidationIssue[] }) {
+  return (
+    <table className="table import-issues-table">
+      <thead>
+        <tr>
+          <th>Row</th>
+          <th>Severity</th>
+          <th>Field</th>
+          <th>Issue</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {issues.map((issue, index) => (
+          <tr key={`${issue.rowNumber}-${issue.code}-${index}`}>
+            <td>{issue.rowNumber}</td>
+            <td>
+              <span className={`issue-badge ${issue.severity}`}>
+                {issue.severity}
+              </span>
+            </td>
+            <td>{issue.fieldName ?? "Row"}</td>
+            <td>
+              <strong>{issue.code}</strong>
+              <span>{issue.message}</span>
+            </td>
+            <td>{issue.rawValue || "Empty"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

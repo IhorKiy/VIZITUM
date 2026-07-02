@@ -412,6 +412,61 @@ export class ImportsService {
     };
   }
 
+  async getImportValidationJob(
+    context: RequestContext,
+    importJobId: string,
+  ): Promise<StoredImportValidationPreview> {
+    const prisma = this.getPrisma();
+    const importJob = await prisma.importJob.findFirst({
+      where: {
+        id: importJobId,
+        tenantId: context.tenantId,
+      },
+      include: {
+        issues: {
+          orderBy: [{ rowNumber: "asc" }, { createdAt: "asc" }],
+        },
+      },
+    });
+
+    if (!importJob) {
+      throw new NotFoundException({
+        code: "IMPORT_JOB_NOT_FOUND",
+        message: "Import job was not found.",
+      });
+    }
+
+    if (
+      importJob.status !== "validated" &&
+      importJob.status !== "validation_failed"
+    ) {
+      throw new ConflictException({
+        code: "IMPORT_JOB_NOT_VALIDATION_PREVIEW",
+        message: "Import job is not a validation preview.",
+      });
+    }
+
+    return {
+      templateType: importJob.type,
+      rowCount: importJob.rowCount,
+      validRowCount: importJob.validRowCount,
+      errorRowCount: importJob.errorRowCount,
+      warningRowCount: importJob.warningRowCount,
+      canConfirm:
+        importJob.status === "validated" && importJob.errorRowCount === 0,
+      issues: importJob.issues.map((issue) => ({
+        rowNumber: issue.rowNumber,
+        fieldName: issue.fieldName ?? undefined,
+        severity: issue.severity,
+        code: issue.code,
+        message: issue.message,
+        rawValue: issue.rawValue ?? undefined,
+      })),
+      importJobId: importJob.id,
+      status: importJob.status,
+    };
+  }
+
   async confirmImportJob(
     context: RequestContext,
     importJobId: string,

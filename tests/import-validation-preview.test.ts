@@ -175,6 +175,65 @@ describe("import validation preview", () => {
     });
   });
 
+  it("returns stored row issues for a validation job", async () => {
+    const service = new ImportsService({
+      importJob: {
+        findFirst: async (query: unknown) => {
+          assert.deepEqual(query, {
+            where: {
+              id: "import-job-a",
+              tenantId: "tenant-a",
+            },
+            include: {
+              issues: {
+                orderBy: [{ rowNumber: "asc" }, { createdAt: "asc" }],
+              },
+            },
+          });
+
+          return {
+            id: "import-job-a",
+            type: "users",
+            status: "validation_failed",
+            rowCount: 2,
+            validRowCount: 1,
+            errorRowCount: 1,
+            warningRowCount: 0,
+            issues: [
+              {
+                rowNumber: 2,
+                fieldName: "email",
+                severity: "error",
+                code: "REQUIRED_FIELD_MISSING",
+                message: "Required field is missing.",
+                rawValue: "",
+              },
+            ],
+          };
+        },
+      },
+    } as never);
+
+    const preview = await service.getImportValidationJob(
+      context as never,
+      "import-job-a",
+    );
+
+    assert.equal(preview.importJobId, "import-job-a");
+    assert.equal(preview.status, "validation_failed");
+    assert.equal(preview.canConfirm, false);
+    assert.deepEqual(preview.issues, [
+      {
+        rowNumber: 2,
+        fieldName: "email",
+        severity: "error",
+        code: "REQUIRED_FIELD_MISSING",
+        message: "Required field is missing.",
+        rawValue: "",
+      },
+    ]);
+  });
+
   it("applies a validated import in one transaction", async () => {
     const createdProducts: unknown[] = [];
     const updatedJobs: unknown[] = [];

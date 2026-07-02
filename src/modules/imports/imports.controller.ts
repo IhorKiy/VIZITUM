@@ -68,6 +68,18 @@ export class ImportsController {
     );
   }
 
+  @Get("jobs/:importJobId")
+  @RequirePermissions(PERMISSIONS.IMPORTS_READ)
+  getValidationJob(
+    @Req() request: Request,
+    @Param("importJobId") importJobId: string,
+  ) {
+    return this.importsService.getImportValidationJob(
+      getRequestContext(request),
+      importJobId,
+    );
+  }
+
   @Post("jobs/:importJobId/confirm")
   @RequirePermissions(PERMISSIONS.IMPORTS_CONFIRM)
   confirmImportJob(

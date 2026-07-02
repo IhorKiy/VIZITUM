@@ -356,6 +356,50 @@ textarea {
   margin-top: 14px;
 }
 
+.import-issues-panel {
+  grid-column: 1 / -1;
+  overflow-x: auto;
+}
+
+.import-issues-table td:nth-child(4) {
+  min-width: 280px;
+}
+
+.import-issues-table strong,
+.import-issues-table span {
+  display: block;
+}
+
+.import-issues-table strong {
+  color: var(--ink);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.issue-badge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 5px 9px;
+  text-transform: capitalize;
+}
+
+.issue-badge.error {
+  background: #fff1f1;
+  color: var(--danger);
+}
+
+.issue-badge.warning {
+  background: #fff9e8;
+  color: #7a5a15;
+}
+
+.empty-state {
+  color: var(--muted);
+  margin: 0;
+}
+
 .status-pill {
   border-radius: 999px;
   color: #ffffff;

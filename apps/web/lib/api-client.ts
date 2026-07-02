@@ -265,6 +265,12 @@ export async function validateCsvImport(
   });
 }
 
+export async function getImportValidationJob(
+  importJobId: string,
+): Promise<ApiResult<StoredImportValidationPreview>> {
+  return apiGet<StoredImportValidationPreview>(`/imports/jobs/${importJobId}`);
+}
+
 export async function confirmImportJob(
   importJobId: string,
 ): Promise<ApiResult<ImportApplyResult>> {
