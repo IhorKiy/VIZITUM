@@ -59,9 +59,7 @@ export default async function AdminReviewPage({
   );
   const readyPercent =
     applicableThresholds.length > 0
-      ? Math.round(
-          (metThresholds.length / applicableThresholds.length) * 100,
-        )
+      ? Math.round((metThresholds.length / applicableThresholds.length) * 100)
       : 0;
   const copySummary = buildReviewSummary(summary, readyPercent);
 
@@ -98,8 +96,8 @@ export default async function AdminReviewPage({
           </header>
           <p className="metric-value">{readyPercent}%</p>
           <p className="small-label">
-            {metThresholds.length} of {applicableThresholds.length}{" "}
-            applicable checks
+            {metThresholds.length} of {applicableThresholds.length} applicable
+            checks
           </p>
         </article>
         <article className="metric-card">
@@ -109,9 +107,7 @@ export default async function AdminReviewPage({
               {summary.windowStart ? "Started" : "Not started"}
             </span>
           </header>
-          <p className="metric-value">
-            {summary.windowStart ? "7 days" : "-"}
-          </p>
+          <p className="metric-value">{summary.windowStart ? "7 days" : "-"}</p>
           <p className="small-label">
             {summary.windowStart
               ? `From ${formatDateTime(summary.windowStart)}`
@@ -194,9 +190,7 @@ function buildReviewSummary(
   return lines.join("\n");
 }
 
-function formatThresholdStatus(
-  status: PilotReviewThreshold["status"],
-): string {
+function formatThresholdStatus(status: PilotReviewThreshold["status"]): string {
   switch (status) {
     case "met":
       return "Met";

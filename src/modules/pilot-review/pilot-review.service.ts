@@ -17,7 +17,9 @@ export const MANAGER_DASHBOARD_VIEWED_EVENT_TYPE = "manager_dashboard.viewed";
 export class PilotReviewService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getSummary(context: RequestContext): Promise<PilotReviewSummaryResponse> {
+  async getSummary(
+    context: RequestContext,
+  ): Promise<PilotReviewSummaryResponse> {
     const now = new Date();
     const firstVisit = await this.prisma.visit.findFirst({
       where: { tenantId: context.tenantId },
@@ -69,10 +71,7 @@ export class PilotReviewService {
       this.prisma.task.count({
         where: {
           tenantId: context.tenantId,
-          OR: [
-            { createdAt: createdAtWindow },
-            { updatedAt: createdAtWindow },
-          ],
+          OR: [{ createdAt: createdAtWindow }, { updatedAt: createdAtWindow }],
           createdBy: { roles: { some: { roleCode: "team_manager" } } },
         },
       }),
@@ -104,7 +103,9 @@ export class PilotReviewService {
     ).size;
     const bestImportValidRate = appliedImportsInWindow.reduce(
       (best, job) =>
-        job.rowCount > 0 ? Math.max(best, job.validRowCount / job.rowCount) : best,
+        job.rowCount > 0
+          ? Math.max(best, job.validRowCount / job.rowCount)
+          : best,
       0,
     );
     const hasSuccessfulImport =
