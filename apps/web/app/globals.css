@@ -920,6 +920,13 @@ textarea {
   padding-bottom: 14px;
 }
 
+.locations-filter-form {
+  grid-template-columns:
+    minmax(180px, 1fr)
+    repeat(3, minmax(150px, 0.8fr))
+    auto;
+}
+
 .filter-form label {
   color: var(--muted);
   display: grid;
@@ -980,6 +987,12 @@ textarea {
 .drilldown-table td span:not(.status-pill) {
   color: var(--muted);
   font-size: 13px;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .status-pill {
@@ -1229,6 +1242,10 @@ textarea {
   }
 
   .filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .locations-filter-form {
     grid-template-columns: 1fr;
   }
 

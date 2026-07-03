@@ -29,6 +29,7 @@ Priority legend:
 | Team Manager          | `/:tenantSlug/manager`        | Live route/visit/task metrics, task assignment and CSV export.                                                                             | Live   |
 | Team Manager          | `/:tenantSlug/manager/visits` | Live tenant visit table with route, status, representative and started date filters, filter context and filtered-empty recovery actions.   | Live   |
 | Team Manager          | `/:tenantSlug/manager/tasks`  | Live team task table with route, status, priority, assignee and due date filters, task status updates and filtered-empty recovery actions. | Live   |
+| Team Manager          | `/:tenantSlug/manager/locations` | Read-only tenant location coverage list with status/search/area filters, recent visit counts and open follow-up counts.                 | Live   |
 | Company Admin         | `/:tenantSlug/admin/settings` | Company display name, IANA time zone and products-applicable toggle, backed by `admin/settings` API.                                      | Live   |
 | Company Admin         | `/:tenantSlug/admin/locations` | Location list with status/search filters and inline edit of name, city, type, region, territory and status.                              | Live   |
 | Company Admin         | `/:tenantSlug/admin/products`  | Product/SKU list with status/search filters and inline edit of name, SKU, category, not-applicable flag and status.                      | Live   |
@@ -68,7 +69,7 @@ Priority legend:
 | Team overview   | See team activity, route execution, reports and blocked work. | Implemented as `/:tenantSlug/manager`.                                                                                                                                                   | Add route/date filtering once overview date range is selected.              | P0       |
 | Visits          | Review all tenant visits and AI/manual summaries.             | Live and staging-smoked at `/:tenantSlug/manager/visits` with route, status, representative and started date filters, counters, tenant visit table and clearer empty filtered states.    | Add report detail when the report detail UI exists.                         | P0       |
 | Tasks           | View/create/update team tasks.                                | Live and staging-smoked at `/:tenantSlug/manager/tasks` with route, status, priority, assignee and due date filters, counters, status update controls and clearer empty filtered states. | Add richer task board/grouping after pilot-critical table view is verified. | P0       |
-| Locations       | Find locations, coverage and open issues.                     | Location options appear in task assignment; no manager location browser.                                                                                                                 | Add location list focused on coverage and recent activity.                  | P1       |
+| Locations       | Find locations, coverage and open issues.                     | Live at `/:tenantSlug/manager/locations` with read-only status/search/area filters, recent visit counts, open follow-up counts and links into location-filtered visits/tasks.           | Add contact/history detail only if pilot managers need it after the table view is verified. | P1       |
 | Representatives | See field rep workload and activity.                          | Representative summaries are derived from routes.                                                                                                                                        | Add representative drilldown after visits/tasks list.                       | P1       |
 
 ### Field Representative
@@ -108,9 +109,10 @@ The full initial P0 sequence passed staging re-smoke on 2026-07-03 against relea
 1. Admin import history with applied row counts and validation failure history. Initial version implemented and staging-smoked.
 2. Tenant settings screen for company identity and products applicability. Implemented at `/:tenantSlug/admin/settings`; enabled report types deferred until a report-type model exists.
 3. Admin locations and products/SKU list screens. Implemented at `/:tenantSlug/admin/locations` and `/:tenantSlug/admin/products` with status/search filters and inline edit; contact/assignment editing stays API-only for now.
-4. Manager location browser and representative drilldown.
-5. Field visit history.
-6. Platform create tenant or tenant detail UI if internal setup needs repeatable non-script operation.
+4. Manager location browser. Initial read-only coverage list implemented at `/:tenantSlug/manager/locations`; staging smoke pending.
+5. Representative drilldown.
+6. Field visit history.
+7. Platform create tenant or tenant detail UI if internal setup needs repeatable non-script operation.
 
 ## 5. Product Rules For Role-Based Screens
 

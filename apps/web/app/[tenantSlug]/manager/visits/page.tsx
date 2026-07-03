@@ -1,8 +1,10 @@
 import { AppShell } from "../../../../components/app-shell";
 import {
+  listAdminLocations,
   listTodayRoutes,
   listVisits,
   type ApiResult,
+  type Location,
   type PaginatedResponse,
   type RoutePlan,
   type Visit,
@@ -12,6 +14,7 @@ import {
 type ManagerVisitsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    locationId?: string;
     representativeUserId?: string;
     routePlanId?: string;
     startedFrom?: string;
@@ -42,6 +45,7 @@ export default async function ManagerVisitsPage({
   const selectedRepresentativeId = normalizeFilterValue(
     pageState.representativeUserId,
   );
+  const selectedLocationId = normalizeFilterValue(pageState.locationId);
   const selectedRoutePlanId = normalizeFilterValue(pageState.routePlanId);
   const startedFrom = normalizeDateFilter(pageState.startedFrom);
   const startedTo = normalizeDateFilter(pageState.startedTo);
@@ -49,6 +53,7 @@ export default async function ManagerVisitsPage({
   const hasFilters = Boolean(
     selectedStatus ||
     selectedRepresentativeId ||
+    selectedLocationId ||
     selectedRoutePlanId ||
     startedFrom ||
     startedTo,
@@ -60,6 +65,10 @@ export default async function ManagerVisitsPage({
 
   if (selectedRepresentativeId) {
     query.set("representativeUserId", selectedRepresentativeId);
+  }
+
+  if (selectedLocationId) {
+    query.set("locationId", selectedLocationId);
   }
 
   if (selectedRoutePlanId) {
@@ -79,6 +88,7 @@ export default async function ManagerVisitsPage({
     ? await listVisits("pageSize=100")
     : visitsResult;
   const routesResult = await listTodayRoutes();
+  const locationsResult = await listAdminLocations("pageSize=100");
 
   if (!visitsResult.ok) {
     return (
@@ -114,6 +124,9 @@ export default async function ManagerVisitsPage({
   const representativeOptions = allVisitsResult.ok
     ? buildRepresentativeOptions(allVisitsResult.data.items)
     : [];
+  const locationOptions = locationsResult.ok
+    ? buildLocationOptions(locationsResult.data.items)
+    : [];
   const routeOptions = routesResult.ok
     ? buildRouteOptions(routesResult.data)
     : [];
@@ -124,11 +137,15 @@ export default async function ManagerVisitsPage({
   const selectedRouteLabel =
     routeOptions.find((option) => option.id === selectedRoutePlanId)?.label ??
     null;
+  const selectedLocationLabel =
+    locationOptions.find((option) => option.id === selectedLocationId)?.label ??
+    null;
   const filterSummary = selectedStatus
     ? `${formatVisitStatus(selectedStatus)} visits`
     : "All visits";
   const detailSummary = [
     selectedRepresentativeLabel,
+    selectedLocationLabel,
     selectedRouteLabel,
     startedFrom ? `from ${startedFrom}` : null,
     startedTo ? `to ${startedTo}` : null,
@@ -183,6 +200,7 @@ export default async function ManagerVisitsPage({
             <a
               aria-current={!selectedStatus ? "page" : undefined}
               href={buildVisitFilterHref(tenantSlug, null, {
+                locationId: selectedLocationId,
                 representativeUserId: selectedRepresentativeId,
                 routePlanId: selectedRoutePlanId,
                 startedFrom,
@@ -197,6 +215,7 @@ export default async function ManagerVisitsPage({
                   selectedStatus === visitStatus ? "page" : undefined
                 }
                 href={buildVisitFilterHref(tenantSlug, visitStatus, {
+                  locationId: selectedLocationId,
                   representativeUserId: selectedRepresentativeId,
                   routePlanId: selectedRoutePlanId,
                   startedFrom,
@@ -219,6 +238,17 @@ export default async function ManagerVisitsPage({
             <select defaultValue={selectedRoutePlanId ?? ""} name="routePlanId">
               <option value="">Any route</option>
               {routeOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Location
+            <select defaultValue={selectedLocationId ?? ""} name="locationId">
+              <option value="">Any location</option>
+              {locationOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
                 </option>
@@ -321,6 +351,15 @@ function buildRepresentativeOptions(visits: Visit[]): FilterOption[] {
   return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function buildLocationOptions(locations: Location[]): FilterOption[] {
+  return locations
+    .map((location) => ({
+      id: location.id,
+      label: location.name,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 function VisitsTable({ visits }: { visits: Visit[] }) {
   return (
     <table className="table drilldown-table">
@@ -417,6 +456,7 @@ function buildVisitFilterHref(
   tenantSlug: string,
   status: VisitStatus | null,
   filters: {
+    locationId: string | null;
     representativeUserId: string | null;
     routePlanId: string | null;
     startedFrom: string | null;
@@ -431,6 +471,10 @@ function buildVisitFilterHref(
 
   if (filters.representativeUserId) {
     query.set("representativeUserId", filters.representativeUserId);
+  }
+
+  if (filters.locationId) {
+    query.set("locationId", filters.locationId);
   }
 
   if (filters.routePlanId) {
