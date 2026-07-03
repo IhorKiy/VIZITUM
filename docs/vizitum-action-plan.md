@@ -198,6 +198,7 @@ Status legend:
 - [x] Connect Field page manual report confirmation to backend reports endpoint.
 - [x] Add Field page compact location cards and own task status update panel.
 - [x] Add Field AI draft state messaging, weak-output guidance and manual fallback copy.
+- [x] Add Field visit history with own-scope status/date filters.
 - [x] Connect admin import templates page to imports API with demo fallback.
 - [x] Connect admin CSV import validation and confirm flow to backend imports endpoints.
 - [x] Show admin import row-level validation issues before confirmation.

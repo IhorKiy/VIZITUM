@@ -22,6 +22,7 @@ Priority legend:
 | Tenant entry          | `/:tenantSlug/login`          | Tenant-aware login with backend session.                                                                                                   | Live   |
 | Tenant entry          | `/:tenantSlug/invites/accept` | Invite acceptance flow.                                                                                                                    | Live   |
 | Field Representative  | `/:tenantSlug/field`          | Today's visits, create visit, text note, browser recording, audio upload fallback, manual report confirmation.                             | Live   |
+| Field Representative  | `/:tenantSlug/field/history`  | Own-scope visit history with status/date filters, counters and completed/unfinished visit review.                                          | Live   |
 | Company Admin         | `/:tenantSlug/admin/setup`    | Live onboarding checklist, setup progress and pilot readiness signals.                                                                     | Live   |
 | Company Admin         | `/:tenantSlug/admin/users`    | Live tenant users list, invite creation, status update and role assignment controls with pending submit states.                            | Live   |
 | Company Admin         | `/:tenantSlug/admin/imports`  | Template downloads, CSV validation preview, row issues, all-or-nothing confirm.                                                            | Live   |
@@ -83,7 +84,7 @@ Priority legend:
 | Visit form            | Start visit and add text/audio note.                | Implemented and staging-smoked, including audio success/error recovery links and clearer recorder fallback copy.                              | Improve empty states and mobile ergonomics after pilot-critical flows stay stable.              | P0       |
 | AI draft confirmation | Review structured AI output before final report.    | Field visit cards are staging-smoked with AI draft state messaging, weak-output guidance and manual fallback confirmation. | Add live AI job/draft listing when the frontend has a status/read endpoint for extraction jobs. | P0/P1    |
 | Tasks                 | See and update own tasks.                           | Field page own task panel is staging-smoked with priority/due details and status update controls.                          | Add location names to task cards when task API includes location detail.                        | P0       |
-| Visit history         | Review previous visits and reports.                 | Current visits list exists; no dedicated history view.                                                                     | Add history section or separate tab after pilot-critical flows are stable.                      | P1       |
+| Visit history         | Review previous visits and reports.                 | Live at `/:tenantSlug/field/history` with own-scope visit table, status/date filters and completed/unfinished counters.    | Add report detail links after the report detail UI exists.                                      | P1       |
 
 ### Company Owner / Executive
 
@@ -112,7 +113,7 @@ The full initial P0 sequence passed staging re-smoke on 2026-07-03 against relea
 3. Admin locations and products/SKU list screens. Implemented at `/:tenantSlug/admin/locations` and `/:tenantSlug/admin/products` with status/search filters and inline edit; contact/assignment editing stays API-only for now.
 4. Manager location browser. Initial read-only coverage list implemented at `/:tenantSlug/manager/locations`; staging smoke pending.
 5. Representative drilldown. Initial read-only workload list implemented at `/:tenantSlug/manager/representatives`; staging smoke pending.
-6. Field visit history.
+6. Field visit history. Initial own-scope history view implemented at `/:tenantSlug/field/history`; staging smoke pending.
 7. Platform create tenant or tenant detail UI if internal setup needs repeatable non-script operation.
 
 ## 5. Product Rules For Role-Based Screens

@@ -344,6 +344,9 @@ export default async function FieldPage({
           >
             R
           </button>
+          <a className="secondary-button" href={`/${tenantSlug}/field/history`}>
+            History
+          </a>
           <a className="primary-button" href="#new-visit">
             New visit
           </a>

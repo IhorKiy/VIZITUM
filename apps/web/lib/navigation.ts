@@ -1,5 +1,6 @@
 export type RoleArea =
   | "field"
+  | "field-history"
   | "admin-setup"
   | "admin-users"
   | "admin-imports"
@@ -33,6 +34,13 @@ export function buildTenantNav(
       area: "field",
       icon: "V",
       requiredPermissions: ["visits.read_own", "visits.read_team"],
+    },
+    {
+      label: "History",
+      href: `/${tenantSlug}/field/history`,
+      area: "field-history",
+      icon: "H",
+      requiredPermissions: ["visits.read_own"],
     },
     {
       label: "Setup",

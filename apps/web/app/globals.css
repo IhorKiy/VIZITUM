@@ -931,6 +931,12 @@ textarea {
   grid-template-columns: minmax(220px, 1fr) auto;
 }
 
+.field-history-filter-form {
+  grid-template-columns:
+    repeat(2, minmax(160px, 1fr))
+    auto;
+}
+
 .filter-form label {
   color: var(--muted);
   display: grid;
@@ -1254,6 +1260,10 @@ textarea {
   }
 
   .representatives-filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .field-history-filter-form {
     grid-template-columns: 1fr;
   }
 

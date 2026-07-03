@@ -52,6 +52,7 @@ Next.js App Router. All product screens live under the tenant slug: `apps/web/ap
 | `/[tenantSlug]/login` | `login/page.tsx` | Public | `POST /auth/login` |
 | `/[tenantSlug]/invites/accept` | `invites/accept/page.tsx` | Public | `POST /auth/invites/accept` |
 | `/[tenantSlug]/field` | `field/page.tsx` | Field | `/routes/today`, `/visits`, `/tasks`, visit notes/audio/AI/report endpoints |
+| `/[tenantSlug]/field/history` | `field/history/page.tsx` | Field | Own-scope `/visits` history with status/date filters |
 | `/[tenantSlug]/admin` | `admin/page.tsx` | Admin | Admin home |
 | `/[tenantSlug]/admin/setup` | `admin/setup/page.tsx` | Admin | Onboarding checklist (settings, users, imports reads) |
 | `/[tenantSlug]/admin/users` | `admin/users/page.tsx` | Admin | `/admin/users*` |
