@@ -13,6 +13,9 @@ import {
 type ManagerTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    assignedToUserId?: string;
+    dueFrom?: string;
+    dueTo?: string;
     error?: string;
     priority?: string;
     status?: string;
@@ -23,6 +26,11 @@ type ManagerTasksPageProps = {
 const taskStatuses: TaskStatus[] = ["open", "in_progress", "done", "cancelled"];
 const taskPriorities: TaskPriority[] = ["high", "normal", "low"];
 
+type FilterOption = {
+  id: string;
+  label: string;
+};
+
 export default async function ManagerTasksPage({
   params,
   searchParams,
@@ -31,7 +39,17 @@ export default async function ManagerTasksPage({
   const pageState = await searchParams;
   const selectedStatus = normalizeTaskStatus(pageState.status);
   const selectedPriority = normalizeTaskPriority(pageState.priority);
+  const selectedAssigneeId = normalizeFilterValue(pageState.assignedToUserId);
+  const dueFrom = normalizeDateFilter(pageState.dueFrom);
+  const dueTo = normalizeDateFilter(pageState.dueTo);
   const query = new URLSearchParams({ pageSize: "100" });
+  const hasFilters = Boolean(
+    selectedStatus ||
+    selectedPriority ||
+    selectedAssigneeId ||
+    dueFrom ||
+    dueTo,
+  );
 
   if (selectedStatus) {
     query.set("status", selectedStatus);
@@ -39,6 +57,18 @@ export default async function ManagerTasksPage({
 
   if (selectedPriority) {
     query.set("priority", selectedPriority);
+  }
+
+  if (selectedAssigneeId) {
+    query.set("assignedToUserId", selectedAssigneeId);
+  }
+
+  if (dueFrom) {
+    query.set("dueFrom", dueFrom);
+  }
+
+  if (dueTo) {
+    query.set("dueTo", dueTo);
   }
 
   async function updateTaskStatusAction(formData: FormData) {
@@ -61,6 +91,9 @@ export default async function ManagerTasksPage({
   }
 
   const tasksResult = await listTasks(query.toString());
+  const allTasksResult = hasFilters
+    ? await listTasks("pageSize=100")
+    : tasksResult;
 
   if (!tasksResult.ok) {
     return (
@@ -94,10 +127,19 @@ export default async function ManagerTasksPage({
 
   const tasks = tasksResult.data.items;
   const counters = buildTaskCounters(tasks, tasksResult.data.total);
-  const filterSummary = buildTaskFilterSummary(
-    selectedStatus,
-    selectedPriority,
-  );
+  const assigneeOptions = allTasksResult.ok
+    ? buildAssigneeOptions(allTasksResult.data.items)
+    : [];
+  const selectedAssigneeLabel =
+    assigneeOptions.find((option) => option.id === selectedAssigneeId)?.label ??
+    null;
+  const filterSummary = buildTaskFilterSummary({
+    assigneeLabel: selectedAssigneeLabel,
+    dueFrom,
+    dueTo,
+    priority: selectedPriority,
+    status: selectedStatus,
+  });
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-tasks">
@@ -165,18 +207,26 @@ export default async function ManagerTasksPage({
             <div className="filter-pills" aria-label="Task status filters">
               <a
                 aria-current={!selectedStatus ? "page" : undefined}
-                href={buildTaskFilterHref(tenantSlug, null, selectedPriority)}
+                href={buildTaskFilterHref(tenantSlug, {
+                  assignedToUserId: selectedAssigneeId,
+                  dueFrom,
+                  dueTo,
+                  priority: selectedPriority,
+                  status: null,
+                })}
               >
                 All
               </a>
               {taskStatuses.map((status) => (
                 <a
                   aria-current={selectedStatus === status ? "page" : undefined}
-                  href={buildTaskFilterHref(
-                    tenantSlug,
+                  href={buildTaskFilterHref(tenantSlug, {
+                    assignedToUserId: selectedAssigneeId,
+                    dueFrom,
+                    dueTo,
+                    priority: selectedPriority,
                     status,
-                    selectedPriority,
-                  )}
+                  })}
                   key={status}
                 >
                   {formatLabel(status)}
@@ -186,7 +236,13 @@ export default async function ManagerTasksPage({
             <div className="filter-pills" aria-label="Task priority filters">
               <a
                 aria-current={!selectedPriority ? "page" : undefined}
-                href={buildTaskFilterHref(tenantSlug, selectedStatus, null)}
+                href={buildTaskFilterHref(tenantSlug, {
+                  assignedToUserId: selectedAssigneeId,
+                  dueFrom,
+                  dueTo,
+                  priority: null,
+                  status: selectedStatus,
+                })}
               >
                 Any priority
               </a>
@@ -195,11 +251,13 @@ export default async function ManagerTasksPage({
                   aria-current={
                     selectedPriority === priority ? "page" : undefined
                   }
-                  href={buildTaskFilterHref(
-                    tenantSlug,
-                    selectedStatus,
+                  href={buildTaskFilterHref(tenantSlug, {
+                    assignedToUserId: selectedAssigneeId,
+                    dueFrom,
+                    dueTo,
                     priority,
-                  )}
+                    status: selectedStatus,
+                  })}
                   key={priority}
                 >
                   {formatLabel(priority)}
@@ -208,6 +266,50 @@ export default async function ManagerTasksPage({
             </div>
           </div>
         </div>
+
+        <form action={`/${tenantSlug}/manager/tasks`} className="filter-form">
+          {selectedStatus ? (
+            <input name="status" type="hidden" value={selectedStatus} />
+          ) : null}
+          {selectedPriority ? (
+            <input name="priority" type="hidden" value={selectedPriority} />
+          ) : null}
+          <label>
+            Assignee
+            <select
+              defaultValue={selectedAssigneeId ?? ""}
+              name="assignedToUserId"
+            >
+              <option value="">Any assignee</option>
+              {assigneeOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Due from
+            <input defaultValue={dueFrom ?? ""} name="dueFrom" type="date" />
+          </label>
+          <label>
+            Due to
+            <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
+          </label>
+          <div className="filter-actions">
+            <button className="secondary-button" type="submit">
+              Apply filters
+            </button>
+            {hasFilters ? (
+              <a
+                className="secondary-button"
+                href={`/${tenantSlug}/manager/tasks`}
+              >
+                Reset
+              </a>
+            ) : null}
+          </div>
+        </form>
 
         {tasks.length > 0 ? (
           <TasksTable
@@ -222,7 +324,7 @@ export default async function ManagerTasksPage({
               the manager overview.
             </p>
             <div className="toolbar">
-              {selectedStatus || selectedPriority ? (
+              {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/tasks`}
@@ -239,6 +341,23 @@ export default async function ManagerTasksPage({
       </section>
     </AppShell>
   );
+}
+
+function buildAssigneeOptions(tasks: Task[]): FilterOption[] {
+  const options = new Map<string, FilterOption>();
+
+  for (const task of tasks) {
+    if (!task.assignedTo) {
+      continue;
+    }
+
+    options.set(task.assignedTo.id, {
+      id: task.assignedTo.id,
+      label: task.assignedTo.name,
+    });
+  }
+
+  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function TasksTable({
@@ -352,17 +471,34 @@ function buildTaskCounters(
 
 function buildTaskFilterHref(
   tenantSlug: string,
-  status: TaskStatus | null,
-  priority: TaskPriority | null,
+  filters: {
+    assignedToUserId: string | null;
+    dueFrom: string | null;
+    dueTo: string | null;
+    priority: TaskPriority | null;
+    status: TaskStatus | null;
+  },
 ): string {
   const query = new URLSearchParams();
 
-  if (status) {
-    query.set("status", status);
+  if (filters.status) {
+    query.set("status", filters.status);
   }
 
-  if (priority) {
-    query.set("priority", priority);
+  if (filters.priority) {
+    query.set("priority", filters.priority);
+  }
+
+  if (filters.assignedToUserId) {
+    query.set("assignedToUserId", filters.assignedToUserId);
+  }
+
+  if (filters.dueFrom) {
+    query.set("dueFrom", filters.dueFrom);
+  }
+
+  if (filters.dueTo) {
+    query.set("dueTo", filters.dueTo);
   }
 
   const suffix = query.toString();
@@ -370,16 +506,37 @@ function buildTaskFilterHref(
   return `/${tenantSlug}/manager/tasks${suffix ? `?${suffix}` : ""}`;
 }
 
-function buildTaskFilterSummary(
-  status: TaskStatus | null,
-  priority: TaskPriority | null,
-): string {
+function buildTaskFilterSummary(filters: {
+  assigneeLabel: string | null;
+  dueFrom: string | null;
+  dueTo: string | null;
+  priority: TaskPriority | null;
+  status: TaskStatus | null;
+}): string {
   const parts = [
-    status ? `${formatLabel(status)} tasks` : "All tasks",
-    priority ? `${formatLabel(priority)} priority` : null,
+    filters.status ? `${formatLabel(filters.status)} tasks` : "All tasks",
+    filters.priority ? `${formatLabel(filters.priority)} priority` : null,
+    filters.assigneeLabel ? `assigned to ${filters.assigneeLabel}` : null,
+    filters.dueFrom ? `from ${filters.dueFrom}` : null,
+    filters.dueTo ? `to ${filters.dueTo}` : null,
   ].filter(Boolean);
 
   return parts.join(", ");
+}
+
+function normalizeFilterValue(value: string | undefined): string | null {
+  const normalizedValue = value?.trim();
+  return normalizedValue || null;
+}
+
+function normalizeDateFilter(value: string | undefined): string | null {
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue || !/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    return null;
+  }
+
+  return normalizedValue;
 }
 
 function normalizeTaskStatus(value: string | undefined): TaskStatus | null {

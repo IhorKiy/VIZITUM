@@ -31,6 +31,8 @@ export type ListVisitsQuery = {
   representativeUserId?: string;
   locationId?: string;
   status?: VisitStatus;
+  startedFrom?: string;
+  startedTo?: string;
 };
 
 export type CreateVisitRequestBody = {

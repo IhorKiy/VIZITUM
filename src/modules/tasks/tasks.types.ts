@@ -30,6 +30,8 @@ export type ListTasksQuery = {
   priority?: TaskPriority;
   locationId?: string;
   visitId?: string;
+  dueFrom?: string;
+  dueTo?: string;
 };
 
 export type CreateTaskRequestBody = {

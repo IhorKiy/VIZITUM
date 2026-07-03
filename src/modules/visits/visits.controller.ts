@@ -55,6 +55,8 @@ export class VisitsController {
       representativeUserId: normalizeQueryString(query.representativeUserId),
       locationId: normalizeQueryString(query.locationId),
       status: parseVisitStatus(query.status),
+      startedFrom: normalizeQueryString(query.startedFrom),
+      startedTo: normalizeQueryString(query.startedTo),
     });
   }
 

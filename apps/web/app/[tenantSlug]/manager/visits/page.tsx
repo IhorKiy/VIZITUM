@@ -9,7 +9,12 @@ import {
 
 type ManagerVisitsPageProps = {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{
+    representativeUserId?: string;
+    startedFrom?: string;
+    startedTo?: string;
+    status?: string;
+  }>;
 };
 
 const visitStatuses: VisitStatus[] = [
@@ -19,20 +24,48 @@ const visitStatuses: VisitStatus[] = [
   "cancelled",
 ];
 
+type FilterOption = {
+  id: string;
+  label: string;
+};
+
 export default async function ManagerVisitsPage({
   params,
   searchParams,
 }: ManagerVisitsPageProps) {
   const { tenantSlug } = await params;
-  const { status } = await searchParams;
-  const selectedStatus = normalizeVisitStatus(status);
+  const pageState = await searchParams;
+  const selectedStatus = normalizeVisitStatus(pageState.status);
+  const selectedRepresentativeId = normalizeFilterValue(
+    pageState.representativeUserId,
+  );
+  const startedFrom = normalizeDateFilter(pageState.startedFrom);
+  const startedTo = normalizeDateFilter(pageState.startedTo);
   const query = new URLSearchParams({ pageSize: "100" });
+  const hasFilters = Boolean(
+    selectedStatus || selectedRepresentativeId || startedFrom || startedTo,
+  );
 
   if (selectedStatus) {
     query.set("status", selectedStatus);
   }
 
+  if (selectedRepresentativeId) {
+    query.set("representativeUserId", selectedRepresentativeId);
+  }
+
+  if (startedFrom) {
+    query.set("startedFrom", startedFrom);
+  }
+
+  if (startedTo) {
+    query.set("startedTo", startedTo);
+  }
+
   const visitsResult = await listVisits(query.toString());
+  const allVisitsResult = hasFilters
+    ? await listVisits("pageSize=100")
+    : visitsResult;
 
   if (!visitsResult.ok) {
     return (
@@ -65,9 +98,21 @@ export default async function ManagerVisitsPage({
 
   const visits = visitsResult.data.items;
   const counters = buildVisitCounters(visitsResult);
+  const representativeOptions = allVisitsResult.ok
+    ? buildRepresentativeOptions(allVisitsResult.data.items)
+    : [];
+  const selectedRepresentativeLabel =
+    representativeOptions.find(
+      (option) => option.id === selectedRepresentativeId,
+    )?.label ?? null;
   const filterSummary = selectedStatus
     ? `${formatVisitStatus(selectedStatus)} visits`
     : "All visits";
+  const detailSummary = [
+    selectedRepresentativeLabel,
+    startedFrom ? `from ${startedFrom}` : null,
+    startedTo ? `to ${startedTo}` : null,
+  ].filter(Boolean);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
@@ -110,14 +155,18 @@ export default async function ManagerVisitsPage({
           <div className="panel-title-stack">
             <h2>Visit list</h2>
             <p>
-              Showing {filterSummary.toLowerCase()} across this tenant
-              workspace.
+              Showing {filterSummary.toLowerCase()} across this tenant workspace
+              {detailSummary.length ? `, ${detailSummary.join(", ")}` : ""}.
             </p>
           </div>
           <div className="filter-pills" aria-label="Visit status filters">
             <a
               aria-current={!selectedStatus ? "page" : undefined}
-              href={`/${tenantSlug}/manager/visits`}
+              href={buildVisitFilterHref(tenantSlug, null, {
+                representativeUserId: selectedRepresentativeId,
+                startedFrom,
+                startedTo,
+              })}
             >
               All
             </a>
@@ -126,7 +175,11 @@ export default async function ManagerVisitsPage({
                 aria-current={
                   selectedStatus === visitStatus ? "page" : undefined
                 }
-                href={`/${tenantSlug}/manager/visits?status=${visitStatus}`}
+                href={buildVisitFilterHref(tenantSlug, visitStatus, {
+                  representativeUserId: selectedRepresentativeId,
+                  startedFrom,
+                  startedTo,
+                })}
                 key={visitStatus}
               >
                 {formatVisitStatus(visitStatus)}
@@ -134,6 +187,55 @@ export default async function ManagerVisitsPage({
             ))}
           </div>
         </div>
+
+        <form action={`/${tenantSlug}/manager/visits`} className="filter-form">
+          {selectedStatus ? (
+            <input name="status" type="hidden" value={selectedStatus} />
+          ) : null}
+          <label>
+            Representative
+            <select
+              defaultValue={selectedRepresentativeId ?? ""}
+              name="representativeUserId"
+            >
+              <option value="">Any representative</option>
+              {representativeOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Started from
+            <input
+              defaultValue={startedFrom ?? ""}
+              name="startedFrom"
+              type="date"
+            />
+          </label>
+          <label>
+            Started to
+            <input
+              defaultValue={startedTo ?? ""}
+              name="startedTo"
+              type="date"
+            />
+          </label>
+          <div className="filter-actions">
+            <button className="secondary-button" type="submit">
+              Apply filters
+            </button>
+            {hasFilters ? (
+              <a
+                className="secondary-button"
+                href={`/${tenantSlug}/manager/visits`}
+              >
+                Reset
+              </a>
+            ) : null}
+          </div>
+        </form>
 
         {visits.length > 0 ? (
           <VisitsTable visits={visits} />
@@ -145,7 +247,7 @@ export default async function ManagerVisitsPage({
               visit progress here.
             </p>
             <div className="toolbar">
-              {selectedStatus ? (
+              {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/visits`}
@@ -162,6 +264,19 @@ export default async function ManagerVisitsPage({
       </section>
     </AppShell>
   );
+}
+
+function buildRepresentativeOptions(visits: Visit[]): FilterOption[] {
+  const options = new Map<string, FilterOption>();
+
+  for (const visit of visits) {
+    options.set(visit.representative.id, {
+      id: visit.representative.id,
+      label: visit.representative.name,
+    });
+  }
+
+  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function VisitsTable({ visits }: { visits: Visit[] }) {
@@ -254,6 +369,53 @@ function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
   }
 
   return null;
+}
+
+function buildVisitFilterHref(
+  tenantSlug: string,
+  status: VisitStatus | null,
+  filters: {
+    representativeUserId: string | null;
+    startedFrom: string | null;
+    startedTo: string | null;
+  },
+): string {
+  const query = new URLSearchParams();
+
+  if (status) {
+    query.set("status", status);
+  }
+
+  if (filters.representativeUserId) {
+    query.set("representativeUserId", filters.representativeUserId);
+  }
+
+  if (filters.startedFrom) {
+    query.set("startedFrom", filters.startedFrom);
+  }
+
+  if (filters.startedTo) {
+    query.set("startedTo", filters.startedTo);
+  }
+
+  const suffix = query.toString();
+
+  return `/${tenantSlug}/manager/visits${suffix ? `?${suffix}` : ""}`;
+}
+
+function normalizeFilterValue(value: string | undefined): string | null {
+  const normalizedValue = value?.trim();
+  return normalizedValue || null;
+}
+
+function normalizeDateFilter(value: string | undefined): string | null {
+  const normalizedValue = value?.trim();
+
+  if (!normalizedValue || !/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
+    return null;
+  }
+
+  return normalizedValue;
 }
 
 function formatVisitStatus(status: VisitStatus): string {

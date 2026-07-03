@@ -847,6 +847,40 @@ textarea {
   justify-items: end;
 }
 
+.filter-form {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(150px, 0.7fr)) auto;
+  margin: 0 0 14px;
+  padding-bottom: 14px;
+}
+
+.filter-form label {
+  color: var(--muted);
+  display: grid;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.filter-form input,
+.filter-form select {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  min-height: 40px;
+  padding: 9px 10px;
+}
+
+.filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .filter-pills {
   display: flex;
   flex-wrap: wrap;
@@ -1109,9 +1143,14 @@ textarea {
   }
 
   .panel-toolbar,
+  .filter-form,
   .filter-groups {
     display: grid;
     justify-items: stretch;
+  }
+
+  .filter-form {
+    grid-template-columns: 1fr;
   }
 
   .filter-pills {

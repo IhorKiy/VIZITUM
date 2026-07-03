@@ -291,6 +291,8 @@ function buildTaskWhere(
     throwMissingTaskPermission();
   }
 
+  const dueDate = buildDateOnlyRangeFilter(query.dueFrom, query.dueTo);
+
   return {
     tenantId: context.tenantId,
     deletedAt: null,
@@ -299,6 +301,7 @@ function buildTaskWhere(
     ...(query.priority ? { priority: query.priority } : {}),
     ...(query.locationId ? { locationId: query.locationId } : {}),
     ...(query.visitId ? { visitId: query.visitId } : {}),
+    ...(dueDate ? { dueDate } : {}),
   };
 }
 
@@ -422,6 +425,51 @@ function parseOptionalDateOnly(value: unknown): Date | null {
     });
   }
   return new Date(`${value}T00:00:00.000Z`);
+}
+
+function buildDateOnlyRangeFilter(
+  fromValue: unknown,
+  toValue: unknown,
+): Prisma.DateTimeNullableFilter | undefined {
+  const gte = parseDateOnlyBoundary(fromValue, "start");
+  const lte = parseDateOnlyBoundary(toValue, "end");
+
+  if (!gte && !lte) {
+    return undefined;
+  }
+
+  return {
+    ...(gte ? { gte } : {}),
+    ...(lte ? { lte } : {}),
+  };
+}
+
+function parseDateOnlyBoundary(
+  value: unknown,
+  boundary: "start" | "end",
+): Date | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new BadRequestException({
+      code: "DATE_INVALID",
+      message: "Date filters must use YYYY-MM-DD format.",
+    });
+  }
+
+  const suffix = boundary === "start" ? "T00:00:00.000Z" : "T23:59:59.999Z";
+  const date = new Date(`${value}${suffix}`);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new BadRequestException({
+      code: "DATE_INVALID",
+      message: "Date filters must use YYYY-MM-DD format.",
+    });
+  }
+
+  return date;
 }
 
 function parseOptionalDateTime(value: unknown): Date | null {

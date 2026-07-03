@@ -44,6 +44,8 @@ export class TasksController {
       priority: parseTaskPriority(query.priority),
       locationId: normalizeQueryString(query.locationId),
       visitId: normalizeQueryString(query.visitId),
+      dueFrom: normalizeQueryString(query.dueFrom),
+      dueTo: normalizeQueryString(query.dueTo),
     });
   }
 
