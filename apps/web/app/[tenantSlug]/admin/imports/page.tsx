@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AppShell } from "../../../../components/app-shell";
+import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   buildApiUrl,
   confirmImportJob,
@@ -279,10 +280,17 @@ export default async function ImportsPage({
                 required
                 type="file"
               />
+              <span className="form-hint">
+                Use one of the approved CSV templates. Validation stores a
+                reviewable import job before anything is applied.
+              </span>
             </label>
-            <button className="primary-button" type="submit">
+            <PendingSubmitButton
+              className="primary-button"
+              pendingLabel="Validating..."
+            >
               Validate file
-            </button>
+            </PendingSubmitButton>
           </form>
         </div>
 
@@ -339,9 +347,12 @@ export default async function ImportsPage({
                   validationPreview?.importJobId ?? validationState.importJobId
                 }
               />
-              <button className="primary-button" type="submit">
+              <PendingSubmitButton
+                className="primary-button"
+                pendingLabel="Applying..."
+              >
                 Confirm import
-              </button>
+              </PendingSubmitButton>
             </form>
           ) : null}
         </div>

@@ -201,10 +201,9 @@ export default async function ManagerPage({
   const metrics = hasLiveData
     ? buildLiveMetrics(routes, visits, tasks, highPriorityTasks)
     : demoMetrics;
-  const representatives =
-    hasLiveData && routes.length > 0
-      ? buildRepresentativeSummaries(routes, visits)
-      : demoRepresentatives;
+  const representatives = hasLiveData
+    ? buildRepresentativeSummaries(routes, visits)
+    : demoRepresentatives;
   const attentionItems =
     hasLiveData && (routes.length > 0 || tasks.length > 0)
       ? buildAttentionItems(routes, tasks)
@@ -291,24 +290,31 @@ export default async function ManagerPage({
       <section className="dashboard-grid" aria-label="Manager worklists">
         <div className="panel">
           <h2>Representatives</h2>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Route</th>
-                <th>Reports</th>
-              </tr>
-            </thead>
-            <tbody>
-              {representatives.map((representative) => (
-                <tr key={representative.name}>
-                  <td>{representative.name}</td>
-                  <td>{representative.route}</td>
-                  <td>{representative.reports}</td>
+          {representatives.length > 0 ? (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Route</th>
+                  <th>Reports</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {representatives.map((representative) => (
+                  <tr key={representative.name}>
+                    <td>{representative.name}</td>
+                    <td>{representative.route}</td>
+                    <td>{representative.reports}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="empty-state">
+              No active route plans are visible for today. Use the task form to
+              assign follow-up work or import an initial visit plan.
+            </p>
+          )}
         </div>
 
         <div className="panel">
@@ -361,6 +367,11 @@ export default async function ManagerPage({
                   </option>
                 ))}
               </select>
+              {assigneeOptions.length === 0 ? (
+                <span className="form-hint">
+                  Add users or create field activity to populate assignees.
+                </span>
+              ) : null}
             </label>
             <label>
               Location
@@ -372,6 +383,11 @@ export default async function ManagerPage({
                   </option>
                 ))}
               </select>
+              {locationOptions.length === 0 ? (
+                <span className="form-hint">
+                  Import or create active locations to link tasks to places.
+                </span>
+              ) : null}
             </label>
             <div className="form-row">
               <label>

@@ -247,8 +247,8 @@ Status legend:
 - [x] Rerun P0 role-screen staging smoke for Admin setup/users/review, Manager visits/tasks and Field location/tasks/AI draft messaging. Completed on 2026-07-03.
 - [x] Run internal dogfood on the accepted P0 screen set with realistic planned visit, text note/manual fallback and manager follow-up scenarios.
 - [x] Re-smoke Manager task assignment after the task option/counting fix deploys.
-- [ ] Re-smoke cancelled-task filtering after the next deploy.
-- [ ] Re-smoke pending/disabled submit states on Field and Manager forms after the next deploy.
+- [x] Re-smoke cancelled-task filtering after the next deploy.
+- [ ] Re-smoke pending/disabled submit states on Field, Manager and Admin import forms after the next deploy.
 
 ### Final gate before production pilot
 
@@ -271,6 +271,8 @@ Status legend:
 - [x] Improve Manager dashboard task assignment options and open-task counting from dogfood findings.
 - [x] Filter cancelled tasks out of Field actionable tasks and Manager attention queue.
 - [x] Add pending/disabled submit states for high-risk Field and Manager forms.
+- [x] Add pending/disabled submit states for Admin import validation/confirm forms.
+- [x] Improve empty states and avoid demo-looking fallback for empty live Field and Manager lists.
 - [ ] Improve empty states, loading states and error copy on Field, Admin imports and Manager dashboard screens.
 - [ ] Add clearer success states and recovery guidance for audio upload/transcription failures.
 - [ ] Review mobile layout on common field-device widths before each pilot candidate build.

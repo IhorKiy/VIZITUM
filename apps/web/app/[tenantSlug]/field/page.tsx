@@ -306,18 +306,15 @@ export default async function FieldPage({
     );
   }
 
-  const visits =
-    visitsResult.ok && visitsResult.data.items.length > 0
-      ? visitsResult.data.items.map(toFieldVisit)
-      : demoVisits;
-  const locations =
-    locationsResult.ok && locationsResult.data.items.length > 0
-      ? locationsResult.data.items.map(toFieldLocation)
-      : demoLocations;
-  const tasks =
-    tasksResult.ok && tasksResult.data.items.length > 0
-      ? tasksResult.data.items.map(toFieldTask)
-      : demoTasks;
+  const visits = visitsResult.ok
+    ? visitsResult.data.items.map(toFieldVisit)
+    : demoVisits;
+  const locations = locationsResult.ok
+    ? locationsResult.data.items.map(toFieldLocation)
+    : demoLocations;
+  const tasks = tasksResult.ok
+    ? tasksResult.data.items.map(toFieldTask)
+    : demoTasks;
   const isDemoMode = !visitsResult.ok && demoFallbackEnabled;
   const canCreateLiveVisit = locationsResult.ok && locations.length > 0;
   const representativeName = sessionResult.ok
@@ -470,89 +467,102 @@ export default async function FieldPage({
 
       <section className="dashboard-grid" aria-label="Field workspace">
         <div className="field-stack">
-          {visits.map((visit, index) => (
-            <article className="visit-card" key={visit.name}>
-              <header>
-                <div>
-                  <h2>{visit.name}</h2>
-                  <p className="visit-meta">{visit.address}</p>
-                </div>
-                <span
-                  className={`status-pill ${resolveStatusTone(
-                    visit.status,
-                    index,
-                  )}`}
-                >
-                  {visit.status}
-                </span>
-              </header>
-              <p className="visit-meta">{visit.next}</p>
-              <AiDraftStatePanel visit={visit} />
-              {visit.canConfirm ? (
-                <form action={addTextNoteAction} className="visit-form">
-                  <input name="visitId" type="hidden" value={visit.id} />
-                  <label>
-                    Text note
-                    <textarea
-                      name="textContent"
-                      placeholder="Add shelf notes, agreements or observations"
-                      required
-                      rows={2}
-                    />
-                  </label>
-                  <PendingSubmitButton
-                    className="secondary-button"
-                    pendingLabel="Saving note..."
+          {visits.length > 0 ? (
+            visits.map((visit, index) => (
+              <article className="visit-card" key={visit.id}>
+                <header>
+                  <div>
+                    <h2>{visit.name}</h2>
+                    <p className="visit-meta">{visit.address}</p>
+                  </div>
+                  <span
+                    className={`status-pill ${resolveStatusTone(
+                      visit.status,
+                      index,
+                    )}`}
                   >
-                    Save note
-                  </PendingSubmitButton>
-                </form>
-              ) : null}
-              {visit.canConfirm ? (
-                <form action={uploadAudioNoteAction} className="visit-form">
-                  <input name="visitId" type="hidden" value={visit.id} />
-                  <label>
-                    Voice note
-                    <FieldVoiceNoteRecorder inputName="audioFile" />
-                  </label>
-                  <PendingSubmitButton
-                    className="secondary-button"
-                    pendingLabel="Uploading..."
-                  >
-                    Upload voice note
-                  </PendingSubmitButton>
-                </form>
-              ) : null}
-              {visit.canConfirm ? (
-                <form action={confirmReportAction} className="visit-form">
-                  <input name="visitId" type="hidden" value={visit.id} />
-                  <label>
-                    Visit summary
-                    <textarea
-                      name="summary"
-                      placeholder="What happened during this visit?"
-                      required
-                      rows={3}
-                    />
-                  </label>
-                  <label>
-                    Next steps
-                    <textarea
-                      name="nextSteps"
-                      placeholder="Optional follow-up, blockers or tasks"
-                      rows={2}
-                    />
-                  </label>
-                  <PendingSubmitButton
-                    className="primary-button"
-                    pendingLabel="Confirming..."
-                  >
-                    Confirm manual fallback
-                  </PendingSubmitButton>
-                </form>
-              ) : null}
-            </article>
-          ))}
+                    {visit.status}
+                  </span>
+                </header>
+                <p className="visit-meta">{visit.next}</p>
+                <AiDraftStatePanel visit={visit} />
+                {visit.canConfirm ? (
+                  <form action={addTextNoteAction} className="visit-form">
+                    <input name="visitId" type="hidden" value={visit.id} />
+                    <label>
+                      Text note
+                      <textarea
+                        name="textContent"
+                        placeholder="Add shelf notes, agreements or observations"
+                        required
+                        rows={2}
+                      />
+                    </label>
+                    <PendingSubmitButton
+                      className="secondary-button"
+                      pendingLabel="Saving note..."
+                    >
+                      Save note
+                    </PendingSubmitButton>
+                  </form>
+                ) : null}
+                {visit.canConfirm ? (
+                  <form action={uploadAudioNoteAction} className="visit-form">
+                    <input name="visitId" type="hidden" value={visit.id} />
+                    <label>
+                      Voice note
+                      <FieldVoiceNoteRecorder inputName="audioFile" />
+                    </label>
+                    <PendingSubmitButton
+                      className="secondary-button"
+                      pendingLabel="Uploading..."
+                    >
+                      Upload voice note
+                    </PendingSubmitButton>
+                  </form>
+                ) : null}
+                {visit.canConfirm ? (
+                  <form action={confirmReportAction} className="visit-form">
+                    <input name="visitId" type="hidden" value={visit.id} />
+                    <label>
+                      Visit summary
+                      <textarea
+                        name="summary"
+                        placeholder="What happened during this visit?"
+                        required
+                        rows={3}
+                      />
+                    </label>
+                    <label>
+                      Next steps
+                      <textarea
+                        name="nextSteps"
+                        placeholder="Optional follow-up, blockers or tasks"
+                        rows={2}
+                      />
+                    </label>
+                    <PendingSubmitButton
+                      className="primary-button"
+                      pendingLabel="Confirming..."
+                    >
+                      Confirm manual fallback
+                    </PendingSubmitButton>
+                  </form>
+                ) : null}
+              </article>
+            ))
+          ) : (
+            <section className="empty-state-panel">
+              <h2>No visits yet</h2>
+              <p>
+                Start a visit from an active location to begin capturing notes
+                and report confirmation.
+              </p>
+              <a className="primary-button" href="#new-visit">
+                New visit
+              </a>
+            </section>
+          )}
         </div>
 
         <aside className="panel" aria-labelledby="field-summary-title">
@@ -626,25 +636,31 @@ export default async function FieldPage({
 
           <section className="field-panel-section">
             <h2>Location cards</h2>
-            <div className="field-card-list">
-              {locations.slice(0, 4).map((location) => (
-                <article className="location-mini-card" key={location.id}>
-                  <header>
-                    <div>
-                      <h3>{location.name}</h3>
-                      <p>{location.address}</p>
-                    </div>
-                    <span className="status-pill active">
-                      {location.status}
-                    </span>
-                  </header>
-                  <p className="visit-meta">{location.detail}</p>
-                  {location.notes ? (
-                    <p className="form-hint">{location.notes}</p>
-                  ) : null}
-                </article>
-              ))}
-            </div>
+            {locations.length > 0 ? (
+              <div className="field-card-list">
+                {locations.slice(0, 4).map((location) => (
+                  <article className="location-mini-card" key={location.id}>
+                    <header>
+                      <div>
+                        <h3>{location.name}</h3>
+                        <p>{location.address}</p>
+                      </div>
+                      <span className="status-pill active">
+                        {location.status}
+                      </span>
+                    </header>
+                    <p className="visit-meta">{location.detail}</p>
+                    {location.notes ? (
+                      <p className="form-hint">{location.notes}</p>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">
+                No active locations are available for field work yet.
+              </p>
+            )}
           </section>
 
           <section>

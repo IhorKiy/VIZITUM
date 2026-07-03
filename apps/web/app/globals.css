@@ -651,6 +651,24 @@ textarea {
   margin: 0;
 }
 
+.empty-state-panel {
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 18px;
+}
+
+.empty-state-panel h2,
+.empty-state-panel p {
+  margin: 0;
+}
+
+.empty-state-panel p {
+  color: var(--muted);
+}
+
 .copyable-value {
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid var(--line);
