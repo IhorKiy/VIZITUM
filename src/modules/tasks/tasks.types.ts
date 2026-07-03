@@ -30,6 +30,7 @@ export type ListTasksQuery = {
   priority?: TaskPriority;
   locationId?: string;
   visitId?: string;
+  routePlanId?: string;
   dueFrom?: string;
   dueTo?: string;
 };

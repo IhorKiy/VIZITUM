@@ -852,7 +852,10 @@ textarea {
   border-bottom: 1px solid var(--line);
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(150px, 0.7fr)) auto;
+  grid-template-columns:
+    repeat(2, minmax(170px, 1fr))
+    repeat(2, minmax(150px, 0.75fr))
+    auto;
   margin: 0 0 14px;
   padding-bottom: 14px;
 }

@@ -618,6 +618,9 @@ function buildVisitWhere(
       ? { representativeUserId: representativeFilter }
       : {}),
     ...(query.locationId ? { locationId: query.locationId } : {}),
+    ...(query.routePlanId
+      ? { routeItem: { routePlanId: query.routePlanId } }
+      : {}),
     ...(query.status ? { status: query.status } : {}),
     ...(startedAt ? { startedAt } : {}),
   };

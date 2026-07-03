@@ -17,19 +17,19 @@ Priority legend:
 
 ## 1. Current Implemented Routes
 
-| Area                  | Route                         | Current capability                                                                                                                  | Status |
-| --------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Tenant entry          | `/:tenantSlug/login`          | Tenant-aware login with backend session.                                                                                            | Live   |
-| Tenant entry          | `/:tenantSlug/invites/accept` | Invite acceptance flow.                                                                                                             | Live   |
-| Field Representative  | `/:tenantSlug/field`          | Today's visits, create visit, text note, browser recording, audio upload fallback, manual report confirmation.                      | Live   |
-| Company Admin         | `/:tenantSlug/admin/setup`    | Live onboarding checklist, setup progress and pilot readiness signals.                                                              | Live   |
-| Company Admin         | `/:tenantSlug/admin/users`    | Live tenant users list, invite creation, status update and role assignment controls with pending submit states.                     | Live   |
-| Company Admin         | `/:tenantSlug/admin/imports`  | Template downloads, CSV validation preview, row issues, all-or-nothing confirm.                                                     | Live   |
-| Company Admin         | `/:tenantSlug/admin/review`   | Pilot usage thresholds, success metrics and copyable review summary.                                                                | Live   |
-| Team Manager          | `/:tenantSlug/manager`        | Live route/visit/task metrics, task assignment and CSV export.                                                                      | Live   |
-| Team Manager          | `/:tenantSlug/manager/visits` | Live tenant visit table with status, representative and started date filters, filter context and filtered-empty recovery actions.   | Live   |
-| Team Manager          | `/:tenantSlug/manager/tasks`  | Live team task table with status, priority, assignee and due date filters, task status updates and filtered-empty recovery actions. | Live   |
-| Platform / Operations | `/:tenantSlug/operations`     | Aggregate operations summary for platform operator checks.                                                                          | Live   |
+| Area                  | Route                         | Current capability                                                                                                                         | Status |
+| --------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| Tenant entry          | `/:tenantSlug/login`          | Tenant-aware login with backend session.                                                                                                   | Live   |
+| Tenant entry          | `/:tenantSlug/invites/accept` | Invite acceptance flow.                                                                                                                    | Live   |
+| Field Representative  | `/:tenantSlug/field`          | Today's visits, create visit, text note, browser recording, audio upload fallback, manual report confirmation.                             | Live   |
+| Company Admin         | `/:tenantSlug/admin/setup`    | Live onboarding checklist, setup progress and pilot readiness signals.                                                                     | Live   |
+| Company Admin         | `/:tenantSlug/admin/users`    | Live tenant users list, invite creation, status update and role assignment controls with pending submit states.                            | Live   |
+| Company Admin         | `/:tenantSlug/admin/imports`  | Template downloads, CSV validation preview, row issues, all-or-nothing confirm.                                                            | Live   |
+| Company Admin         | `/:tenantSlug/admin/review`   | Pilot usage thresholds, success metrics and copyable review summary.                                                                       | Live   |
+| Team Manager          | `/:tenantSlug/manager`        | Live route/visit/task metrics, task assignment and CSV export.                                                                             | Live   |
+| Team Manager          | `/:tenantSlug/manager/visits` | Live tenant visit table with route, status, representative and started date filters, filter context and filtered-empty recovery actions.   | Live   |
+| Team Manager          | `/:tenantSlug/manager/tasks`  | Live team task table with route, status, priority, assignee and due date filters, task status updates and filtered-empty recovery actions. | Live   |
+| Platform / Operations | `/:tenantSlug/operations`     | Aggregate operations summary for platform operator checks.                                                                                 | Live   |
 
 ## 2. Role Screen Map
 
@@ -60,13 +60,13 @@ Priority legend:
 
 ### Team Manager
 
-| Screen          | MVP intent                                                    | Current state                                                                                                                                                                     | Next delivery step                                                          | Priority |
-| --------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- |
-| Team overview   | See team activity, route execution, reports and blocked work. | Implemented as `/:tenantSlug/manager`.                                                                                                                                            | Add route/date filtering once overview date range is selected.              | P0       |
-| Visits          | Review all tenant visits and AI/manual summaries.             | Live and staging-smoked at `/:tenantSlug/manager/visits` with status, representative and started date filters, counters, tenant visit table and clearer empty filtered states.    | Add report detail and route-aware drilldown when those view models exist.   | P0       |
-| Tasks           | View/create/update team tasks.                                | Live and staging-smoked at `/:tenantSlug/manager/tasks` with status, priority, assignee and due date filters, counters, status update controls and clearer empty filtered states. | Add richer task board/grouping after pilot-critical table view is verified. | P0       |
-| Locations       | Find locations, coverage and open issues.                     | Location options appear in task assignment; no manager location browser.                                                                                                          | Add location list focused on coverage and recent activity.                  | P1       |
-| Representatives | See field rep workload and activity.                          | Representative summaries are derived from routes.                                                                                                                                 | Add representative drilldown after visits/tasks list.                       | P1       |
+| Screen          | MVP intent                                                    | Current state                                                                                                                                                                            | Next delivery step                                                          | Priority |
+| --------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- |
+| Team overview   | See team activity, route execution, reports and blocked work. | Implemented as `/:tenantSlug/manager`.                                                                                                                                                   | Add route/date filtering once overview date range is selected.              | P0       |
+| Visits          | Review all tenant visits and AI/manual summaries.             | Live and staging-smoked at `/:tenantSlug/manager/visits` with route, status, representative and started date filters, counters, tenant visit table and clearer empty filtered states.    | Add report detail when the report detail UI exists.                         | P0       |
+| Tasks           | View/create/update team tasks.                                | Live and staging-smoked at `/:tenantSlug/manager/tasks` with route, status, priority, assignee and due date filters, counters, status update controls and clearer empty filtered states. | Add richer task board/grouping after pilot-critical table view is verified. | P0       |
+| Locations       | Find locations, coverage and open issues.                     | Location options appear in task assignment; no manager location browser.                                                                                                                 | Add location list focused on coverage and recent activity.                  | P1       |
+| Representatives | See field rep workload and activity.                          | Representative summaries are derived from routes.                                                                                                                                        | Add representative drilldown after visits/tasks list.                       | P1       |
 
 ### Field Representative
 

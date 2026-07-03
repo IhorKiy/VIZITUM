@@ -14,7 +14,7 @@ const managerContext = {
 };
 
 describe("manager list filters", () => {
-  it("filters visits by representative, status and started date range", async () => {
+  it("filters visits by route, representative, status and started date range", async () => {
     let capturedWhere: unknown;
     const prisma = {
       visit: {
@@ -30,6 +30,7 @@ describe("manager list filters", () => {
     await service.listVisits(managerContext as never, {
       pageSize: 25,
       representativeUserId: "rep-a",
+      routePlanId: "route-a",
       startedFrom: "2026-07-01",
       startedTo: "2026-07-03",
       status: "completed",
@@ -38,6 +39,7 @@ describe("manager list filters", () => {
     assert.deepEqual(capturedWhere, {
       tenantId: "tenant-a",
       representativeUserId: "rep-a",
+      routeItem: { routePlanId: "route-a" },
       status: "completed",
       startedAt: {
         gte: new Date("2026-07-01T00:00:00.000Z"),
@@ -46,7 +48,7 @@ describe("manager list filters", () => {
     });
   });
 
-  it("filters tasks by assignee, priority, status and due date range", async () => {
+  it("filters tasks by route, assignee, priority, status and due date range", async () => {
     let capturedWhere: unknown;
     const prisma = {
       task: {
@@ -64,6 +66,7 @@ describe("manager list filters", () => {
       dueFrom: "2026-07-01",
       dueTo: "2026-07-05",
       priority: "high",
+      routePlanId: "route-a",
       status: "open",
     });
 
@@ -73,6 +76,7 @@ describe("manager list filters", () => {
       assignedToUserId: "rep-a",
       status: "open",
       priority: "high",
+      visit: { routeItem: { routePlanId: "route-a" } },
       dueDate: {
         gte: new Date("2026-07-01T00:00:00.000Z"),
         lte: new Date("2026-07-05T23:59:59.999Z"),

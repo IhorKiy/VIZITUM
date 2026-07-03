@@ -290,8 +290,7 @@ Status legend:
 - [x] Add Company Admin users screen for user list, invite creation, suspend/reactivate and role assignment.
 - [x] Add initial manager visit/task drilldowns with visit status filters and task status/priority filters.
 - [x] Add pending/disabled controls to Admin user lifecycle actions and clear filtered-empty recovery on Manager visits/tasks.
-- [x] Add manager representative/assignee and date range filters to visits/tasks drilldowns.
-- [ ] Add manager route filters after route plan identity is exposed in drilldown view models.
+- [x] Add manager route, representative/assignee and date range filters to visits/tasks drilldowns.
 - [ ] Add admin review screens for import history and applied row counts.
 - [ ] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility.
 - [ ] Add tenant-level settings for company name, default route visibility and allowed report types.

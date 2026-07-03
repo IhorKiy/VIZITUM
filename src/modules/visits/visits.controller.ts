@@ -54,6 +54,7 @@ export class VisitsController {
       pageSize: parsePositiveInteger(query.pageSize),
       representativeUserId: normalizeQueryString(query.representativeUserId),
       locationId: normalizeQueryString(query.locationId),
+      routePlanId: normalizeQueryString(query.routePlanId),
       status: parseVisitStatus(query.status),
       startedFrom: normalizeQueryString(query.startedFrom),
       startedTo: normalizeQueryString(query.startedTo),

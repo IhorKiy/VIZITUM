@@ -301,6 +301,9 @@ function buildTaskWhere(
     ...(query.priority ? { priority: query.priority } : {}),
     ...(query.locationId ? { locationId: query.locationId } : {}),
     ...(query.visitId ? { visitId: query.visitId } : {}),
+    ...(query.routePlanId
+      ? { visit: { routeItem: { routePlanId: query.routePlanId } } }
+      : {}),
     ...(dueDate ? { dueDate } : {}),
   };
 }

@@ -30,6 +30,7 @@ export type ListVisitsQuery = {
   pageSize?: number;
   representativeUserId?: string;
   locationId?: string;
+  routePlanId?: string;
   status?: VisitStatus;
   startedFrom?: string;
   startedTo?: string;
