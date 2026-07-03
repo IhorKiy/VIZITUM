@@ -71,7 +71,7 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 
 | Model | Table | Purpose |
 | --- | --- | --- |
-| `AuditEvent` | `audit_events` | Tenant-scoped audit trail (`entityType`, `entityId`, `eventType`, `metadata`, `requestId`). Model exists; the `audit` backend module is still a placeholder. |
+| `AuditEvent` | `audit_events` | Tenant-scoped audit trail (`entityType`, `entityId`, `eventType`, `metadata`, `requestId`), written via `AuditService.recordEvent`. Currently used for `manager_dashboard.viewed` events recorded by the `pilot-review` module. |
 
 ## Enums
 

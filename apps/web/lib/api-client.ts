@@ -162,6 +162,26 @@ export type TenantSettings = {
   updatedAt: string;
 };
 
+export type PilotReviewThresholdStatus = "met" | "not_met" | "na";
+
+export type PilotReviewThreshold = {
+  key: string;
+  label: string;
+  target: string;
+  result: string;
+  status: PilotReviewThresholdStatus;
+};
+
+export type PilotReviewSummary = {
+  firstVisitAt: string | null;
+  windowStart: string | null;
+  windowEnd: string | null;
+  thresholds: PilotReviewThreshold[];
+  generatedAt: string;
+};
+
+export type DashboardViewPage = "manager" | "admin_review";
+
 export type InviteUserResult = {
   id: string;
   email: string;
@@ -464,6 +484,20 @@ export async function updateAdminSettings(input: {
   productsEnabled?: boolean;
 }): Promise<ApiResult<TenantSettings>> {
   return apiPatch<TenantSettings>("/admin/settings", input);
+}
+
+export async function getPilotReviewSummary(): Promise<
+  ApiResult<PilotReviewSummary>
+> {
+  return apiGet<PilotReviewSummary>("/pilot-review/summary");
+}
+
+export async function recordDashboardView(
+  page: DashboardViewPage,
+): Promise<ApiResult<{ recorded: true }>> {
+  return apiPost<{ recorded: true }>("/pilot-review/dashboard-views", {
+    page,
+  });
 }
 
 export async function listAdminUsers(): Promise<

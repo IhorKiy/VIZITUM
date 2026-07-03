@@ -309,7 +309,7 @@ Status legend:
 - [x] Add manager route, representative/assignee and date range filters to visits/tasks drilldowns.
 - [x] Add admin review screens for import history and applied row counts. Implemented tenant-scoped import history on Admin imports; staging re-smoke is required after deploy.
 - [x] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility. Implemented tenant-scoped invite history and fresh-token resend flow; staging re-smoke is required after deploy.
-- [ ] Add tenant-level settings for company name, default route visibility and allowed report types.
+- [x] Add tenant-level settings for company name and time zone. Implemented via `src/modules/settings`; `docs/specs/pilot-readiness-spec.md` scopes first-pilot tenant settings to company name, time zone and products-applicable only — default route visibility and allowed report types are explicitly deferred past the first pilot, not a remaining gap.
 
 ### Track D: AI reporting quality
 
@@ -323,7 +323,7 @@ Status legend:
 - [x] Add pilot review summary screen with usage metrics, threshold statuses and copyable review text.
 - [ ] Prepare pilot demo script based on the accepted staging smoke path.
 - [ ] Create a one-page pilot onboarding checklist for a customer admin.
-- [ ] Define pilot success metrics: visits completed, reports confirmed, manager tasks created and import success rate.
+- [x] Define pilot success metrics: visits completed, reports confirmed, manager follow-up tasks, import success rate, active Field Representative coverage and manager review usage. Implemented via `src/modules/pilot-review` (`GET /pilot-review/summary`) against the exact thresholds in `docs/specs/pilot-readiness-spec.md`; `admin/review/page.tsx` renders it and `POST /pilot-review/dashboard-views` (called from `/manager` and `/admin/review`) measures manager review usage.
 - [ ] Prepare support process for pilot week: incident contact, response window and issue triage labels.
 
 ### Track F: Final production-pilot gate

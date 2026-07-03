@@ -7,6 +7,7 @@ import { HealthModule } from "./modules/health/health.module";
 import { ImportsModule } from "./modules/imports/imports.module";
 import { LocationsModule } from "./modules/locations/locations.module";
 import { OperationsModule } from "./modules/operations/operations.module";
+import { PilotReviewModule } from "./modules/pilot-review/pilot-review.module";
 import { PlatformModule } from "./modules/platform/platform.module";
 import { PrismaModule } from "./modules/prisma/prisma.module";
 import { ProductsModule } from "./modules/products/products.module";
@@ -39,6 +40,7 @@ import { VisitsModule } from "./modules/visits/visits.module";
     StorageModule,
     AuditModule,
     OperationsModule,
+    PilotReviewModule,
   ],
 })
 export class AppModule {}

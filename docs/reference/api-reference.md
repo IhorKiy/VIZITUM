@@ -58,6 +58,13 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | --- | --- | --- |
 | `GET /operations/summary` | all: `platform.operations.read` (session or bearer token) | `{ generatedAt, windowHours, tenants, provisioning, imports, ai, storage, requestId }` |
 
+### Pilot review — `/pilot-review` (`pilot-review.controller.ts`)
+
+| Method & path | Permissions | Body | Returns |
+| --- | --- | --- | --- |
+| `GET /pilot-review/summary` | all: `pilot_review.read` | — | `{ firstVisitAt, windowStart, windowEnd, thresholds: [{ key, label, target, result, status }], generatedAt }`. `status` is `met`/`not_met`/`na`. Window is the 7 calendar days starting at the tenant's first visit (see `docs/specs/pilot-readiness-spec.md`); before any visit exists every threshold is `na`. |
+| `POST /pilot-review/dashboard-views` | any: `dashboard.manager.read`, `pilot_review.read` | `{ page: "manager" \| "admin_review" }` | `{ recorded: true }`; records a `manager_dashboard.viewed` audit event used by the "Manager review usage" threshold |
+
 ### Visits — `/visits` (`visits.controller.ts`)
 
 | Method & path | Permissions | Body / query | Returns |
