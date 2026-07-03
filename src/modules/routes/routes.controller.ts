@@ -13,7 +13,10 @@ import type { RouteStatus } from "@prisma/client";
 import type { Request } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
-import { RequirePermissions } from "../auth/permissions.decorator";
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { RoutesService } from "./routes.service";
@@ -48,7 +51,10 @@ export class RoutesController {
   }
 
   @Post()
-  @RequirePermissions(PERMISSIONS.ROUTES_READ)
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
   createRoutePlan(
     @Req() request: Request,
     @Body() body: CreateRoutePlanRequestBody,
@@ -57,7 +63,10 @@ export class RoutesController {
   }
 
   @Patch(":routePlanId")
-  @RequirePermissions(PERMISSIONS.ROUTES_READ)
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
   updateRoutePlan(
     @Req() request: Request,
     @Param("routePlanId") routePlanId: string,
@@ -71,7 +80,10 @@ export class RoutesController {
   }
 
   @Post(":routePlanId/items")
-  @RequirePermissions(PERMISSIONS.ROUTES_READ)
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
   createRouteItem(
     @Req() request: Request,
     @Param("routePlanId") routePlanId: string,
@@ -85,7 +97,10 @@ export class RoutesController {
   }
 
   @Patch(":routePlanId/items/:routeItemId")
-  @RequirePermissions(PERMISSIONS.ROUTES_READ)
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
   updateRouteItem(
     @Req() request: Request,
     @Param("routePlanId") routePlanId: string,
