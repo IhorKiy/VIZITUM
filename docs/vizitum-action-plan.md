@@ -229,7 +229,7 @@ Status legend:
 - [x] Implement platform operator bearer token path for operations summary endpoint checks.
 - [x] Configure staging platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
 - [x] Run product smoke checks against staging: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation work.
-- [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` after self-serve Field, Admin import and Manager actions deploy. 2026-07-02 recheck passed Field recording/audio fallback, Admin import and Manager flows; 2026-07-03 P0 role-screen re-smoke passed Admin setup/users/review, Manager visits/tasks and Field location/tasks/AI draft messaging.
+- [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` after self-serve Field, Admin import and Manager actions deploy. 2026-07-02 recheck passed Field recording/audio fallback, Admin import and Manager flows; 2026-07-03 P0 role-screen and post-deploy recovery/history/resend/filter re-smoke passed Admin setup/users/review, Manager visits/tasks and Field location/tasks/AI draft messaging.
 - [x] Defer paid PostgreSQL backup/restore setup until the final production-pilot gate.
 - [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md` after selecting a paid PostgreSQL plan/provider.
 - [ ] Create production services only after backup evidence, restore drill and smoke checks are complete.
@@ -247,8 +247,8 @@ Status legend:
 - [x] Rerun P0 role-screen staging smoke for Admin setup/users/review, Manager visits/tasks and Field location/tasks/AI draft messaging. Completed on 2026-07-03.
 - [x] Run internal dogfood on the accepted P0 screen set with realistic planned visit, text note/manual fallback and manager follow-up scenarios.
 - [x] Re-smoke Manager task assignment after the task option/counting fix deploys.
-- [x] Re-smoke cancelled-task filtering after the next deploy.
-- [x] Re-smoke pending/disabled submit states and Manager route/representative/assignee/date filters after deploy. Completed read-only staging re-smoke on 2026-07-03; mutation submits were not repeated to avoid unnecessary staging user churn.
+- [x] Re-smoke cancelled-task filtering after deploy.
+- [x] Re-smoke pending/disabled submit states, Field audio recovery links, Admin import recovery/history, Admin invite history/resend and Manager route/representative/assignee/date filters after deploy. Completed staging re-smoke on 2026-07-03; only the approved invite/resend mutation for `kiyanichenko81@gmail.com` was repeated.
 
 ### Final gate before production pilot
 
