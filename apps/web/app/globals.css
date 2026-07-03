@@ -252,6 +252,15 @@ textarea {
   margin-top: 16px;
 }
 
+.review-grid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  margin: 16px auto 0;
+  max-width: 1180px;
+}
+
 .panel,
 .metric-card,
 .visit-card,
@@ -662,6 +671,67 @@ textarea {
   color: var(--danger);
 }
 
+.setup-status.met {
+  background: #eef8f1;
+  color: var(--accent-strong);
+}
+
+.setup-status.not-met {
+  background: #fff1f1;
+  color: var(--danger);
+}
+
+.setup-status.na {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.review-threshold-list {
+  display: grid;
+  gap: 10px;
+}
+
+.review-threshold {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 14px;
+}
+
+.review-threshold h3,
+.review-threshold p {
+  margin: 0;
+}
+
+.review-threshold h3 {
+  font-size: 16px;
+  margin-top: 6px;
+}
+
+.review-threshold p {
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.review-threshold strong {
+  color: var(--ink);
+  text-align: right;
+}
+
+.summary-copy-box {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  min-height: 360px;
+  padding: 12px;
+  resize: vertical;
+  width: 100%;
+}
+
 .setup-summary-block {
   border-bottom: 1px solid var(--line);
   padding-bottom: 12px;
@@ -940,12 +1010,21 @@ textarea {
   .import-grid,
   .admin-users-grid,
   .setup-grid,
+  .review-grid,
   .user-actions-grid {
     grid-template-columns: 1fr;
   }
 
   .setup-check {
     grid-template-columns: 1fr;
+  }
+
+  .review-threshold {
+    grid-template-columns: 1fr;
+  }
+
+  .review-threshold strong {
+    text-align: left;
   }
 
   .panel-toolbar,

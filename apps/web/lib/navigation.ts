@@ -3,6 +3,7 @@ export type RoleArea =
   | "admin-setup"
   | "admin-users"
   | "admin-imports"
+  | "admin-review"
   | "manager-overview"
   | "manager-visits"
   | "manager-tasks"
@@ -52,6 +53,13 @@ export function buildTenantNav(
       area: "admin-imports",
       icon: "I",
       requiredPermissions: ["imports.read"],
+    },
+    {
+      label: "Review",
+      href: `/${tenantSlug}/admin/review`,
+      area: "admin-review",
+      icon: "P",
+      requiredPermissions: ["pilot_review.read"],
     },
     {
       label: "Manager",

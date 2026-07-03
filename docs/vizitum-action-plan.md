@@ -187,6 +187,7 @@ Status legend:
 - [x] Add Company Admin onboarding/import shell.
 - [x] Add Company Admin onboarding checklist screen with live setup progress.
 - [x] Add Company Admin users screen for list, invite, status update and role assignment.
+- [x] Add Company Admin pilot review summary screen with success thresholds and copyable summary.
 - [x] Add Team Manager dashboard shell.
 - [x] Add shared server-side API client for Next.js frontend.
 - [x] Connect field visits page to authenticated session and visits API with demo fallback.
@@ -289,6 +290,7 @@ Status legend:
 
 ### Track E: Commercial and pilot readiness
 
+- [x] Add pilot review summary screen with usage metrics, threshold statuses and copyable review text.
 - [ ] Prepare pilot demo script based on the accepted staging smoke path.
 - [ ] Create a one-page pilot onboarding checklist for a customer admin.
 - [ ] Define pilot success metrics: visits completed, reports confirmed, manager tasks created and import success rate.
