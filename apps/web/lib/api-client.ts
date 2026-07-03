@@ -126,6 +126,12 @@ export type Task = {
   } | null;
   createdByUserId: string | null;
   locationId: string | null;
+  location: {
+    id: string;
+    name: string;
+    addressLine: string;
+    city: string;
+  } | null;
   visitId: string | null;
   reportId: string | null;
   dueDate: string | null;

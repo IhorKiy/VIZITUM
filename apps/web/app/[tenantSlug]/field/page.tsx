@@ -872,7 +872,9 @@ function toFieldTask(task: Task): FieldTask {
     status: task.status,
     priority: formatLabel(task.priority),
     dueDate: formatDate(task.dueDate),
-    locationName: task.locationId ? "Linked location" : "No location",
+    locationName: task.location
+      ? `${task.location.name} · ${task.location.city}`
+      : "No location",
   };
 }
 

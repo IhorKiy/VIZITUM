@@ -197,6 +197,7 @@ Status legend:
 - [x] Add browser voice recording control to Field page audio upload flow.
 - [x] Connect Field page manual report confirmation to backend reports endpoint.
 - [x] Add Field page compact location cards and own task status update panel.
+- [x] Add real location summaries to Task API and field/manager task lists.
 - [x] Add Field AI draft state messaging, weak-output guidance and manual fallback copy.
 - [x] Add Field visit history with own-scope status/date filters.
 - [x] Connect admin import templates page to imports API with demo fallback.

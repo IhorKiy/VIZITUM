@@ -454,6 +454,7 @@ function TasksTable({
       <thead>
         <tr>
           <th>Task</th>
+          <th>Location</th>
           <th>Assignee</th>
           <th>Status</th>
           <th>Priority</th>
@@ -467,6 +468,16 @@ function TasksTable({
             <td>
               <strong>{task.title}</strong>
               <span>{task.description ?? "No additional details"}</span>
+            </td>
+            <td>
+              {task.location ? (
+                <>
+                  <strong>{task.location.name}</strong>
+                  <span>{task.location.city}</span>
+                </>
+              ) : (
+                "No location"
+              )}
             </td>
             <td>{task.assignedTo?.name ?? "Unassigned"}</td>
             <td>

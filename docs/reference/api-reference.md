@@ -77,7 +77,7 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 
 | Method & path | Permissions | Body / query | Returns |
 | --- | --- | --- | --- |
-| `GET /tasks` | any: `tasks.read_own`, `tasks.read_team` | query: `page, pageSize, assignedToUserId, status (open\|in_progress\|done\|cancelled), priority (low\|normal\|high), locationId, visitId, routePlanId, dueFrom, dueTo` | paginated `Task` (includes `assignedTo` summary) |
+| `GET /tasks` | any: `tasks.read_own`, `tasks.read_team` | query: `page, pageSize, assignedToUserId, status (open\|in_progress\|done\|cancelled), priority (low\|normal\|high), locationId, visitId, routePlanId, dueFrom, dueTo` | paginated `Task` (includes `assignedTo` and `location` summaries) |
 | `POST /tasks` | all: `tasks.create` | `{ title, description?, priority?, assignedToUserId?, locationId?, visitId?, reportId?, dueDate? }` | `Task` |
 | `PATCH /tasks/:taskId` | any: `tasks.update_own`, `tasks.update_team` | any create field plus `status?, completedAt?` | `Task` |
 
