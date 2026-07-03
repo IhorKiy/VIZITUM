@@ -271,10 +271,10 @@ Status legend:
 - [x] Add executable specification map for `tests/` so thin implemented behavior is discoverable before new coding work.
 - [x] Add feature specification gates for Track B-E to separate executable contracts, documented decisions, open product questions and deferred work.
 - [x] Add draft spec files for onboarding datasets, report templates, AI quality and pilot readiness.
-- [ ] Resolve product-owner open questions in `docs/specs/onboarding-dataset-spec.md` before expanding onboarding dataset behavior.
-- [ ] Resolve product-owner open questions in `docs/specs/report-templates-spec.md` before changing report template fields or editable template settings.
-- [ ] Resolve product-owner open questions in `docs/specs/ai-quality-spec.md` before adding AI quality scoring, anonymized examples or weak-output criteria.
-- [ ] Resolve product-owner open questions in `docs/specs/pilot-readiness-spec.md` before changing pilot readiness metrics, support process or tenant-level pilot settings.
+- [x] Resolve product-owner open questions in `docs/specs/onboarding-dataset-spec.md` before expanding onboarding dataset behavior.
+- [x] Resolve product-owner open questions in `docs/specs/report-templates-spec.md` before changing report template fields or editable template settings.
+- [x] Resolve product-owner open questions in `docs/specs/ai-quality-spec.md` before adding AI quality scoring, anonymized examples or weak-output criteria.
+- [x] Resolve product-owner open questions in `docs/specs/pilot-readiness-spec.md` before changing pilot readiness metrics, support process or tenant-level pilot settings.
 
 ### Track A: Pilot usability polish
 
@@ -296,8 +296,8 @@ Status legend:
 
 ### Track B: Pilot data model completeness
 
-- [ ] Finalize the minimum customer onboarding dataset: users, locations, contacts, products/SKUs and initial route/task plan.
-- [ ] Add sample customer import packs for demo/pilot preparation without exposing real customer data.
+- [x] Finalize the minimum customer onboarding dataset: users, locations, contacts, products/SKUs and initial route/task plan.
+- [x] Add sample customer import packs for demo/pilot preparation without exposing real customer data.
 - [ ] Define the first pilot reporting templates for distribution, service and partner-account visit types.
 - [ ] Review which report fields must be structured versus free-text before the first pilot.
 

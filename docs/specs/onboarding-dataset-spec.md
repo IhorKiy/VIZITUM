@@ -44,7 +44,7 @@ Existing import infrastructure already exposes these five import template types 
 - Contacts are imported only as location-linked rows for the first pilot. Independent unmatched contacts are out of scope until there is a contact matching workflow.
 - Product/SKU imports require only `name` for the first pilot. SKU, category and external code improve review/search quality but do not block import.
 - The initial visit/task plan uses one combined row per representative-location-plan date. A task can be created from the same row when `task_title` is provided; otherwise the row creates only route/visit planning data.
-- Demo sample data uses one universal synthetic Ukraine-oriented sample pack in English/Ukraine-compatible naming for the first pilot. Segment-specific sample packs are deferred until a real customer segment needs them.
+- Demo sample data uses one universal synthetic Ukraine-oriented sample pack in English/Ukraine-compatible naming for the first pilot. The sample pack lives in `docs/samples/import-packs/first-pilot/` and is verified against approved import headers by `tests/import-sample-pack.test.ts`. Segment-specific sample packs are deferred until a real customer segment needs them.
 
 ## Open questions for product owner
 
