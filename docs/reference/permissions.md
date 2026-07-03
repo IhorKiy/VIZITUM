@@ -60,8 +60,12 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 | `pilot_review.read` | | | x | |
 | `audit.read` | | x | | |
 
+## Ownership-scoped permissions
+
+- `routes.manage_team` vs `routes.manage_own`: route mutations (`POST /routes`, `PATCH /routes/:routePlanId`, item create/update) carry only `routes.read` at the guard level; `RoutesService.assertCanManageRouteForRepresentative` enforces manage rights in the service. `routes.manage_team` may manage any plan in the tenant; `routes.manage_own` only plans whose `representativeUserId` equals the caller (403 `ROUTE_SCOPE_FORBIDDEN` otherwise).
+- The `visits.*_own` / `tasks.*_own` permissions are scoped the same way inside their services.
+
 ## Known gaps (as implemented)
 
-- `routes.manage_team` / `routes.manage_own` are granted in the matrix but **not enforced anywhere** — all `/routes` endpoints (including mutations) check only `routes.read`. See the note in [api-reference.md](api-reference.md).
 - `visits.cancel_own`, `reports.read_own`, `reports.read_team`, `audit.read`, `platform.tenants.read`, `platform.tenants.manage` are defined and granted but no controller currently requires them.
 - `pilot_review.read` is granted only to `team_manager`, but the frontend Review nav item (`admin/review`) requires it — so the review screen is reachable by managers, not by admins without the manager role.

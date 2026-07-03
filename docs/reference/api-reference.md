@@ -108,16 +108,16 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 
 ### Routes — `/routes` (`routes.controller.ts`)
 
-> Note: as implemented, **all** routes endpoints — including mutations — require only `routes.read`. The `routes.manage_team` / `routes.manage_own` permissions exist in the role matrix but are not enforced by this controller (differs from LLD intent).
+> Mutation scope: the guard on mutations requires only `routes.read`; `RoutesService.assertCanManageRouteForRepresentative` then enforces manage rights. With `routes.manage_team` the caller may mutate any plan in the tenant; with only `routes.manage_own` the plan's `representativeUserId` must equal the caller's user id (403 `ROUTE_SCOPE_FORBIDDEN` otherwise). `GET /routes/today` is also scoped: `routes.manage_team` sees all of today's plans, everyone else only their own.
 
 | Method & path | Permissions | Body / query |
 | --- | --- | --- |
 | `GET /routes/today` | all: `routes.read` | — (today's route plans with items) |
 | `GET /routes` | all: `routes.read` | query: `page, pageSize, representativeUserId, planDate, status (draft\|published\|in_progress\|completed\|cancelled)` |
-| `POST /routes` | all: `routes.read` | `{ representativeUserId, planDate }` |
-| `PATCH /routes/:routePlanId` | all: `routes.read` | `{ status?, publishedAt? }` |
-| `POST /routes/:routePlanId/items` | all: `routes.read` | `{ locationId, sequence, plannedStartTime?, plannedEndTime? }` |
-| `PATCH /routes/:routePlanId/items/:routeItemId` | all: `routes.read` | partial item fields plus `status?, skipReason?` |
+| `POST /routes` | all: `routes.read`; service: any of `routes.manage_team`, `routes.manage_own` | `{ representativeUserId, planDate }` |
+| `PATCH /routes/:routePlanId` | all: `routes.read`; service: any of `routes.manage_team`, `routes.manage_own` | `{ status?, publishedAt? }` |
+| `POST /routes/:routePlanId/items` | all: `routes.read`; service: any of `routes.manage_team`, `routes.manage_own` | `{ locationId, sequence, plannedStartTime?, plannedEndTime? }` |
+| `PATCH /routes/:routePlanId/items/:routeItemId` | all: `routes.read`; service: any of `routes.manage_team`, `routes.manage_own` | partial item fields plus `status?, skipReason?` |
 
 ### Imports — `/imports` (`imports.controller.ts`)
 
