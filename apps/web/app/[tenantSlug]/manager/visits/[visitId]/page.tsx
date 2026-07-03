@@ -504,4 +504,3 @@ function formatScalarValue(value: unknown): string {
 
   return String(value);
 }
-

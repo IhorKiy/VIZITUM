@@ -402,4 +402,3 @@ function visitStatusTone(status: VisitStatus): "active" | "info" | "warning" {
 
   return "info";
 }
-

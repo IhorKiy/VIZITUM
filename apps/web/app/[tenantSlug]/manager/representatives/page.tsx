@@ -8,10 +8,7 @@ import {
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
-import {
-  formatDateTime,
-  normalizeFilterValue,
-} from "../../../../lib/format";
+import { formatDateTime, normalizeFilterValue } from "../../../../lib/format";
 
 type ManagerRepresentativesPageProps = {
   params: Promise<{ tenantSlug: string }>;

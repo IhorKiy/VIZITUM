@@ -392,16 +392,17 @@ function LocationsTable({
                 <span>{location.region ?? location.type ?? "No region"}</span>
               </td>
               <td>
-                <span
-                  className={`status-pill ${statusTone(location.status)}`}
-                >
+                <span className={`status-pill ${statusTone(location.status)}`}>
                   {formatLabel(location.status)}
                 </span>
               </td>
               <td>
                 <strong>{activity?.visitCount ?? 0}</strong>
                 <span>
-                  {formatDateTime(activity?.lastVisitAt ?? null, "No visits yet")}
+                  {formatDateTime(
+                    activity?.lastVisitAt ?? null,
+                    "No visits yet",
+                  )}
                 </span>
               </td>
               <td>{activity?.openTaskCount ?? 0}</td>
@@ -539,9 +540,7 @@ async function fetchAllLocations(): Promise<Location[]> {
   if (remainingPages > 0) {
     const pages = await Promise.all(
       Array.from({ length: remainingPages }, (_, index) =>
-        listAdminLocations(
-          `pageSize=100&page=${first.data.page + index + 1}`,
-        ),
+        listAdminLocations(`pageSize=100&page=${first.data.page + index + 1}`),
       ),
     );
 

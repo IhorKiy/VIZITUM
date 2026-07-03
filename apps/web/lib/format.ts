@@ -20,10 +20,7 @@ export function normalizeFilterValue(value: string | undefined): string | null {
   return normalizedValue || null;
 }
 
-export function formatDateTime(
-  value: string | null,
-  emptyLabel = "-",
-): string {
+export function formatDateTime(value: string | null, emptyLabel = "-"): string {
   if (!value) {
     return emptyLabel;
   }
