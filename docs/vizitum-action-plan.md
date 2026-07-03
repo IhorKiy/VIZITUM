@@ -197,6 +197,7 @@ Status legend:
 - [x] Add browser voice recording control to Field page audio upload flow.
 - [x] Connect Field page manual report confirmation to backend reports endpoint.
 - [x] Add Field page compact location cards and own task status update panel.
+- [x] Add Field AI draft state messaging, weak-output guidance and manual fallback copy.
 - [x] Connect admin import templates page to imports API with demo fallback.
 - [x] Connect admin CSV import validation and confirm flow to backend imports endpoints.
 - [x] Show admin import row-level validation issues before confirmation.
@@ -259,6 +260,7 @@ Status legend:
 - [x] Create role-based screen delivery plan for Team Pilot MVP screens.
 - [x] Add Company Admin onboarding checklist screen for setup progress and pilot readiness.
 - [x] Add Field location cards and own task panel to the mobile-first Field workspace.
+- [x] Add Field AI draft state and weak-output messaging while keeping manual fallback prominent.
 - [ ] Run a short internal dogfood cycle with 2-3 realistic field scenarios: planned visit, unplanned note, audio fallback and manager follow-up task.
 - [ ] Capture friction points from the dogfood cycle in `docs/runbooks/staging-ux-review.md`.
 - [ ] Improve empty states, loading states and error copy on Field, Admin imports and Manager dashboard screens.

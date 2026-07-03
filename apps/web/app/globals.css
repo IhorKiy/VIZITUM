@@ -554,6 +554,53 @@ textarea {
   width: 100%;
 }
 
+.ai-draft-state {
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.ai-draft-state.ready,
+.ai-draft-state.processing {
+  background: #f4f8fb;
+}
+
+.ai-draft-state.fallback {
+  background: #fff9e8;
+  border-color: #e7cf8a;
+}
+
+.ai-draft-state.confirmed {
+  background: #eef8f1;
+  border-color: #b8dfc2;
+}
+
+.ai-draft-state h3,
+.ai-draft-state p {
+  margin: 0;
+}
+
+.ai-draft-state h3 {
+  font-size: 15px;
+  margin-top: 4px;
+}
+
+.ai-draft-state p:not(.eyebrow) {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.field-ai-guidance {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
 .form-hint {
   color: var(--muted);
   font-size: 13px;

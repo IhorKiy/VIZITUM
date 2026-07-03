@@ -39,6 +39,8 @@ type FieldVisit = {
   status: string;
   next: string;
   canConfirm: boolean;
+  aiDraftState:
+    "ready_for_notes" | "processing" | "manual_fallback" | "confirmed";
 };
 
 type FieldLocation = {
@@ -68,6 +70,7 @@ const demoVisits: FieldVisit[] = [
     status: "In progress",
     next: "Record shelf notes",
     canConfirm: false,
+    aiDraftState: "ready_for_notes",
   },
   {
     id: "demo-visit-2",
@@ -76,6 +79,7 @@ const demoVisits: FieldVisit[] = [
     status: "Planned",
     next: "Check service agreement",
     canConfirm: false,
+    aiDraftState: "ready_for_notes",
   },
   {
     id: "demo-visit-3",
@@ -84,6 +88,7 @@ const demoVisits: FieldVisit[] = [
     status: "Follow-up",
     next: "Confirm next order",
     canConfirm: false,
+    aiDraftState: "manual_fallback",
   },
 ];
 
@@ -481,6 +486,7 @@ export default async function FieldPage({
                 </span>
               </header>
               <p className="visit-meta">{visit.next}</p>
+              <AiDraftStatePanel visit={visit} />
               {visit.canConfirm ? (
                 <form action={addTextNoteAction} className="visit-form">
                   <input name="visitId" type="hidden" value={visit.id} />
@@ -531,7 +537,7 @@ export default async function FieldPage({
                     />
                   </label>
                   <button className="primary-button" type="submit">
-                    Confirm report
+                    Confirm manual fallback
                   </button>
                 </form>
               ) : null}
@@ -675,6 +681,27 @@ export default async function FieldPage({
               <p className="empty-state">No tasks assigned right now.</p>
             )}
           </section>
+
+          <section className="field-ai-guidance">
+            <h2>AI draft guidance</h2>
+            <div className="field-card-list">
+              <article className="location-mini-card">
+                <h3>When AI is weak</h3>
+                <p className="visit-meta">
+                  Treat the draft as a suggestion. Edit the facts before
+                  confirmation or use the manual fallback when the output misses
+                  important context.
+                </p>
+              </article>
+              <article className="location-mini-card">
+                <h3>When AI is unavailable</h3>
+                <p className="visit-meta">
+                  Save a text note and confirm the manual report. Failed
+                  transcription or extraction should not block the visit.
+                </p>
+              </article>
+            </div>
+          </section>
         </aside>
       </section>
     </AppShell>
@@ -696,7 +723,75 @@ function toFieldVisit(visit: Visit): FieldVisit {
           ? "Route item cancelled"
           : "Add note and confirm report",
     canConfirm: visit.status !== "completed" && visit.status !== "cancelled",
+    aiDraftState:
+      visit.status === "completed"
+        ? "confirmed"
+        : visit.status === "in_progress"
+          ? "processing"
+          : "ready_for_notes",
   };
+}
+
+function AiDraftStatePanel({ visit }: { visit: FieldVisit }) {
+  const state = resolveAiDraftState(visit.aiDraftState);
+
+  return (
+    <section className={`ai-draft-state ${state.tone}`}>
+      <div>
+        <p className="eyebrow">AI draft</p>
+        <h3>{state.title}</h3>
+        <p>{state.detail}</p>
+      </div>
+      <span className={`status-pill ${state.badgeTone}`}>{state.label}</span>
+    </section>
+  );
+}
+
+function resolveAiDraftState(state: FieldVisit["aiDraftState"]): {
+  badgeTone: "active" | "info" | "warning";
+  detail: string;
+  label: string;
+  title: string;
+  tone: "ready" | "processing" | "fallback" | "confirmed";
+} {
+  switch (state) {
+    case "confirmed":
+      return {
+        badgeTone: "active",
+        detail:
+          "The visit is completed. Review the final report from manager views.",
+        label: "Confirmed",
+        title: "Final report saved",
+        tone: "confirmed",
+      };
+    case "processing":
+      return {
+        badgeTone: "info",
+        detail:
+          "Add a voice or text note. If transcription or extraction is delayed, use the manual fallback below.",
+        label: "In progress",
+        title: "Draft can be generated from notes",
+        tone: "processing",
+      };
+    case "manual_fallback":
+      return {
+        badgeTone: "warning",
+        detail:
+          "AI output may be incomplete for this visit. Confirm the report manually if the draft is weak or unavailable.",
+        label: "Fallback",
+        title: "Manual confirmation is available",
+        tone: "fallback",
+      };
+    case "ready_for_notes":
+      return {
+        badgeTone: "info",
+        detail:
+          "Start the visit and add text or audio notes before confirming a final report.",
+        label: "Ready",
+        title: "Waiting for visit notes",
+        tone: "ready",
+      };
+  }
 }
 
 function toFieldLocation(location: Location): FieldLocation {
