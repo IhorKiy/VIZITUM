@@ -980,6 +980,18 @@ textarea {
   max-width: 760px;
 }
 
+.notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.notice-actions .primary-button,
+.notice-actions .secondary-button {
+  white-space: nowrap;
+}
+
 .metric-card {
   padding: 16px;
 }
@@ -1119,6 +1131,10 @@ textarea {
     display: grid;
   }
 
+  .notice-actions {
+    justify-content: flex-start;
+  }
+
   .toolbar {
     justify-content: flex-start;
   }
@@ -1154,6 +1170,10 @@ textarea {
 
   .filter-form {
     grid-template-columns: 1fr;
+  }
+
+  .panel {
+    overflow-x: auto;
   }
 
   .filter-pills {

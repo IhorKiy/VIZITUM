@@ -211,8 +211,17 @@ export default async function ImportsPage({
             <h2>Check the file and try again</h2>
             <p>
               Upload a CSV from an approved template and confirm only validated
-              imports.
+              imports. If validation fails, fix the row issues and validate the
+              same template again before applying data.
             </p>
+          </div>
+          <div className="notice-actions">
+            <a className="secondary-button" href="#templates">
+              Download template
+            </a>
+            <a className="primary-button" href="#upload-import">
+              Upload CSV
+            </a>
           </div>
         </section>
       ) : null}
@@ -231,7 +240,7 @@ export default async function ImportsPage({
       ) : null}
 
       <section className="import-grid">
-        <div className="panel">
+        <div className="panel" id="templates">
           <h2>Approved templates</h2>
           <div className="field-stack">
             {templates.map((template) => (
@@ -255,7 +264,7 @@ export default async function ImportsPage({
           </div>
         </div>
 
-        <div className="panel">
+        <div className="panel" id="upload-import">
           <h2>Upload and validate</h2>
           <form action={validateImportAction} className="visit-form">
             <label>

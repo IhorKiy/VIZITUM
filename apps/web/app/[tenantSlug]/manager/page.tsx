@@ -246,6 +246,14 @@ export default async function ManagerPage({
             <h2>Task created</h2>
             <p>The new task is now visible in the team task queue.</p>
           </div>
+          <div className="notice-actions">
+            <a className="secondary-button" href="#assign-task">
+              Assign another
+            </a>
+            <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
+              Open task list
+            </a>
+          </div>
         </section>
       ) : null}
 
@@ -254,7 +262,15 @@ export default async function ManagerPage({
           <div>
             <p className="eyebrow">Task not assigned</p>
             <h2>Create task failed</h2>
-            <p>Add a task title and try again.</p>
+            <p>
+              Add a task title, keep optional assignee/location fields blank if
+              they are not ready and try again.
+            </p>
+          </div>
+          <div className="notice-actions">
+            <a className="primary-button" href="#assign-task">
+              Return to task form
+            </a>
           </div>
         </section>
       ) : null}

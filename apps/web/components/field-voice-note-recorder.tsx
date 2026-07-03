@@ -146,10 +146,16 @@ export function FieldVoiceNoteRecorder({
         </audio>
       ) : null}
       {state === "unsupported" ? (
-        <p className="form-hint">Browser recording is unavailable here.</p>
+        <p className="form-hint">
+          Browser recording is unavailable here. Choose an audio file from this
+          device and upload it instead.
+        </p>
       ) : null}
       {state === "error" ? (
-        <p className="form-hint">Microphone access was not available.</p>
+        <p className="form-hint">
+          Microphone access was not available. Allow microphone access, record
+          again or choose an existing audio file.
+        </p>
       ) : null}
     </div>
   );

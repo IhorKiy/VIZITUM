@@ -86,11 +86,9 @@ Required before self-serve:
 
 ## Next Product Actions
 
-1. Continue loading/error copy polish on remaining Field, Admin import and Manager dashboard paths.
-2. Add clearer success states and recovery guidance for audio upload/transcription failures.
-3. Review mobile layout on common field-device widths before the next pilot candidate build.
-4. Repeat platform operations token and operations summary alert check for production after production services are created.
-5. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
+1. Re-smoke Field audio success/error recovery links, Admin import error recovery links and Manager task notice actions after the next deploy.
+2. Repeat platform operations token and operations summary alert check for production after production services are created.
+3. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
 
 ## Action Plan Mapping
 

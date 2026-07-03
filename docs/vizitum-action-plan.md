@@ -274,9 +274,9 @@ Status legend:
 - [x] Add pending/disabled submit states for Admin import validation/confirm forms.
 - [x] Improve empty states and avoid demo-looking fallback for empty live Field and Manager lists.
 - [x] Improve Admin users and Manager drilldown empty states, filter context and pending submit states.
-- [ ] Improve remaining loading/error copy on Field, Admin imports and Manager dashboard screens.
-- [ ] Add clearer success states and recovery guidance for audio upload/transcription failures.
-- [ ] Review mobile layout on common field-device widths before each pilot candidate build.
+- [x] Improve remaining loading/error copy on Field, Admin imports and Manager dashboard screens. Added recovery action links for Field audio, Admin import errors and Manager task creation notices; staging re-smoke is required after deploy.
+- [x] Add clearer success states and recovery guidance for audio upload/transcription failures. Field audio success/error notices now keep manual fallback and retry paths visible.
+- [x] Review mobile layout on common field-device widths before each pilot candidate build. Local mobile smoke at 390px confirmed no horizontal overflow on Field audio, Admin import and Manager task notices.
 
 ### Track B: Pilot data model completeness
 

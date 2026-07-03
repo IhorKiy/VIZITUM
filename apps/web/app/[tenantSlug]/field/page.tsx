@@ -357,7 +357,18 @@ export default async function FieldPage({
           <div>
             <p className="eyebrow">Voice note uploaded</p>
             <h2>Audio attached</h2>
-            <p>The temporary voice note was uploaded for processing.</p>
+            <p>
+              The voice note is attached for processing. You can continue with a
+              text note or confirm the manual fallback if the visit is ready.
+            </p>
+          </div>
+          <div className="notice-actions">
+            <a className="secondary-button" href="#voice-notes">
+              Add another note
+            </a>
+            <a className="primary-button" href="#voice-notes">
+              Confirm report
+            </a>
           </div>
         </section>
       ) : null}
@@ -407,7 +418,18 @@ export default async function FieldPage({
           <div>
             <p className="eyebrow">Voice note not uploaded</p>
             <h2>Audio upload failed</h2>
-            <p>Choose a supported audio file up to 50 MB and try again.</p>
+            <p>
+              Choose a supported audio file up to 50 MB, record again or save a
+              text note so the visit can still be completed.
+            </p>
+          </div>
+          <div className="notice-actions">
+            <a className="secondary-button" href="#voice-notes">
+              Try audio again
+            </a>
+            <a className="primary-button" href="#voice-notes">
+              Use manual fallback
+            </a>
           </div>
         </section>
       ) : null}
@@ -466,7 +488,7 @@ export default async function FieldPage({
       ) : null}
 
       <section className="dashboard-grid" aria-label="Field workspace">
-        <div className="field-stack">
+        <div className="field-stack" id="voice-notes">
           {visits.length > 0 ? (
             visits.map((visit, index) => (
               <article className="visit-card" key={visit.id}>
