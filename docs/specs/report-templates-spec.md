@@ -25,17 +25,25 @@ They are configuration presets over the same core entities, not separate product
 - The first pilot must not add new selectable vertical presets beyond `distribution`, `service` and `partner_account`.
 - AI-generated report data remains a draft until user confirmation.
 - Tasks or location-card updates derived from AI output must not be applied before confirmation.
+- First-pilot structured/queryable common fields are the current AI schema fields: `summary`, `resultStatus`, `agreements`, `objections`, `mentionedProducts`, `nextActions`, `tasksToCreate`, `locationUpdates`, `confidence`, `requiresUserConfirmation` and `templateSpecific`.
+- First-pilot template-specific structured fields are:
+  - `distribution`: `shelfAvailabilityNotes`, `competitorMentions`, `merchandisingIssues`, `orderIntent`.
+  - `service`: `workPerformed`, `issuesFound`, `partsRequired`, `slaRisk`.
+  - `partner_account`: `dealPotential`, `commercialTermsDiscussed`, `decisionMakers`, `nextMeetingSuggested`.
+- Free-text report content remains the manually entered or confirmed `summary`, `agreements`, `objections`, `nextActions`, template-specific note arrays and optional task/location-update descriptions. Raw audio and transcripts are temporary processing data, not report fields.
+- First-pilot `resultStatus` values are exactly the current schema enums:
+  - `distribution`: `completed`, `no_contact`, `postponed`, `issue_found`, `follow_up_required`.
+  - `service`: `completed`, `issue_found`, `requires_follow_up`, `parts_required`, `client_unavailable`, `escalated`.
+  - `partner_account`: `completed`, `agreement_reached`, `follow_up_required`, `objection_received`, `postponed`, `no_decision`.
+- All current schema-required fields stay required in AI draft output. UI may hide advanced template-specific arrays from compact cards, but manager/report detail surfaces may show them after report detail UI exists.
+- Company Admin allowed report-type selection is post-pilot. The first pilot keeps all three MVP templates available through existing backend schemas and operational flow.
+- Minimum Manager report detail view for the first pilot: visit metadata, location, representative, template code, status/result status, confirmed summary, agreements, objections, mentioned products, next actions, created tasks count/details when available, location-update suggestions and confirmed timestamp.
+- Pilot metrics and dashboard insights may use completed visits, confirmed reports, `resultStatus`, task creation/update counts, active representative coverage and import success. AI confidence, user edit rate and detailed template-specific fields are not mandatory first-pilot success metrics.
+- Sensitive fields excluded from logs, exports by default and anonymized AI-quality samples: raw audio, transcripts, unredacted free-text notes, phone numbers, email addresses, commercial terms, personal names of customer contacts, exact street addresses and any customer-provided confidential identifiers. Manager-visible in-app reports may show tenant-owned operational data to authorized users.
 
 ## Open questions for product owner
 
-- For each template, which fields must be structured and queryable by managers?
-- Which fields should remain free-text notes?
-- Which `resultStatus` values are acceptable for each template in the first pilot?
-- Which template-specific fields are required, optional or hidden in the UI?
-- Should Company Admins be able to choose allowed report types per tenant before the first pilot, or is that a post-pilot setting?
-- What is the minimum report detail view needed for Manager review?
-- Which fields can be used for pilot success metrics and dashboard insights?
-- Which fields are sensitive and should be excluded from logs, exports or anonymized AI-quality samples?
+None for the first pilot. Reopen this section only when changing AI schemas, adding editable report-type settings, or defining customer-specific report exports.
 
 ## Definition of ready
 

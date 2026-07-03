@@ -24,19 +24,20 @@ AI quality work covers:
 - Manual report fallback is reliable product behavior, not an error-only escape hatch.
 - AI output cannot silently change final reports, tasks or location data.
 - Weak AI output must lead users toward review, correction or manual confirmation rather than blocking visit completion.
+- First-pilot weak AI output is any draft with one or more of: empty or unusable transcript, missing schema-required fields, low confidence below `0.6`, internal contradictions, unsupported/garbled language, unsafe content, or extraction failure/timeout.
+- First-pilot quality state is categorical, with optional numeric confidence shown only when already produced by the extraction schema. Do not introduce a separate scoring model before the first pilot.
+- Field Representatives see these states: `Processing`, `Needs review`, `Manual fallback available`, `Ready to confirm` and `Confirmed`. Weak output must always keep manual confirmation available.
+- Managers and Company Admins see only operationally useful states in first-pilot views: confirmed report, pending/needs review, AI failed or manual fallback used. They do not need raw confidence scoring before report detail/evaluation views exist.
+- Anonymized AI-quality examples may be stored only after removing or replacing names, phone numbers, emails, exact addresses, commercial terms, tenant/customer identifiers, raw audio and raw transcripts. Examples must retain only the minimum text needed to evaluate extraction quality.
+- Anonymized evaluation examples may be retained for up to 90 days during pilot evaluation, then deleted or re-approved for a longer retained benchmark set.
+- Review access for anonymized examples is limited to product owner/operator and engineers working on AI quality. Customer-visible review requires a separate pilot agreement or DPA/addendum approval.
+- Expected-field answer keys for first-pilot evaluation follow the approved report-template fields in `docs/specs/report-templates-spec.md`.
+- First-pilot acceptance threshold is pragmatic, not launch-blocking: at least 80% of evaluated required structured fields correct on anonymized pilot examples, zero silent finalization without user confirmation, and manual fallback success counted as a successful visit/report path rather than an AI failure.
+- AI failures count as AI-quality events, not pilot workflow failures, when the Field Representative can still confirm a manual report and managers can review the completed visit.
 
 ## Open questions for product owner
 
-- What counts as weak AI output for the first pilot: missing required fields, low confidence, contradictions, unsupported language, empty transcript or unsafe content?
-- Do we need a numeric confidence score, categorical quality state, or both?
-- Which weak-output states should Field Representatives see?
-- Which weak-output states should Managers or Company Admins see?
-- What anonymization rules must be applied before storing staging examples for evaluation?
-- How long can anonymized examples be retained?
-- Who can review anonymized examples?
-- What is the expected-field answer key for each supported report type?
-- What acceptance threshold is good enough for pilot use: per-field accuracy, whole-report acceptance, user edit rate or confirmation rate?
-- How should AI failures be counted in pilot review metrics versus manual fallback success?
+None for the first pilot. Reopen this section only when storing real anonymized examples, adding evaluation fixtures, or changing user-visible AI quality states.
 
 ## Definition of ready
 
