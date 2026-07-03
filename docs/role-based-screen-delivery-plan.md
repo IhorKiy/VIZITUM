@@ -65,15 +65,15 @@ Priority legend:
 
 ### Field Representative
 
-| Screen                | MVP intent                                          | Current state                                                                               | Next delivery step                                                              | Priority |
-| --------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------- |
-| Home / today          | See today's visits and route summary.               | Implemented as `/:tenantSlug/field`.                                                        | Improve empty states and mobile ergonomics.                                     | P0       |
-| Route or daily plan   | View/change own route using assigned locations.     | Combined into Field page; route management is shallow.                                      | Add clearer planned/unplanned visit flow and own route controls.                | P0       |
-| Location card         | Open location details, contacts, history and tasks. | Locations are selectable when creating a visit; no dedicated card.                          | Add compact location card or expandable location panel inside Field page first. | P0       |
-| Visit form            | Start visit and add text/audio note.                | Implemented and staging-smoked.                                                             | Add stronger recovery guidance for audio/transcription errors.                  | P0       |
-| AI draft confirmation | Review structured AI output before final report.    | Manual report confirmation is live; full AI draft confirmation UI still needs quality pass. | Add AI draft state with manual fallback and confidence/error messaging.         | P0/P1    |
-| Tasks                 | See and update own tasks.                           | Tasks can be created by manager; Field page does not yet focus own task list.               | Add own tasks panel to Field page.                                              | P0       |
-| Visit history         | Review previous visits and reports.                 | Current visits list exists; no dedicated history view.                                      | Add history section or separate tab after pilot-critical flows are stable.      | P1       |
+| Screen                | MVP intent                                          | Current state                                                                                                           | Next delivery step                                                                    | Priority |
+| --------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------- |
+| Home / today          | See today's visits and route summary.               | Implemented as `/:tenantSlug/field`.                                                                                    | Improve empty states and mobile ergonomics.                                           | P0       |
+| Route or daily plan   | View/change own route using assigned locations.     | Combined into Field page; route management is shallow.                                                                  | Add clearer planned/unplanned visit flow and own route controls.                      | P0       |
+| Location card         | Open location details, contacts, history and tasks. | Compact location cards are now embedded in the Field page with address, type/region/territory and notes when available. | Add richer history/contact drilldown after the first pilot-critical flow is verified. | P0       |
+| Visit form            | Start visit and add text/audio note.                | Implemented and staging-smoked.                                                                                         | Add stronger recovery guidance for audio/transcription errors.                        | P0       |
+| AI draft confirmation | Review structured AI output before final report.    | Manual report confirmation is live; full AI draft confirmation UI still needs quality pass.                             | Add AI draft state with manual fallback and confidence/error messaging.               | P0/P1    |
+| Tasks                 | See and update own tasks.                           | Field page now includes an own task panel with priority/due details and status update controls.                         | Add location names to task cards when task API includes location detail.              | P0       |
+| Visit history         | Review previous visits and reports.                 | Current visits list exists; no dedicated history view.                                                                  | Add history section or separate tab after pilot-critical flows are stable.            | P1       |
 
 ### Company Owner / Executive
 
@@ -89,7 +89,7 @@ Priority legend:
 2. Company Admin onboarding checklist: setup progress and pilot readiness. Initial screen implemented.
 3. Team Manager visits list: filters, visit status, report summary drilldown. Initial list/filter screen implemented.
 4. Team Manager task list: update status/priority and track overdue work. Initial list/filter/update screen implemented.
-5. Field location card and own tasks panel inside the current Field page.
+5. Field location card and own tasks panel inside the current Field page. Initial compact cards and task status updates implemented.
 6. Pilot review screen: usage thresholds, success metrics and copyable review summary.
 7. Field AI draft state: show extraction status, weak-output messaging and manual fallback.
 

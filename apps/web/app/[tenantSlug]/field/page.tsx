@@ -9,8 +9,12 @@ import {
   createVisit,
   getCurrentSession,
   listLocations,
+  listTasks,
   listVisits,
+  updateTask,
   type Location,
+  type Task,
+  type TaskStatus,
   type Visit,
   uploadAudioVisitNote,
 } from "../../../lib/api-client";
@@ -22,6 +26,7 @@ type FieldPageProps = {
     audio?: string;
     note?: string;
     report?: string;
+    task?: string;
     visit?: string;
     error?: string;
   }>;
@@ -40,6 +45,19 @@ type FieldLocation = {
   id: string;
   name: string;
   address: string;
+  detail: string;
+  notes: string | null;
+  status: string;
+};
+
+type FieldTask = {
+  id: string;
+  title: string;
+  detail: string;
+  status: TaskStatus;
+  priority: string;
+  dueDate: string;
+  locationName: string;
 };
 
 const demoVisits: FieldVisit[] = [
@@ -74,16 +92,46 @@ const demoLocations: FieldLocation[] = [
     id: "demo-location-1",
     name: "Silpo Obolon",
     address: "Heroiv Dnipra Ave, Kyiv",
+    detail: "Trade · Kyiv North",
+    notes: "Check shelf share and competitor pricing.",
+    status: "Active",
   },
   {
     id: "demo-location-2",
     name: "Pharmacy 24",
     address: "Lvivska St, Kyiv",
+    detail: "Pharmacy · Kyiv Center",
+    notes: "Service agreement renewal due this month.",
+    status: "Active",
   },
   {
     id: "demo-location-3",
     name: "Partner Hub",
     address: "Volodymyrska St, Kyiv",
+    detail: "Partner · Kyiv West",
+    notes: null,
+    status: "Active",
+  },
+];
+
+const demoTasks: FieldTask[] = [
+  {
+    id: "demo-task-1",
+    title: "Confirm promo display",
+    detail: "Take a quick note after checking shelf visibility.",
+    status: "open",
+    priority: "High",
+    dueDate: "Today",
+    locationName: "Silpo Obolon",
+  },
+  {
+    id: "demo-task-2",
+    title: "Ask about next order",
+    detail: "Capture the partner's expected reorder date.",
+    status: "in_progress",
+    priority: "Normal",
+    dueDate: "Tomorrow",
+    locationName: "Partner Hub",
   },
 ];
 
@@ -92,7 +140,7 @@ export default async function FieldPage({
   searchParams,
 }: FieldPageProps) {
   const { tenantSlug } = await params;
-  const { audio, note, report, visit, error } = await searchParams;
+  const { audio, note, report, task, visit, error } = await searchParams;
 
   async function createVisitAction(formData: FormData) {
     "use server";
@@ -179,6 +227,25 @@ export default async function FieldPage({
     redirect(`/${tenantSlug}/field?report=confirmed`);
   }
 
+  async function updateTaskStatusAction(formData: FormData) {
+    "use server";
+
+    const taskId = String(formData.get("taskId") ?? "").trim();
+    const status = normalizeTaskStatus(formData.get("status"));
+
+    if (!taskId || !status) {
+      redirect(`/${tenantSlug}/field?error=task`);
+    }
+
+    const result = await updateTask(taskId, { status });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/field?error=task`);
+    }
+
+    redirect(`/${tenantSlug}/field?task=updated`);
+  }
+
   const sessionResult = await getCurrentSession();
   const visitsResult = sessionResult.ok
     ? await listVisits()
@@ -189,6 +256,13 @@ export default async function FieldPage({
       };
   const locationsResult = sessionResult.ok
     ? await listLocations()
+    : {
+        ok: false as const,
+        status: sessionResult.status,
+        message: sessionResult.message,
+      };
+  const tasksResult = sessionResult.ok
+    ? await listTasks("pageSize=50")
     : {
         ok: false as const,
         status: sessionResult.status,
@@ -234,11 +308,18 @@ export default async function FieldPage({
     locationsResult.ok && locationsResult.data.items.length > 0
       ? locationsResult.data.items.map(toFieldLocation)
       : demoLocations;
+  const tasks =
+    tasksResult.ok && tasksResult.data.items.length > 0
+      ? tasksResult.data.items.map(toFieldTask)
+      : demoTasks;
   const isDemoMode = !visitsResult.ok && demoFallbackEnabled;
   const canCreateLiveVisit = locationsResult.ok && locations.length > 0;
   const representativeName = sessionResult.ok
     ? sessionResult.data.user.name
     : "Demo representative";
+  const openTasks = tasks.filter(
+    (item) => item.status === "open" || item.status === "in_progress",
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -308,6 +389,16 @@ export default async function FieldPage({
         </section>
       ) : null}
 
+      {task === "updated" ? (
+        <section className="notice-panel success" aria-label="Task status">
+          <div>
+            <p className="eyebrow">Task updated</p>
+            <h2>Follow-up saved</h2>
+            <p>The task status was updated for your field queue.</p>
+          </div>
+        </section>
+      ) : null}
+
       {error === "audio" ? (
         <section className="notice-panel danger" aria-label="Audio error">
           <div>
@@ -344,6 +435,16 @@ export default async function FieldPage({
             <p className="eyebrow">Visit not created</p>
             <h2>New visit failed</h2>
             <p>Select an active location and try again.</p>
+          </div>
+        </section>
+      ) : null}
+
+      {error === "task" ? (
+        <section className="notice-panel danger" aria-label="Task error">
+          <div>
+            <p className="eyebrow">Task not updated</p>
+            <h2>Follow-up update failed</h2>
+            <p>Refresh your field workspace and try again.</p>
           </div>
         </section>
       ) : null}
@@ -494,15 +595,86 @@ export default async function FieldPage({
                 </td>
               </tr>
               <tr>
-                <th scope="row">Reports waiting</th>
-                <td>2</td>
+                <th scope="row">Open tasks</th>
+                <td>{openTasks.length}</td>
               </tr>
               <tr>
-                <th scope="row">AI drafts</th>
-                <td>1</td>
+                <th scope="row">Locations</th>
+                <td>{locations.length}</td>
               </tr>
             </tbody>
           </table>
+
+          <section className="field-panel-section">
+            <h2>Location cards</h2>
+            <div className="field-card-list">
+              {locations.slice(0, 4).map((location) => (
+                <article className="location-mini-card" key={location.id}>
+                  <header>
+                    <div>
+                      <h3>{location.name}</h3>
+                      <p>{location.address}</p>
+                    </div>
+                    <span className="status-pill active">
+                      {location.status}
+                    </span>
+                  </header>
+                  <p className="visit-meta">{location.detail}</p>
+                  {location.notes ? (
+                    <p className="form-hint">{location.notes}</p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h2>My tasks</h2>
+            {tasks.length > 0 ? (
+              <div className="field-card-list">
+                {tasks.map((item) => (
+                  <article className="location-mini-card" key={item.id}>
+                    <header>
+                      <div>
+                        <h3>{item.title}</h3>
+                        <p>{item.locationName}</p>
+                      </div>
+                      <span
+                        className={`status-pill ${taskStatusTone(item.status)}`}
+                      >
+                        {formatTaskStatus(item.status)}
+                      </span>
+                    </header>
+                    <p className="visit-meta">{item.detail}</p>
+                    <p className="form-hint">
+                      {item.priority} priority · Due {item.dueDate}
+                    </p>
+                    <form
+                      action={updateTaskStatusAction}
+                      className="inline-control-form"
+                    >
+                      <input name="taskId" type="hidden" value={item.id} />
+                      <select
+                        aria-label={`Update ${item.title} status`}
+                        defaultValue={item.status}
+                        name="status"
+                      >
+                        <option value="open">Open</option>
+                        <option value="in_progress">In progress</option>
+                        <option value="done">Done</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                      <button className="secondary-button" type="submit">
+                        Save
+                      </button>
+                    </form>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">No tasks assigned right now.</p>
+            )}
+          </section>
         </aside>
       </section>
     </AppShell>
@@ -532,6 +704,23 @@ function toFieldLocation(location: Location): FieldLocation {
     id: location.id,
     name: location.name,
     address: [location.addressLine, location.city].filter(Boolean).join(", "),
+    detail: [location.type, location.region, location.territory]
+      .filter(Boolean)
+      .join(" · "),
+    notes: location.notes,
+    status: formatLabel(location.status),
+  };
+}
+
+function toFieldTask(task: Task): FieldTask {
+  return {
+    id: task.id,
+    title: task.title,
+    detail: task.description ?? "No additional details",
+    status: task.status,
+    priority: formatLabel(task.priority),
+    dueDate: formatDate(task.dueDate),
+    locationName: task.locationId ? "Linked location" : "No location",
   };
 }
 
@@ -552,4 +741,52 @@ function resolveStatusTone(status: string, index: number): string {
   }
 
   return index === 1 ? "info" : "warning";
+}
+
+function normalizeTaskStatus(
+  value: FormDataEntryValue | null,
+): TaskStatus | null {
+  if (
+    value === "open" ||
+    value === "in_progress" ||
+    value === "done" ||
+    value === "cancelled"
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function formatTaskStatus(status: TaskStatus): string {
+  return formatLabel(status);
+}
+
+function taskStatusTone(status: TaskStatus): string {
+  if (status === "done") {
+    return "active";
+  }
+
+  if (status === "cancelled") {
+    return "warning";
+  }
+
+  return "info";
+}
+
+function formatDate(value: string | null): string {
+  if (!value) {
+    return "not set";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+  }).format(new Date(value));
+}
+
+function formatLabel(value: string): string {
+  return value
+    .split("_")
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
 }
