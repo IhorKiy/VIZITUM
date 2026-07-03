@@ -167,18 +167,24 @@ function ReportDetail({ report }: { report: Report }) {
         </p>
       </div>
       <div className="report-detail-list">
-        <ReportSection title="Summary" value={data.summary} />
-        <ReportSection title="Result status" value={data.resultStatus} />
-        <ReportSection title="Agreements" value={data.agreements} />
-        <ReportSection title="Objections" value={data.objections} />
-        <ReportSection
+        <TextReportSection title="Summary" value={data.summary} />
+        <TextReportSection title="Result status" value={data.resultStatus} />
+        <ListReportSection title="Agreements" value={data.agreements} />
+        <ListReportSection title="Objections" value={data.objections} />
+        <MentionedProductsSection
           title="Mentioned products"
           value={data.mentionedProducts}
         />
-        <ReportSection title="Next actions" value={data.nextActions} />
-        <ReportSection title="Tasks to create" value={data.tasksToCreate} />
-        <ReportSection title="Location updates" value={data.locationUpdates} />
-        <ReportSection
+        <ListReportSection title="Next actions" value={data.nextActions} />
+        <TasksToCreateSection
+          title="Tasks to create"
+          value={data.tasksToCreate}
+        />
+        <LocationUpdatesSection
+          title="Location updates"
+          value={data.locationUpdates}
+        />
+        <KeyValueReportSection
           title="Template-specific detail"
           value={data.templateSpecific}
         />
@@ -187,11 +193,161 @@ function ReportDetail({ report }: { report: Report }) {
   );
 }
 
-function ReportSection({ title, value }: { title: string; value: unknown }) {
+function TextReportSection({
+  title,
+  value,
+}: {
+  title: string;
+  value: unknown;
+}) {
   return (
     <section className="report-detail-section">
       <h3>{title}</h3>
-      <p>{formatReportValue(value)}</p>
+      <p>{formatScalarValue(value)}</p>
+    </section>
+  );
+}
+
+function ListReportSection({
+  title,
+  value,
+}: {
+  title: string;
+  value: unknown;
+}) {
+  const items = normalizeList(value);
+
+  return (
+    <section className="report-detail-section">
+      <h3>{title}</h3>
+      {items.length > 0 ? (
+        <ul className="report-detail-items">
+          {items.map((item, index) => (
+            <li key={`${title}-${index}`}>{formatScalarValue(item)}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>-</p>
+      )}
+    </section>
+  );
+}
+
+function MentionedProductsSection({
+  title,
+  value,
+}: {
+  title: string;
+  value: unknown;
+}) {
+  const products = normalizeObjectList(value);
+
+  return (
+    <section className="report-detail-section">
+      <h3>{title}</h3>
+      {products.length > 0 ? (
+        <div className="report-detail-cards">
+          {products.map((product, index) => (
+            <article className="report-detail-card" key={`${title}-${index}`}>
+              <strong>{formatScalarValue(product.name)}</strong>
+              <span>{formatLabelOrDash(product.status)}</span>
+              <p>{formatScalarValue(product.evidence)}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p>-</p>
+      )}
+    </section>
+  );
+}
+
+function TasksToCreateSection({
+  title,
+  value,
+}: {
+  title: string;
+  value: unknown;
+}) {
+  const tasks = normalizeObjectList(value);
+
+  return (
+    <section className="report-detail-section">
+      <h3>{title}</h3>
+      {tasks.length > 0 ? (
+        <div className="report-detail-cards">
+          {tasks.map((task, index) => (
+            <article className="report-detail-card" key={`${title}-${index}`}>
+              <strong>{formatScalarValue(task.title)}</strong>
+              <span>
+                {formatLabelOrDash(task.priority)} ·{" "}
+                {formatLabelOrDash(task.assignee)} · due{" "}
+                {formatScalarValue(task.dueDate)}
+              </span>
+              <p>{formatScalarValue(task.description)}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p>-</p>
+      )}
+    </section>
+  );
+}
+
+function LocationUpdatesSection({
+  title,
+  value,
+}: {
+  title: string;
+  value: unknown;
+}) {
+  const updates = normalizeObjectList(value);
+
+  return (
+    <section className="report-detail-section">
+      <h3>{title}</h3>
+      {updates.length > 0 ? (
+        <div className="report-detail-cards">
+          {updates.map((update, index) => (
+            <article className="report-detail-card" key={`${title}-${index}`}>
+              <strong>{formatLabelOrDash(update.field)}</strong>
+              <span>{formatScalarValue(update.proposedValue)}</span>
+              <p>{formatScalarValue(update.reason)}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p>-</p>
+      )}
+    </section>
+  );
+}
+
+function KeyValueReportSection({
+  title,
+  value,
+}: {
+  title: string;
+  value: unknown;
+}) {
+  const entries = Object.entries(normalizeReportData(value));
+
+  return (
+    <section className="report-detail-section">
+      <h3>{title}</h3>
+      {entries.length > 0 ? (
+        <dl className="report-detail-kv">
+          {entries.map(([key, item]) => (
+            <div key={key}>
+              <dt>{formatLabel(key)}</dt>
+              <dd>{formatNestedValue(item)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p>-</p>
+      )}
     </section>
   );
 }
@@ -237,21 +393,46 @@ function normalizeReportData(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function formatReportValue(value: unknown): string {
-  if (value === undefined || value === null || value === "") {
-    return "-";
+function normalizeList(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value;
   }
 
+  if (value === undefined || value === null || value === "") {
+    return [];
+  }
+
+  return [value];
+}
+
+function normalizeObjectList(value: unknown): Array<Record<string, unknown>> {
+  return normalizeList(value).filter(
+    (item): item is Record<string, unknown> =>
+      Boolean(item) && typeof item === "object" && !Array.isArray(item),
+  );
+}
+
+function formatNestedValue(value: unknown): string {
   if (Array.isArray(value)) {
     if (value.length === 0) {
       return "-";
     }
 
-    return value.map(formatReportValue).join("; ");
+    return value.map(formatNestedValue).join("; ");
   }
 
-  if (typeof value === "object") {
-    return JSON.stringify(value);
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => `${formatLabel(key)}: ${formatNestedValue(item)}`)
+      .join("; ");
+  }
+
+  return formatScalarValue(value);
+}
+
+function formatScalarValue(value: unknown): string {
+  if (value === undefined || value === null || value === "") {
+    return "-";
   }
 
   if (typeof value === "boolean") {
@@ -259,6 +440,14 @@ function formatReportValue(value: unknown): string {
   }
 
   return String(value);
+}
+
+function formatLabelOrDash(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) {
+    return "-";
+  }
+
+  return formatLabel(value);
 }
 
 function formatLabel(value: string): string {

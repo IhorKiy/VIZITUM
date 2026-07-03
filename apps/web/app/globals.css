@@ -1034,6 +1034,60 @@ textarea {
   margin: 0;
 }
 
+.report-detail-items {
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.report-detail-cards {
+  display: grid;
+  gap: 8px;
+}
+
+.report-detail-card {
+  background: #f8faf9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.report-detail-card strong {
+  color: var(--ink);
+}
+
+.report-detail-card span,
+.report-detail-card p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.report-detail-kv {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.report-detail-kv div {
+  display: grid;
+  gap: 3px;
+}
+
+.report-detail-kv dt {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.report-detail-kv dd {
+  color: var(--muted);
+  margin: 0;
+}
+
 .status-pill {
   border-radius: 999px;
   color: #ffffff;
