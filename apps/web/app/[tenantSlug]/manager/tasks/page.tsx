@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AppShell } from "../../../../components/app-shell";
+import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   listTasks,
   updateTask,
@@ -268,9 +269,12 @@ function TasksTable({
                     </option>
                   ))}
                 </select>
-                <button className="secondary-button" type="submit">
+                <PendingSubmitButton
+                  className="secondary-button"
+                  pendingLabel="Saving..."
+                >
                   Save
-                </button>
+                </PendingSubmitButton>
               </form>
             </td>
           </tr>

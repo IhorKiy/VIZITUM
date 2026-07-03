@@ -248,6 +248,7 @@ Status legend:
 - [x] Run internal dogfood on the accepted P0 screen set with realistic planned visit, text note/manual fallback and manager follow-up scenarios.
 - [x] Re-smoke Manager task assignment after the task option/counting fix deploys.
 - [ ] Re-smoke cancelled-task filtering after the next deploy.
+- [ ] Re-smoke pending/disabled submit states on Field and Manager forms after the next deploy.
 
 ### Final gate before production pilot
 
@@ -269,7 +270,7 @@ Status legend:
 - [x] Capture friction points from the dogfood cycle in `docs/runbooks/staging-ux-review.md`.
 - [x] Improve Manager dashboard task assignment options and open-task counting from dogfood findings.
 - [x] Filter cancelled tasks out of Field actionable tasks and Manager attention queue.
-- [ ] Add pending/disabled submit states for high-risk Field and Manager forms.
+- [x] Add pending/disabled submit states for high-risk Field and Manager forms.
 - [ ] Improve empty states, loading states and error copy on Field, Admin imports and Manager dashboard screens.
 - [ ] Add clearer success states and recovery guidance for audio upload/transcription failures.
 - [ ] Review mobile layout on common field-device widths before each pilot candidate build.

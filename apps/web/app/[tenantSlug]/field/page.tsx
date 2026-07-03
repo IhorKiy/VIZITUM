@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "../../../components/app-shell";
 import { FieldRecordingNotice } from "../../../components/field-recording-notice";
 import { FieldVoiceNoteRecorder } from "../../../components/field-voice-note-recorder";
+import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import {
   addTextVisitNote,
   confirmManualReport,
@@ -499,9 +500,12 @@ export default async function FieldPage({
                       rows={2}
                     />
                   </label>
-                  <button className="secondary-button" type="submit">
+                  <PendingSubmitButton
+                    className="secondary-button"
+                    pendingLabel="Saving note..."
+                  >
                     Save note
-                  </button>
+                  </PendingSubmitButton>
                 </form>
               ) : null}
               {visit.canConfirm ? (
@@ -511,9 +515,12 @@ export default async function FieldPage({
                     Voice note
                     <FieldVoiceNoteRecorder inputName="audioFile" />
                   </label>
-                  <button className="secondary-button" type="submit">
+                  <PendingSubmitButton
+                    className="secondary-button"
+                    pendingLabel="Uploading..."
+                  >
                     Upload voice note
-                  </button>
+                  </PendingSubmitButton>
                 </form>
               ) : null}
               {visit.canConfirm ? (
@@ -536,9 +543,12 @@ export default async function FieldPage({
                       rows={2}
                     />
                   </label>
-                  <button className="primary-button" type="submit">
+                  <PendingSubmitButton
+                    className="primary-button"
+                    pendingLabel="Confirming..."
+                  >
                     Confirm manual fallback
-                  </button>
+                  </PendingSubmitButton>
                 </form>
               ) : null}
             </article>
@@ -568,9 +578,12 @@ export default async function FieldPage({
                     <option value="partner_check_in">Partner check-in</option>
                   </select>
                 </label>
-                <button className="primary-button" type="submit">
+                <PendingSubmitButton
+                  className="primary-button"
+                  pendingLabel="Starting..."
+                >
                   Start visit
-                </button>
+                </PendingSubmitButton>
               </form>
             ) : (
               <p className="empty-state">
@@ -670,9 +683,12 @@ export default async function FieldPage({
                         <option value="done">Done</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
-                      <button className="secondary-button" type="submit">
+                      <PendingSubmitButton
+                        className="secondary-button"
+                        pendingLabel="Saving..."
+                      >
                         Save
-                      </button>
+                      </PendingSubmitButton>
                     </form>
                   </article>
                 ))}

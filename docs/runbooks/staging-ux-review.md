@@ -8,7 +8,7 @@ Tenant: `vizitum-staging`
 Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, browser voice recording with file upload fallback and a minimal manual report confirmation form for assigned visits.
 Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note, browser recording/upload, audio file fallback and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment.
 P0 role-screen update: the 2026-07-03 staging re-smoke passed Admin setup/users/review, Manager visits/tasks drilldowns and Field location/tasks/AI draft messaging.
-Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting, cancelled-task visibility and duplicate-submit feedback.
+Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting, cancelled-task visibility and duplicate-submit feedback. Pending/disabled submit states were added to Field and Manager forms after these findings.
 
 ## Summary
 
@@ -49,13 +49,13 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 
 ## Non-Blocking UX Gaps
 
-| Gap                                                    | Area          | Recommendation                                                                                                               |
-| ------------------------------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Demo fallback exists for local development             | All app pages | Acceptable because production fallback is disabled by default. Keep `ENABLE_DEMO_FALLBACK` unset/false in production.        |
-| Operations page is platform-oriented but tenant-routed | Operations    | Acceptable for internal operators during pilot; revisit if exposing to customer tenants.                                     |
-| Import history list is not exposed yet                 | Admin imports | Current upload result is live; add a historical import jobs list only if self-serve admin onboarding needs audit visibility. |
-| Multi-form submit feedback can lag                     | Field/Manager | Add pending/disabled submit states where practical and keep success notices anchored to the action that just completed.      |
-| Cancelled tasks can remain visually prominent          | Field/Manager | Keep cancelled tasks out of actionable Field task cards and Manager attention queue; preserve them in Manager task filters.  |
+| Gap                                                    | Area          | Recommendation                                                                                                                                      |
+| ------------------------------------------------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Demo fallback exists for local development             | All app pages | Acceptable because production fallback is disabled by default. Keep `ENABLE_DEMO_FALLBACK` unset/false in production.                               |
+| Operations page is platform-oriented but tenant-routed | Operations    | Acceptable for internal operators during pilot; revisit if exposing to customer tenants.                                                            |
+| Import history list is not exposed yet                 | Admin imports | Current upload result is live; add a historical import jobs list only if self-serve admin onboarding needs audit visibility.                        |
+| Multi-form submit feedback can lag                     | Field/Manager | Pending/disabled submit states were added to Field and Manager forms; re-smoke after deploy and continue improving notice anchoring if lag appears. |
+| Cancelled tasks can remain visually prominent          | Field/Manager | Keep cancelled tasks out of actionable Field task cards and Manager attention queue; preserve them in Manager task filters.                         |
 
 ## Recommended Pilot Scope
 
@@ -85,7 +85,7 @@ Required before self-serve:
 ## Next Product Actions
 
 1. Re-smoke cancelled-task filtering after the next deploy.
-2. Add pending/disabled submit states for the highest-risk Field and Manager forms.
+2. Re-smoke pending/disabled submit states on Field and Manager forms after the next deploy.
 3. Repeat platform operations token and operations summary alert check for production after production services are created.
 4. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
 

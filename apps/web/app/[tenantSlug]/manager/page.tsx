@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AppShell } from "../../../components/app-shell";
+import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import {
   createTask,
   listHighPriorityTasks,
@@ -386,9 +387,12 @@ export default async function ManagerPage({
                 <input name="dueDate" type="date" />
               </label>
             </div>
-            <button className="primary-button" type="submit">
+            <PendingSubmitButton
+              className="primary-button"
+              pendingLabel="Creating..."
+            >
               Create task
-            </button>
+            </PendingSubmitButton>
           </form>
         </div>
       </section>
