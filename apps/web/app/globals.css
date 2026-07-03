@@ -1005,6 +1005,35 @@ textarea {
   gap: 8px;
 }
 
+.report-detail-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.report-detail-section {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+  padding-bottom: 12px;
+}
+
+.report-detail-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.report-detail-section h3 {
+  color: var(--ink);
+  font-size: 14px;
+  margin: 0;
+}
+
+.report-detail-section p {
+  color: var(--muted);
+  margin: 0;
+}
+
 .status-pill {
   border-radius: 999px;
   color: #ffffff;

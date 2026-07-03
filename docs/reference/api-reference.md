@@ -64,6 +64,7 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | --- | --- | --- | --- |
 | `GET /visits` | any: `visits.read_own`, `visits.read_team` | query: `page, pageSize, representativeUserId, locationId, routePlanId, status (draft\|in_progress\|completed\|cancelled), startedFrom, startedTo` | paginated `Visit` (includes `location` and `representative` summaries) |
 | `GET /visits/:visitId` | any: `visits.read_own`, `visits.read_team` | — | `Visit` |
+| `GET /visits/:visitId/report` | any: `reports.read_own`, `reports.read_team` | — | confirmed `Report` for the visit |
 | `POST /visits` | all: `visits.create` | `{ locationId, representativeUserId, routeItemId?, visitType, startedAt? }` | `Visit` |
 | `PATCH /visits/:visitId` | all: `visits.update_own` | `{ status?, startedAt?, completedAt?, cancelledAt? }` | `Visit` |
 | `POST /visits/:visitId/notes/text` | all: `visits.update_own` | `{ textContent }` | `VisitNote` |
@@ -161,4 +162,4 @@ Template types: `users`, `locations`, `contacts`, `products`, `initial_visit_tas
 
 ## Endpoint count
 
-60 endpoints across 12 controllers (auth 5, health 2, operations 1, visits 10, tasks 3, locations 11, products 4, routes 6, imports 6, admin users 7, admin settings 2, storage 3).
+61 endpoints across 12 controllers (auth 5, health 2, operations 1, visits 11, tasks 3, locations 11, products 4, routes 6, imports 6, admin users 7, admin settings 2, storage 3).

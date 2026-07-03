@@ -98,6 +98,31 @@ export class VisitsService {
     return toVisitResponse(visit);
   }
 
+  async getVisitReport(
+    context: RequestContext,
+    visitId: string,
+  ): Promise<ReportResponse> {
+    const visit = await this.findTenantVisit(context.tenantId, visitId);
+
+    this.assertCanReadReport(context, visit.representativeUserId);
+
+    const report = await this.prisma.report.findFirst({
+      where: {
+        tenantId: context.tenantId,
+        visitId: visit.id,
+      },
+    });
+
+    if (!report) {
+      throw new NotFoundException({
+        code: "REPORT_NOT_FOUND",
+        message: "Report was not found for this visit.",
+      });
+    }
+
+    return toReportResponse(report);
+  }
+
   async createVisit(
     context: RequestContext,
     body: CreateVisitRequestBody,
@@ -471,6 +496,24 @@ export class VisitsService {
 
     if (
       context.permissions.includes(PERMISSIONS.VISITS_READ_OWN) &&
+      context.userId === representativeUserId
+    ) {
+      return;
+    }
+
+    throwMissingVisitPermission();
+  }
+
+  private assertCanReadReport(
+    context: RequestContext,
+    representativeUserId: string,
+  ): void {
+    if (context.permissions.includes(PERMISSIONS.REPORTS_READ_TEAM)) {
+      return;
+    }
+
+    if (
+      context.permissions.includes(PERMISSIONS.REPORTS_READ_OWN) &&
       context.userId === representativeUserId
     ) {
       return;

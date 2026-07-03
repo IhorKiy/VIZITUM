@@ -67,5 +67,5 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 
 ## Known gaps (as implemented)
 
-- `visits.cancel_own`, `reports.read_own`, `reports.read_team`, `audit.read`, `platform.tenants.read`, `platform.tenants.manage` are defined and granted but no controller currently requires them.
+- `visits.cancel_own`, `audit.read`, `platform.tenants.read`, `platform.tenants.manage` are defined and granted but no controller currently requires them.
 - `pilot_review.read` is granted only to `team_manager`, but the frontend Review nav item (`admin/review`) requires it — so the review screen is reachable by managers, not by admins without the manager role.

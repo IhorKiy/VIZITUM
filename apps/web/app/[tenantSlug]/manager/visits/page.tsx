@@ -301,7 +301,7 @@ export default async function ManagerVisitsPage({
         </form>
 
         {visits.length > 0 ? (
-          <VisitsTable visits={visits} />
+          <VisitsTable tenantSlug={tenantSlug} visits={visits} />
         ) : (
           <div className="empty-state-panel">
             <h2>No visits match this filter</h2>
@@ -360,7 +360,13 @@ function buildLocationOptions(locations: Location[]): FilterOption[] {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-function VisitsTable({ visits }: { visits: Visit[] }) {
+function VisitsTable({
+  tenantSlug,
+  visits,
+}: {
+  tenantSlug: string;
+  visits: Visit[];
+}) {
   return (
     <table className="table drilldown-table">
       <thead>
@@ -371,6 +377,7 @@ function VisitsTable({ visits }: { visits: Visit[] }) {
           <th>Type</th>
           <th>Started</th>
           <th>Completed</th>
+          <th>Report</th>
         </tr>
       </thead>
       <tbody>
@@ -391,6 +398,14 @@ function VisitsTable({ visits }: { visits: Visit[] }) {
             <td>{formatLabel(visit.visitType)}</td>
             <td>{formatDateTime(visit.startedAt)}</td>
             <td>{formatDateTime(visit.completedAt)}</td>
+            <td>
+              <a
+                className="secondary-button"
+                href={`/${tenantSlug}/manager/visits/${visit.id}`}
+              >
+                Open
+              </a>
+            </td>
           </tr>
         ))}
       </tbody>

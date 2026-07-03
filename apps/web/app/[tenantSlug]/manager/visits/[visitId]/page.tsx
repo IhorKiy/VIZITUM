@@ -1,0 +1,281 @@
+import { AppShell } from "../../../../../components/app-shell";
+import {
+  getVisit,
+  getVisitReport,
+  type Report,
+  type Visit,
+} from "../../../../../lib/api-client";
+
+type ManagerVisitDetailPageProps = {
+  params: Promise<{ tenantSlug: string; visitId: string }>;
+};
+
+export default async function ManagerVisitDetailPage({
+  params,
+}: ManagerVisitDetailPageProps) {
+  const { tenantSlug, visitId } = await params;
+  const [visitResult, reportResult] = await Promise.all([
+    getVisit(visitId),
+    getVisitReport(visitId),
+  ]);
+
+  if (!visitResult.ok) {
+    return (
+      <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">Team manager</p>
+            <h1>Visit report</h1>
+            <p>
+              Live visit data is required before report review can continue.
+            </p>
+          </div>
+          <div className="toolbar">
+            <a
+              className="primary-button"
+              href={`/${tenantSlug}/manager/visits`}
+            >
+              Back to visits
+            </a>
+          </div>
+        </header>
+
+        <section className="notice-panel" aria-label="Visit status">
+          <div>
+            <p className="eyebrow">Connection required</p>
+            <h2>Visit is not available</h2>
+            <p>{visitResult.message}</p>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
+  const visit = visitResult.data;
+
+  return (
+    <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Team manager</p>
+          <h1>Visit report</h1>
+          <p>
+            Review confirmed report detail for {visit.location.name} and the
+            field representative who completed the visit.
+          </p>
+        </div>
+        <div className="toolbar">
+          <a className="secondary-button" href={`/${tenantSlug}/manager/tasks`}>
+            Tasks
+          </a>
+          <a className="primary-button" href={`/${tenantSlug}/manager/visits`}>
+            Back to visits
+          </a>
+        </div>
+      </header>
+
+      <section className="manager-grid" aria-label="Visit report metadata">
+        {buildVisitMetrics(
+          visit,
+          reportResult.ok ? reportResult.data : null,
+        ).map((metric) => (
+          <article className="metric-card" key={metric.label}>
+            <header>
+              <p className="metric-label">{metric.label}</p>
+              <span className={`status-pill ${metric.tone}`}>
+                {metric.tone === "active" ? "OK" : metric.tone}
+              </span>
+            </header>
+            <p className="metric-value">{metric.value}</p>
+            <p className="small-label">{metric.detail}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="dashboard-grid" aria-label="Visit report detail">
+        <article className="panel">
+          <div className="panel-title-stack">
+            <h2>Visit</h2>
+            <p>Operational context for the confirmed report.</p>
+          </div>
+          <table className="table">
+            <tbody>
+              <tr>
+                <th scope="row">Location</th>
+                <td>
+                  {visit.location.name}, {visit.location.city}
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Representative</th>
+                <td>{visit.representative.name}</td>
+              </tr>
+              <tr>
+                <th scope="row">Visit type</th>
+                <td>{formatLabel(visit.visitType)}</td>
+              </tr>
+              <tr>
+                <th scope="row">Status</th>
+                <td>{formatLabel(visit.status)}</td>
+              </tr>
+              <tr>
+                <th scope="row">Started</th>
+                <td>{formatDateTime(visit.startedAt)}</td>
+              </tr>
+              <tr>
+                <th scope="row">Completed</th>
+                <td>{formatDateTime(visit.completedAt)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </article>
+
+        <article className="panel">
+          {reportResult.ok ? (
+            <ReportDetail report={reportResult.data} />
+          ) : (
+            <div className="empty-state-panel">
+              <h2>No confirmed report yet</h2>
+              <p>
+                {reportResult.message}. The Field Representative can still
+                confirm a manual report from the field workspace.
+              </p>
+              <a
+                className="primary-button"
+                href={`/${tenantSlug}/manager/visits`}
+              >
+                Back to visits
+              </a>
+            </div>
+          )}
+        </article>
+      </section>
+    </AppShell>
+  );
+}
+
+function ReportDetail({ report }: { report: Report }) {
+  const data = normalizeReportData(report.confirmedData);
+
+  return (
+    <>
+      <div className="panel-title-stack">
+        <h2>Confirmed report</h2>
+        <p>
+          Template {formatLabel(report.templateCode)} · confirmed{" "}
+          {formatDateTime(report.confirmedAt)}
+        </p>
+      </div>
+      <div className="report-detail-list">
+        <ReportSection title="Summary" value={data.summary} />
+        <ReportSection title="Result status" value={data.resultStatus} />
+        <ReportSection title="Agreements" value={data.agreements} />
+        <ReportSection title="Objections" value={data.objections} />
+        <ReportSection
+          title="Mentioned products"
+          value={data.mentionedProducts}
+        />
+        <ReportSection title="Next actions" value={data.nextActions} />
+        <ReportSection title="Tasks to create" value={data.tasksToCreate} />
+        <ReportSection title="Location updates" value={data.locationUpdates} />
+        <ReportSection
+          title="Template-specific detail"
+          value={data.templateSpecific}
+        />
+      </div>
+    </>
+  );
+}
+
+function ReportSection({ title, value }: { title: string; value: unknown }) {
+  return (
+    <section className="report-detail-section">
+      <h3>{title}</h3>
+      <p>{formatReportValue(value)}</p>
+    </section>
+  );
+}
+
+function buildVisitMetrics(
+  visit: Visit,
+  report: Report | null,
+): Array<{
+  label: string;
+  value: string;
+  detail: string;
+  tone: "active" | "info" | "warning";
+}> {
+  return [
+    {
+      label: "Visit status",
+      value: formatLabel(visit.status),
+      detail: visit.location.name,
+      tone: visit.status === "completed" ? "active" : "info",
+    },
+    {
+      label: "Report",
+      value: report ? formatLabel(report.status) : "Missing",
+      detail: report
+        ? `Confirmed ${formatDateTime(report.confirmedAt)}`
+        : "Manual confirmation is still available",
+      tone: report ? "active" : "warning",
+    },
+    {
+      label: "Template",
+      value: report ? formatLabel(report.templateCode) : "-",
+      detail: report?.schemaVersion ?? "No report schema yet",
+      tone: report ? "active" : "info",
+    },
+  ];
+}
+
+function normalizeReportData(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function formatReportValue(value: unknown): string {
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return "-";
+    }
+
+    return value.map(formatReportValue).join("; ");
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  return String(value);
+}
+
+function formatLabel(value: string): string {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join(" ");
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}

@@ -356,6 +356,16 @@ export async function listVisits(
   return apiGet<PaginatedResponse<Visit>>(`/visits?${query}`);
 }
 
+export async function getVisit(visitId: string): Promise<ApiResult<Visit>> {
+  return apiGet<Visit>(`/visits/${visitId}`);
+}
+
+export async function getVisitReport(
+  visitId: string,
+): Promise<ApiResult<Report>> {
+  return apiGet<Report>(`/visits/${visitId}/report`);
+}
+
 export async function listAllVisits(): Promise<
   ApiResult<PaginatedResponse<Visit>>
 > {

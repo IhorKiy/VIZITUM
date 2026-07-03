@@ -206,6 +206,7 @@ Status legend:
 - [x] Connect Team Manager dashboard to live route, visit and task metrics.
 - [x] Connect Team Manager task assignment and dashboard CSV export controls.
 - [x] Add Team Manager visits drilldown with status filters and tenant visit table.
+- [x] Add Team Manager visit report detail view backed by reports read permissions.
 - [x] Add Team Manager tasks drilldown with status/priority filters and status update controls.
 - [x] Add Team Manager location coverage browser with read-only location filters and visit/task drilldown links.
 - [x] Add Team Manager representative workload drilldown with operational route/visit/task summaries.

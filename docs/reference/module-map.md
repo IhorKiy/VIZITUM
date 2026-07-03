@@ -63,6 +63,7 @@ Next.js App Router. All product screens live under the tenant slug: `apps/web/ap
 | `/[tenantSlug]/admin/settings` | `admin/settings/page.tsx` | Admin | `/admin/settings` |
 | `/[tenantSlug]/manager` | `manager/page.tsx` | Manager | Dashboard metrics from `/visits`, `/tasks`, `/routes`; CSV export; task assignment |
 | `/[tenantSlug]/manager/visits` | `manager/visits/page.tsx` | Manager | `/visits` with filters |
+| `/[tenantSlug]/manager/visits/[visitId]` | `manager/visits/[visitId]/page.tsx` | Manager | Visit metadata from `/visits/:visitId` and report detail from `/visits/:visitId/report` |
 | `/[tenantSlug]/manager/tasks` | `manager/tasks/page.tsx` | Manager | `/tasks` with filters |
 | `/[tenantSlug]/manager/locations` | `manager/locations/page.tsx` | Manager | Read-only `/locations` coverage list with visit/task activity from `/visits` and `/tasks` |
 | `/[tenantSlug]/manager/representatives` | `manager/representatives/page.tsx` | Manager | Read-only representative workload from `/routes`, `/visits` and `/tasks` |
