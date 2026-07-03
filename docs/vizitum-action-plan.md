@@ -12,6 +12,7 @@ Status legend:
 ## 1. Product and Architecture Documentation
 
 - [x] MVP product specification created: `docs/vizitum-mvp-product-spec-team-pilot.md`.
+- [x] Role-based screen delivery plan created: `docs/role-based-screen-delivery-plan.md`.
 - [x] User flows and hybrid tenancy model created: `docs/vizitum-user-flows-horizontal-partition.md`.
 - [x] Recommended technical stack created: `docs/vizitum-technical-stack.md`.
 - [x] High-level technical design created: `docs/vizitum-high-level-technical-design.md`.
@@ -249,6 +250,7 @@ Status legend:
 
 ### Track A: Pilot usability polish
 
+- [x] Create role-based screen delivery plan for Team Pilot MVP screens.
 - [ ] Run a short internal dogfood cycle with 2-3 realistic field scenarios: planned visit, unplanned note, audio fallback and manager follow-up task.
 - [ ] Capture friction points from the dogfood cycle in `docs/runbooks/staging-ux-review.md`.
 - [ ] Improve empty states, loading states and error copy on Field, Admin imports and Manager dashboard screens.
