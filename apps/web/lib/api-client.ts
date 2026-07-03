@@ -154,6 +154,26 @@ export type InviteUserResult = {
   token: string;
 };
 
+export type InviteHistoryItem = {
+  id: string;
+  email: string;
+  roleCodes: TenantRoleCode[];
+  status: "pending" | "accepted" | "expired" | "revoked";
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  acceptedBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
 export type PaginatedResponse<TItem> = {
   items: TItem[];
   page: number;
@@ -373,6 +393,21 @@ export async function inviteAdminUser(input: {
   roleCodes: TenantRoleCode[];
 }): Promise<ApiResult<InviteUserResult>> {
   return apiPost<InviteUserResult>("/admin/users/invite", input);
+}
+
+export async function listAdminInvites(): Promise<
+  ApiResult<InviteHistoryItem[]>
+> {
+  return apiGet<InviteHistoryItem[]>("/admin/users/invites");
+}
+
+export async function resendAdminInvite(
+  inviteId: string,
+): Promise<ApiResult<InviteUserResult>> {
+  return apiPost<InviteUserResult>(
+    `/admin/users/invites/${inviteId}/resend`,
+    {},
+  );
 }
 
 export async function updateAdminUser(

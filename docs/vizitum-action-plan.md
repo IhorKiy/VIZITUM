@@ -292,7 +292,7 @@ Status legend:
 - [x] Add pending/disabled controls to Admin user lifecycle actions and clear filtered-empty recovery on Manager visits/tasks.
 - [x] Add manager route, representative/assignee and date range filters to visits/tasks drilldowns.
 - [x] Add admin review screens for import history and applied row counts. Implemented tenant-scoped import history on Admin imports; staging re-smoke is required after deploy.
-- [ ] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility.
+- [x] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility. Implemented tenant-scoped invite history and fresh-token resend flow; staging re-smoke is required after deploy.
 - [ ] Add tenant-level settings for company name, default route visibility and allowed report types.
 
 ### Track D: AI reporting quality

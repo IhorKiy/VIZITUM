@@ -25,7 +25,7 @@ Before a self-serve customer pilot, keep the accepted staging product smoke as t
 | Tenant login                 | Pass    | Tenant-aware login posts `tenantSlug` to backend and forwards session cookies.                                                                                                                                                                                                |
 | Invite acceptance            | Pass    | Invite acceptance page exists and creates session after accepted invite.                                                                                                                                                                                                      |
 | Field page load              | Pass    | Authenticated session loads visits API and disables demo fallback by default in production; visit creation, text note and manual report passed on 2026-07-02; location cards, own task update and AI draft/fallback messaging passed on 2026-07-03.                           |
-| Admin setup/users/review     | Pass    | Setup checklist, users/roles screen and pilot review summary render live tenant data without demo fallback; Admin users mutations now have pending/disabled submit states. Post-deploy read-only re-smoke confirmed invite, suspend and role controls plus disabled impossible actions; existing user churn was avoided. |
+| Admin setup/users/review     | Pass    | Setup checklist, users/roles screen and pilot review summary render live tenant data without demo fallback; Admin users mutations now have pending/disabled submit states. Local P1 update adds invite history, expiry visibility and fresh-token resend; staging re-smoke pending after deploy. |
 | Admin imports page load      | Pass    | Page loads live templates; per-template downloads route through tenant-local Next proxy; one-row users import validated with 0 errors and confirmed with 1 applied row. Local P1 update adds tenant-scoped import history; staging re-smoke pending after deploy.              |
 | Manager dashboard/drilldowns | Pass    | Reads routes, visits and tasks, builds live aggregate cards, exports CSV, creates manager tasks, filters visits/tasks by route, status, priority, representative/assignee and date range, shows selected-filter context, renders filtered-empty recovery panels and updates task status when APIs return data. |
 | Operations page load         | Partial | Page exists and live API path exists; operations bearer token env still needs verification.                                                                                                                                                                                   |
@@ -86,7 +86,7 @@ Required before self-serve:
 
 ## Next Product Actions
 
-1. Re-smoke Field audio success/error recovery links, Admin import error recovery links, Admin import history and Manager task notice actions after the next deploy.
+1. Re-smoke Field audio success/error recovery links, Admin import error recovery links, Admin import history, Admin invite history/resend and Manager task notice actions after the next deploy.
 2. Repeat platform operations token and operations summary alert check for production after production services are created.
 3. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
 

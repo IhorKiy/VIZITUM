@@ -26,6 +26,26 @@ export type InviteUserResponse = {
   token: string;
 };
 
+export type InviteHistoryItem = {
+  id: string;
+  email: string;
+  roleCodes: RoleCode[];
+  status: string;
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  acceptedBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
 export type UpdateUserRequestBody = {
   name?: unknown;
   phone?: unknown;

@@ -5,9 +5,12 @@ import { PendingSubmitButton } from "../../../../components/pending-submit-butto
 import {
   addAdminUserRole,
   inviteAdminUser,
+  listAdminInvites,
   listAdminUsers,
   removeAdminUserRole,
+  resendAdminInvite,
   updateAdminUser,
+  type InviteHistoryItem,
   type TenantRoleCode,
   type TenantUser,
 } from "../../../../lib/api-client";
@@ -59,6 +62,30 @@ export default async function AdminUsersPage({
       inviteEmail: result.data.email,
       inviteToken: result.data.token,
       invited: "1",
+    });
+
+    redirect(`/${tenantSlug}/admin/users?${query.toString()}`);
+  }
+
+  async function resendInviteAction(formData: FormData) {
+    "use server";
+
+    const inviteId = String(formData.get("inviteId") ?? "").trim();
+
+    if (!inviteId) {
+      redirect(`/${tenantSlug}/admin/users?error=invite`);
+    }
+
+    const result = await resendAdminInvite(inviteId);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/users?error=invite`);
+    }
+
+    const query = new URLSearchParams({
+      inviteEmail: result.data.email,
+      inviteToken: result.data.token,
+      invited: "resent",
     });
 
     redirect(`/${tenantSlug}/admin/users?${query.toString()}`);
@@ -121,7 +148,10 @@ export default async function AdminUsersPage({
     redirect(`/${tenantSlug}/admin/users?role=updated`);
   }
 
-  const usersResult = await listAdminUsers();
+  const [usersResult, invitesResult] = await Promise.all([
+    listAdminUsers(),
+    listAdminInvites(),
+  ]);
   const inviteLink = pageState.inviteToken
     ? `/${tenantSlug}/invites/accept?token=${encodeURIComponent(
         pageState.inviteToken,
@@ -183,7 +213,11 @@ export default async function AdminUsersPage({
       {pageState.invited ? (
         <section className="notice-panel success" aria-label="Invite status">
           <div>
-            <p className="eyebrow">Invite created</p>
+            <p className="eyebrow">
+              {pageState.invited === "resent"
+                ? "Invite refreshed"
+                : "Invite created"}
+            </p>
             <h2>User invite is ready</h2>
             <p>
               The invite was created
@@ -286,6 +320,26 @@ export default async function AdminUsersPage({
           </form>
         </div>
 
+        <div className="panel admin-invites-panel">
+          <div className="panel-title-stack">
+            <h2>Pending invites</h2>
+            <p>
+              Track open invite links, expiry and accepted/revoked history for
+              this tenant.
+            </p>
+          </div>
+          {invitesResult.ok ? (
+            <InviteHistoryList
+              invites={invitesResult.data}
+              resendInviteAction={resendInviteAction}
+            />
+          ) : (
+            <p className="empty-state">
+              Invite history is unavailable right now: {invitesResult.message}
+            </p>
+          )}
+        </div>
+
         <div className="panel admin-users-panel">
           <div className="panel-title-stack">
             <h2>Tenant users</h2>
@@ -314,6 +368,72 @@ export default async function AdminUsersPage({
         </div>
       </section>
     </AppShell>
+  );
+}
+
+function InviteHistoryList({
+  invites,
+  resendInviteAction,
+}: {
+  invites: InviteHistoryItem[];
+  resendInviteAction: (formData: FormData) => Promise<void>;
+}) {
+  if (invites.length === 0) {
+    return (
+      <p className="empty-state">
+        Created invites will appear here with expiry and resend controls.
+      </p>
+    );
+  }
+
+  return (
+    <div className="admin-invite-list">
+      {invites.map((invite) => (
+        <article className="admin-invite-row" key={invite.id}>
+          <header>
+            <div>
+              <h3>{invite.email}</h3>
+              <p>
+                Expires {formatDateTime(invite.expiresAt)}
+                {invite.acceptedAt
+                  ? ` · Accepted ${formatDateTime(invite.acceptedAt)}`
+                  : ""}
+              </p>
+            </div>
+            <span className={`issue-badge ${inviteStatusTone(invite.status)}`}>
+              {formatInviteStatus(invite.status)}
+            </span>
+          </header>
+          <div className="role-chip-list" aria-label={`${invite.email} roles`}>
+            {invite.roleCodes.map((roleCode) => (
+              <span className="role-chip" key={roleCode}>
+                {formatRole(roleCode)}
+              </span>
+            ))}
+          </div>
+          <div className="invite-meta-row">
+            <span>
+              Created by {invite.createdBy?.name ?? "System"} ·{" "}
+              {formatDateTime(invite.createdAt)}
+            </span>
+            {invite.acceptedBy ? (
+              <span>Accepted by {invite.acceptedBy.name}</span>
+            ) : null}
+          </div>
+          {invite.status === "pending" ? (
+            <form action={resendInviteAction} className="inline-control-form">
+              <input name="inviteId" type="hidden" value={invite.id} />
+              <PendingSubmitButton
+                className="secondary-button"
+                pendingLabel="Refreshing..."
+              >
+                Resend invite
+              </PendingSubmitButton>
+            </form>
+          ) : null}
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -464,6 +584,29 @@ function formatStatus(status: TenantUser["status"]): string {
   }
 }
 
+function formatInviteStatus(status: InviteHistoryItem["status"]): string {
+  switch (status) {
+    case "pending":
+      return "Pending";
+    case "accepted":
+      return "Accepted";
+    case "expired":
+      return "Expired";
+    case "revoked":
+      return "Revoked";
+  }
+}
+
+function inviteStatusTone(
+  status: InviteHistoryItem["status"],
+): "error" | "success" | "warning" {
+  if (status === "accepted") {
+    return "success";
+  }
+
+  return status === "pending" ? "warning" : "error";
+}
+
 function statusTone(
   status: TenantUser["status"],
 ): "active" | "info" | "warning" {
@@ -476,4 +619,11 @@ function statusTone(
   }
 
   return "warning";
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }

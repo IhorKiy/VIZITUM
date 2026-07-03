@@ -490,7 +490,20 @@ textarea {
   gap: 12px;
 }
 
+.admin-invite-list {
+  display: grid;
+  gap: 12px;
+}
+
 .admin-user-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.admin-invite-row {
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
@@ -505,7 +518,19 @@ textarea {
   justify-content: space-between;
 }
 
+.admin-invite-row header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
 .admin-user-row h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.admin-invite-row h3 {
   font-size: 16px;
   margin: 0;
 }
@@ -514,6 +539,20 @@ textarea {
   color: var(--muted);
   margin: 4px 0 0;
   overflow-wrap: anywhere;
+}
+
+.admin-invite-row p {
+  color: var(--muted);
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.invite-meta-row {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 8px 12px;
 }
 
 .role-chip-list {

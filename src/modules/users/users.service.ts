@@ -18,6 +18,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
   AddUserRoleRequestBody,
+  InviteHistoryItem,
   InviteUserRequestBody,
   InviteUserResponse,
   UpdateUserRequestBody,
@@ -102,30 +103,87 @@ export class UsersService {
       });
     }
 
-    const token = randomBytes(INVITE_TOKEN_BYTES).toString("base64url");
-    const expiresAt = new Date(
-      Date.now() + INVITE_TTL_DAYS * MILLISECONDS_PER_DAY,
-    );
+    return this.createInvite(context, email, roleCodes);
+  }
 
-    const invite = await this.prisma.invite.create({
-      data: {
+  async listInvites(context: RequestContext): Promise<InviteHistoryItem[]> {
+    const invites = await this.prisma.invite.findMany({
+      where: {
         tenantId: context.tenantId,
-        email,
-        roleCodes,
-        tokenHash: hashValue(token),
-        expiresAt,
-        createdByUserId: context.userId,
       },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+        acceptedBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 10,
     });
 
-    return {
+    return invites.map((invite) => ({
       id: invite.id,
       email: invite.email,
       roleCodes: invite.roleCodes,
-      status: invite.status,
+      status: resolveInviteStatus(invite.status, invite.expiresAt),
       expiresAt: invite.expiresAt.toISOString(),
-      token,
-    };
+      acceptedAt: invite.acceptedAt?.toISOString() ?? null,
+      createdAt: invite.createdAt.toISOString(),
+      createdBy: invite.createdBy,
+      acceptedBy: invite.acceptedBy,
+    }));
+  }
+
+  async resendInvite(
+    context: RequestContext,
+    inviteId: string,
+  ): Promise<InviteUserResponse> {
+    const invite = await this.prisma.invite.findFirst({
+      where: {
+        id: inviteId,
+        tenantId: context.tenantId,
+      },
+      select: {
+        id: true,
+        email: true,
+        roleCodes: true,
+        status: true,
+        expiresAt: true,
+      },
+    });
+
+    if (!invite) {
+      throw new NotFoundException({
+        code: "INVITE_NOT_FOUND",
+        message: "Invite was not found.",
+      });
+    }
+
+    if (invite.status !== "pending") {
+      throw new ConflictException({
+        code: "INVITE_NOT_PENDING",
+        message: "Only pending invites can be resent.",
+      });
+    }
+
+    await this.prisma.invite.update({
+      where: { id: invite.id },
+      data: { status: "revoked" },
+    });
+
+    return this.createInvite(context, invite.email, invite.roleCodes);
   }
 
   async updateUser(
@@ -241,6 +299,37 @@ export class UsersService {
 
     return user;
   }
+
+  private async createInvite(
+    context: RequestContext,
+    email: string,
+    roleCodes: RoleCode[],
+  ): Promise<InviteUserResponse> {
+    const token = randomBytes(INVITE_TOKEN_BYTES).toString("base64url");
+    const expiresAt = new Date(
+      Date.now() + INVITE_TTL_DAYS * MILLISECONDS_PER_DAY,
+    );
+
+    const invite = await this.prisma.invite.create({
+      data: {
+        tenantId: context.tenantId,
+        email,
+        roleCodes,
+        tokenHash: hashValue(token),
+        expiresAt,
+        createdByUserId: context.userId,
+      },
+    });
+
+    return {
+      id: invite.id,
+      email: invite.email,
+      roleCodes: invite.roleCodes,
+      status: invite.status,
+      expiresAt: invite.expiresAt.toISOString(),
+      token,
+    };
+  }
 }
 
 function toUserResponse(user: UserWithRoles): UserResponse {
@@ -303,6 +392,14 @@ function normalizeUserStatus(value: unknown): UserStatus | null {
   }
 
   return null;
+}
+
+function resolveInviteStatus(status: string, expiresAt: Date): string {
+  if (status === "pending" && expiresAt <= new Date()) {
+    return "expired";
+  }
+
+  return status;
 }
 
 function normalizeOptionalString(value: unknown): string | null {

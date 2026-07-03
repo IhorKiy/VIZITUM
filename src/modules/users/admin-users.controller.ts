@@ -43,6 +43,18 @@ export class AdminUsersController {
     return this.usersService.inviteUser(getRequestContext(request), body);
   }
 
+  @Get("invites")
+  @RequirePermissions(PERMISSIONS.USERS_READ)
+  listInvites(@Req() request: Request) {
+    return this.usersService.listInvites(getRequestContext(request));
+  }
+
+  @Post("invites/:inviteId/resend")
+  @RequirePermissions(PERMISSIONS.USERS_INVITE)
+  resendInvite(@Req() request: Request, @Param("inviteId") inviteId: string) {
+    return this.usersService.resendInvite(getRequestContext(request), inviteId);
+  }
+
   @Patch(":userId")
   @RequirePermissions(PERMISSIONS.USERS_MANAGE)
   updateUser(
