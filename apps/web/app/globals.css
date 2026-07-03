@@ -481,6 +481,14 @@ textarea {
   gap: 8px;
 }
 
+.checkbox-inline {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+}
+
 .admin-users-panel {
   min-width: 0;
 }

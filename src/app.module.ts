@@ -12,6 +12,7 @@ import { PrismaModule } from "./modules/prisma/prisma.module";
 import { ProductsModule } from "./modules/products/products.module";
 import { RolesModule } from "./modules/roles/roles.module";
 import { RoutesModule } from "./modules/routes/routes.module";
+import { SettingsModule } from "./modules/settings/settings.module";
 import { StorageModule } from "./modules/storage/storage.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
 import { TenancyModule } from "./modules/tenancy/tenancy.module";
@@ -30,6 +31,7 @@ import { VisitsModule } from "./modules/visits/visits.module";
     LocationsModule,
     ProductsModule,
     RoutesModule,
+    SettingsModule,
     VisitsModule,
     TasksModule,
     ImportsModule,

@@ -40,6 +40,14 @@ Read these documents first, in this order:
 
 ## Documentation Map
 
+Implemented-state reference (first stop for "how does X currently work" — reflects the code, unlike the design docs below which record design intent):
+
+- `docs/reference/module-map.md` - backend modules, frontend routes and shared libs.
+- `docs/reference/api-reference.md` - auth model, error envelope and all HTTP endpoints with permissions.
+- `docs/reference/data-model.md` - implemented Prisma models and retention rules.
+- `docs/reference/permissions.md` - role-permission matrix as enforced.
+- `docs/reference/environment.md` - environment variables actually read by the code.
+
 Product and roadmap:
 
 - `docs/vizitum-action-plan.md`
@@ -143,4 +151,5 @@ npm run web:dev
 - Team Manager full tenant view means operational read access, not Company Admin rights.
 - Manual report confirmation must remain available whenever AI transcription/extraction is weak, delayed or unavailable.
 - When adding a P0 screen, update `docs/role-based-screen-delivery-plan.md` and add/adjust the relevant smoke step in `docs/runbooks/expanded-staging-product-smoke.md`.
+- When changing a controller, the Prisma schema, permissions or env vars, update the matching `docs/reference/*` document in the same change.
 - Before committing, run the smallest relevant checks for the change. For docs-only changes, at least run `git diff --check`.
