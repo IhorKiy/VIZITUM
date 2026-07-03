@@ -8,7 +8,7 @@ Tenant: `vizitum-staging`
 Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, browser voice recording with file upload fallback and a minimal manual report confirmation form for assigned visits.
 Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note, browser recording/upload, audio file fallback and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment.
 P0 role-screen update: the 2026-07-03 staging re-smoke passed Admin setup/users/review, Manager visits/tasks drilldowns and Field location/tasks/AI draft messaging.
-Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting, cancelled-task visibility and duplicate-submit feedback. Pending/disabled submit states were added to Field, Manager, Admin import and Admin users forms after these findings; Manager visits/tasks drilldowns now show filter context, filtered-empty recovery actions and route/representative/assignee date-range filters.
+Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting, cancelled-task visibility and duplicate-submit feedback. Pending/disabled submit states were added to Field, Manager, Admin import and Admin users forms after these findings; Manager visits/tasks drilldowns now show filter context, filtered-empty recovery actions and route/representative/assignee date-range filters. The post-deploy re-smoke confirmed Admin users read-only controls and Manager filter/empty-state rendering; mutation submits were not repeated to avoid unnecessary staging user churn.
 
 ## Summary
 
@@ -25,9 +25,9 @@ Before a self-serve customer pilot, keep the accepted staging product smoke as t
 | Tenant login                 | Pass    | Tenant-aware login posts `tenantSlug` to backend and forwards session cookies.                                                                                                                                                                                                |
 | Invite acceptance            | Pass    | Invite acceptance page exists and creates session after accepted invite.                                                                                                                                                                                                      |
 | Field page load              | Pass    | Authenticated session loads visits API and disables demo fallback by default in production; visit creation, text note and manual report passed on 2026-07-02; location cards, own task update and AI draft/fallback messaging passed on 2026-07-03.                           |
-| Admin setup/users/review     | Pass    | Setup checklist, users/roles screen and pilot review summary render live tenant data without demo fallback; Admin users mutations now have pending/disabled submit states. Mutation controls were present and existing user churn was avoided during the 2026-07-03 re-smoke. |
+| Admin setup/users/review     | Pass    | Setup checklist, users/roles screen and pilot review summary render live tenant data without demo fallback; Admin users mutations now have pending/disabled submit states. Post-deploy read-only re-smoke confirmed invite, suspend and role controls plus disabled impossible actions; existing user churn was avoided. |
 | Admin imports page load      | Pass    | Page loads live templates; per-template downloads route through tenant-local Next proxy; one-row users import validated with 0 errors and confirmed with 1 applied row.                                                                                                       |
-| Manager dashboard/drilldowns | Pass    | Reads routes, visits and tasks, builds live aggregate cards, exports CSV, creates manager tasks, filters visits/tasks by route, status, priority, representative/assignee and date range, shows selected-filter context and updates task status when APIs return data.        |
+| Manager dashboard/drilldowns | Pass    | Reads routes, visits and tasks, builds live aggregate cards, exports CSV, creates manager tasks, filters visits/tasks by route, status, priority, representative/assignee and date range, shows selected-filter context, renders filtered-empty recovery panels and updates task status when APIs return data. |
 | Operations page load         | Partial | Page exists and live API path exists; operations bearer token env still needs verification.                                                                                                                                                                                   |
 | Manual report confirmation   | Pass    | Smoke report confirmation passed according to staging evidence packet.                                                                                                                                                                                                        |
 
@@ -86,10 +86,11 @@ Required before self-serve:
 
 ## Next Product Actions
 
-1. Re-smoke pending/disabled submit states and Manager route/representative/assignee/date filters after the next deploy.
-2. Continue loading/error copy polish on remaining Field, Admin import and Manager dashboard paths.
-3. Repeat platform operations token and operations summary alert check for production after production services are created.
-4. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
+1. Continue loading/error copy polish on remaining Field, Admin import and Manager dashboard paths.
+2. Add clearer success states and recovery guidance for audio upload/transcription failures.
+3. Review mobile layout on common field-device widths before the next pilot candidate build.
+4. Repeat platform operations token and operations summary alert check for production after production services are created.
+5. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
 
 ## Action Plan Mapping
 

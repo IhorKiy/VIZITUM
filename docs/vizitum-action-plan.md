@@ -248,7 +248,7 @@ Status legend:
 - [x] Run internal dogfood on the accepted P0 screen set with realistic planned visit, text note/manual fallback and manager follow-up scenarios.
 - [x] Re-smoke Manager task assignment after the task option/counting fix deploys.
 - [x] Re-smoke cancelled-task filtering after the next deploy.
-- [ ] Re-smoke pending/disabled submit states on Field, Manager and Admin import forms after the next deploy.
+- [x] Re-smoke pending/disabled submit states and Manager route/representative/assignee/date filters after deploy. Completed read-only staging re-smoke on 2026-07-03; mutation submits were not repeated to avoid unnecessary staging user churn.
 
 ### Final gate before production pilot
 
