@@ -3,7 +3,9 @@ export type RoleArea =
   | "admin-setup"
   | "admin-users"
   | "admin-imports"
-  | "manager"
+  | "manager-overview"
+  | "manager-visits"
+  | "manager-tasks"
   | "operations";
 
 export type NavItem = {
@@ -54,9 +56,23 @@ export function buildTenantNav(
     {
       label: "Manager",
       href: `/${tenantSlug}/manager`,
-      area: "manager",
+      area: "manager-overview",
       icon: "M",
       requiredPermissions: ["dashboard.manager.read"],
+    },
+    {
+      label: "Visits",
+      href: `/${tenantSlug}/manager/visits`,
+      area: "manager-visits",
+      icon: "R",
+      requiredPermissions: ["visits.read_team"],
+    },
+    {
+      label: "Tasks",
+      href: `/${tenantSlug}/manager/tasks`,
+      area: "manager-tasks",
+      icon: "T",
+      requiredPermissions: ["tasks.read_team"],
     },
     {
       label: "Ops",

@@ -154,7 +154,7 @@ export default async function ManagerPage({
 
   if (!hasLiveData && !demoFallbackEnabled) {
     return (
-      <AppShell tenantSlug={tenantSlug} activeArea="manager">
+      <AppShell tenantSlug={tenantSlug} activeArea="manager-overview">
         <header className="page-header">
           <div>
             <p className="eyebrow">Team manager</p>
@@ -209,7 +209,7 @@ export default async function ManagerPage({
   const managerCsv = buildManagerCsv(metrics, representatives, attentionItems);
 
   return (
-    <AppShell tenantSlug={tenantSlug} activeArea="manager">
+    <AppShell tenantSlug={tenantSlug} activeArea="manager-overview">
       <header className="page-header">
         <div>
           <p className="eyebrow">Team manager</p>

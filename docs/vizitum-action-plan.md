@@ -200,6 +200,8 @@ Status legend:
 - [x] Show admin import row-level validation issues before confirmation.
 - [x] Connect Team Manager dashboard to live route, visit and task metrics.
 - [x] Connect Team Manager task assignment and dashboard CSV export controls.
+- [x] Add Team Manager visits drilldown with status filters and tenant visit table.
+- [x] Add Team Manager tasks drilldown with status/priority filters and status update controls.
 - [x] Connect Platform Operations page to operations summary API with demo fallback.
 - [x] Disable demo fallback by default in production frontend.
 - [x] Disable unavailable assisted-pilot action controls.
@@ -270,7 +272,8 @@ Status legend:
 ### Track C: Manager and admin workflows
 
 - [x] Add Company Admin users screen for user list, invite creation, suspend/reactivate and role assignment.
-- [ ] Add manager filters for route, assignee, visit status and date range.
+- [x] Add initial manager visit/task drilldowns with visit status filters and task status/priority filters.
+- [ ] Add manager filters for route, assignee and date range.
 - [ ] Add admin review screens for import history and applied row counts.
 - [ ] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility.
 - [ ] Add tenant-level settings for company name, default route visibility and allowed report types.

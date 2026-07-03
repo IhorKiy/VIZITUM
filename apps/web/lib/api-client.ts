@@ -281,10 +281,16 @@ export async function getCurrentSession(): Promise<ApiResult<AuthSession>> {
   return apiGet<AuthSession>("/auth/me");
 }
 
-export async function listVisits(): Promise<
+export async function listVisits(
+  query = "pageSize=50",
+): Promise<ApiResult<PaginatedResponse<Visit>>> {
+  return apiGet<PaginatedResponse<Visit>>(`/visits?${query}`);
+}
+
+export async function listAllVisits(): Promise<
   ApiResult<PaginatedResponse<Visit>>
 > {
-  return apiGet<PaginatedResponse<Visit>>("/visits?pageSize=50");
+  return listVisits("pageSize=100");
 }
 
 export async function createVisit(
@@ -370,6 +376,17 @@ export async function createTask(input: {
   dueDate?: string;
 }): Promise<ApiResult<Task>> {
   return apiPost<Task>("/tasks", input);
+}
+
+export async function updateTask(
+  taskId: string,
+  input: {
+    status?: TaskStatus;
+    priority?: TaskPriority;
+    dueDate?: string | null;
+  },
+): Promise<ApiResult<Task>> {
+  return apiPatch<Task>(`/tasks/${taskId}`, input);
 }
 
 export async function listHighPriorityTasks(): Promise<

@@ -55,13 +55,13 @@ Priority legend:
 
 ### Team Manager
 
-| Screen          | MVP intent                                                    | Current state                                                            | Next delivery step                                              | Priority |
-| --------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------- | -------- |
-| Team overview   | See team activity, route execution, reports and blocked work. | Implemented as `/:tenantSlug/manager`.                                   | Add date range, route, representative and status filters.       | P0       |
-| Visits          | Review all tenant visits and AI/manual summaries.             | Visits are summarized in dashboard; no dedicated table/detail screen.    | Add visits list with filters and drilldown to report summary.   | P0       |
-| Tasks           | View/create/update team tasks.                                | Create task and task metrics exist; no dedicated task board/list.        | Add task list with status/priority filters and update controls. | P0       |
-| Locations       | Find locations, coverage and open issues.                     | Location options appear in task assignment; no manager location browser. | Add location list focused on coverage and recent activity.      | P1       |
-| Representatives | See field rep workload and activity.                          | Representative summaries are derived from routes.                        | Add representative drilldown after visits/tasks list.           | P1       |
+| Screen          | MVP intent                                                    | Current state                                                                                                                       | Next delivery step                                                          | Priority |
+| --------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------- |
+| Team overview   | See team activity, route execution, reports and blocked work. | Implemented as `/:tenantSlug/manager`.                                                                                              | Add date range, route, representative and status filters.                   | P0       |
+| Visits          | Review all tenant visits and AI/manual summaries.             | Dedicated frontend screen exists at `/:tenantSlug/manager/visits` with status filters, counters and tenant visit table.             | Add report detail drilldown when report detail UI exists.                   | P0       |
+| Tasks           | View/create/update team tasks.                                | Dedicated frontend screen exists at `/:tenantSlug/manager/tasks` with status/priority filters, counters and status update controls. | Add richer task board/grouping after pilot-critical table view is verified. | P0       |
+| Locations       | Find locations, coverage and open issues.                     | Location options appear in task assignment; no manager location browser.                                                            | Add location list focused on coverage and recent activity.                  | P1       |
+| Representatives | See field rep workload and activity.                          | Representative summaries are derived from routes.                                                                                   | Add representative drilldown after visits/tasks list.                       | P1       |
 
 ### Field Representative
 
@@ -87,8 +87,8 @@ Priority legend:
 
 1. Company Admin users screen: list, invite, role assignment and deactivate. Initial screen implemented; pending invite history remains an expansion.
 2. Company Admin onboarding checklist: setup progress and pilot readiness. Initial screen implemented.
-3. Team Manager visits list: filters, visit status, report summary drilldown.
-4. Team Manager task list: update status/priority and track overdue work.
+3. Team Manager visits list: filters, visit status, report summary drilldown. Initial list/filter screen implemented.
+4. Team Manager task list: update status/priority and track overdue work. Initial list/filter/update screen implemented.
 5. Field location card and own tasks panel inside the current Field page.
 6. Pilot review screen: usage thresholds, success metrics and copyable review summary.
 7. Field AI draft state: show extraction status, weak-output messaging and manual fallback.
