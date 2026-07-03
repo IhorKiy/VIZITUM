@@ -10,6 +10,7 @@ export type AuthSession = {
   };
   roleCodes: string[];
   permissions: string[];
+  productsEnabled: boolean;
 };
 
 export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";
@@ -23,6 +24,7 @@ export type TenantRoleCode =
   "company_admin" | "team_manager" | "field_representative";
 export type TenantUserStatus = "active" | "invited" | "suspended";
 export type ProductStatus = "active" | "inactive" | "archived";
+export type LocationStatus = "active" | "inactive" | "archived";
 
 export type Visit = {
   id: string;
@@ -54,7 +56,7 @@ export type Location = {
   externalCode: string | null;
   name: string;
   type: string | null;
-  status: "active" | "inactive" | "archived";
+  status: LocationStatus;
   addressLine: string;
   city: string;
   region: string | null;
@@ -125,6 +127,12 @@ export type Task = {
   } | null;
   createdByUserId: string | null;
   locationId: string | null;
+  location: {
+    id: string;
+    name: string;
+    addressLine: string;
+    city: string;
+  } | null;
   visitId: string | null;
   reportId: string | null;
   dueDate: string | null;
@@ -142,6 +150,15 @@ export type TenantUser = {
   lastSelectedRoleCode: TenantRoleCode | null;
   roleCodes: TenantRoleCode[];
   createdAt: string;
+  updatedAt: string;
+};
+
+export type TenantSettings = {
+  tenantId: string;
+  name: string;
+  timezone: string;
+  productMode: string;
+  productsEnabled: boolean;
   updatedAt: string;
 };
 
@@ -340,6 +357,16 @@ export async function listVisits(
   return apiGet<PaginatedResponse<Visit>>(`/visits?${query}`);
 }
 
+export async function getVisit(visitId: string): Promise<ApiResult<Visit>> {
+  return apiGet<Visit>(`/visits/${visitId}`);
+}
+
+export async function getVisitReport(
+  visitId: string,
+): Promise<ApiResult<Report>> {
+  return apiGet<Report>(`/visits/${visitId}/report`);
+}
+
 export async function listAllVisits(): Promise<
   ApiResult<PaginatedResponse<Visit>>
 > {
@@ -372,14 +399,71 @@ export async function listProducts(): Promise<
   return apiGet<PaginatedResponse<Product>>("/products?pageSize=100");
 }
 
+export async function listAdminLocations(
+  query = "pageSize=100",
+): Promise<ApiResult<PaginatedResponse<Location>>> {
+  return apiGet<PaginatedResponse<Location>>(`/locations?${query}`);
+}
+
+export async function updateAdminLocation(
+  locationId: string,
+  input: {
+    name?: string;
+    type?: string | null;
+    city?: string;
+    region?: string | null;
+    territory?: string | null;
+    status?: LocationStatus;
+  },
+): Promise<ApiResult<Location>> {
+  return apiPatch<Location>(`/locations/${locationId}`, input);
+}
+
+export async function listAdminProducts(
+  query = "pageSize=100",
+): Promise<ApiResult<PaginatedResponse<Product>>> {
+  return apiGet<PaginatedResponse<Product>>(`/products?${query}`);
+}
+
+export async function updateAdminProduct(
+  productId: string,
+  input: {
+    name?: string;
+    sku?: string | null;
+    category?: string | null;
+    notApplicable?: boolean;
+    status?: ProductStatus;
+  },
+): Promise<ApiResult<Product>> {
+  return apiPatch<Product>(`/products/${productId}`, input);
+}
+
 export async function listTodayRoutes(): Promise<ApiResult<RoutePlan[]>> {
   return apiGet<RoutePlan[]>("/routes/today");
+}
+
+export async function listRoutes(
+  query = "pageSize=100",
+): Promise<ApiResult<PaginatedResponse<RoutePlan>>> {
+  return apiGet<PaginatedResponse<RoutePlan>>(`/routes?${query}`);
 }
 
 export async function listTasks(
   query = "pageSize=50",
 ): Promise<ApiResult<PaginatedResponse<Task>>> {
   return apiGet<PaginatedResponse<Task>>(`/tasks?${query}`);
+}
+
+export async function getAdminSettings(): Promise<ApiResult<TenantSettings>> {
+  return apiGet<TenantSettings>("/admin/settings");
+}
+
+export async function updateAdminSettings(input: {
+  name?: string;
+  timezone?: string;
+  productsEnabled?: boolean;
+}): Promise<ApiResult<TenantSettings>> {
+  return apiPatch<TenantSettings>("/admin/settings", input);
 }
 
 export async function listAdminUsers(): Promise<

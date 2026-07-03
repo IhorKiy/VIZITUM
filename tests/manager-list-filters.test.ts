@@ -83,4 +83,54 @@ describe("manager list filters", () => {
       },
     });
   });
+
+  it("returns task location summary for field and manager task lists", async () => {
+    const createdAt = new Date("2026-07-03T10:00:00.000Z");
+    const prisma = {
+      task: {
+        findMany: async () => [
+          {
+            id: "task-a",
+            title: "Check display",
+            description: "Confirm shelf placement.",
+            status: "open",
+            priority: "high",
+            assignedToUserId: "rep-a",
+            assignedTo: {
+              id: "rep-a",
+              email: "rep@example.com",
+              name: "Field Rep",
+            },
+            createdByUserId: "manager-a",
+            locationId: "location-a",
+            location: {
+              id: "location-a",
+              name: "Central Store",
+              addressLine: "Khreshchatyk 1",
+              city: "Kyiv",
+            },
+            visitId: null,
+            reportId: null,
+            dueDate: new Date("2026-07-04T00:00:00.000Z"),
+            completedAt: null,
+            createdAt,
+            updatedAt: createdAt,
+          },
+        ],
+        count: async () => 1,
+      },
+    };
+    const service = new TasksService(prisma as never);
+
+    const result = await service.listTasks(managerContext as never, {
+      pageSize: 25,
+    });
+
+    assert.deepEqual(result.items[0]?.location, {
+      id: "location-a",
+      name: "Central Store",
+      addressLine: "Khreshchatyk 1",
+      city: "Kyiv",
+    });
+  });
 });

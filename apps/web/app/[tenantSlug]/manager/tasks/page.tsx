@@ -3,9 +3,11 @@ import { redirect } from "next/navigation";
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
+  listAdminLocations,
   listTodayRoutes,
   listTasks,
   updateTask,
+  type Location,
   type RoutePlan,
   type Task,
   type TaskPriority,
@@ -19,6 +21,7 @@ type ManagerTasksPageProps = {
     dueFrom?: string;
     dueTo?: string;
     error?: string;
+    locationId?: string;
     priority?: string;
     routePlanId?: string;
     status?: string;
@@ -43,6 +46,7 @@ export default async function ManagerTasksPage({
   const selectedStatus = normalizeTaskStatus(pageState.status);
   const selectedPriority = normalizeTaskPriority(pageState.priority);
   const selectedAssigneeId = normalizeFilterValue(pageState.assignedToUserId);
+  const selectedLocationId = normalizeFilterValue(pageState.locationId);
   const selectedRoutePlanId = normalizeFilterValue(pageState.routePlanId);
   const dueFrom = normalizeDateFilter(pageState.dueFrom);
   const dueTo = normalizeDateFilter(pageState.dueTo);
@@ -51,6 +55,7 @@ export default async function ManagerTasksPage({
     selectedStatus ||
     selectedPriority ||
     selectedAssigneeId ||
+    selectedLocationId ||
     selectedRoutePlanId ||
     dueFrom ||
     dueTo,
@@ -66,6 +71,10 @@ export default async function ManagerTasksPage({
 
   if (selectedAssigneeId) {
     query.set("assignedToUserId", selectedAssigneeId);
+  }
+
+  if (selectedLocationId) {
+    query.set("locationId", selectedLocationId);
   }
 
   if (selectedRoutePlanId) {
@@ -104,6 +113,7 @@ export default async function ManagerTasksPage({
     ? await listTasks("pageSize=100")
     : tasksResult;
   const routesResult = await listTodayRoutes();
+  const locationsResult = await listAdminLocations("pageSize=100");
 
   if (!tasksResult.ok) {
     return (
@@ -140,6 +150,9 @@ export default async function ManagerTasksPage({
   const assigneeOptions = allTasksResult.ok
     ? buildAssigneeOptions(allTasksResult.data.items)
     : [];
+  const locationOptions = locationsResult.ok
+    ? buildLocationOptions(locationsResult.data.items)
+    : [];
   const routeOptions = routesResult.ok
     ? buildRouteOptions(routesResult.data)
     : [];
@@ -149,10 +162,14 @@ export default async function ManagerTasksPage({
   const selectedRouteLabel =
     routeOptions.find((option) => option.id === selectedRoutePlanId)?.label ??
     null;
+  const selectedLocationLabel =
+    locationOptions.find((option) => option.id === selectedLocationId)?.label ??
+    null;
   const filterSummary = buildTaskFilterSummary({
     assigneeLabel: selectedAssigneeLabel,
     dueFrom,
     dueTo,
+    locationLabel: selectedLocationLabel,
     priority: selectedPriority,
     routeLabel: selectedRouteLabel,
     status: selectedStatus,
@@ -228,6 +245,7 @@ export default async function ManagerTasksPage({
                   assignedToUserId: selectedAssigneeId,
                   dueFrom,
                   dueTo,
+                  locationId: selectedLocationId,
                   priority: selectedPriority,
                   routePlanId: selectedRoutePlanId,
                   status: null,
@@ -242,6 +260,7 @@ export default async function ManagerTasksPage({
                     assignedToUserId: selectedAssigneeId,
                     dueFrom,
                     dueTo,
+                    locationId: selectedLocationId,
                     priority: selectedPriority,
                     routePlanId: selectedRoutePlanId,
                     status,
@@ -259,6 +278,7 @@ export default async function ManagerTasksPage({
                   assignedToUserId: selectedAssigneeId,
                   dueFrom,
                   dueTo,
+                  locationId: selectedLocationId,
                   priority: null,
                   routePlanId: selectedRoutePlanId,
                   status: selectedStatus,
@@ -275,6 +295,7 @@ export default async function ManagerTasksPage({
                     assignedToUserId: selectedAssigneeId,
                     dueFrom,
                     dueTo,
+                    locationId: selectedLocationId,
                     priority,
                     routePlanId: selectedRoutePlanId,
                     status: selectedStatus,
@@ -300,6 +321,17 @@ export default async function ManagerTasksPage({
             <select defaultValue={selectedRoutePlanId ?? ""} name="routePlanId">
               <option value="">Any route</option>
               {routeOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Location
+            <select defaultValue={selectedLocationId ?? ""} name="locationId">
+              <option value="">Any location</option>
+              {locationOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
                 </option>
@@ -401,6 +433,15 @@ function buildAssigneeOptions(tasks: Task[]): FilterOption[] {
   return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function buildLocationOptions(locations: Location[]): FilterOption[] {
+  return locations
+    .map((location) => ({
+      id: location.id,
+      label: location.name,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 function TasksTable({
   tasks,
   updateTaskStatusAction,
@@ -413,6 +454,7 @@ function TasksTable({
       <thead>
         <tr>
           <th>Task</th>
+          <th>Location</th>
           <th>Assignee</th>
           <th>Status</th>
           <th>Priority</th>
@@ -426,6 +468,16 @@ function TasksTable({
             <td>
               <strong>{task.title}</strong>
               <span>{task.description ?? "No additional details"}</span>
+            </td>
+            <td>
+              {task.location ? (
+                <>
+                  <strong>{task.location.name}</strong>
+                  <span>{task.location.city}</span>
+                </>
+              ) : (
+                "No location"
+              )}
             </td>
             <td>{task.assignedTo?.name ?? "Unassigned"}</td>
             <td>
@@ -516,6 +568,7 @@ function buildTaskFilterHref(
     assignedToUserId: string | null;
     dueFrom: string | null;
     dueTo: string | null;
+    locationId: string | null;
     priority: TaskPriority | null;
     routePlanId: string | null;
     status: TaskStatus | null;
@@ -533,6 +586,10 @@ function buildTaskFilterHref(
 
   if (filters.assignedToUserId) {
     query.set("assignedToUserId", filters.assignedToUserId);
+  }
+
+  if (filters.locationId) {
+    query.set("locationId", filters.locationId);
   }
 
   if (filters.routePlanId) {
@@ -556,6 +613,7 @@ function buildTaskFilterSummary(filters: {
   assigneeLabel: string | null;
   dueFrom: string | null;
   dueTo: string | null;
+  locationLabel: string | null;
   priority: TaskPriority | null;
   routeLabel: string | null;
   status: TaskStatus | null;
@@ -564,6 +622,7 @@ function buildTaskFilterSummary(filters: {
     filters.status ? `${formatLabel(filters.status)} tasks` : "All tasks",
     filters.priority ? `${formatLabel(filters.priority)} priority` : null,
     filters.assigneeLabel ? `assigned to ${filters.assigneeLabel}` : null,
+    filters.locationLabel ? `at ${filters.locationLabel}` : null,
     filters.routeLabel ? `on ${filters.routeLabel}` : null,
     filters.dueFrom ? `from ${filters.dueFrom}` : null,
     filters.dueTo ? `to ${filters.dueTo}` : null,

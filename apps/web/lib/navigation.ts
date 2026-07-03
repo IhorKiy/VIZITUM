@@ -1,12 +1,18 @@
 export type RoleArea =
   | "field"
+  | "field-history"
   | "admin-setup"
   | "admin-users"
   | "admin-imports"
   | "admin-review"
+  | "admin-settings"
+  | "admin-locations"
+  | "admin-products"
   | "manager-overview"
   | "manager-visits"
   | "manager-tasks"
+  | "manager-locations"
+  | "manager-representatives"
   | "operations";
 
 export type NavItem = {
@@ -20,6 +26,7 @@ export type NavItem = {
 export function buildTenantNav(
   tenantSlug: string,
   permissions?: string[],
+  productsEnabled = true,
 ): NavItem[] {
   const navItems: NavItem[] = [
     {
@@ -28,6 +35,13 @@ export function buildTenantNav(
       area: "field",
       icon: "V",
       requiredPermissions: ["visits.read_own", "visits.read_team"],
+    },
+    {
+      label: "History",
+      href: `/${tenantSlug}/field/history`,
+      area: "field-history",
+      icon: "H",
+      requiredPermissions: ["visits.read_own"],
     },
     {
       label: "Setup",
@@ -55,11 +69,32 @@ export function buildTenantNav(
       requiredPermissions: ["imports.read"],
     },
     {
+      label: "Locations",
+      href: `/${tenantSlug}/admin/locations`,
+      area: "admin-locations",
+      icon: "L",
+      requiredPermissions: ["locations.read"],
+    },
+    {
+      label: "Products",
+      href: `/${tenantSlug}/admin/products`,
+      area: "admin-products",
+      icon: "K",
+      requiredPermissions: ["products.read"],
+    },
+    {
       label: "Review",
       href: `/${tenantSlug}/admin/review`,
       area: "admin-review",
       icon: "P",
       requiredPermissions: ["pilot_review.read"],
+    },
+    {
+      label: "Settings",
+      href: `/${tenantSlug}/admin/settings`,
+      area: "admin-settings",
+      icon: "G",
+      requiredPermissions: ["tenant.settings.read"],
     },
     {
       label: "Manager",
@@ -83,6 +118,20 @@ export function buildTenantNav(
       requiredPermissions: ["tasks.read_team"],
     },
     {
+      label: "Coverage",
+      href: `/${tenantSlug}/manager/locations`,
+      area: "manager-locations",
+      icon: "C",
+      requiredPermissions: ["dashboard.manager.read"],
+    },
+    {
+      label: "Reps",
+      href: `/${tenantSlug}/manager/representatives`,
+      area: "manager-representatives",
+      icon: "E",
+      requiredPermissions: ["dashboard.manager.read"],
+    },
+    {
       label: "Ops",
       href: `/${tenantSlug}/operations`,
       area: "operations",
@@ -91,13 +140,17 @@ export function buildTenantNav(
     },
   ];
 
+  const visibleItems = productsEnabled
+    ? navItems
+    : navItems.filter((item) => item.area !== "admin-products");
+
   if (!permissions) {
-    return navItems;
+    return visibleItems;
   }
 
   const permissionSet = new Set(permissions);
 
-  return navItems.filter((item) =>
+  return visibleItems.filter((item) =>
     item.requiredPermissions.some((permission) =>
       permissionSet.has(permission),
     ),

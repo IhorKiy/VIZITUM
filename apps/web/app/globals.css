@@ -481,6 +481,14 @@ textarea {
   gap: 8px;
 }
 
+.checkbox-inline {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+}
+
 .admin-users-panel {
   min-width: 0;
 }
@@ -624,6 +632,7 @@ textarea {
   background: #f4f8fb;
 }
 
+.ai-draft-state.needs-review,
 .ai-draft-state.fallback {
   background: #fff9e8;
   border-color: #e7cf8a;
@@ -912,6 +921,23 @@ textarea {
   padding-bottom: 14px;
 }
 
+.locations-filter-form {
+  grid-template-columns:
+    minmax(180px, 1fr)
+    repeat(3, minmax(150px, 0.8fr))
+    auto;
+}
+
+.representatives-filter-form {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
+.field-history-filter-form {
+  grid-template-columns:
+    repeat(2, minmax(160px, 1fr))
+    auto;
+}
+
 .filter-form label {
   color: var(--muted);
   display: grid;
@@ -972,6 +998,95 @@ textarea {
 .drilldown-table td span:not(.status-pill) {
   color: var(--muted);
   font-size: 13px;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-detail-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.report-detail-section {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+  padding-bottom: 12px;
+}
+
+.report-detail-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.report-detail-section h3 {
+  color: var(--ink);
+  font-size: 14px;
+  margin: 0;
+}
+
+.report-detail-section p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.report-detail-items {
+  color: var(--muted);
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.report-detail-cards {
+  display: grid;
+  gap: 8px;
+}
+
+.report-detail-card {
+  background: #f8faf9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.report-detail-card strong {
+  color: var(--ink);
+}
+
+.report-detail-card span,
+.report-detail-card p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.report-detail-kv {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.report-detail-kv div {
+  display: grid;
+  gap: 3px;
+}
+
+.report-detail-kv dt {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.report-detail-kv dd {
+  color: var(--muted);
+  margin: 0;
 }
 
 .status-pill {
@@ -1221,6 +1336,18 @@ textarea {
   }
 
   .filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .locations-filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .representatives-filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .field-history-filter-form {
     grid-template-columns: 1fr;
   }
 

@@ -197,14 +197,20 @@ Status legend:
 - [x] Add browser voice recording control to Field page audio upload flow.
 - [x] Connect Field page manual report confirmation to backend reports endpoint.
 - [x] Add Field page compact location cards and own task status update panel.
+- [x] Add real location summaries to Task API and field/manager task lists.
 - [x] Add Field AI draft state messaging, weak-output guidance and manual fallback copy.
+- [x] Align Field and Manager report UI with first-pilot AI quality categories.
+- [x] Add Field visit history with own-scope status/date filters.
 - [x] Connect admin import templates page to imports API with demo fallback.
 - [x] Connect admin CSV import validation and confirm flow to backend imports endpoints.
 - [x] Show admin import row-level validation issues before confirmation.
 - [x] Connect Team Manager dashboard to live route, visit and task metrics.
 - [x] Connect Team Manager task assignment and dashboard CSV export controls.
 - [x] Add Team Manager visits drilldown with status filters and tenant visit table.
+- [x] Add Team Manager visit report detail view backed by reports read permissions.
 - [x] Add Team Manager tasks drilldown with status/priority filters and status update controls.
+- [x] Add Team Manager location coverage browser with read-only location filters and visit/task drilldown links.
+- [x] Add Team Manager representative workload drilldown with operational route/visit/task summaries.
 - [x] Connect Platform Operations page to operations summary API with demo fallback.
 - [x] Disable demo fallback by default in production frontend.
 - [x] Disable unavailable assisted-pilot action controls.
@@ -260,6 +266,16 @@ Status legend:
 
 ## 17. Product Development Roadmap After Staging Baseline
 
+### Specification guardrails for Track B-E
+
+- [x] Add executable specification map for `tests/` so thin implemented behavior is discoverable before new coding work.
+- [x] Add feature specification gates for Track B-E to separate executable contracts, documented decisions, open product questions and deferred work.
+- [x] Add draft spec files for onboarding datasets, report templates, AI quality and pilot readiness.
+- [x] Resolve product-owner open questions in `docs/specs/onboarding-dataset-spec.md` before expanding onboarding dataset behavior.
+- [x] Resolve product-owner open questions in `docs/specs/report-templates-spec.md` before changing report template fields or editable template settings.
+- [x] Resolve product-owner open questions in `docs/specs/ai-quality-spec.md` before adding AI quality scoring, anonymized examples or weak-output criteria.
+- [x] Resolve product-owner open questions in `docs/specs/pilot-readiness-spec.md` before changing pilot readiness metrics, support process or tenant-level pilot settings.
+
 ### Track A: Pilot usability polish
 
 - [x] Create role-based screen delivery plan for Team Pilot MVP screens.
@@ -280,8 +296,8 @@ Status legend:
 
 ### Track B: Pilot data model completeness
 
-- [ ] Finalize the minimum customer onboarding dataset: users, locations, contacts, products/SKUs and initial route/task plan.
-- [ ] Add sample customer import packs for demo/pilot preparation without exposing real customer data.
+- [x] Finalize the minimum customer onboarding dataset: users, locations, contacts, products/SKUs and initial route/task plan.
+- [x] Add sample customer import packs for demo/pilot preparation without exposing real customer data.
 - [ ] Define the first pilot reporting templates for distribution, service and partner-account visit types.
 - [ ] Review which report fields must be structured versus free-text before the first pilot.
 

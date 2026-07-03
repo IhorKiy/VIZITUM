@@ -70,6 +70,18 @@ export class VisitsController {
     return this.visitsService.getVisit(getRequestContext(request), visitId);
   }
 
+  @Get(":visitId/report")
+  @RequireAnyPermissions(
+    PERMISSIONS.REPORTS_READ_OWN,
+    PERMISSIONS.REPORTS_READ_TEAM,
+  )
+  getVisitReport(@Req() request: Request, @Param("visitId") visitId: string) {
+    return this.visitsService.getVisitReport(
+      getRequestContext(request),
+      visitId,
+    );
+  }
+
   @Post()
   @RequirePermissions(PERMISSIONS.VISITS_CREATE)
   createVisit(@Req() request: Request, @Body() body: CreateVisitRequestBody) {

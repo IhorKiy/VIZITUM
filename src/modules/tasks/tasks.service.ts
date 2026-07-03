@@ -24,6 +24,7 @@ import type {
 type TaskWithRelations = Prisma.TaskGetPayload<{
   include: {
     assignedTo: true;
+    location: true;
   };
 }>;
 
@@ -271,6 +272,7 @@ export class TasksService {
 
 const taskInclude = {
   assignedTo: true,
+  location: true,
 } satisfies Prisma.TaskInclude;
 
 function buildTaskWhere(
@@ -510,6 +512,14 @@ function toTaskResponse(task: TaskWithRelations): TaskResponse {
       : null,
     createdByUserId: task.createdByUserId,
     locationId: task.locationId,
+    location: task.location
+      ? {
+          id: task.location.id,
+          name: task.location.name,
+          addressLine: task.location.addressLine,
+          city: task.location.city,
+        }
+      : null,
     visitId: task.visitId,
     reportId: task.reportId,
     dueDate: task.dueDate?.toISOString().slice(0, 10) ?? null,

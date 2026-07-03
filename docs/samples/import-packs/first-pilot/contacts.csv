@@ -1,0 +1,5 @@
+location_external_code,location_name,name,role_title,phone,email,notes
+LOC-KYIV-NORTH,,Kyiv Demo Contact,Store Manager,+380000000101,kyiv.contact@example.com,Synthetic contact
+LOC-LVIV-PARTNER,,Lviv Demo Contact,Partner Owner,+380000000102,lviv.contact@example.com,Synthetic contact
+LOC-ODESA-SERVICE,,Odesa Demo Contact,Service Coordinator,+380000000103,odesa.contact@example.com,Synthetic contact
+

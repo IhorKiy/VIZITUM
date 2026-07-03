@@ -1,0 +1,5 @@
+representative_email,location_external_code,location_name,plan_date,sequence,planned_start_time,planned_end_time,task_title,task_due_date,task_priority
+rep.north@example.com,LOC-KYIV-NORTH,,2026-07-13,1,09:00,10:00,Confirm shelf availability,2026-07-13,normal
+rep.south@example.com,LOC-LVIV-PARTNER,,2026-07-13,1,11:00,12:00,Review partner materials,2026-07-13,high
+rep.south@example.com,LOC-ODESA-SERVICE,,2026-07-14,1,14:00,15:00,Prepare service follow-up,2026-07-14,normal
+

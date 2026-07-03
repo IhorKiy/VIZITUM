@@ -31,14 +31,26 @@ The MVP is intended to move small and medium field teams from Excel, Google Shee
 Read these documents first, in this order:
 
 1. `docs/vizitum-action-plan.md` - main progress tracker and current roadmap.
-2. `docs/role-based-screen-delivery-plan.md` - role-based screen delivery plan and P0/P1 screen sequence.
-3. `docs/vizitum-mvp-product-spec-team-pilot.md` - product scope, roles, user stories, MVP screens and definition of done.
-4. `docs/vizitum-low-level-technical-design.md` - tenant isolation, permissions, APIs, data model and operational design.
-5. `docs/runbooks/staging-evidence-packet.md` - current staging evidence and known gaps.
-6. `docs/runbooks/expanded-staging-product-smoke.md` - staging product smoke checklist.
-7. `docs/runbooks/production-launch-readiness-record.md` - launch gate record.
+2. `docs/reference/executable-spec.md` - tests mapped to implemented behavioral contracts.
+3. `docs/reference/feature-spec-gates.md` - rules for when Track B-E work requires product-owner clarification.
+4. `docs/role-based-screen-delivery-plan.md` - role-based screen delivery plan and P0/P1 screen sequence.
+5. `docs/vizitum-mvp-product-spec-team-pilot.md` - product scope, roles, user stories, MVP screens and definition of done.
+6. `docs/vizitum-low-level-technical-design.md` - tenant isolation, permissions, APIs, data model and operational design.
+7. `docs/runbooks/staging-evidence-packet.md` - current staging evidence and known gaps.
+8. `docs/runbooks/expanded-staging-product-smoke.md` - staging product smoke checklist.
+9. `docs/runbooks/production-launch-readiness-record.md` - launch gate record.
 
 ## Documentation Map
+
+Implemented-state reference (first stop for "how does X currently work" — reflects the code, unlike the design docs below which record design intent):
+
+- `docs/reference/module-map.md` - backend modules, frontend routes and shared libs.
+- `docs/reference/api-reference.md` - auth model, error envelope and all HTTP endpoints with permissions.
+- `docs/reference/data-model.md` - implemented Prisma models and retention rules.
+- `docs/reference/permissions.md` - role-permission matrix as enforced.
+- `docs/reference/environment.md` - environment variables actually read by the code.
+- `docs/reference/executable-spec.md` - behavior tests mapped to product/platform contracts.
+- `docs/reference/feature-spec-gates.md` - Track B-E readiness gates and clarification rules.
 
 Product and roadmap:
 
@@ -48,6 +60,10 @@ Product and roadmap:
 - `docs/vizitum-user-flows-horizontal-partition.md`
 - `docs/ukraine-go-to-market-plan.md`
 - `docs/pilot-ai-processing-addendum-flow.md`
+- `docs/specs/onboarding-dataset-spec.md`
+- `docs/specs/report-templates-spec.md`
+- `docs/specs/ai-quality-spec.md`
+- `docs/specs/pilot-readiness-spec.md`
 
 Technical design:
 
@@ -94,13 +110,10 @@ Current roadmap source of truth:
 
 Near-term product track without paid infrastructure:
 
-1. Build P0 role-based screens from `docs/role-based-screen-delivery-plan.md`.
-2. Start with Company Admin users screen: list, invite, role assignment and deactivate.
-3. Add Company Admin onboarding checklist.
-4. Add Team Manager visits list and task list.
-5. Add Field location card and own tasks panel.
-6. Add pilot review summary.
-7. Improve AI draft/error states while preserving manual report fallback.
+1. Use `docs/reference/feature-spec-gates.md` before implementing remaining Track B-E items.
+2. Build remaining pilot data, report-template, AI-quality and pilot-readiness work from the matching `docs/specs/*` file.
+3. Preserve executable behavior contracts listed in `docs/reference/executable-spec.md`.
+4. Improve AI draft/error states while preserving manual report fallback.
 
 Final gate before first production pilot:
 
@@ -142,5 +155,8 @@ npm run web:dev
 - Keep navigation permission-aware. Users can have multiple roles, and screens should appear based on effective permissions.
 - Team Manager full tenant view means operational read access, not Company Admin rights.
 - Manual report confirmation must remain available whenever AI transcription/extraction is weak, delayed or unavailable.
+- Treat `tests/` as executable specification. When changing behavior covered by `docs/reference/executable-spec.md`, read and update the matching tests.
+- For Track B-E work, read `docs/reference/feature-spec-gates.md` and the matching `docs/specs/*` file. If a required behavior is still listed as an open product question, ask the product owner before coding.
 - When adding a P0 screen, update `docs/role-based-screen-delivery-plan.md` and add/adjust the relevant smoke step in `docs/runbooks/expanded-staging-product-smoke.md`.
+- When changing a controller, the Prisma schema, permissions or env vars, update the matching `docs/reference/*` document in the same change.
 - Before committing, run the smallest relevant checks for the change. For docs-only changes, at least run `git diff --check`.
