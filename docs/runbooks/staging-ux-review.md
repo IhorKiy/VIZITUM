@@ -8,7 +8,7 @@ Tenant: `vizitum-staging`
 Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, browser voice recording with file upload fallback and a minimal manual report confirmation form for assigned visits.
 Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note, browser recording/upload, audio file fallback and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment.
 P0 role-screen update: the 2026-07-03 staging re-smoke passed Admin setup/users/review, Manager visits/tasks drilldowns and Field location/tasks/AI draft messaging.
-Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting and duplicate-submit feedback.
+Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting, cancelled-task visibility and duplicate-submit feedback.
 
 ## Summary
 
@@ -33,11 +33,11 @@ Before a self-serve customer pilot, keep the accepted staging product smoke as t
 
 ## Internal Dogfood Findings
 
-| Scenario                  | Result          | Evidence                                                                                                                                                                                                                     | Follow-up                                                                                                                                                     |
-| ------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Planned field visit       | Pass with note  | Created visit `cmr4iqtop00002aajnk67l8o7`, added a text note, confirmed manual fallback report and verified Manager visits showed 4 visits total and 3 confirmed reports.                                                    | Success feedback can appear after a later action on the multi-form Field page; keep improving submit/pending states so users do not repeat an action.         |
-| Manager follow-up task    | Pass with issue | Created `Dogfood manager follow-up 2026-07-03T05:54:37.128Z`; first repeated submit produced duplicate task ids `cmr4iuadg00052aajekks5g8f` and `cmr4itlv900042aajz8frm90h`; duplicate was cancelled.                        | Manager dashboard should expose real assignee/location options even when today's route list is empty, count only open tasks and reduce duplicate-submit risk. |
-| Field own task visibility | Pass            | Field page continued to show the assigned smoke task and allowed task status update during P0 smoke; the dogfood-created manager task was unassigned because Manager assignment options were empty before the follow-up fix. | Re-smoke Manager task assignment after deploy and verify the assigned task appears in Field `My tasks`.                                                       |
+| Scenario                    | Result          | Evidence                                                                                                                                                                                              | Follow-up                                                                                                                                                     |
+| --------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Planned field visit         | Pass with note  | Created visit `cmr4iqtop00002aajnk67l8o7`, added a text note, confirmed manual fallback report and verified Manager visits showed 4 visits total and 3 confirmed reports.                             | Success feedback can appear after a later action on the multi-form Field page; keep improving submit/pending states so users do not repeat an action.         |
+| Manager follow-up task      | Pass with issue | Created `Dogfood manager follow-up 2026-07-03T05:54:37.128Z`; first repeated submit produced duplicate task ids `cmr4iuadg00052aajekks5g8f` and `cmr4itlv900042aajz8frm90h`; duplicate was cancelled. | Manager dashboard should expose real assignee/location options even when today's route list is empty, count only open tasks and reduce duplicate-submit risk. |
+| Manager assignment re-smoke | Pass            | After deploy, Manager task form exposed `Vizitum Staging Admin` and `Smoke Test Location`; created assigned task `cmr4j55gz00002b79vn55wuju`, verified it in Manager Tasks and Field `My tasks`.      | Keep the accepted path; filter cancelled tasks out of Field actionable tasks and Manager attention queue.                                                     |
 
 ## Pilot-Blocking Issues
 
@@ -55,6 +55,7 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 | Operations page is platform-oriented but tenant-routed | Operations    | Acceptable for internal operators during pilot; revisit if exposing to customer tenants.                                     |
 | Import history list is not exposed yet                 | Admin imports | Current upload result is live; add a historical import jobs list only if self-serve admin onboarding needs audit visibility. |
 | Multi-form submit feedback can lag                     | Field/Manager | Add pending/disabled submit states where practical and keep success notices anchored to the action that just completed.      |
+| Cancelled tasks can remain visually prominent          | Field/Manager | Keep cancelled tasks out of actionable Field task cards and Manager attention queue; preserve them in Manager task filters.  |
 
 ## Recommended Pilot Scope
 
@@ -83,7 +84,7 @@ Required before self-serve:
 
 ## Next Product Actions
 
-1. Re-smoke Manager task assignment after the task option/counting fix deploys.
+1. Re-smoke cancelled-task filtering after the next deploy.
 2. Add pending/disabled submit states for the highest-risk Field and Manager forms.
 3. Repeat platform operations token and operations summary alert check for production after production services are created.
 4. Repeat UX review against staging if any new product-surface changes are introduced before pilot.

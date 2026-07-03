@@ -636,9 +636,9 @@ export default async function FieldPage({
 
           <section>
             <h2>My tasks</h2>
-            {tasks.length > 0 ? (
+            {openTasks.length > 0 ? (
               <div className="field-card-list">
-                {tasks.map((item) => (
+                {openTasks.map((item) => (
                   <article className="location-mini-card" key={item.id}>
                     <header>
                       <div>

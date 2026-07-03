@@ -246,7 +246,8 @@ Status legend:
 - [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` for field visit creation, browser voice recording, import validation/confirm, manager CSV export and manager task assignment. Field recording/audio fallback, Admin import and Manager flows passed on staging.
 - [x] Rerun P0 role-screen staging smoke for Admin setup/users/review, Manager visits/tasks and Field location/tasks/AI draft messaging. Completed on 2026-07-03.
 - [x] Run internal dogfood on the accepted P0 screen set with realistic planned visit, text note/manual fallback and manager follow-up scenarios.
-- [ ] Re-smoke Manager task assignment after the task option/counting fix deploys.
+- [x] Re-smoke Manager task assignment after the task option/counting fix deploys.
+- [ ] Re-smoke cancelled-task filtering after the next deploy.
 
 ### Final gate before production pilot
 
@@ -267,6 +268,7 @@ Status legend:
 - [x] Run a short internal dogfood cycle with realistic field scenarios: planned visit, text note/manual fallback and manager follow-up task. Audio fallback remains covered by the earlier staging smoke.
 - [x] Capture friction points from the dogfood cycle in `docs/runbooks/staging-ux-review.md`.
 - [x] Improve Manager dashboard task assignment options and open-task counting from dogfood findings.
+- [x] Filter cancelled tasks out of Field actionable tasks and Manager attention queue.
 - [ ] Add pending/disabled submit states for high-risk Field and Manager forms.
 - [ ] Improve empty states, loading states and error copy on Field, Admin imports and Manager dashboard screens.
 - [ ] Add clearer success states and recovery guidance for audio upload/transcription failures.

@@ -478,7 +478,12 @@ function buildAttentionItems(
     )
     .slice(0, 2);
   const urgentTasks = tasks
-    .filter((task) => task.priority === "high" && task.status !== "done")
+    .filter(
+      (task) =>
+        task.priority === "high" &&
+        task.status !== "done" &&
+        task.status !== "cancelled",
+    )
     .slice(0, Math.max(3 - blockedRouteItems.length, 1));
   const items: AttentionItem[] = [
     ...blockedRouteItems.map(({ route, item }) => ({
