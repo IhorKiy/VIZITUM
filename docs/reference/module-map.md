@@ -75,3 +75,5 @@ Next.js App Router. All product screens live under the tenant slug: `apps/web/ap
 ## Tests (`tests/`)
 
 Plain `node --test` + `tsx`, one behavior per file. Groups: `ai-*` (job lifecycle, schemas, draft confirmation, cleanup), `import-*` (CSV/XLSX parsing, validation, templates), `auth-tenant-isolation`, `users-service`, `storage-*`, `visit-audio-upload-registration`, `manager-list-filters`, `manual-report-after-ai-failure`, `operations-summary`, `health-readiness`, `json-logger`, `sentry-service`.
+
+Behavior covered by these tests is treated as executable specification. See [executable-spec.md](executable-spec.md) for the product/platform contract map.

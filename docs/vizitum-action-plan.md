@@ -260,6 +260,16 @@ Status legend:
 
 ## 17. Product Development Roadmap After Staging Baseline
 
+### Specification guardrails for Track B-E
+
+- [x] Add executable specification map for `tests/` so thin implemented behavior is discoverable before new coding work.
+- [x] Add feature specification gates for Track B-E to separate executable contracts, documented decisions, open product questions and deferred work.
+- [x] Add draft spec files for onboarding datasets, report templates, AI quality and pilot readiness.
+- [ ] Resolve product-owner open questions in `docs/specs/onboarding-dataset-spec.md` before expanding onboarding dataset behavior.
+- [ ] Resolve product-owner open questions in `docs/specs/report-templates-spec.md` before changing report template fields or editable template settings.
+- [ ] Resolve product-owner open questions in `docs/specs/ai-quality-spec.md` before adding AI quality scoring, anonymized examples or weak-output criteria.
+- [ ] Resolve product-owner open questions in `docs/specs/pilot-readiness-spec.md` before changing pilot readiness metrics, support process or tenant-level pilot settings.
+
 ### Track A: Pilot usability polish
 
 - [x] Create role-based screen delivery plan for Team Pilot MVP screens.
