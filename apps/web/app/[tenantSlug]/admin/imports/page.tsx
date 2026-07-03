@@ -130,7 +130,7 @@ export default async function ImportsPage({
 
   if (!templatesResult.ok && !demoFallbackEnabled) {
     return (
-      <AppShell tenantSlug={tenantSlug} activeArea="admin">
+      <AppShell tenantSlug={tenantSlug} activeArea="admin-imports">
         <header className="page-header">
           <div>
             <p className="eyebrow">Company admin</p>
@@ -173,7 +173,7 @@ export default async function ImportsPage({
   const importIssues = validationPreview?.issues ?? [];
 
   return (
-    <AppShell tenantSlug={tenantSlug} activeArea="admin">
+    <AppShell tenantSlug={tenantSlug} activeArea="admin-imports">
       <header className="page-header">
         <div>
           <p className="eyebrow">Company admin</p>

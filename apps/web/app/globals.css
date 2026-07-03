@@ -220,7 +220,8 @@ textarea {
 
 .dashboard-grid,
 .manager-grid,
-.import-grid {
+.import-grid,
+.admin-users-grid {
   display: grid;
   gap: 16px;
   margin: 0 auto;
@@ -237,6 +238,11 @@ textarea {
 
 .import-grid {
   grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+}
+
+.admin-users-grid {
+  grid-template-columns: minmax(300px, 0.7fr) minmax(0, 1.3fr);
+  margin-top: 16px;
 }
 
 .panel,
@@ -320,6 +326,8 @@ textarea {
 }
 
 .visit-form input[type="date"],
+.visit-form input:not([type]),
+.visit-form input[type="email"],
 .visit-form input[type="file"],
 .visit-form select,
 .visit-form textarea {
@@ -331,6 +339,8 @@ textarea {
 }
 
 .visit-form input[type="date"],
+.visit-form input:not([type]),
+.visit-form input[type="email"],
 .visit-form input[type="file"] {
   min-height: 42px;
   padding: 8px 10px;
@@ -348,6 +358,8 @@ textarea {
 }
 
 .visit-form input[type="date"]:focus,
+.visit-form input:not([type]):focus,
+.visit-form input[type="email"]:focus,
 .visit-form input[type="file"]:focus,
 .visit-form select:focus,
 .visit-form textarea:focus {
@@ -375,6 +387,104 @@ textarea {
   border-top: 0;
   margin-top: 0;
   padding-top: 0;
+}
+
+.checkbox-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+}
+
+.checkbox-group legend {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 4px;
+  text-transform: uppercase;
+}
+
+.checkbox-group label {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.admin-users-panel {
+  min-width: 0;
+}
+
+.admin-user-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-user-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.admin-user-row header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.admin-user-row h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.admin-user-row p {
+  color: var(--muted);
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.role-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.role-chip {
+  background: var(--surface-muted);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 850;
+  padding: 6px 9px;
+}
+
+.user-actions-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(120px, 0.6fr) repeat(2, minmax(190px, 1fr));
+}
+
+.inline-control-form {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inline-control-form select {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  min-height: 40px;
+  min-width: 0;
+  padding: 0 10px;
+  width: 100%;
 }
 
 .voice-recorder {
@@ -441,6 +551,18 @@ textarea {
 .empty-state {
   color: var(--muted);
   margin: 0;
+}
+
+.copyable-value {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: block;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding: 10px 12px;
+  white-space: nowrap;
 }
 
 .status-pill {
@@ -646,8 +768,14 @@ textarea {
 
   .dashboard-grid,
   .manager-grid,
-  .import-grid {
+  .import-grid,
+  .admin-users-grid,
+  .user-actions-grid {
     grid-template-columns: 1fr;
+  }
+
+  .inline-control-form {
+    display: grid;
   }
 
   .visit-actions {

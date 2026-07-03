@@ -1,11 +1,15 @@
 import Link from "next/link";
 
 import { getCurrentSession } from "../lib/api-client";
-import { buildTenantNav, normalizeTenantName } from "../lib/navigation";
+import {
+  buildTenantNav,
+  normalizeTenantName,
+  type RoleArea,
+} from "../lib/navigation";
 
 type AppShellProps = {
   tenantSlug: string;
-  activeArea: "field" | "admin" | "manager" | "operations";
+  activeArea: RoleArea;
   children: React.ReactNode;
 };
 

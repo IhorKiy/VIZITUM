@@ -44,7 +44,7 @@ Priority legend:
 | --- | --- | --- | --- | --- |
 | Onboarding checklist | Guide customer setup before pilot activation. | Not a dedicated screen. Import flow covers only data upload. | Add checklist screen with steps for users, locations, products/SKUs, route/task plan, recording notice and pilot readiness. | P0 |
 | Admin overview | Show setup status and next admin actions. | Not dedicated. | Add overview as the landing page for Company Admin, with links to imports and future settings. | P1 |
-| Users | Invite, view, deactivate users and manage roles. | Backend admin user endpoints exist; no dedicated frontend screen. | Build user list/invite/role assignment screen. | P0 |
+| Users | Invite, view, deactivate users and manage roles. | Dedicated frontend screen exists at `/:tenantSlug/admin/users` with user list, invite creation, suspend/reactivate and add/remove role controls. | Add pending invite history once invite listing exists. | P0 |
 | Locations | View/manage locations and assignments. | Backend locations API exists; admin UI only imports locations. | Add list/detail/edit screen after users screen. | P1 |
 | Products/SKU | View/manage products or mark products not applicable. | Backend products API exists; admin UI only imports products. | Add products list/settings screen for pilot templates that need SKU tracking. | P1 |
 | Imports | Download templates, validate, review issues and confirm. | Implemented and staging-smoked. | Add import history and applied row counts. | P1 |
@@ -85,7 +85,7 @@ Priority legend:
 
 ## 3. P0 Screen Delivery Sequence
 
-1. Company Admin users screen: list, invite, role assignment and deactivate.
+1. Company Admin users screen: list, invite, role assignment and deactivate. Initial screen implemented; pending invite history remains an expansion.
 2. Company Admin onboarding checklist: setup progress and pilot readiness.
 3. Team Manager visits list: filters, visit status, report summary drilldown.
 4. Team Manager task list: update status/priority and track overdue work.

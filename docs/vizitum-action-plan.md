@@ -185,6 +185,7 @@ Status legend:
 - [x] Add tenant invite acceptance page connected to backend invite flow.
 - [x] Add mobile-first field flow shell.
 - [x] Add Company Admin onboarding/import shell.
+- [x] Add Company Admin users screen for list, invite, status update and role assignment.
 - [x] Add Team Manager dashboard shell.
 - [x] Add shared server-side API client for Next.js frontend.
 - [x] Connect field visits page to authenticated session and visits API with demo fallback.
@@ -266,9 +267,10 @@ Status legend:
 
 ### Track C: Manager and admin workflows
 
+- [x] Add Company Admin users screen for user list, invite creation, suspend/reactivate and role assignment.
 - [ ] Add manager filters for route, assignee, visit status and date range.
 - [ ] Add admin review screens for import history and applied row counts.
-- [ ] Add lightweight user lifecycle controls: deactivate user, resend invite and reset role assignment.
+- [ ] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility.
 - [ ] Add tenant-level settings for company name, default route visibility and allowed report types.
 
 ### Track D: AI reporting quality

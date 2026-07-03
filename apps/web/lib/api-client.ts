@@ -19,6 +19,9 @@ export type RouteItemStatus =
   "planned" | "in_progress" | "completed" | "skipped";
 export type TaskStatus = "open" | "in_progress" | "done" | "cancelled";
 export type TaskPriority = "low" | "normal" | "high";
+export type TenantRoleCode =
+  "company_admin" | "team_manager" | "field_representative";
+export type TenantUserStatus = "active" | "invited" | "suspended";
 
 export type Visit = {
   id: string;
@@ -115,6 +118,27 @@ export type Task = {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type TenantUser = {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  status: TenantUserStatus;
+  lastSelectedRoleCode: TenantRoleCode | null;
+  roleCodes: TenantRoleCode[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InviteUserResult = {
+  id: string;
+  email: string;
+  roleCodes: TenantRoleCode[];
+  status: string;
+  expiresAt: string;
+  token: string;
 };
 
 export type PaginatedResponse<TItem> = {
@@ -278,6 +302,44 @@ export async function listTasks(
   query = "pageSize=50",
 ): Promise<ApiResult<PaginatedResponse<Task>>> {
   return apiGet<PaginatedResponse<Task>>(`/tasks?${query}`);
+}
+
+export async function listAdminUsers(): Promise<
+  ApiResult<PaginatedResponse<TenantUser>>
+> {
+  return apiGet<PaginatedResponse<TenantUser>>("/admin/users?pageSize=100");
+}
+
+export async function inviteAdminUser(input: {
+  email: string;
+  roleCodes: TenantRoleCode[];
+}): Promise<ApiResult<InviteUserResult>> {
+  return apiPost<InviteUserResult>("/admin/users/invite", input);
+}
+
+export async function updateAdminUser(
+  userId: string,
+  input: {
+    name?: string;
+    phone?: string | null;
+    status?: TenantUserStatus;
+  },
+): Promise<ApiResult<TenantUser>> {
+  return apiPatch<TenantUser>(`/admin/users/${userId}`, input);
+}
+
+export async function addAdminUserRole(
+  userId: string,
+  roleCode: TenantRoleCode,
+): Promise<ApiResult<TenantUser>> {
+  return apiPost<TenantUser>(`/admin/users/${userId}/roles`, { roleCode });
+}
+
+export async function removeAdminUserRole(
+  userId: string,
+  roleCode: TenantRoleCode,
+): Promise<ApiResult<TenantUser>> {
+  return apiDelete<TenantUser>(`/admin/users/${userId}/roles/${roleCode}`);
 }
 
 export async function createTask(input: {
@@ -444,6 +506,77 @@ async function apiPost<TData>(
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
+    });
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      status: 0,
+      message: error instanceof Error ? error.message : "API request failed.",
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      message: await readErrorMessage(response),
+    };
+  }
+
+  return {
+    ok: true,
+    data: (await response.json()) as TData,
+  };
+}
+
+async function apiPatch<TData>(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<ApiResult<TData>> {
+  const baseUrl = getApiBaseUrl();
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: "PATCH",
+      cache: "no-store",
+      headers: {
+        ...(await buildRequestHeaders()),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      status: 0,
+      message: error instanceof Error ? error.message : "API request failed.",
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      message: await readErrorMessage(response),
+    };
+  }
+
+  return {
+    ok: true,
+    data: (await response.json()) as TData,
+  };
+}
+
+async function apiDelete<TData>(path: string): Promise<ApiResult<TData>> {
+  const baseUrl = getApiBaseUrl();
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: "DELETE",
+      cache: "no-store",
+      headers: await buildRequestHeaders(),
     });
   } catch (error: unknown) {
     return {
