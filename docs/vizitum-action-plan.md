@@ -206,6 +206,7 @@ Status legend:
 - [x] Add Team Manager visits drilldown with status filters and tenant visit table.
 - [x] Add Team Manager tasks drilldown with status/priority filters and status update controls.
 - [x] Add Team Manager location coverage browser with read-only location filters and visit/task drilldown links.
+- [x] Add Team Manager representative workload drilldown with operational route/visit/task summaries.
 - [x] Connect Platform Operations page to operations summary API with demo fallback.
 - [x] Disable demo fallback by default in production frontend.
 - [x] Disable unavailable assisted-pilot action controls.

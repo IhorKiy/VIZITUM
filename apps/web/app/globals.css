@@ -927,6 +927,10 @@ textarea {
     auto;
 }
 
+.representatives-filter-form {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
 .filter-form label {
   color: var(--muted);
   display: grid;
@@ -1246,6 +1250,10 @@ textarea {
   }
 
   .locations-filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .representatives-filter-form {
     grid-template-columns: 1fr;
   }
 

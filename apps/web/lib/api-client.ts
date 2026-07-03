@@ -425,6 +425,12 @@ export async function listTodayRoutes(): Promise<ApiResult<RoutePlan[]>> {
   return apiGet<RoutePlan[]>("/routes/today");
 }
 
+export async function listRoutes(
+  query = "pageSize=100",
+): Promise<ApiResult<PaginatedResponse<RoutePlan>>> {
+  return apiGet<PaginatedResponse<RoutePlan>>(`/routes?${query}`);
+}
+
 export async function listTasks(
   query = "pageSize=50",
 ): Promise<ApiResult<PaginatedResponse<Task>>> {

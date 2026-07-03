@@ -11,6 +11,7 @@ export type RoleArea =
   | "manager-visits"
   | "manager-tasks"
   | "manager-locations"
+  | "manager-representatives"
   | "operations";
 
 export type NavItem = {
@@ -112,6 +113,13 @@ export function buildTenantNav(
       href: `/${tenantSlug}/manager/locations`,
       area: "manager-locations",
       icon: "C",
+      requiredPermissions: ["dashboard.manager.read"],
+    },
+    {
+      label: "Reps",
+      href: `/${tenantSlug}/manager/representatives`,
+      area: "manager-representatives",
+      icon: "E",
       requiredPermissions: ["dashboard.manager.read"],
     },
     {
