@@ -229,7 +229,7 @@ Status legend:
 - [x] Implement platform operator bearer token path for operations summary endpoint checks.
 - [x] Configure staging platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
 - [x] Run product smoke checks against staging: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation work.
-- [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` after self-serve Field, Admin import and Manager actions deploy. 2026-07-02 recheck passed Field recording/audio fallback, Admin import and Manager flows.
+- [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` after self-serve Field, Admin import and Manager actions deploy. 2026-07-02 recheck passed Field recording/audio fallback, Admin import and Manager flows; 2026-07-03 P0 role-screen re-smoke passed Admin setup/users/review, Manager visits/tasks and Field location/tasks/AI draft messaging.
 - [x] Defer paid PostgreSQL backup/restore setup until the final production-pilot gate.
 - [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md` after selecting a paid PostgreSQL plan/provider.
 - [ ] Create production services only after backup evidence, restore drill and smoke checks are complete.
@@ -244,6 +244,8 @@ Status legend:
 - [x] Review the staging UX after smoke pass and list any pilot-blocking product issues.
 - [x] Prepare production env var checklist from the validated staging values, with production-specific names and buckets.
 - [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` for field visit creation, browser voice recording, import validation/confirm, manager CSV export and manager task assignment. Field recording/audio fallback, Admin import and Manager flows passed on staging.
+- [x] Rerun P0 role-screen staging smoke for Admin setup/users/review, Manager visits/tasks and Field location/tasks/AI draft messaging. Completed on 2026-07-03.
+- [ ] Run internal dogfood on the accepted P0 screen set with realistic planned visit, unplanned note/audio fallback and manager follow-up scenarios.
 
 ### Final gate before production pilot
 
