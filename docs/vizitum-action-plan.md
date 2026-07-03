@@ -291,7 +291,7 @@ Status legend:
 - [x] Add initial manager visit/task drilldowns with visit status filters and task status/priority filters.
 - [x] Add pending/disabled controls to Admin user lifecycle actions and clear filtered-empty recovery on Manager visits/tasks.
 - [x] Add manager route, representative/assignee and date range filters to visits/tasks drilldowns.
-- [ ] Add admin review screens for import history and applied row counts.
+- [x] Add admin review screens for import history and applied row counts. Implemented tenant-scoped import history on Admin imports; staging re-smoke is required after deploy.
 - [ ] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility.
 - [ ] Add tenant-level settings for company name, default route visibility and allowed report types.
 

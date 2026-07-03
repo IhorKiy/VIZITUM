@@ -632,12 +632,20 @@ textarea {
   min-width: 280px;
 }
 
+.import-history-panel {
+  grid-column: 1 / -1;
+  overflow-x: auto;
+}
+
 .import-issues-table strong,
-.import-issues-table span {
+.import-issues-table span,
+.import-history-table strong,
+.import-history-table span {
   display: block;
 }
 
-.import-issues-table strong {
+.import-issues-table strong,
+.import-history-table strong {
   color: var(--ink);
   font-size: 13px;
   margin-bottom: 4px;
@@ -650,6 +658,11 @@ textarea {
   font-weight: 850;
   padding: 5px 9px;
   text-transform: capitalize;
+}
+
+.issue-badge.success {
+  background: #eef8f1;
+  color: var(--accent-strong);
 }
 
 .issue-badge.error {

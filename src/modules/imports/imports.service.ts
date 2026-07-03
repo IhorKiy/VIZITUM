@@ -12,6 +12,7 @@ import type { RequestContext } from "../tenancy/request-context";
 import type {
   CreateImportValidationJobOptions,
   ImportApplyResult,
+  ImportJobHistoryItem,
   ImportPreviewIssue,
   ImportTemplateDefinition,
   ImportTemplateDownload,
@@ -465,6 +466,55 @@ export class ImportsService {
       importJobId: importJob.id,
       status: importJob.status,
     };
+  }
+
+  async listImportJobs(
+    context: RequestContext,
+  ): Promise<ImportJobHistoryItem[]> {
+    const prisma = this.getPrisma();
+    const importJobs = await prisma.importJob.findMany({
+      where: {
+        tenantId: context.tenantId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 10,
+      include: {
+        uploadedBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+        confirmedBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return importJobs.map((importJob) => ({
+      id: importJob.id,
+      templateType: importJob.type,
+      status: importJob.status,
+      rowCount: importJob.rowCount,
+      validRowCount: importJob.validRowCount,
+      errorRowCount: importJob.errorRowCount,
+      warningRowCount: importJob.warningRowCount,
+      uploadedBy: importJob.uploadedBy,
+      confirmedBy: importJob.confirmedBy,
+      createdCounts: readAppliedCounts(importJob.summary),
+      createdAt: importJob.createdAt,
+      validatedAt: importJob.validatedAt,
+      confirmedAt: importJob.confirmedAt,
+      appliedAt: importJob.appliedAt,
+      failedAt: importJob.failedAt,
+    }));
   }
 
   async confirmImportJob(
@@ -1497,6 +1547,30 @@ function parseStoredParsedFile(
     columns,
     rows,
   };
+}
+
+function readAppliedCounts(
+  summary: Prisma.JsonValue,
+): ImportApplyResult["createdCounts"] | null {
+  if (!isRecord(summary) || !isRecord(summary.appliedCounts)) {
+    return null;
+  }
+
+  return {
+    users: readNumber(summary.appliedCounts.users),
+    userRoles: readNumber(summary.appliedCounts.userRoles),
+    locations: readNumber(summary.appliedCounts.locations),
+    locationAssignments: readNumber(summary.appliedCounts.locationAssignments),
+    contacts: readNumber(summary.appliedCounts.contacts),
+    products: readNumber(summary.appliedCounts.products),
+    routePlans: readNumber(summary.appliedCounts.routePlans),
+    routeItems: readNumber(summary.appliedCounts.routeItems),
+    tasks: readNumber(summary.appliedCounts.tasks),
+  };
+}
+
+function readNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function requiredString(value: string | undefined): string {

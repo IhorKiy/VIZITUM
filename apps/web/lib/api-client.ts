@@ -199,6 +199,39 @@ export type ImportApplyResult = {
   createdCounts: Record<string, number>;
 };
 
+export type ImportJobHistoryItem = {
+  id: string;
+  templateType: string;
+  status:
+    | "uploaded"
+    | "validated"
+    | "validation_failed"
+    | "confirmed"
+    | "applied"
+    | "failed"
+    | "cancelled";
+  rowCount: number;
+  validRowCount: number;
+  errorRowCount: number;
+  warningRowCount: number;
+  uploadedBy: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  confirmedBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  createdCounts: Record<string, number> | null;
+  createdAt: string;
+  validatedAt: string | null;
+  confirmedAt: string | null;
+  appliedAt: string | null;
+  failedAt: string | null;
+};
+
 export type OperationsSummary = {
   generatedAt: string;
   windowHours: number;
@@ -415,6 +448,12 @@ export async function getImportValidationJob(
   importJobId: string,
 ): Promise<ApiResult<StoredImportValidationPreview>> {
   return apiGet<StoredImportValidationPreview>(`/imports/jobs/${importJobId}`);
+}
+
+export async function listImportJobs(): Promise<
+  ApiResult<ImportJobHistoryItem[]>
+> {
+  return apiGet<ImportJobHistoryItem[]>("/imports/jobs");
 }
 
 export async function confirmImportJob(

@@ -68,6 +68,12 @@ export class ImportsController {
     );
   }
 
+  @Get("jobs")
+  @RequirePermissions(PERMISSIONS.IMPORTS_READ)
+  listImportJobs(@Req() request: Request) {
+    return this.importsService.listImportJobs(getRequestContext(request));
+  }
+
   @Get("jobs/:importJobId")
   @RequirePermissions(PERMISSIONS.IMPORTS_READ)
   getValidationJob(

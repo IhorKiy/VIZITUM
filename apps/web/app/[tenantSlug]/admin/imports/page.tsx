@@ -6,8 +6,10 @@ import {
   buildApiUrl,
   confirmImportJob,
   getImportValidationJob,
+  listImportJobs,
   listImportTemplates,
   validateCsvImport,
+  type ImportJobHistoryItem,
   type ImportTemplateSummary,
   type ImportValidationIssue,
 } from "../../../../lib/api-client";
@@ -160,6 +162,8 @@ export default async function ImportsPage({
   }
 
   const templates = templatesResult.ok ? templatesResult.data : demoTemplates;
+  const importJobsResult = templatesResult.ok ? await listImportJobs() : null;
+  const importJobs = importJobsResult?.ok ? importJobsResult.data : [];
   const selectedTemplate =
     templates.find((template) => template.type === validationState.template) ??
     templates[0];
@@ -378,8 +382,100 @@ export default async function ImportsPage({
             </p>
           )}
         </div>
+
+        <div className="panel import-history-panel">
+          <div className="panel-toolbar">
+            <div>
+              <h2>Import history</h2>
+              <p className="empty-state">
+                Latest tenant import jobs, row counts and applied output.
+              </p>
+            </div>
+          </div>
+          {importJobsResult && !importJobsResult.ok ? (
+            <p className="empty-state">
+              Import history is unavailable right now:{" "}
+              {importJobsResult.message}
+            </p>
+          ) : null}
+          {importJobs.length > 0 ? (
+            <ImportHistoryTable jobs={importJobs} tenantSlug={tenantSlug} />
+          ) : importJobsResult?.ok === false ? null : (
+            <p className="empty-state">
+              Validated and applied imports will appear here after the first
+              upload.
+            </p>
+          )}
+        </div>
       </section>
     </AppShell>
+  );
+}
+
+function ImportHistoryTable({
+  jobs,
+  tenantSlug,
+}: {
+  jobs: ImportJobHistoryItem[];
+  tenantSlug: string;
+}) {
+  return (
+    <table className="table import-history-table">
+      <thead>
+        <tr>
+          <th>Template</th>
+          <th>Status</th>
+          <th>Rows</th>
+          <th>Applied output</th>
+          <th>Owner</th>
+          <th>Updated</th>
+          <th>Review</th>
+        </tr>
+      </thead>
+      <tbody>
+        {jobs.map((job) => (
+          <tr key={job.id}>
+            <td>
+              <strong>{formatImportTemplate(job.templateType)}</strong>
+              <span>{job.id}</span>
+            </td>
+            <td>
+              <span className={`issue-badge ${resolveImportStatusTone(job)}`}>
+                {formatImportStatus(job.status)}
+              </span>
+            </td>
+            <td>
+              <strong>{job.rowCount}</strong>
+              <span>
+                {job.validRowCount} valid · {job.errorRowCount} errors ·{" "}
+                {job.warningRowCount} warnings
+              </span>
+            </td>
+            <td>{summarizeCreatedCounts(job.createdCounts)}</td>
+            <td>
+              <strong>{job.uploadedBy.name}</strong>
+              {job.confirmedBy ? <span>{job.confirmedBy.name}</span> : null}
+            </td>
+            <td>{formatImportTimestamp(job)}</td>
+            <td>
+              {job.status === "validated" ||
+              job.status === "validation_failed" ? (
+                <a
+                  className="secondary-button"
+                  href={`/${tenantSlug}/admin/imports?importJobId=${job.id}&template=${job.templateType}`}
+                >
+                  Review
+                </a>
+              ) : job.status === "applied" ? (
+                <span className="empty-state">Applied</span>
+              ) : (
+                <span className="empty-state">Closed</span>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -415,4 +511,50 @@ function ImportIssuesTable({ issues }: { issues: ImportValidationIssue[] }) {
       </tbody>
     </table>
   );
+}
+
+function formatImportTemplate(templateType: string): string {
+  return templateType
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatImportStatus(status: ImportJobHistoryItem["status"]): string {
+  return status.replaceAll("_", " ");
+}
+
+function resolveImportStatusTone(
+  job: ImportJobHistoryItem,
+): "error" | "success" | "warning" {
+  if (job.status === "applied") {
+    return "success";
+  }
+
+  return job.status === "validated" ? "warning" : "error";
+}
+
+function summarizeCreatedCounts(
+  counts: ImportJobHistoryItem["createdCounts"],
+): string {
+  if (!counts) {
+    return "Not applied";
+  }
+
+  const summary = Object.entries(counts)
+    .filter(([, value]) => value > 0)
+    .map(([key, value]) => `${value} ${key}`)
+    .join(", ");
+
+  return summary || "0 records";
+}
+
+function formatImportTimestamp(job: ImportJobHistoryItem): string {
+  const timestamp =
+    job.appliedAt ?? job.confirmedAt ?? job.validatedAt ?? job.createdAt;
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(timestamp));
 }

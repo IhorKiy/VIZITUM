@@ -234,6 +234,113 @@ describe("import validation preview", () => {
     ]);
   });
 
+  it("lists recent import jobs for the current tenant", async () => {
+    const service = new ImportsService({
+      importJob: {
+        findMany: async (query: unknown) => {
+          assert.deepEqual(query, {
+            where: {
+              tenantId: "tenant-a",
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 10,
+            include: {
+              uploadedBy: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+              confirmedBy: {
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                },
+              },
+            },
+          });
+
+          return [
+            {
+              id: "import-job-applied",
+              type: "users",
+              status: "applied",
+              rowCount: 2,
+              validRowCount: 2,
+              errorRowCount: 0,
+              warningRowCount: 0,
+              uploadedBy: {
+                id: "user-a",
+                email: "admin@example.com",
+                name: "Admin User",
+              },
+              confirmedBy: {
+                id: "user-b",
+                email: "manager@example.com",
+                name: "Manager User",
+              },
+              summary: {
+                appliedCounts: {
+                  users: 2,
+                  userRoles: 3,
+                },
+              },
+              createdAt: new Date("2026-07-03T10:00:00.000Z"),
+              validatedAt: new Date("2026-07-03T10:01:00.000Z"),
+              confirmedAt: new Date("2026-07-03T10:02:00.000Z"),
+              appliedAt: new Date("2026-07-03T10:03:00.000Z"),
+              failedAt: null,
+            },
+            {
+              id: "import-job-failed-validation",
+              type: "locations",
+              status: "validation_failed",
+              rowCount: 1,
+              validRowCount: 0,
+              errorRowCount: 1,
+              warningRowCount: 0,
+              uploadedBy: {
+                id: "user-a",
+                email: "admin@example.com",
+                name: "Admin User",
+              },
+              confirmedBy: null,
+              summary: {
+                canConfirm: false,
+              },
+              createdAt: new Date("2026-07-03T09:00:00.000Z"),
+              validatedAt: new Date("2026-07-03T09:01:00.000Z"),
+              confirmedAt: null,
+              appliedAt: null,
+              failedAt: null,
+            },
+          ];
+        },
+      },
+    } as never);
+
+    const jobs = await service.listImportJobs(context as never);
+
+    assert.equal(jobs.length, 2);
+    assert.equal(jobs[0].id, "import-job-applied");
+    assert.deepEqual(jobs[0].createdCounts, {
+      users: 2,
+      userRoles: 3,
+      locations: 0,
+      locationAssignments: 0,
+      contacts: 0,
+      products: 0,
+      routePlans: 0,
+      routeItems: 0,
+      tasks: 0,
+    });
+    assert.equal(jobs[1].createdCounts, null);
+  });
+
   it("applies a validated import in one transaction", async () => {
     const createdProducts: unknown[] = [];
     const updatedJobs: unknown[] = [];

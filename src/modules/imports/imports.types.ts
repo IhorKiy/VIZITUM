@@ -73,6 +73,39 @@ export type StoredImportValidationPreview = ImportValidationPreview & {
   status: "validated" | "validation_failed";
 };
 
+export type ImportJobHistoryItem = {
+  id: string;
+  templateType: ImportTemplateType;
+  status:
+    | "uploaded"
+    | "validated"
+    | "validation_failed"
+    | "confirmed"
+    | "applied"
+    | "failed"
+    | "cancelled";
+  rowCount: number;
+  validRowCount: number;
+  errorRowCount: number;
+  warningRowCount: number;
+  uploadedBy: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  confirmedBy: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  createdCounts: ImportApplyResult["createdCounts"] | null;
+  createdAt: Date;
+  validatedAt: Date | null;
+  confirmedAt: Date | null;
+  appliedAt: Date | null;
+  failedAt: Date | null;
+};
+
 export type ImportApplyResult = {
   importJobId: string;
   status: "applied";
