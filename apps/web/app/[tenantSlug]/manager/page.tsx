@@ -9,6 +9,7 @@ import {
   listTasks,
   listTodayRoutes,
   listVisits,
+  recordDashboardView,
   type Location,
   type RoutePlan,
   type Task,
@@ -102,6 +103,8 @@ export default async function ManagerPage({
 }: ManagerPageProps) {
   const { tenantSlug } = await params;
   const { task, error } = await searchParams;
+
+  await recordDashboardView("manager").catch(() => undefined);
 
   async function createManagerTaskAction(formData: FormData) {
     "use server";

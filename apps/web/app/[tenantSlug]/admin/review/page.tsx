@@ -1,38 +1,26 @@
 import { AppShell } from "../../../../components/app-shell";
 import {
-  listAdminUsers,
-  listLocations,
-  listTasks,
-  listVisits,
-  type Task,
-  type TenantUser,
-  type Visit,
+  getPilotReviewSummary,
+  recordDashboardView,
+  type PilotReviewSummary,
+  type PilotReviewThreshold,
 } from "../../../../lib/api-client";
+import { formatDateTime } from "../../../../lib/format";
 
 type AdminReviewPageProps = {
   params: Promise<{ tenantSlug: string }>;
-};
-
-type ReviewThreshold = {
-  label: string;
-  result: string;
-  target: string;
-  status: "met" | "not-met" | "na";
 };
 
 export default async function AdminReviewPage({
   params,
 }: AdminReviewPageProps) {
   const { tenantSlug } = await params;
-  const [usersResult, visitsResult, tasksResult, locationsResult] =
-    await Promise.all([
-      listAdminUsers(),
-      listVisits("pageSize=100"),
-      listTasks("pageSize=100"),
-      listLocations(),
-    ]);
 
-  if (!usersResult.ok && !visitsResult.ok && !tasksResult.ok) {
+  await recordDashboardView("admin_review").catch(() => undefined);
+
+  const summaryResult = await getPilotReviewSummary();
+
+  if (!summaryResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="admin-review">
         <header className="page-header">
@@ -55,34 +43,27 @@ export default async function AdminReviewPage({
           <div>
             <p className="eyebrow">Connection required</p>
             <h2>Pilot review data is not connected</h2>
-            <p>{usersResult.message}</p>
+            <p>{summaryResult.message}</p>
           </div>
         </section>
       </AppShell>
     );
   }
 
-  const users = usersResult.ok ? usersResult.data.items : [];
-  const visits = visitsResult.ok ? visitsResult.data.items : [];
-  const tasks = tasksResult.ok ? tasksResult.data.items : [];
-  const locations = locationsResult.ok ? locationsResult.data.items : [];
-  const thresholds = buildThresholds({ users, visits, tasks });
-  const metCount = thresholds.filter(
-    (threshold) => threshold.status === "met",
-  ).length;
-  const applicableCount = thresholds.filter(
+  const summary = summaryResult.data;
+  const applicableThresholds = summary.thresholds.filter(
     (threshold) => threshold.status !== "na",
-  ).length;
+  );
+  const metThresholds = applicableThresholds.filter(
+    (threshold) => threshold.status === "met",
+  );
   const readyPercent =
-    applicableCount > 0 ? Math.round((metCount / applicableCount) * 100) : 0;
-  const summary = buildReviewSummary({
-    readyPercent,
-    thresholds,
-    users,
-    visits,
-    tasks,
-    locations,
-  });
+    applicableThresholds.length > 0
+      ? Math.round(
+          (metThresholds.length / applicableThresholds.length) * 100,
+        )
+      : 0;
+  const copySummary = buildReviewSummary(summary, readyPercent);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-review">
@@ -91,8 +72,8 @@ export default async function AdminReviewPage({
           <p className="eyebrow">Company admin</p>
           <h1>Pilot review</h1>
           <p>
-            Summarize usage after 7-10 days and compare the pilot against the
-            agreed success thresholds.
+            Success thresholds are measured over the 7-day pilot window that
+            starts at the first field visit.
           </p>
         </div>
         <div className="toolbar">
@@ -117,26 +98,35 @@ export default async function AdminReviewPage({
           </header>
           <p className="metric-value">{readyPercent}%</p>
           <p className="small-label">
-            {metCount} of {applicableCount} applicable checks
+            {metThresholds.length} of {applicableThresholds.length}{" "}
+            applicable checks
           </p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Visits</p>
-            <span className="status-pill info">Usage</span>
+            <p className="metric-label">Pilot window</p>
+            <span className="status-pill info">
+              {summary.windowStart ? "Started" : "Not started"}
+            </span>
           </header>
-          <p className="metric-value">{visits.length}</p>
+          <p className="metric-value">
+            {summary.windowStart ? "7 days" : "-"}
+          </p>
           <p className="small-label">
-            {countCompletedVisits(visits)} confirmed/completed
+            {summary.windowStart
+              ? `From ${formatDateTime(summary.windowStart)}`
+              : "Waiting for the first field visit"}
           </p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Tasks</p>
-            <span className="status-pill info">Follow-up</span>
+            <p className="metric-label">Window ends</p>
+            <span className="status-pill info">Window</span>
           </header>
-          <p className="metric-value">{tasks.length}</p>
-          <p className="small-label">{countDoneTasks(tasks)} closed tasks</p>
+          <p className="metric-value">
+            {summary.windowEnd ? formatDateTime(summary.windowEnd) : "-"}
+          </p>
+          <p className="small-label">Seven calendar days from first visit</p>
         </article>
       </section>
 
@@ -144,10 +134,12 @@ export default async function AdminReviewPage({
         <div className="panel">
           <h2>Success thresholds</h2>
           <div className="review-threshold-list">
-            {thresholds.map((threshold) => (
-              <article className="review-threshold" key={threshold.label}>
+            {summary.thresholds.map((threshold) => (
+              <article className="review-threshold" key={threshold.key}>
                 <div>
-                  <span className={`setup-status ${threshold.status}`}>
+                  <span
+                    className={`setup-status ${thresholdStatusClass(threshold.status)}`}
+                  >
                     {formatThresholdStatus(threshold.status)}
                   </span>
                   <h3>{threshold.label}</h3>
@@ -165,7 +157,7 @@ export default async function AdminReviewPage({
             className="summary-copy-box"
             readOnly
             rows={18}
-            value={summary}
+            value={copySummary}
           />
           <p className="form-hint">
             Select and copy this text into the pilot review note or customer
@@ -177,156 +169,44 @@ export default async function AdminReviewPage({
   );
 }
 
-function buildThresholds({
-  tasks,
-  users,
-  visits,
-}: {
-  tasks: Task[];
-  users: TenantUser[];
-  visits: Visit[];
-}): ReviewThreshold[] {
-  const fieldUsers = users.filter((user) =>
-    user.roleCodes.includes("field_representative"),
-  );
-  const activeFieldUserIds = new Set([
-    ...visits.map((visit) => visit.representativeUserId),
-    ...tasks
-      .map((task) => task.assignedToUserId)
-      .filter((userId): userId is string => Boolean(userId)),
-  ]);
-  const activeFieldUsers = fieldUsers.filter((user) =>
-    activeFieldUserIds.has(user.id),
-  );
-  const activeFieldRate =
-    fieldUsers.length > 0
-      ? Math.round((activeFieldUsers.length / fieldUsers.length) * 100)
-      : 0;
-  const completedVisits = countCompletedVisits(visits);
-  const visitsPerActiveFieldUser =
-    activeFieldUsers.length > 0
-      ? Math.round(visits.length / activeFieldUsers.length)
-      : 0;
-  const taskCount = tasks.length;
-  const doneTasks = countDoneTasks(tasks);
-
-  return [
-    {
-      label: "Active field representatives",
-      result: `${activeFieldRate}%`,
-      target:
-        "At least 70% of invited Field Representatives create a visit or complete a task.",
-      status:
-        fieldUsers.length === 0
-          ? "na"
-          : activeFieldRate >= 70
-            ? "met"
-            : "not-met",
-    },
-    {
-      label: "Visit volume",
-      result: `${visits.length} visit(s), ${visitsPerActiveFieldUser} per active rep`,
-      target:
-        "At least 50 visits per pilot tenant or at least 5 visits per active representative for a smaller team.",
-      status:
-        visits.length >= 50 || visitsPerActiveFieldUser >= 5
-          ? "met"
-          : "not-met",
-    },
-    {
-      label: "Confirmed reports",
-      result: `${completedVisits} completed visit(s)`,
-      target:
-        "Field visits should produce confirmed/completed reports for manager review.",
-      status: completedVisits > 0 ? "met" : "not-met",
-    },
-    {
-      label: "Follow-up actions",
-      result: `${taskCount} task(s), ${doneTasks} closed`,
-      target:
-        "At least 10 tasks or follow-up actions when the pilot scenario includes tasks.",
-      status: taskCount >= 10 ? "met" : "not-met",
-    },
-    {
-      label: "AI draft coverage",
-      result: "Not measured yet",
-      target:
-        "At least 60% of visits have an AI draft from voice or text note.",
-      status: "na",
-    },
-    {
-      label: "Manager dashboard usage",
-      result: "Not measured yet",
-      target:
-        "Team Manager opens the dashboard at least 3 times during the pilot.",
-      status: "na",
-    },
-    {
-      label: "Customer insights",
-      result: "Manual discussion",
-      target:
-        "Customer can name at least 3 management insights from dashboard or AI summaries.",
-      status: "na",
-    },
-  ];
-}
-
-function buildReviewSummary({
-  locations,
-  readyPercent,
-  tasks,
-  thresholds,
-  users,
-  visits,
-}: {
-  locations: Array<{ status: string }>;
-  readyPercent: number;
-  tasks: Task[];
-  thresholds: ReviewThreshold[];
-  users: TenantUser[];
-  visits: Visit[];
-}): string {
-  const fieldUsers = users.filter((user) =>
-    user.roleCodes.includes("field_representative"),
-  );
+function buildReviewSummary(
+  summary: PilotReviewSummary,
+  readyPercent: number,
+): string {
   const lines = [
     "Vizitum pilot review summary",
     "",
     `Threshold readiness: ${readyPercent}%`,
-    `Tenant users: ${users.length} total, ${fieldUsers.length} field representative(s)`,
-    `Locations: ${locations.filter((location) => location.status === "active").length} active`,
-    `Visits: ${visits.length} total, ${countCompletedVisits(visits)} completed`,
-    `Tasks: ${tasks.length} total, ${countDoneTasks(tasks)} closed`,
+    summary.windowStart
+      ? `Pilot window: ${formatDateTime(summary.windowStart)} - ${formatDateTime(summary.windowEnd)}`
+      : "Pilot window: not started (no visits recorded yet)",
     "",
     "Thresholds:",
-    ...thresholds.map(
+    ...summary.thresholds.map(
       (threshold) =>
         `- ${threshold.label}: ${formatThresholdStatus(threshold.status)} (${threshold.result})`,
     ),
     "",
     "Notes:",
-    "- AI draft coverage, manager dashboard usage and customer insights require additional instrumentation or manual review.",
     "- Use this summary as a starting point for the 7-10 day pilot conversation.",
   ];
 
   return lines.join("\n");
 }
 
-function countCompletedVisits(visits: Visit[]): number {
-  return visits.filter((visit) => visit.status === "completed").length;
-}
-
-function countDoneTasks(tasks: Task[]): number {
-  return tasks.filter((task) => task.status === "done").length;
-}
-
-function formatThresholdStatus(status: ReviewThreshold["status"]): string {
+function formatThresholdStatus(
+  status: PilotReviewThreshold["status"],
+): string {
   switch (status) {
     case "met":
       return "Met";
-    case "not-met":
+    case "not_met":
       return "Not met";
     case "na":
       return "N/A";
   }
+}
+
+function thresholdStatusClass(status: PilotReviewThreshold["status"]): string {
+  return status === "not_met" ? "not-met" : status;
 }

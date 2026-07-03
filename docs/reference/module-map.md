@@ -32,7 +32,8 @@ Note: Redis/BullMQ appear in the LLD and `.env.example`, but no backend code cur
 | `operations` | `/api/operations` | Platform operations summary (tenant counts, provisioning/import/AI/storage health counters). Accessible via session permission or platform bearer token. |
 | `platform` | — | Tenant capability/feature flags (`product-capabilities.ts`), platform-level tenant metadata helpers. |
 | `health` | `/api/health` | Liveness (`/health`) and readiness (`/health/readiness`, 503 when not ready). Unauthenticated. |
-| `audit` | — | Placeholder module (`audit.module.ts` only). `AuditEvent` model exists in Prisma; no service/controller yet. |
+| `audit` | — | `AuditService.recordEvent` writes tenant-scoped `AuditEvent` rows (entityType/entityId/eventType/metadata). No controller of its own; consumed by other modules (e.g. `pilot-review`). |
+| `pilot-review` | `/api/pilot-review` | `GET /summary` computes the 6 pilot success thresholds from `docs/specs/pilot-readiness-spec.md` over the 7-day window starting at the tenant's first visit. `POST /dashboard-views` records a `manager_dashboard.viewed` audit event (called from `/manager` and `/admin/review` on page load) to measure manager review usage. |
 | `prisma` | — | `PrismaService` wrapper for DI. |
 
 Full endpoint list with permissions and payloads: [api-reference.md](api-reference.md).
@@ -59,9 +60,9 @@ Next.js App Router. All product screens live under the tenant slug: `apps/web/ap
 | `/[tenantSlug]/admin/imports` | `admin/imports/page.tsx` | Admin | `/imports/*` |
 | `/[tenantSlug]/admin/locations` | `admin/locations/page.tsx` | Admin | `/locations*` |
 | `/[tenantSlug]/admin/products` | `admin/products/page.tsx` | Admin | `/products*` |
-| `/[tenantSlug]/admin/review` | `admin/review/page.tsx` | Admin | Pilot review summary (visits/tasks/reports reads) |
+| `/[tenantSlug]/admin/review` | `admin/review/page.tsx` | Admin | Pilot review summary from `/pilot-review/summary`; records a dashboard view via `/pilot-review/dashboard-views` |
 | `/[tenantSlug]/admin/settings` | `admin/settings/page.tsx` | Admin | `/admin/settings` |
-| `/[tenantSlug]/manager` | `manager/page.tsx` | Manager | Dashboard metrics from `/visits`, `/tasks`, `/routes`; CSV export; task assignment |
+| `/[tenantSlug]/manager` | `manager/page.tsx` | Manager | Dashboard metrics from `/visits`, `/tasks`, `/routes`; CSV export; task assignment; records a dashboard view via `/pilot-review/dashboard-views` |
 | `/[tenantSlug]/manager/visits` | `manager/visits/page.tsx` | Manager | `/visits` with filters |
 | `/[tenantSlug]/manager/visits/[visitId]` | `manager/visits/[visitId]/page.tsx` | Manager | Visit metadata from `/visits/:visitId` and report detail from `/visits/:visitId/report` |
 | `/[tenantSlug]/manager/tasks` | `manager/tasks/page.tsx` | Manager | `/tasks` with filters |
