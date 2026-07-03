@@ -361,6 +361,8 @@ function buildVisitMetrics(
   detail: string;
   tone: "active" | "info" | "warning";
 }> {
+  const quality = resolveReportQuality(report);
+
   return [
     {
       label: "Visit status",
@@ -382,7 +384,63 @@ function buildVisitMetrics(
       detail: report?.schemaVersion ?? "No report schema yet",
       tone: report ? "active" : "info",
     },
+    {
+      label: "AI quality",
+      value: quality.label,
+      detail: quality.detail,
+      tone: quality.tone,
+    },
   ];
+}
+
+function resolveReportQuality(report: Report | null): {
+  label: string;
+  detail: string;
+  tone: "active" | "info" | "warning";
+} {
+  if (!report) {
+    return {
+      label: "Manual fallback",
+      detail: "No confirmed report is available yet",
+      tone: "warning",
+    };
+  }
+
+  const reportData = normalizeReportData(report.confirmedData);
+  const confidence =
+    typeof reportData.confidence === "number" ? reportData.confidence : null;
+  const metadata = normalizeReportData(report.aiMetadata);
+  const source = typeof metadata.source === "string" ? metadata.source : null;
+
+  if (source === "manual_text") {
+    return {
+      label: "Manual fallback",
+      detail: "Confirmed manually without relying on AI output",
+      tone: "active",
+    };
+  }
+
+  if (confidence !== null && confidence < 0.6) {
+    return {
+      label: "Needs review",
+      detail: `AI confidence ${Math.round(confidence * 100)}%`,
+      tone: "warning",
+    };
+  }
+
+  if (confidence !== null) {
+    return {
+      label: "Confirmed",
+      detail: `AI confidence ${Math.round(confidence * 100)}%`,
+      tone: "active",
+    };
+  }
+
+  return {
+    label: "Confirmed",
+    detail: "Confirmed report is available",
+    tone: "active",
+  };
 }
 
 function normalizeReportData(value: unknown): Record<string, unknown> {

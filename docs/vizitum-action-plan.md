@@ -199,6 +199,7 @@ Status legend:
 - [x] Add Field page compact location cards and own task status update panel.
 - [x] Add real location summaries to Task API and field/manager task lists.
 - [x] Add Field AI draft state messaging, weak-output guidance and manual fallback copy.
+- [x] Align Field and Manager report UI with first-pilot AI quality categories.
 - [x] Add Field visit history with own-scope status/date filters.
 - [x] Connect admin import templates page to imports API with demo fallback.
 - [x] Connect admin CSV import validation and confirm flow to backend imports endpoints.

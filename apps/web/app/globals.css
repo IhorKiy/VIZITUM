@@ -632,6 +632,7 @@ textarea {
   background: #f4f8fb;
 }
 
+.ai-draft-state.needs-review,
 .ai-draft-state.fallback {
   background: #fff9e8;
   border-color: #e7cf8a;
