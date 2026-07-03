@@ -22,6 +22,7 @@ export type TaskPriority = "low" | "normal" | "high";
 export type TenantRoleCode =
   "company_admin" | "team_manager" | "field_representative";
 export type TenantUserStatus = "active" | "invited" | "suspended";
+export type ProductStatus = "active" | "inactive" | "archived";
 
 export type Visit = {
   id: string;
@@ -61,6 +62,18 @@ export type Location = {
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Product = {
+  id: string;
+  externalCode: string | null;
+  name: string;
+  sku: string | null;
+  category: string | null;
+  status: ProductStatus;
+  notApplicable: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -292,6 +305,12 @@ export async function listLocations(): Promise<
   return apiGet<PaginatedResponse<Location>>(
     "/locations?pageSize=100&status=active",
   );
+}
+
+export async function listProducts(): Promise<
+  ApiResult<PaginatedResponse<Product>>
+> {
+  return apiGet<PaginatedResponse<Product>>("/products?pageSize=100");
 }
 
 export async function listTodayRoutes(): Promise<ApiResult<RoutePlan[]>> {

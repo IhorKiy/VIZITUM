@@ -1,5 +1,10 @@
 export type RoleArea =
-  "field" | "admin-users" | "admin-imports" | "manager" | "operations";
+  | "field"
+  | "admin-setup"
+  | "admin-users"
+  | "admin-imports"
+  | "manager"
+  | "operations";
 
 export type NavItem = {
   label: string;
@@ -20,6 +25,17 @@ export function buildTenantNav(
       area: "field",
       icon: "V",
       requiredPermissions: ["visits.read_own", "visits.read_team"],
+    },
+    {
+      label: "Setup",
+      href: `/${tenantSlug}/admin/setup`,
+      area: "admin-setup",
+      icon: "S",
+      requiredPermissions: [
+        "tenant.settings.read",
+        "users.read",
+        "imports.read",
+      ],
     },
     {
       label: "Users",

@@ -185,6 +185,7 @@ Status legend:
 - [x] Add tenant invite acceptance page connected to backend invite flow.
 - [x] Add mobile-first field flow shell.
 - [x] Add Company Admin onboarding/import shell.
+- [x] Add Company Admin onboarding checklist screen with live setup progress.
 - [x] Add Company Admin users screen for list, invite, status update and role assignment.
 - [x] Add Team Manager dashboard shell.
 - [x] Add shared server-side API client for Next.js frontend.
@@ -252,6 +253,7 @@ Status legend:
 ### Track A: Pilot usability polish
 
 - [x] Create role-based screen delivery plan for Team Pilot MVP screens.
+- [x] Add Company Admin onboarding checklist screen for setup progress and pilot readiness.
 - [ ] Run a short internal dogfood cycle with 2-3 realistic field scenarios: planned visit, unplanned note, audio fallback and manager follow-up task.
 - [ ] Capture friction points from the dogfood cycle in `docs/runbooks/staging-ux-review.md`.
 - [ ] Improve empty states, loading states and error copy on Field, Admin imports and Manager dashboard screens.

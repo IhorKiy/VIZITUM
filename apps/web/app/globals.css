@@ -221,7 +221,8 @@ textarea {
 .dashboard-grid,
 .manager-grid,
 .import-grid,
-.admin-users-grid {
+.admin-users-grid,
+.setup-grid {
   display: grid;
   gap: 16px;
   margin: 0 auto;
@@ -242,6 +243,12 @@ textarea {
 
 .admin-users-grid {
   grid-template-columns: minmax(300px, 0.7fr) minmax(0, 1.3fr);
+  margin-top: 16px;
+}
+
+.setup-grid {
+  align-items: start;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
   margin-top: 16px;
 }
 
@@ -565,6 +572,71 @@ textarea {
   white-space: nowrap;
 }
 
+.setup-checklist {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-check {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 14px;
+}
+
+.setup-check h3,
+.setup-check p,
+.setup-summary-block p {
+  margin: 0;
+}
+
+.setup-check h3 {
+  font-size: 16px;
+  margin-top: 6px;
+}
+
+.setup-check p,
+.setup-summary-block p:not(.eyebrow) {
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+.setup-status {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 5px 9px;
+}
+
+.setup-status.ready {
+  background: #eef8f1;
+  color: var(--accent-strong);
+}
+
+.setup-status.needs-work {
+  background: #fff9e8;
+  color: #7a5a15;
+}
+
+.setup-status.blocked {
+  background: #fff1f1;
+  color: var(--danger);
+}
+
+.setup-summary-block {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+.setup-summary-block:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
 .status-pill {
   border-radius: 999px;
   color: #ffffff;
@@ -770,7 +842,12 @@ textarea {
   .manager-grid,
   .import-grid,
   .admin-users-grid,
+  .setup-grid,
   .user-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-check {
     grid-template-columns: 1fr;
   }
 
