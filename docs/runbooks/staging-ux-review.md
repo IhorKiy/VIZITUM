@@ -8,10 +8,13 @@ Tenant: `vizitum-staging`
 Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, browser voice recording with file upload fallback and a minimal manual report confirmation form for assigned visits.
 Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note, browser recording/upload, audio file fallback and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment.
 P0 role-screen update: the 2026-07-03 staging re-smoke passed Admin setup/users/review, Manager visits/tasks drilldowns and Field location/tasks/AI draft messaging.
+Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting and duplicate-submit feedback.
 
 ## Summary
 
 The product-facing staging UX has passed the controlled product smoke path: Field visit creation, browser recording/upload, audio file fallback, manual report confirmation, Admin import template/validation/confirm, Manager dashboard export and Manager task assignment passed against staging. The initial P0 role-based screens for Company Admin, Team Manager and Field Representative also passed staging re-smoke on 2026-07-03.
+
+The first internal dogfood cycle passed the core planned-visit path but showed that a real user needs stronger immediate feedback around multi-form submissions and manager task assignment defaults.
 
 Before a self-serve customer pilot, keep the accepted staging product smoke as the baseline and track remaining alert, backup and restore gates in the launch readiness record.
 
@@ -28,6 +31,14 @@ Before a self-serve customer pilot, keep the accepted staging product smoke as t
 | Operations page load         | Partial | Page exists and live API path exists; operations bearer token env still needs verification.                                                                                                                                                         |
 | Manual report confirmation   | Pass    | Smoke report confirmation passed according to staging evidence packet.                                                                                                                                                                              |
 
+## Internal Dogfood Findings
+
+| Scenario                  | Result          | Evidence                                                                                                                                                                                                                     | Follow-up                                                                                                                                                     |
+| ------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Planned field visit       | Pass with note  | Created visit `cmr4iqtop00002aajnk67l8o7`, added a text note, confirmed manual fallback report and verified Manager visits showed 4 visits total and 3 confirmed reports.                                                    | Success feedback can appear after a later action on the multi-form Field page; keep improving submit/pending states so users do not repeat an action.         |
+| Manager follow-up task    | Pass with issue | Created `Dogfood manager follow-up 2026-07-03T05:54:37.128Z`; first repeated submit produced duplicate task ids `cmr4iuadg00052aajekks5g8f` and `cmr4itlv900042aajz8frm90h`; duplicate was cancelled.                        | Manager dashboard should expose real assignee/location options even when today's route list is empty, count only open tasks and reduce duplicate-submit risk. |
+| Field own task visibility | Pass            | Field page continued to show the assigned smoke task and allowed task status update during P0 smoke; the dogfood-created manager task was unassigned because Manager assignment options were empty before the follow-up fix. | Re-smoke Manager task assignment after deploy and verify the assigned task appears in Field `My tasks`.                                                       |
+
 ## Pilot-Blocking Issues
 
 These should be resolved or explicitly accepted before inviting non-internal pilot users.
@@ -43,6 +54,7 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 | Demo fallback exists for local development             | All app pages | Acceptable because production fallback is disabled by default. Keep `ENABLE_DEMO_FALLBACK` unset/false in production.        |
 | Operations page is platform-oriented but tenant-routed | Operations    | Acceptable for internal operators during pilot; revisit if exposing to customer tenants.                                     |
 | Import history list is not exposed yet                 | Admin imports | Current upload result is live; add a historical import jobs list only if self-serve admin onboarding needs audit visibility. |
+| Multi-form submit feedback can lag                     | Field/Manager | Add pending/disabled submit states where practical and keep success notices anchored to the action that just completed.      |
 
 ## Recommended Pilot Scope
 
@@ -71,8 +83,8 @@ Required before self-serve:
 
 ## Next Product Actions
 
-1. Run a short internal dogfood cycle with 2-3 realistic field scenarios on the accepted P0 role-screen set.
-2. Capture friction points from dogfood and convert them into focused usability fixes.
+1. Re-smoke Manager task assignment after the task option/counting fix deploys.
+2. Add pending/disabled submit states for the highest-risk Field and Manager forms.
 3. Repeat platform operations token and operations summary alert check for production after production services are created.
 4. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
 

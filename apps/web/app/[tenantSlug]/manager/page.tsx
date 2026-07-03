@@ -4,9 +4,11 @@ import { AppShell } from "../../../components/app-shell";
 import {
   createTask,
   listHighPriorityTasks,
+  listLocations,
   listTasks,
   listTodayRoutes,
   listVisits,
+  type Location,
   type RoutePlan,
   type Task,
   type Visit,
@@ -132,13 +134,19 @@ export default async function ManagerPage({
     redirect(`/${tenantSlug}/manager?task=created`);
   }
 
-  const [routesResult, visitsResult, tasksResult, highPriorityTasksResult] =
-    await Promise.all([
-      listTodayRoutes(),
-      listVisits(),
-      listTasks(),
-      listHighPriorityTasks(),
-    ]);
+  const [
+    routesResult,
+    visitsResult,
+    tasksResult,
+    highPriorityTasksResult,
+    locationsResult,
+  ] = await Promise.all([
+    listTodayRoutes(),
+    listVisits(),
+    listTasks(),
+    listHighPriorityTasks(),
+    listLocations(),
+  ]);
   const hasLiveData =
     routesResult.ok &&
     visitsResult.ok &&
@@ -188,13 +196,9 @@ export default async function ManagerPage({
   const highPriorityTasks = highPriorityTasksResult.ok
     ? highPriorityTasksResult.data.items
     : [];
+  const locations = locationsResult.ok ? locationsResult.data.items : [];
   const metrics = hasLiveData
-    ? buildLiveMetrics(
-        routes,
-        visits,
-        tasksResult.data.total,
-        highPriorityTasks,
-      )
+    ? buildLiveMetrics(routes, visits, tasks, highPriorityTasks)
     : demoMetrics;
   const representatives =
     hasLiveData && routes.length > 0
@@ -204,8 +208,8 @@ export default async function ManagerPage({
     hasLiveData && (routes.length > 0 || tasks.length > 0)
       ? buildAttentionItems(routes, tasks)
       : demoAttentionItems;
-  const assigneeOptions = buildTaskAssigneeOptions(routes);
-  const locationOptions = buildTaskLocationOptions(routes);
+  const assigneeOptions = buildTaskAssigneeOptions(routes, visits, tasks);
+  const locationOptions = buildTaskLocationOptions(routes, visits, locations);
   const managerCsv = buildManagerCsv(metrics, representatives, attentionItems);
 
   return (
@@ -309,10 +313,10 @@ export default async function ManagerPage({
         <div className="panel">
           <h2>Attention queue</h2>
           <div className="field-stack">
-            {attentionItems.map((item) => (
+            {attentionItems.map((item, index) => (
               <article
                 className="visit-card"
-                key={`${item.area}-${item.title}`}
+                key={`${item.area}-${item.title}-${index}`}
               >
                 <header>
                   <h2>{item.title}</h2>
@@ -395,7 +399,7 @@ export default async function ManagerPage({
 function buildLiveMetrics(
   routes: RoutePlan[],
   visits: Visit[],
-  totalTasks: number,
+  tasks: Task[],
   highPriorityTasks: Task[],
 ): ManagerMetric[] {
   const totalRouteItems = routes.reduce(
@@ -411,6 +415,9 @@ function buildLiveMetrics(
     (visit) => visit.status === "completed",
   ).length;
   const openHighPriorityTasks = highPriorityTasks.filter(
+    (task) => task.status !== "done" && task.status !== "cancelled",
+  ).length;
+  const openTasks = tasks.filter(
     (task) => task.status !== "done" && task.status !== "cancelled",
   ).length;
 
@@ -429,7 +436,7 @@ function buildLiveMetrics(
     },
     {
       label: "Open tasks",
-      value: String(totalTasks),
+      value: String(openTasks),
       detail: `${openHighPriorityTasks} high priority`,
       isLive: true,
     },
@@ -503,7 +510,11 @@ function buildAttentionItems(
       ];
 }
 
-function buildTaskAssigneeOptions(routes: RoutePlan[]): TaskAssigneeOption[] {
+function buildTaskAssigneeOptions(
+  routes: RoutePlan[],
+  visits: Visit[],
+  tasks: Task[],
+): TaskAssigneeOption[] {
   const options = new Map<string, TaskAssigneeOption>();
 
   routes.forEach((route) => {
@@ -512,11 +523,29 @@ function buildTaskAssigneeOptions(routes: RoutePlan[]): TaskAssigneeOption[] {
       label: route.representative.name,
     });
   });
+  visits.forEach((visit) => {
+    options.set(visit.representative.id, {
+      id: visit.representative.id,
+      label: visit.representative.name,
+    });
+  });
+  tasks.forEach((task) => {
+    if (task.assignedTo) {
+      options.set(task.assignedTo.id, {
+        id: task.assignedTo.id,
+        label: task.assignedTo.name,
+      });
+    }
+  });
 
   return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
-function buildTaskLocationOptions(routes: RoutePlan[]): TaskLocationOption[] {
+function buildTaskLocationOptions(
+  routes: RoutePlan[],
+  visits: Visit[],
+  locations: Location[],
+): TaskLocationOption[] {
   const options = new Map<string, TaskLocationOption>();
 
   routes.forEach((route) => {
@@ -525,6 +554,18 @@ function buildTaskLocationOptions(routes: RoutePlan[]): TaskLocationOption[] {
         id: item.location.id,
         label: item.location.name,
       });
+    });
+  });
+  visits.forEach((visit) => {
+    options.set(visit.location.id, {
+      id: visit.location.id,
+      label: visit.location.name,
+    });
+  });
+  locations.forEach((location) => {
+    options.set(location.id, {
+      id: location.id,
+      label: location.name,
     });
   });
 
