@@ -62,7 +62,7 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 
 ## Ownership-scoped permissions
 
-- `routes.manage_team` vs `routes.manage_own`: route mutations (`POST /routes`, `PATCH /routes/:routePlanId`, item create/update) carry only `routes.read` at the guard level; `RoutesService.assertCanManageRouteForRepresentative` enforces manage rights in the service. `routes.manage_team` may manage any plan in the tenant; `routes.manage_own` only plans whose `representativeUserId` equals the caller (403 `ROUTE_SCOPE_FORBIDDEN` otherwise).
+- `routes.manage_team` vs `routes.manage_own`: route mutations (`POST /routes`, `PATCH /routes/:routePlanId`, item create/update) require either one at the guard level (`@RequireAnyPermissions`); `RoutesService.assertCanManageRouteForRepresentative` then enforces ownership. `routes.manage_team` may manage any plan in the tenant; `routes.manage_own` only plans whose `representativeUserId` equals the caller (403 `ROUTE_SCOPE_FORBIDDEN` otherwise).
 - The `visits.*_own` / `tasks.*_own` permissions are scoped the same way inside their services.
 
 ## Known gaps (as implemented)
