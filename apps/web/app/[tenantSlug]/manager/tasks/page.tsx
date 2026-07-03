@@ -94,6 +94,10 @@ export default async function ManagerTasksPage({
 
   const tasks = tasksResult.data.items;
   const counters = buildTaskCounters(tasks, tasksResult.data.total);
+  const filterSummary = buildTaskFilterSummary(
+    selectedStatus,
+    selectedPriority,
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-tasks">
@@ -153,7 +157,10 @@ export default async function ManagerTasksPage({
 
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
-          <h2>Task list</h2>
+          <div className="panel-title-stack">
+            <h2>Task list</h2>
+            <p>Showing {filterSummary.toLowerCase()} for this tenant.</p>
+          </div>
           <div className="filter-groups">
             <div className="filter-pills" aria-label="Task status filters">
               <a
@@ -208,10 +215,26 @@ export default async function ManagerTasksPage({
             updateTaskStatusAction={updateTaskStatusAction}
           />
         ) : (
-          <p className="empty-state">
-            No tasks match this filter. Switch filters or assign a new task from
-            the manager overview.
-          </p>
+          <div className="empty-state-panel">
+            <h2>No tasks match this filter</h2>
+            <p>
+              Use another status or priority filter, or create a follow-up from
+              the manager overview.
+            </p>
+            <div className="toolbar">
+              {selectedStatus || selectedPriority ? (
+                <a
+                  className="secondary-button"
+                  href={`/${tenantSlug}/manager/tasks`}
+                >
+                  Show all tasks
+                </a>
+              ) : null}
+              <a className="primary-button" href={`/${tenantSlug}/manager`}>
+                Assign task
+              </a>
+            </div>
+          </div>
         )}
       </section>
     </AppShell>
@@ -345,6 +368,18 @@ function buildTaskFilterHref(
   const suffix = query.toString();
 
   return `/${tenantSlug}/manager/tasks${suffix ? `?${suffix}` : ""}`;
+}
+
+function buildTaskFilterSummary(
+  status: TaskStatus | null,
+  priority: TaskPriority | null,
+): string {
+  const parts = [
+    status ? `${formatLabel(status)} tasks` : "All tasks",
+    priority ? `${formatLabel(priority)} priority` : null,
+  ].filter(Boolean);
+
+  return parts.join(", ");
 }
 
 function normalizeTaskStatus(value: string | undefined): TaskStatus | null {

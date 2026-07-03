@@ -8,28 +8,28 @@ Tenant: `vizitum-staging`
 Mitigation update: unavailable assisted-pilot action controls were disabled in the frontend after this review. The Field page now includes new visit creation, text note capture, browser voice recording with file upload fallback and a minimal manual report confirmation form for assigned visits.
 Expanded smoke update: the 2026-07-02 staging recheck passed Field visit creation, text note, browser recording/upload, audio file fallback and manual report confirmation, Admin template proxy/validation/confirm, plus Manager dashboard CSV export and task assignment.
 P0 role-screen update: the 2026-07-03 staging re-smoke passed Admin setup/users/review, Manager visits/tasks drilldowns and Field location/tasks/AI draft messaging.
-Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting, cancelled-task visibility and duplicate-submit feedback. Pending/disabled submit states were added to Field, Manager and Admin import forms after these findings.
+Dogfood update: the 2026-07-03 internal dogfood cycle exercised a planned visit, text note, manual fallback report and manager follow-up task. The flow worked, but exposed focused UX fixes for manager task assignment options, open-task counting, cancelled-task visibility and duplicate-submit feedback. Pending/disabled submit states were added to Field, Manager, Admin import and Admin users forms after these findings; Manager visits/tasks drilldowns now show filter context plus filtered-empty recovery actions.
 
 ## Summary
 
 The product-facing staging UX has passed the controlled product smoke path: Field visit creation, browser recording/upload, audio file fallback, manual report confirmation, Admin import template/validation/confirm, Manager dashboard export and Manager task assignment passed against staging. The initial P0 role-based screens for Company Admin, Team Manager and Field Representative also passed staging re-smoke on 2026-07-03.
 
-The first internal dogfood cycle passed the core planned-visit path but showed that a real user needs stronger immediate feedback around multi-form submissions and manager task assignment defaults.
+The first internal dogfood cycle passed the core planned-visit path but showed that a real user needs stronger immediate feedback around multi-form submissions, manager task assignment defaults and filtered drilldown recovery states.
 
 Before a self-serve customer pilot, keep the accepted staging product smoke as the baseline and track remaining alert, backup and restore gates in the launch readiness record.
 
 ## Passed Smoke Surfaces
 
-| Surface                      | Status  | Notes                                                                                                                                                                                                                                               |
-| ---------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tenant login                 | Pass    | Tenant-aware login posts `tenantSlug` to backend and forwards session cookies.                                                                                                                                                                      |
-| Invite acceptance            | Pass    | Invite acceptance page exists and creates session after accepted invite.                                                                                                                                                                            |
-| Field page load              | Pass    | Authenticated session loads visits API and disables demo fallback by default in production; visit creation, text note and manual report passed on 2026-07-02; location cards, own task update and AI draft/fallback messaging passed on 2026-07-03. |
-| Admin setup/users/review     | Pass    | Setup checklist, users/roles screen and pilot review summary render live tenant data without demo fallback; mutation controls were present and existing user churn was avoided during the 2026-07-03 re-smoke.                                      |
-| Admin imports page load      | Pass    | Page loads live templates; per-template downloads route through tenant-local Next proxy; one-row users import validated with 0 errors and confirmed with 1 applied row.                                                                             |
-| Manager dashboard/drilldowns | Pass    | Reads routes, visits and tasks, builds live aggregate cards, exports CSV, creates manager tasks, filters visits/tasks and updates task status when APIs return data.                                                                                |
-| Operations page load         | Partial | Page exists and live API path exists; operations bearer token env still needs verification.                                                                                                                                                         |
-| Manual report confirmation   | Pass    | Smoke report confirmation passed according to staging evidence packet.                                                                                                                                                                              |
+| Surface                      | Status  | Notes                                                                                                                                                                                                                                                                         |
+| ---------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tenant login                 | Pass    | Tenant-aware login posts `tenantSlug` to backend and forwards session cookies.                                                                                                                                                                                                |
+| Invite acceptance            | Pass    | Invite acceptance page exists and creates session after accepted invite.                                                                                                                                                                                                      |
+| Field page load              | Pass    | Authenticated session loads visits API and disables demo fallback by default in production; visit creation, text note and manual report passed on 2026-07-02; location cards, own task update and AI draft/fallback messaging passed on 2026-07-03.                           |
+| Admin setup/users/review     | Pass    | Setup checklist, users/roles screen and pilot review summary render live tenant data without demo fallback; Admin users mutations now have pending/disabled submit states. Mutation controls were present and existing user churn was avoided during the 2026-07-03 re-smoke. |
+| Admin imports page load      | Pass    | Page loads live templates; per-template downloads route through tenant-local Next proxy; one-row users import validated with 0 errors and confirmed with 1 applied row.                                                                                                       |
+| Manager dashboard/drilldowns | Pass    | Reads routes, visits and tasks, builds live aggregate cards, exports CSV, creates manager tasks, filters visits/tasks, shows selected-filter context and updates task status when APIs return data.                                                                           |
+| Operations page load         | Partial | Page exists and live API path exists; operations bearer token env still needs verification.                                                                                                                                                                                   |
+| Manual report confirmation   | Pass    | Smoke report confirmation passed according to staging evidence packet.                                                                                                                                                                                                        |
 
 ## Internal Dogfood Findings
 
@@ -50,14 +50,14 @@ These should be resolved or explicitly accepted before inviting non-internal pil
 
 ## Non-Blocking UX Gaps
 
-| Gap                                                    | Area                | Recommendation                                                                                                                                                    |
-| ------------------------------------------------------ | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Demo fallback exists for local development             | All app pages       | Acceptable because production fallback is disabled by default. Keep `ENABLE_DEMO_FALLBACK` unset/false in production.                                             |
-| Operations page is platform-oriented but tenant-routed | Operations          | Acceptable for internal operators during pilot; revisit if exposing to customer tenants.                                                                          |
-| Import history list is not exposed yet                 | Admin imports       | Current upload result is live; add a historical import jobs list only if self-serve admin onboarding needs audit visibility.                                      |
-| Multi-form submit feedback can lag                     | Field/Manager/Admin | Pending/disabled submit states were added to Field, Manager and Admin import forms; re-smoke after deploy and continue improving notice anchoring if lag appears. |
-| Empty live lists need clear next actions               | Field/Manager       | Field and Manager now avoid demo-looking fallback for empty live lists and show next-step empty states instead.                                                   |
-| Cancelled tasks can remain visually prominent          | Field/Manager       | Cancelled tasks are filtered out of Field actionable task cards and Manager attention queue while preserved in Manager task filters.                              |
+| Gap                                                    | Area                | Recommendation                                                                                                                                                                 |
+| ------------------------------------------------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Demo fallback exists for local development             | All app pages       | Acceptable because production fallback is disabled by default. Keep `ENABLE_DEMO_FALLBACK` unset/false in production.                                                          |
+| Operations page is platform-oriented but tenant-routed | Operations          | Acceptable for internal operators during pilot; revisit if exposing to customer tenants.                                                                                       |
+| Import history list is not exposed yet                 | Admin imports       | Current upload result is live; add a historical import jobs list only if self-serve admin onboarding needs audit visibility.                                                   |
+| Multi-form submit feedback can lag                     | Field/Manager/Admin | Pending/disabled submit states were added to Field, Manager, Admin import and Admin users forms; re-smoke after deploy and continue improving notice anchoring if lag appears. |
+| Empty live lists need clear next actions               | Field/Manager       | Field and Manager now avoid demo-looking fallback for empty live lists; Manager filtered drilldowns show context and recovery actions.                                         |
+| Cancelled tasks can remain visually prominent          | Field/Manager       | Cancelled tasks are filtered out of Field actionable task cards and Manager attention queue while preserved in Manager task filters.                                           |
 
 ## Recommended Pilot Scope
 
@@ -86,8 +86,8 @@ Required before self-serve:
 
 ## Next Product Actions
 
-1. Re-smoke pending/disabled submit states on Field, Manager and Admin import forms after the next deploy.
-2. Continue empty/loading/error copy polish on Admin setup/users/review and Manager drilldown filters.
+1. Re-smoke pending/disabled submit states on Field, Manager, Admin import and Admin users forms after the next deploy.
+2. Continue loading/error copy polish on remaining Field, Admin import and Manager dashboard paths.
 3. Repeat platform operations token and operations summary alert check for production after production services are created.
 4. Repeat UX review against staging if any new product-surface changes are introduced before pilot.
 

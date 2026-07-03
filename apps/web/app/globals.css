@@ -280,6 +280,22 @@ textarea {
   margin: 0 0 14px;
 }
 
+.panel-title-stack {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.panel-title-stack h2,
+.panel-title-stack p {
+  margin: 0;
+}
+
+.panel-title-stack p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .field-stack {
   display: grid;
   gap: 12px;

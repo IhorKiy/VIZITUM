@@ -273,7 +273,8 @@ Status legend:
 - [x] Add pending/disabled submit states for high-risk Field and Manager forms.
 - [x] Add pending/disabled submit states for Admin import validation/confirm forms.
 - [x] Improve empty states and avoid demo-looking fallback for empty live Field and Manager lists.
-- [ ] Improve empty states, loading states and error copy on Field, Admin imports and Manager dashboard screens.
+- [x] Improve Admin users and Manager drilldown empty states, filter context and pending submit states.
+- [ ] Improve remaining loading/error copy on Field, Admin imports and Manager dashboard screens.
 - [ ] Add clearer success states and recovery guidance for audio upload/transcription failures.
 - [ ] Review mobile layout on common field-device widths before each pilot candidate build.
 
@@ -288,6 +289,7 @@ Status legend:
 
 - [x] Add Company Admin users screen for user list, invite creation, suspend/reactivate and role assignment.
 - [x] Add initial manager visit/task drilldowns with visit status filters and task status/priority filters.
+- [x] Add pending/disabled controls to Admin user lifecycle actions and clear filtered-empty recovery on Manager visits/tasks.
 - [ ] Add manager filters for route, assignee and date range.
 - [ ] Add admin review screens for import history and applied row counts.
 - [ ] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility.

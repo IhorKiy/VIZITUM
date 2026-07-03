@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { AppShell } from "../../../../components/app-shell";
+import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   addAdminUserRole,
   inviteAdminUser,
@@ -250,7 +251,13 @@ export default async function AdminUsersPage({
 
       <section className="admin-users-grid">
         <div className="panel">
-          <h2>Invite user</h2>
+          <div className="panel-title-stack">
+            <h2>Invite user</h2>
+            <p>
+              Invite links are generated after validation and should be shared
+              through a trusted customer channel.
+            </p>
+          </div>
           <form action={inviteUserAction} className="visit-form compact">
             <label>
               Email
@@ -270,14 +277,23 @@ export default async function AdminUsersPage({
                 </label>
               ))}
             </fieldset>
-            <button className="primary-button" type="submit">
+            <PendingSubmitButton
+              className="primary-button"
+              pendingLabel="Creating..."
+            >
               Create invite
-            </button>
+            </PendingSubmitButton>
           </form>
         </div>
 
         <div className="panel admin-users-panel">
-          <h2>Tenant users</h2>
+          <div className="panel-title-stack">
+            <h2>Tenant users</h2>
+            <p>
+              Role and status changes apply immediately to the tenant session
+              model.
+            </p>
+          </div>
           {users.length > 0 ? (
             <div className="admin-user-list">
               {users.map((user) => (
@@ -342,9 +358,12 @@ function UserRow({
         <form action={updateUserStatusAction} className="inline-control-form">
           <input name="userId" type="hidden" value={user.id} />
           <input name="status" type="hidden" value={nextStatus} />
-          <button className="secondary-button" type="submit">
+          <PendingSubmitButton
+            className="secondary-button"
+            pendingLabel="Saving..."
+          >
             {nextStatus === "active" ? "Reactivate" : "Suspend"}
-          </button>
+          </PendingSubmitButton>
         </form>
 
         <form action={addRoleAction} className="inline-control-form">
@@ -362,13 +381,13 @@ function UserRow({
               </option>
             ))}
           </select>
-          <button
+          <PendingSubmitButton
             className="secondary-button"
             disabled={missingRoles.length === 0}
-            type="submit"
+            pendingLabel="Saving..."
           >
             Add
-          </button>
+          </PendingSubmitButton>
         </form>
 
         <form action={removeRoleAction} className="inline-control-form">
@@ -386,13 +405,13 @@ function UserRow({
               </option>
             ))}
           </select>
-          <button
+          <PendingSubmitButton
             className="secondary-button"
             disabled={!canRemoveRole}
-            type="submit"
+            pendingLabel="Saving..."
           >
             Remove
-          </button>
+          </PendingSubmitButton>
         </form>
       </div>
     </article>

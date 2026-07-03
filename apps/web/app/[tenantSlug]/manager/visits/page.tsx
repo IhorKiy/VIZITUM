@@ -65,6 +65,9 @@ export default async function ManagerVisitsPage({
 
   const visits = visitsResult.data.items;
   const counters = buildVisitCounters(visitsResult);
+  const filterSummary = selectedStatus
+    ? `${formatVisitStatus(selectedStatus)} visits`
+    : "All visits";
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
@@ -104,7 +107,13 @@ export default async function ManagerVisitsPage({
 
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
-          <h2>Visit list</h2>
+          <div className="panel-title-stack">
+            <h2>Visit list</h2>
+            <p>
+              Showing {filterSummary.toLowerCase()} across this tenant
+              workspace.
+            </p>
+          </div>
           <div className="filter-pills" aria-label="Visit status filters">
             <a
               aria-current={!selectedStatus ? "page" : undefined}
@@ -129,10 +138,26 @@ export default async function ManagerVisitsPage({
         {visits.length > 0 ? (
           <VisitsTable visits={visits} />
         ) : (
-          <p className="empty-state">
-            No visits match this filter. Switch status or create field activity
-            first.
-          </p>
+          <div className="empty-state-panel">
+            <h2>No visits match this filter</h2>
+            <p>
+              Use another status filter or start a field visit before reviewing
+              visit progress here.
+            </p>
+            <div className="toolbar">
+              {selectedStatus ? (
+                <a
+                  className="secondary-button"
+                  href={`/${tenantSlug}/manager/visits`}
+                >
+                  Show all visits
+                </a>
+              ) : null}
+              <a className="primary-button" href={`/${tenantSlug}/field`}>
+                Open field workspace
+              </a>
+            </div>
+          </div>
         )}
       </section>
     </AppShell>
