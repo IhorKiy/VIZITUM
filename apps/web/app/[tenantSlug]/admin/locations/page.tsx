@@ -8,6 +8,11 @@ import {
   type Location,
   type LocationStatus,
 } from "../../../../lib/api-client";
+import {
+  formatLabel,
+  normalizeFilterValue,
+  statusTone,
+} from "../../../../lib/format";
 
 type AdminLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -265,7 +270,7 @@ function LocationRow({
             {location.addressLine}, {location.city}
           </p>
         </div>
-        <span className={`status-pill ${locationStatusTone(location.status)}`}>
+        <span className={`status-pill ${statusTone(location.status)}`}>
           {formatLabel(location.status)}
         </span>
       </header>
@@ -341,34 +346,10 @@ function normalizeStatus(value: string | undefined): LocationStatus | null {
   return null;
 }
 
-function normalizeFilterValue(value: string | undefined): string | null {
-  const normalizedValue = value?.trim();
-
-  return normalizedValue || null;
-}
-
 function normalizeOptionalField(
   value: FormDataEntryValue | null,
 ): string | null {
   const normalizedValue = String(value ?? "").trim();
 
   return normalizedValue || null;
-}
-
-function locationStatusTone(
-  status: LocationStatus,
-): "active" | "info" | "warning" {
-  if (status === "active") {
-    return "active";
-  }
-
-  return status === "inactive" ? "info" : "warning";
-}
-
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
 }

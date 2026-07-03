@@ -19,6 +19,7 @@ import type {
   LoginResponse,
   SwitchRoleRequestBody,
 } from "./auth.types";
+import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
 
 @Injectable()
 export class AuthService {
@@ -227,7 +228,9 @@ export class AuthService {
     };
   }
 
-  async getCurrentUser(request: Request): Promise<LoginResponse> {
+  async getCurrentUser(
+    request: Request,
+  ): Promise<LoginResponse & { productsEnabled: boolean }> {
     const token = readSessionToken(request);
 
     if (!token) {
@@ -240,13 +243,23 @@ export class AuthService {
       throwAuthenticationRequired();
     }
 
-    const user = await this.prisma.user.findFirst({
-      where: {
-        id: session.userId,
-        tenantId: session.tenantId,
-      },
-      include: { roles: true },
-    });
+    const [user, productsEnabledSetting] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: {
+          id: session.userId,
+          tenantId: session.tenantId,
+        },
+        include: { roles: true },
+      }),
+      this.prisma.tenantSetting.findUnique({
+        where: {
+          tenantId_key: {
+            tenantId: session.tenantId,
+            key: PRODUCTS_ENABLED_SETTING_KEY,
+          },
+        },
+      }),
+    ]);
 
     if (!user || user.status !== "active") {
       throwAuthenticationRequired();
@@ -264,6 +277,9 @@ export class AuthService {
       },
       roleCodes,
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
+      productsEnabled: productsEnabledSetting
+        ? productsEnabledSetting.value === true
+        : true,
     };
   }
 

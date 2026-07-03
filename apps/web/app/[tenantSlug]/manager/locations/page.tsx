@@ -9,6 +9,12 @@ import {
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
+import {
+  formatDateTime,
+  formatLabel,
+  normalizeFilterValue,
+  statusTone,
+} from "../../../../lib/format";
 
 type ManagerLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -109,14 +115,13 @@ export default async function ManagerLocationsPage({
     query.set("search", search);
   }
 
-  const locationsResult = await listAdminLocations(query.toString());
-  const allLocationsResult = hasFilters
-    ? await listAdminLocations("pageSize=100")
-    : locationsResult;
-  const [visitsResult, tasksResult] = await Promise.all([
-    listVisits("pageSize=100"),
-    listTasks("pageSize=100"),
-  ]);
+  const [locationsResult, allLocations, visitsResult, tasksResult] =
+    await Promise.all([
+      listAdminLocations(query.toString()),
+      fetchAllLocations(),
+      listVisits("pageSize=100"),
+      listTasks("pageSize=100"),
+    ]);
 
   if (!locationsResult.ok) {
     return (
@@ -149,9 +154,8 @@ export default async function ManagerLocationsPage({
   }
 
   const locations = locationsResult.data.items;
-  const allLocations = allLocationsResult.ok
-    ? allLocationsResult.data.items
-    : locations;
+  const locationOptionsSource =
+    allLocations.length > 0 ? allLocations : locations;
   const visits = visitsResult.ok ? visitsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
   const activityByLocation = buildLocationActivity(visits, tasks);
@@ -160,9 +164,12 @@ export default async function ManagerLocationsPage({
     locationsResult.data.total,
     activityByLocation,
   );
-  const cityOptions = buildLocationOptions(allLocations, "city");
-  const regionOptions = buildLocationOptions(allLocations, "region");
-  const territoryOptions = buildLocationOptions(allLocations, "territory");
+  const cityOptions = buildLocationOptions(locationOptionsSource, "city");
+  const regionOptions = buildLocationOptions(locationOptionsSource, "region");
+  const territoryOptions = buildLocationOptions(
+    locationOptionsSource,
+    "territory",
+  );
   const filterSummary = buildLocationFilterSummary({
     city: selectedCity,
     region: selectedRegion,
@@ -386,16 +393,16 @@ function LocationsTable({
               </td>
               <td>
                 <span
-                  className={`status-pill ${locationStatusTone(
-                    location.status,
-                  )}`}
+                  className={`status-pill ${statusTone(location.status)}`}
                 >
                   {formatLabel(location.status)}
                 </span>
               </td>
               <td>
                 <strong>{activity?.visitCount ?? 0}</strong>
-                <span>{formatDateTime(activity?.lastVisitAt ?? null)}</span>
+                <span>
+                  {formatDateTime(activity?.lastVisitAt ?? null, "No visits yet")}
+                </span>
               </td>
               <td>{activity?.openTaskCount ?? 0}</td>
               <td>
@@ -519,6 +526,35 @@ function buildLocationCounters(
   ];
 }
 
+async function fetchAllLocations(): Promise<Location[]> {
+  const first = await listAdminLocations("pageSize=100&page=1");
+
+  if (!first.ok) {
+    return [];
+  }
+
+  const items = [...first.data.items];
+  const remainingPages = first.data.totalPages - first.data.page;
+
+  if (remainingPages > 0) {
+    const pages = await Promise.all(
+      Array.from({ length: remainingPages }, (_, index) =>
+        listAdminLocations(
+          `pageSize=100&page=${first.data.page + index + 1}`,
+        ),
+      ),
+    );
+
+    for (const page of pages) {
+      if (page.ok) {
+        items.push(...page.data.items);
+      }
+    }
+  }
+
+  return items;
+}
+
 function buildLocationOptions(
   locations: Location[],
   field: "city" | "region" | "territory",
@@ -606,42 +642,4 @@ function normalizeLocationStatus(
   }
 
   return null;
-}
-
-function normalizeFilterValue(value: string | undefined): string | null {
-  const normalizedValue = value?.trim();
-  return normalizedValue || null;
-}
-
-function locationStatusTone(
-  status: LocationStatus,
-): "active" | "info" | "warning" {
-  if (status === "active") {
-    return "active";
-  }
-
-  if (status === "archived") {
-    return "warning";
-  }
-
-  return "info";
-}
-
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "No visits yet";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

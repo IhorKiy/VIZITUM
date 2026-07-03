@@ -5,6 +5,7 @@ import {
   type Visit,
   type VisitStatus,
 } from "../../../../lib/api-client";
+import { formatDateTime, formatLabel } from "../../../../lib/format";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -402,21 +403,3 @@ function visitStatusTone(status: VisitStatus): "active" | "info" | "warning" {
   return "info";
 }
 
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}

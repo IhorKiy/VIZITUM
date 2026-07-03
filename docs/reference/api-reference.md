@@ -40,7 +40,7 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | Method & path | Body | Returns |
 | --- | --- | --- |
 | `POST /auth/login` | `{ email, password, tenantSlug }` | `{ user: { id, email, name, status, lastSelectedRoleCode }, roleCodes, permissions }`; sets session + CSRF cookies |
-| `GET /auth/me` | — | Current session user, same shape as login |
+| `GET /auth/me` | — | Same shape as login, plus `productsEnabled` (tenant setting, used to hide the Products nav item) |
 | `POST /auth/role` | `{ roleCode }` | Switch `lastSelectedRoleCode` |
 | `POST /auth/invites/accept` | `{ token, name, password, phone? }` | Activates invited user, sets session + CSRF cookies |
 | `POST /auth/logout` | — | `{ ok: true }`; revokes session, clears cookies |

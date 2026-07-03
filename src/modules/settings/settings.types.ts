@@ -1,3 +1,5 @@
+export const PRODUCTS_ENABLED_SETTING_KEY = "products_enabled";
+
 export type TenantSettingsResponse = {
   tenantId: string;
   name: string;

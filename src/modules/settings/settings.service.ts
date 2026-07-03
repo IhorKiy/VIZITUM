@@ -2,12 +2,11 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
-import type {
-  TenantSettingsResponse,
-  UpdateTenantSettingsRequestBody,
+import {
+  PRODUCTS_ENABLED_SETTING_KEY,
+  type TenantSettingsResponse,
+  type UpdateTenantSettingsRequestBody,
 } from "./settings.types";
-
-const PRODUCTS_ENABLED_SETTING_KEY = "products_enabled";
 
 @Injectable()
 export class SettingsService {
@@ -72,34 +71,36 @@ export class SettingsService {
       });
     }
 
-    await this.prisma.platformTenant.update({
-      where: { id: context.tenantId },
-      data: {
-        ...(name ? { name } : {}),
-        ...(timezone ? { timezone } : {}),
-      },
-    });
-
-    if (productsEnabled !== null && productsEnabled !== undefined) {
-      await this.prisma.tenantSetting.upsert({
-        where: {
-          tenantId_key: {
-            tenantId: context.tenantId,
-            key: PRODUCTS_ENABLED_SETTING_KEY,
-          },
-        },
-        create: {
-          tenantId: context.tenantId,
-          key: PRODUCTS_ENABLED_SETTING_KEY,
-          value: productsEnabled,
-          updatedByUserId: context.userId ?? null,
-        },
-        update: {
-          value: productsEnabled,
-          updatedByUserId: context.userId ?? null,
+    await this.prisma.$transaction(async (tx) => {
+      await tx.platformTenant.update({
+        where: { id: context.tenantId },
+        data: {
+          ...(name ? { name } : {}),
+          ...(timezone ? { timezone } : {}),
         },
       });
-    }
+
+      if (productsEnabled !== null && productsEnabled !== undefined) {
+        await tx.tenantSetting.upsert({
+          where: {
+            tenantId_key: {
+              tenantId: context.tenantId,
+              key: PRODUCTS_ENABLED_SETTING_KEY,
+            },
+          },
+          create: {
+            tenantId: context.tenantId,
+            key: PRODUCTS_ENABLED_SETTING_KEY,
+            value: productsEnabled,
+            updatedByUserId: context.userId ?? null,
+          },
+          update: {
+            value: productsEnabled,
+            updatedByUserId: context.userId ?? null,
+          },
+        });
+      }
+    });
 
     return this.getSettings(context);
   }

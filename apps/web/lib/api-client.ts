@@ -10,6 +10,7 @@ export type AuthSession = {
   };
   roleCodes: string[];
   permissions: string[];
+  productsEnabled: boolean;
 };
 
 export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";

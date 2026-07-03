@@ -8,6 +8,10 @@ import {
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
+import {
+  formatDateTime,
+  normalizeFilterValue,
+} from "../../../../lib/format";
 
 type ManagerRepresentativesPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -323,7 +327,9 @@ function RepresentativesTable({
                 {representative.openTaskCount}
               </span>
             </td>
-            <td>{formatDateTime(representative.lastActivityAt)}</td>
+            <td>
+              {formatDateTime(representative.lastActivityAt, "No activity")}
+            </td>
             <td>
               <div className="table-actions">
                 <a
@@ -555,24 +561,8 @@ function normalizeActivityFilter(
   return null;
 }
 
-function normalizeFilterValue(value: string | undefined): string | null {
-  const normalizedValue = value?.trim();
-  return normalizedValue || null;
-}
-
 function formatActivityFilter(value: RepresentativeActivityFilter): string {
   return (
     activityFilters.find((filter) => filter.value === value)?.label ?? value
   );
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "No activity";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

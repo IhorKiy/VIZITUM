@@ -5,6 +5,11 @@ import {
   type Report,
   type Visit,
 } from "../../../../../lib/api-client";
+import {
+  formatDateTime,
+  formatLabel,
+  formatLabelOrDash,
+} from "../../../../../lib/format";
 
 type ManagerVisitDetailPageProps = {
   params: Promise<{ tenantSlug: string; visitId: string }>;
@@ -500,29 +505,3 @@ function formatScalarValue(value: unknown): string {
   return String(value);
 }
 
-function formatLabelOrDash(value: unknown): string {
-  if (typeof value !== "string" || !value.trim()) {
-    return "-";
-  }
-
-  return formatLabel(value);
-}
-
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}

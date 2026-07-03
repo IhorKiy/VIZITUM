@@ -26,6 +26,7 @@ export type NavItem = {
 export function buildTenantNav(
   tenantSlug: string,
   permissions?: string[],
+  productsEnabled = true,
 ): NavItem[] {
   const navItems: NavItem[] = [
     {
@@ -139,13 +140,17 @@ export function buildTenantNav(
     },
   ];
 
+  const visibleItems = productsEnabled
+    ? navItems
+    : navItems.filter((item) => item.area !== "admin-products");
+
   if (!permissions) {
-    return navItems;
+    return visibleItems;
   }
 
   const permissionSet = new Set(permissions);
 
-  return navItems.filter((item) =>
+  return visibleItems.filter((item) =>
     item.requiredPermissions.some((permission) =>
       permissionSet.has(permission),
     ),

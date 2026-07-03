@@ -8,6 +8,11 @@ import {
   type Product,
   type ProductStatus,
 } from "../../../../lib/api-client";
+import {
+  formatLabel,
+  normalizeFilterValue,
+  statusTone,
+} from "../../../../lib/format";
 
 type AdminProductsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -272,7 +277,7 @@ function ProductRow({
           <h3>{product.name}</h3>
           <p>{product.sku ? `SKU ${product.sku}` : "No SKU"}</p>
         </div>
-        <span className={`status-pill ${productStatusTone(product.status)}`}>
+        <span className={`status-pill ${statusTone(product.status)}`}>
           {formatLabel(product.status)}
         </span>
       </header>
@@ -348,34 +353,10 @@ function normalizeStatus(value: string | undefined): ProductStatus | null {
   return null;
 }
 
-function normalizeFilterValue(value: string | undefined): string | null {
-  const normalizedValue = value?.trim();
-
-  return normalizedValue || null;
-}
-
 function normalizeOptionalField(
   value: FormDataEntryValue | null,
 ): string | null {
   const normalizedValue = String(value ?? "").trim();
 
   return normalizedValue || null;
-}
-
-function productStatusTone(
-  status: ProductStatus,
-): "active" | "info" | "warning" {
-  if (status === "active") {
-    return "active";
-  }
-
-  return status === "inactive" ? "info" : "warning";
-}
-
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
 }

@@ -22,6 +22,7 @@ export async function AppShell({
   const navItems = buildTenantNav(
     tenantSlug,
     sessionResult.ok ? sessionResult.data.permissions : undefined,
+    sessionResult.ok ? sessionResult.data.productsEnabled : true,
   );
 
   return (
