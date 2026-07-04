@@ -255,6 +255,7 @@ Status legend:
 - [x] Re-smoke Manager task assignment after the task option/counting fix deploys.
 - [x] Re-smoke cancelled-task filtering after deploy.
 - [x] Re-smoke pending/disabled submit states, Field audio recovery links, Admin import recovery/history, Admin invite history/resend and Manager route/representative/assignee/date filters after deploy. Completed staging re-smoke on 2026-07-03; only the approved invite/resend mutation for `kiyanichenko81@gmail.com` was repeated.
+- [x] Re-smoke P1 read-only/filter screens on staging: Field visit history status/date filters and empty state, Manager coverage filters/row links/empty state, Manager representative filters/row links/empty state, Admin settings read-only load, Admin locations read-only load/filter/empty state and Admin products empty state. Completed on 2026-07-04 with no demo fallback or browser console errors; Admin settings/location save mutations and Admin products toggle remain a controlled follow-up.
 
 ### Final gate before production pilot
 

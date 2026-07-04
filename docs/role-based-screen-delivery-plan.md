@@ -111,9 +111,9 @@ The full initial P0 sequence passed staging re-smoke on 2026-07-03 against relea
 1. Admin import history with applied row counts and validation failure history. Initial version implemented and staging-smoked.
 2. Tenant settings screen for company identity and products applicability. Implemented at `/:tenantSlug/admin/settings`; enabled report types deferred until a report-type model exists.
 3. Admin locations and products/SKU list screens. Implemented at `/:tenantSlug/admin/locations` and `/:tenantSlug/admin/products` with status/search filters and inline edit; contact/assignment editing stays API-only for now.
-4. Manager location browser. Initial read-only coverage list implemented at `/:tenantSlug/manager/locations`; staging smoke pending.
-5. Representative drilldown. Initial read-only workload list implemented at `/:tenantSlug/manager/representatives`; staging smoke pending.
-6. Field visit history. Initial own-scope history view implemented at `/:tenantSlug/field/history`; staging smoke pending.
+4. Manager location browser. Initial read-only coverage list implemented at `/:tenantSlug/manager/locations`; 2026-07-04 staging re-smoke passed live counters, filters, row drilldown links and filtered-empty recovery.
+5. Representative drilldown. Initial read-only workload list implemented at `/:tenantSlug/manager/representatives`; 2026-07-04 staging re-smoke passed live counters, activity/search filters, row drilldown links and filtered-empty recovery.
+6. Field visit history. Initial own-scope history view implemented at `/:tenantSlug/field/history`; 2026-07-04 staging re-smoke passed status/date filters and filtered-empty recovery.
 7. Platform create tenant or tenant detail UI if internal setup needs repeatable non-script operation.
 
 ## 5. Product Rules For Role-Based Screens
