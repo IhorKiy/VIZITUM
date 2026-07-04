@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ExecutionContext } from "@nestjs/common";
-import { UnauthorizedException } from "@nestjs/common";
+import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 
 import { AuthService } from "../src/modules/auth/auth.service";
 import { SESSION_COOKIE_NAME } from "../src/modules/auth/auth.constants";
@@ -166,6 +166,52 @@ describe("auth tenant isolation", () => {
         roleCodes: [],
         permissions: [PERMISSIONS.PLATFORM_OPERATIONS_READ],
       });
+    } finally {
+      if (previousToken === undefined) {
+        delete process.env.PLATFORM_OPERATIONS_TOKEN;
+      } else {
+        process.env.PLATFORM_OPERATIONS_TOKEN = previousToken;
+      }
+    }
+  });
+
+  it("rejects the platform operations bearer token for tenant management", async () => {
+    const previousToken = process.env.PLATFORM_OPERATIONS_TOKEN;
+    process.env.PLATFORM_OPERATIONS_TOKEN = "operator-token";
+
+    try {
+      const reflector = {
+        getAllAndOverride: (key: string) =>
+          key === "requiredPermissions"
+            ? [PERMISSIONS.PLATFORM_TENANTS_MANAGE]
+            : undefined,
+      };
+      const guard = new PermissionGuard(
+        {} as never,
+        reflector as never,
+        new RolesService(),
+        {
+          findActiveSessionByToken: async () => {
+            throw new Error("session lookup must not run for a bearer token");
+          },
+        } as never,
+      );
+      const request = createRequest(undefined, "Bearer operator-token");
+
+      // The operations bearer token is a read-only service credential: it must
+      // never satisfy platform.tenants.manage. If someone re-broadens
+      // buildPlatformOperationsContext, this pins the regression.
+      await assert.rejects(
+        () => guard.canActivate(createExecutionContext(request)),
+        (error: unknown) => {
+          assert.ok(error instanceof ForbiddenException);
+          assert.equal(
+            (error.getResponse() as { code: string }).code,
+            "MISSING_PERMISSION",
+          );
+          return true;
+        },
+      );
     } finally {
       if (previousToken === undefined) {
         delete process.env.PLATFORM_OPERATIONS_TOKEN;

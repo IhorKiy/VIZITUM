@@ -46,6 +46,11 @@ enum JobStatus {
   cancelled
 }
 
+enum PlatformUserStatus {
+  active
+  suspended
+}
+
 enum UserStatus {
   invited
   active
@@ -203,6 +208,39 @@ model PlatformTenant {
   @@index([databasePlacement])
   @@index([segmentTemplate])
   @@map("platform_tenants")
+}
+
+model PlatformUser {
+  id           String             @id @default(cuid())
+  email        String             @unique
+  name         String
+  passwordHash String
+  status       PlatformUserStatus @default(active)
+  lastLoginAt  DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  sessions PlatformSession[]
+
+  @@map("platform_users")
+}
+
+model PlatformSession {
+  id               String    @id @default(cuid())
+  platformUserId   String
+  sessionTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  lastSeenAt       DateTime?
+  userAgentHash    String?
+  ipHash           String?
+
+  platformUser PlatformUser @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId])
+  @@index([expiresAt])
+  @@map("platform_sessions")
 }
 
 model PlatformProvisioningJob {

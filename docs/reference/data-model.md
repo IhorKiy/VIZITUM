@@ -2,7 +2,7 @@
 
 Reference for the implemented database schema. Source of truth: `prisma/schema.prisma` (migrations in `prisma/migrations/`). This is the current state; `docs/vizitum-low-level-technical-design.md` §DB describes design intent and may differ. Update this document in the same change as any schema change.
 
-**24 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
+**26 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
 
 ## Conventions
 
@@ -15,6 +15,8 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 | Model | Table | Purpose |
 | --- | --- | --- |
 | `PlatformTenant` | `platform_tenants` | Tenant registry: `slug` (unique, used in URLs), `status` (TenantStatus), `planCode`, `productMode`, `segmentTemplate`, `databasePlacement` (shared/dedicated), `timezone`, `language`. |
+| `PlatformUser` | `platform_users` | Platform-owner identity, separate from tenant `users`: `email` (globally unique), `passwordHash`, `status` (PlatformUserStatus: active/suspended). Holds the `platform_owner` role. |
+| `PlatformSession` | `platform_sessions` | Platform-owner session (token hash, expiry, revoke) for `vizitum_platform_session`; mirrors `sessions` but keyed by `platformUserId`, no `tenantId`. |
 | `PlatformProvisioningJob` | `platform_provisioning_jobs` | Tenant provisioning job state (JobStatus, step, error). |
 | `PlatformOperationEvent` | `platform_operation_events` | Platform-level event log (`eventType`, `metadata`, optional tenant). |
 
@@ -77,4 +79,4 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 
 Defined in `prisma/schema.prisma` and mirrored in TypeScript where needed:
 
-`TenantStatus`, `PlanCode` (pilot/team/business), `ProductMode` (team/business), `DatabasePlacement` (shared/dedicated), `SegmentTemplate` (distribution/service/partner_account), `JobStatus`, `UserStatus`, `InviteStatus`, `RoleCode`, `LocationStatus`, `AssignmentStatus`, `ProductStatus`, `RouteStatus`, `RouteItemStatus`, `VisitStatus`, `VisitNoteInputType` (text/audio), `ReportStatus` (draft/confirmed/discarded), `TaskStatus`, `TaskPriority`, `ImportType`, `ImportStatus`, `ImportIssueSeverity`, `AiJobType`, `AiJobStatus`, `StorageObjectStatus`, `StorageObjectPurpose`.
+`TenantStatus`, `PlanCode` (pilot/team/business), `ProductMode` (team/business), `DatabasePlacement` (shared/dedicated), `SegmentTemplate` (distribution/service/partner_account), `JobStatus`, `PlatformUserStatus` (active/suspended), `UserStatus`, `InviteStatus`, `RoleCode`, `LocationStatus`, `AssignmentStatus`, `ProductStatus`, `RouteStatus`, `RouteItemStatus`, `VisitStatus`, `VisitNoteInputType` (text/audio), `ReportStatus` (draft/confirmed/discarded), `TaskStatus`, `TaskPriority`, `ImportType`, `ImportStatus`, `ImportIssueSeverity`, `AiJobType`, `AiJobStatus`, `StorageObjectStatus`, `StorageObjectPurpose`.
