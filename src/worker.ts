@@ -6,9 +6,10 @@ import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module";
 import { JsonLogger } from "./common/json-logger.service";
 import { AiService } from "./modules/ai/ai.service";
+import { ProvisioningService } from "./modules/platform/provisioning.service";
 import { StorageService } from "./modules/storage/storage.service";
 
-type WorkerTask = "cleanup";
+type WorkerTask = "cleanup" | "provision";
 
 async function bootstrap() {
   const logger = new JsonLogger();
@@ -33,6 +34,20 @@ async function bootstrap() {
       );
 
       if (result.storage.failedObjectCount > 0) {
+        process.exitCode = 1;
+      }
+    } else if (task === "provision") {
+      const result = await runProvision(app.get(ProvisioningService));
+
+      logger.log(
+        {
+          message: "worker_provision_completed",
+          ...result,
+        },
+        "Worker",
+      );
+
+      if (result.provisioning.failedJobCount > 0) {
         process.exitCode = 1;
       }
     }
@@ -70,9 +85,25 @@ async function runCleanup(
   };
 }
 
+async function runProvision(provisioningService: ProvisioningService) {
+  const now = new Date();
+  const provisioning =
+    await provisioningService.runPendingProvisioningJobs(now);
+
+  return {
+    task: "provision" as const,
+    timestamp: now.toISOString(),
+    provisioning,
+  };
+}
+
 function parseWorkerTask(value: string | undefined): WorkerTask {
   if (!value || value === "cleanup") {
     return "cleanup";
+  }
+
+  if (value === "provision") {
+    return "provision";
   }
 
   throw new Error(`Unsupported WORKER_TASK: ${value}`);

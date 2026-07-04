@@ -10,8 +10,10 @@ import {
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 
+import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS, type PermissionCode } from "../roles/permissions";
+import { ROLE_PERMISSION_MATRIX } from "../roles/role-permission.matrix";
 import { RolesService } from "../roles/roles.service";
 import type { RequestContext } from "../tenancy/request-context";
 import { hashValue } from "./auth-crypto";
@@ -80,6 +82,13 @@ export class PermissionGuard implements CanActivate {
       return platformTokenContext;
     }
 
+    const platformSessionContext =
+      await this.buildPlatformSessionContext(request);
+
+    if (platformSessionContext) {
+      return platformSessionContext;
+    }
+
     const token = readSessionToken(request);
 
     if (!token) {
@@ -118,6 +127,41 @@ export class PermissionGuard implements CanActivate {
       userId: session.userId,
       roleCodes,
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
+    };
+  }
+
+  private async buildPlatformSessionContext(
+    request: Request,
+  ): Promise<RequestContext | null> {
+    const token = readPlatformSessionToken(request);
+
+    if (!token) {
+      return null;
+    }
+
+    const session = await this.prisma.platformSession.findUnique({
+      where: { sessionTokenHash: hashValue(token) },
+    });
+
+    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+      return null;
+    }
+
+    const platformUser = await this.prisma.platformUser.findUnique({
+      where: { id: session.platformUserId },
+    });
+
+    if (!platformUser || platformUser.status !== "active") {
+      return null;
+    }
+
+    return {
+      requestId: request.requestId ?? "unknown",
+      tenantId: "platform",
+      tenantSlug: "platform",
+      userId: platformUser.id,
+      roleCodes: [],
+      permissions: [...ROLE_PERMISSION_MATRIX.platform_owner],
     };
   }
 }

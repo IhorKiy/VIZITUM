@@ -15,6 +15,7 @@ import {
   HASH_ALGORITHM,
   SESSION_TTL_DAYS,
 } from "./auth.constants";
+import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import { readSessionToken } from "./session-cookie";
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -48,7 +49,8 @@ export function applyCsrfProtection(
     return;
   }
 
-  const sessionToken = readSessionToken(request);
+  const sessionToken =
+    readSessionToken(request) ?? readPlatformSessionToken(request);
 
   if (!sessionToken) {
     next();

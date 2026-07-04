@@ -6,10 +6,11 @@ All routes are prefixed with **`/api`** (set in `src/main.ts`). Paths below omit
 
 ## Authentication model
 
-- **Session cookie**: `vizitum_session` (httpOnly, SameSite=Lax, Secure in production, 30-day TTL). Set by `POST /auth/login` and `POST /auth/invites/accept`; cleared by `POST /auth/logout`. The server stores only a hash of the token (`sessions.sessionTokenHash`).
-- **CSRF**: double-submit cookie. `vizitum_csrf` (readable by JS) must be echoed in the `x-csrf-token` header on every non-GET/HEAD/OPTIONS request that carries a session. The token is an HMAC signed with the session token. Errors: `CSRF_TOKEN_REQUIRED`, `CSRF_TOKEN_INVALID`, `CSRF_TOKEN_MALFORMED` (403/400).
-- **Tenant resolution**: the session is bound to a tenant at login (`tenantSlug` in the login body). `PermissionGuard` (`src/modules/auth/permission.guard.ts`) loads the session, tenant, user and roles, and attaches a `RequestContext` to the request. Tenant id is **never** read from client input on tenant-owned routes.
-- **Platform bearer token**: `Authorization: Bearer <token>` grants only `platform.operations.read` (for `GET /operations/summary`). Validated against `PLATFORM_OPERATIONS_TOKEN_SHA256` (preferred) or `PLATFORM_OPERATIONS_TOKEN`.
+- **Session cookie (tenant)**: `vizitum_session` (httpOnly, SameSite=Lax, Secure in production, 30-day TTL). Set by `POST /auth/login` and `POST /auth/invites/accept`; cleared by `POST /auth/logout`. The server stores only a hash of the token (`sessions.sessionTokenHash`).
+- **Session cookie (platform)**: `vizitum_platform_session` (same cookie attributes/TTL). Set by `POST /platform/auth/login`; cleared by `POST /platform/auth/logout`. Resolves to a `PlatformUser` and grants the full `platform_owner` permission set (`platform.tenants.read`/`manage`, `platform.operations.read`). Not bound to any tenant; `RequestContext.tenantId` is the sentinel `"platform"` and `userId` is the platform user id (used as the audit actor).
+- **CSRF**: double-submit cookie. `vizitum_csrf` (readable by JS) must be echoed in the `x-csrf-token` header on every non-GET/HEAD/OPTIONS request that carries **either** session cookie. The token is an HMAC signed with the session token. Errors: `CSRF_TOKEN_REQUIRED`, `CSRF_TOKEN_INVALID`, `CSRF_TOKEN_MALFORMED` (403/400).
+- **Tenant resolution**: the tenant session is bound to a tenant at login (`tenantSlug` in the login body). `PermissionGuard` (`src/modules/auth/permission.guard.ts`) loads the session, tenant, user and roles, and attaches a `RequestContext` to the request. Tenant id is **never** read from client input on tenant-owned routes.
+- **Platform bearer token**: `Authorization: Bearer <token>` grants only `platform.operations.read` — a service credential used by `GET /operations/summary` (e.g. the alerts check). It **cannot** manage tenants; tenant management requires a `platform_owner` session. Validated against `PLATFORM_OPERATIONS_TOKEN_SHA256` (preferred) or `PLATFORM_OPERATIONS_TOKEN`.
 - **Permissions**: endpoints declare `@RequirePermissions` (all required) or `@RequireAnyPermissions` (at least one). Missing permission → 403 `MISSING_PERMISSION`; missing/invalid session → 401 `AUTHENTICATION_REQUIRED`. See [permissions.md](permissions.md).
 - **Request id**: `x-request-id` is accepted/generated and echoed in error bodies and some responses.
 
@@ -57,6 +58,24 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | Method & path | Permissions | Returns |
 | --- | --- | --- |
 | `GET /operations/summary` | all: `platform.operations.read` (session or bearer token) | `{ generatedAt, windowHours, tenants, provisioning, imports, ai, storage, requestId }` |
+
+### Platform auth — `/platform/auth` (public, `platform-auth.controller.ts`)
+
+| Method & path | Body | Returns |
+| --- | --- | --- |
+| `POST /platform/auth/login` | `{ email, password }` | `{ platformUser: { id, email, name, status }, roleCodes: ["platform_owner"], permissions }`; sets `vizitum_platform_session` + `vizitum_csrf` cookies. 401 `INVALID_CREDENTIALS` |
+| `GET /platform/auth/me` | — | Same shape as login; 401 `AUTHENTICATION_REQUIRED` when unauthenticated |
+| `POST /platform/auth/logout` | — | `{ ok: true }`; revokes the session, clears cookies |
+
+### Platform — `/platform/tenants` (`platform_owner` session, `platform.controller.ts`)
+
+| Method & path | Permissions | Body | Returns |
+| --- | --- | --- | --- |
+| `GET /platform/tenants` | all: `platform.tenants.read` | — | `PlatformTenant[]`, most recent first |
+| `GET /platform/tenants/:tenantId` | all: `platform.tenants.read` | — | `{ tenant, provisioningJob }`; 404 `TENANT_NOT_FOUND` |
+| `POST /platform/tenants` | all: `platform.tenants.manage` | `{ name, slug, segmentTemplate, country?, timezone?, language?, primaryDomain? }` | `{ tenant, provisioningJob }` (tenant created with `status: "draft"`, job `status: "queued"`); errors: 400 `TENANT_INVALID` (missing/invalid fields), 409 `TENANT_SLUG_ALREADY_EXISTS` |
+| `PATCH /platform/tenants/:tenantId` | all: `platform.tenants.manage` | `{ name?, timezone?, language?, primaryDomain?, planCode?, status? }` — `status` cannot be `archived` (use the archive action) | updated `PlatformTenant`; errors: 400 `TENANT_UPDATE_INVALID`/`TENANT_UPDATE_EMPTY`, 404 `TENANT_NOT_FOUND`, 409 `TENANT_ARCHIVED` |
+| `POST /platform/tenants/:tenantId/archive` | all: `platform.tenants.manage` | — | archived `PlatformTenant` (`status: "archived"`, `archivedAt` set); idempotent on an already-archived tenant; 404 `TENANT_NOT_FOUND` |
 
 ### Pilot review — `/pilot-review` (`pilot-review.controller.ts`)
 
@@ -169,4 +188,4 @@ Template types: `users`, `locations`, `contacts`, `products`, `initial_visit_tas
 
 ## Endpoint count
 
-61 endpoints across 12 controllers (auth 5, health 2, operations 1, visits 11, tasks 3, locations 11, products 4, routes 6, imports 6, admin users 7, admin settings 2, storage 3).
+71 endpoints across 15 controllers (auth 5, health 2, operations 1, platform auth 3, platform 5, pilot review 2, visits 11, tasks 3, locations 11, products 4, routes 6, imports 6, admin users 7, admin settings 2, storage 3).

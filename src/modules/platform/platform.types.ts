@@ -1,4 +1,4 @@
-import type { SegmentTemplate } from "@prisma/client";
+import type { PlanCode, SegmentTemplate, TenantStatus } from "@prisma/client";
 
 export type CreateTenantInput = {
   name: string;
@@ -8,6 +8,17 @@ export type CreateTenantInput = {
   language?: string;
   segmentTemplate: SegmentTemplate;
   primaryDomain?: string;
+  actorUserId?: string;
+  requestId?: string;
+};
+
+export type UpdateTenantInput = {
+  name?: string;
+  timezone?: string;
+  language?: string;
+  primaryDomain?: string | null;
+  planCode?: PlanCode;
+  status?: TenantStatus;
   actorUserId?: string;
   requestId?: string;
 };
