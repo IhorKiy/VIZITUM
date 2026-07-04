@@ -16,8 +16,7 @@ export type AuthSession = {
 export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";
 export type RouteStatus =
   "draft" | "published" | "in_progress" | "completed" | "cancelled";
-export type RouteItemStatus =
-  "planned" | "in_progress" | "completed" | "skipped";
+export type RouteItemStatus = "planned" | "visited" | "skipped";
 export type TaskStatus = "open" | "in_progress" | "done" | "cancelled";
 export type TaskPriority = "low" | "normal" | "high";
 export type TenantRoleCode =
