@@ -674,6 +674,7 @@ model AiJob {
   inputObjectId               String?
   temporaryTranscriptObjectId String?
   temporaryDraft              Json?
+  draftQuality                Json?
   errorCode                   String?
   errorMessage                String?
   startedAt                   DateTime?

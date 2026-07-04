@@ -8,8 +8,15 @@ import { Prisma, type AiJob, type SegmentTemplate } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  findReportCreatedTasks,
+  toReportResponse,
+} from "../visits/report-response.util";
 import { JsonLogger } from "../../common/json-logger.service";
-import { classifyAiDraftQuality } from "./ai-draft-quality";
+import {
+  classifyAiDraftQuality,
+  type AiDraftQuality,
+} from "./ai-draft-quality";
 import {
   getAiExtractionSchema,
   type AiExtractionSchema,
@@ -390,6 +397,7 @@ export class AiService {
         data: {
           status: "succeeded",
           temporaryDraft: extraction.draft as Prisma.InputJsonObject,
+          draftQuality,
           finishedAt: new Date(),
           expiresAt: job.expiresAt ?? buildTemporaryDataExpiry(),
         },
@@ -397,7 +405,7 @@ export class AiService {
 
       this.logger.logJob(toJobLogEntry(updatedJob));
 
-      return { ...toAiJobResponse(updatedJob), draftQuality };
+      return toAiJobResponse(updatedJob);
     } catch (error) {
       const updatedJob = await this.prisma.aiJob.update({
         where: { id: job.id },
@@ -581,8 +589,14 @@ export class AiService {
       };
     });
 
+    const createdTasks = await findReportCreatedTasks(
+      this.prisma,
+      context.tenantId,
+      result.report.id,
+    );
+
     return {
-      report: toReportResponse(result.report),
+      report: toReportResponse(result.report, createdTasks),
       createdTaskCount: result.createdTaskCount,
     };
   }
@@ -918,38 +932,6 @@ function parseDateOnly(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function toReportResponse(report: {
-  id: string;
-  visitId: string;
-  locationId: string;
-  representativeUserId: string;
-  templateCode: string;
-  schemaVersion: string;
-  status: string;
-  confirmedData: unknown;
-  confirmedByUserId: string;
-  confirmedAt: Date;
-  aiMetadata: unknown;
-  createdAt: Date;
-  updatedAt: Date;
-}): ConfirmAiDraftResponse["report"] {
-  return {
-    id: report.id,
-    visitId: report.visitId,
-    locationId: report.locationId,
-    representativeUserId: report.representativeUserId,
-    templateCode: report.templateCode,
-    schemaVersion: report.schemaVersion,
-    status: report.status,
-    confirmedData: report.confirmedData,
-    confirmedByUserId: report.confirmedByUserId,
-    confirmedAt: report.confirmedAt.toISOString(),
-    aiMetadata: report.aiMetadata,
-    createdAt: report.createdAt.toISOString(),
-    updatedAt: report.updatedAt.toISOString(),
-  };
-}
-
 function toAiJobResponse(job: AiJob): AiJobResponse {
   return {
     id: job.id,
@@ -967,5 +949,6 @@ function toAiJobResponse(job: AiJob): AiJobResponse {
     expiresAt: job.expiresAt?.toISOString() ?? null,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
+    draftQuality: (job.draftQuality as unknown as AiDraftQuality) ?? undefined,
   };
 }

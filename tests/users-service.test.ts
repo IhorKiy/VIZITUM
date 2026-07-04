@@ -154,4 +154,196 @@ describe("users service", () => {
     assert.equal(resentInvite.roleCodes[0], "field_representative");
     assert.ok(resentInvite.token.length > 20);
   });
+
+  function withTransaction(client: Record<string, unknown>) {
+    return {
+      ...client,
+      $transaction: async (
+        callback: (tx: Record<string, unknown>) => Promise<unknown>,
+      ) => callback(client),
+    };
+  }
+
+  it("blocks removing the tenant's last active company_admin role", async () => {
+    const service = new UsersService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-a",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [
+              { roleCode: "company_admin" },
+              { roleCode: "team_manager" },
+            ],
+          }),
+          count: async () => 0,
+        },
+      }) as never,
+    );
+
+    await assert.rejects(
+      () => service.removeRole(context as never, "user-a", "company_admin"),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "TENANT_LAST_ADMIN",
+    );
+  });
+
+  it("allows removing company_admin when another active admin remains", async () => {
+    const deletedRoles: unknown[] = [];
+    const service = new UsersService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-a",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [
+              { roleCode: "company_admin" },
+              { roleCode: "team_manager" },
+            ],
+            createdAt: new Date("2026-07-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-07-04T00:00:00.000Z"),
+          }),
+          count: async () => 1,
+        },
+        userRole: {
+          deleteMany: async (query: unknown) => {
+            deletedRoles.push(query);
+          },
+        },
+      }) as never,
+    );
+
+    await service.removeRole(context as never, "user-a", "company_admin");
+
+    assert.equal(deletedRoles.length, 1);
+  });
+
+  it("blocks removing a user's only remaining role", async () => {
+    const service = new UsersService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-a",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "field_representative" }],
+          }),
+        },
+      }) as never,
+    );
+
+    await assert.rejects(
+      () =>
+        service.removeRole(context as never, "user-a", "field_representative"),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "USER_LAST_ROLE",
+    );
+  });
+
+  it("blocks suspending the tenant's last active company_admin", async () => {
+    const service = new UsersService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-a",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "company_admin" }],
+          }),
+          count: async () => 0,
+        },
+      }) as never,
+    );
+
+    await assert.rejects(
+      () =>
+        service.updateUser(context as never, "user-a", {
+          status: "suspended",
+        }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "TENANT_LAST_ADMIN",
+    );
+  });
+
+  it("allows suspending a company_admin when another active admin remains", async () => {
+    const service = new UsersService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-a",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "company_admin" }],
+          }),
+          count: async () => 1,
+          update: async () => ({
+            id: "user-a",
+            email: "admin@example.com",
+            name: "Admin",
+            phone: null,
+            status: "suspended",
+            lastSelectedRoleCode: null,
+            roles: [{ roleCode: "company_admin" }],
+            createdAt: new Date("2026-07-01T00:00:00.000Z"),
+            updatedAt: new Date("2026-07-04T00:00:00.000Z"),
+          }),
+        },
+      }) as never,
+    );
+
+    const updated = await service.updateUser(context as never, "user-a", {
+      status: "suspended",
+    });
+
+    assert.equal(updated.status, "suspended");
+  });
+
+  it("runs the last-admin lockout check under a serializable transaction to close the check-then-act race", async () => {
+    const transactionCalls: unknown[] = [];
+    const client = {
+      user: {
+        findFirst: async () => ({
+          id: "user-a",
+          tenantId: "tenant-a",
+          status: "active",
+          deletedAt: null,
+          roles: [{ roleCode: "company_admin" }],
+        }),
+        count: async () => 1,
+        update: async () => ({
+          id: "user-a",
+          email: "admin@example.com",
+          name: "Admin",
+          phone: null,
+          status: "suspended",
+          lastSelectedRoleCode: null,
+          roles: [{ roleCode: "company_admin" }],
+          createdAt: new Date("2026-07-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-07-04T00:00:00.000Z"),
+        }),
+      },
+      $transaction: async (
+        callback: (tx: unknown) => Promise<unknown>,
+        options: unknown,
+      ) => {
+        transactionCalls.push(options);
+
+        return callback(client);
+      },
+    };
+    const service = new UsersService(client as never);
+
+    await service.updateUser(context as never, "user-a", {
+      status: "suspended",
+    });
+
+    assert.deepEqual(transactionCalls, [{ isolationLevel: "Serializable" }]);
+  });
 });
