@@ -194,6 +194,15 @@ export class UsersService {
     const user = await this.findTenantUser(context.tenantId, userId);
     const status = normalizeUserStatus(body.status);
 
+    if (
+      status &&
+      status !== "active" &&
+      user.status === "active" &&
+      user.roles.some((role) => role.roleCode === "company_admin")
+    ) {
+      await this.assertOtherActiveCompanyAdminExists(context.tenantId, user.id);
+    }
+
     const updatedUser = await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -257,6 +266,24 @@ export class UsersService {
 
     const user = await this.findTenantUser(context.tenantId, userId);
 
+    if (
+      roleCode === "company_admin" &&
+      user.status === "active" &&
+      user.roles.some((role) => role.roleCode === "company_admin")
+    ) {
+      await this.assertOtherActiveCompanyAdminExists(context.tenantId, user.id);
+    }
+
+    if (
+      user.roles.length <= 1 &&
+      user.roles.some((role) => role.roleCode === roleCode)
+    ) {
+      throw new ConflictException({
+        code: "USER_LAST_ROLE",
+        message: "A user must keep at least one role.",
+      });
+    }
+
     await this.prisma.userRole.deleteMany({
       where: {
         tenantId: context.tenantId,
@@ -266,6 +293,28 @@ export class UsersService {
     });
 
     return this.getUserResponse(context.tenantId, user.id);
+  }
+
+  private async assertOtherActiveCompanyAdminExists(
+    tenantId: string,
+    excludeUserId: string,
+  ): Promise<void> {
+    const otherActiveAdminCount = await this.prisma.user.count({
+      where: {
+        tenantId,
+        id: { not: excludeUserId },
+        status: "active",
+        deletedAt: null,
+        roles: { some: { roleCode: "company_admin" } },
+      },
+    });
+
+    if (otherActiveAdminCount === 0) {
+      throw new ConflictException({
+        code: "TENANT_LAST_ADMIN",
+        message: "This tenant must keep at least one active Company Admin.",
+      });
+    }
   }
 
   private async getUserResponse(

@@ -17,8 +17,9 @@ Design documents explain intent. This file records behavior that has been pinned
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tests/auth-tenant-isolation.test.ts`           | Tenant-owned access is scoped by request context, not client-provided tenant identifiers. Cross-tenant data must not leak.                          |
 | `tests/routes-permissions.test.ts`              | Route reads and route mutations honor role permissions and representative scope. Team-wide route management is broader than own-route management.   |
-| `tests/users-service.test.ts`                   | Company Admin user lifecycle behavior covers tenant-scoped users, invites, role assignment and status changes.                                      |
+| `tests/users-service.test.ts`                   | Company Admin user lifecycle behavior covers tenant-scoped users, invites, role assignment and status changes; a tenant can never be left without an active `company_admin` and a user can never be left with zero roles. |
 | `tests/manager-list-filters.test.ts`            | Manager visit/task lists support operational filters without escaping tenant scope or changing list semantics.                                      |
+| `tests/settings-service.test.ts`                | Tenant settings (company name, IANA time zone, products-applicable) validate input and persist correctly; only `company_admin` can read/manage them. |
 | `tests/import-templates.test.ts`                | Downloadable onboarding templates exist for `users`, `locations`, `contacts`, `products` and `initial_visit_task_plan`; unsupported downloads fail. |
 | `tests/import-csv-parser.test.ts`               | CSV import parsing handles supported CSV syntax and parser errors consistently.                                                                     |
 | `tests/import-xlsx-parser.test.ts`              | XLSX import parsing maps workbook rows into the same validation path as CSV imports.                                                                |

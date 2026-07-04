@@ -304,13 +304,13 @@ Status legend:
 
 ### Track C: Manager and admin workflows
 
-- [x] Add Company Admin users screen for user list, invite creation, suspend/reactivate and role assignment.
+- [x] Add Company Admin users screen for user list, invite creation, suspend/reactivate and role assignment. Correctness audit (2026-07-04) found the backend had no guard against removing a tenant's last active `company_admin` or leaving a user with zero roles, which could lock a tenant out of admin functions via a direct API call; fixed in `src/modules/users/users.service.ts` (`assertOtherActiveCompanyAdminExists`, last-role check) and pinned by `tests/users-service.test.ts`. Suspend/reactivate, invite resend/expiry and role-assignment permission gating were verified solid, no changes needed there.
 - [x] Add initial manager visit/task drilldowns with visit status filters and task status/priority filters.
 - [x] Add pending/disabled controls to Admin user lifecycle actions and clear filtered-empty recovery on Manager visits/tasks.
-- [x] Add manager route, representative/assignee and date range filters to visits/tasks drilldowns.
-- [x] Add admin review screens for import history and applied row counts. Implemented tenant-scoped import history on Admin imports; staging re-smoke is required after deploy.
+- [x] Add manager route, representative/assignee and date range filters to visits/tasks drilldowns. Correctness audit (2026-07-04) found route/status/priority/date filter wiring solid end to end (no enum or field-mapping defects); one open product question surfaced, not a bug: a caller with only own-scope read permission who passes another user's `assignedToUserId`/`representativeUserId` silently gets their own results instead of a 403 — worth a decision on whether that should error instead.
+- [x] Add admin review screens for import history and applied row counts. Implemented tenant-scoped import history on Admin imports; staging re-smoke is required after deploy. Correctness audit (2026-07-04) confirmed tenant isolation and all-or-nothing applied-row-count accuracy are solid; the only gap is test granularity (no dedicated test asserts cross-tenant import-history isolation the way `tests/auth-tenant-isolation.test.ts` does for other modules) — left as a minor follow-up, not a defect.
 - [x] Expand user lifecycle controls with pending invite history, resend invite and invite expiry visibility. Implemented tenant-scoped invite history and fresh-token resend flow; staging re-smoke is required after deploy.
-- [x] Add tenant-level settings for company name and time zone. Implemented via `src/modules/settings`; `docs/specs/pilot-readiness-spec.md` scopes first-pilot tenant settings to company name, time zone and products-applicable only — default route visibility and allowed report types are explicitly deferred past the first pilot, not a remaining gap.
+- [x] Add tenant-level settings for company name and time zone. Implemented via `src/modules/settings`; `docs/specs/pilot-readiness-spec.md` scopes first-pilot tenant settings to company name, time zone and products-applicable only — default route visibility and allowed report types are explicitly deferred past the first pilot, not a remaining gap. Correctness audit (2026-07-04) found the module had zero automated tests despite the implementation being solid (real IANA time zone validation, correct permission gating to `company_admin` only, correct persistence); added `tests/settings-service.test.ts` to close that executable-spec gap.
 
 ### Track D: AI reporting quality
 

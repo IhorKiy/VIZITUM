@@ -148,9 +148,9 @@ Template types: `users`, `locations`, `contacts`, `products`, `initial_visit_tas
 | `POST /admin/users/invite` | all: `users.invite` | `{ email, roleCodes }` | `{ id, email, roleCodes, status, expiresAt, token }` — token is returned once for link building |
 | `GET /admin/users/invites` | all: `users.read` | — | invite history (status, expiry, createdBy/acceptedBy) |
 | `POST /admin/users/invites/:inviteId/resend` | all: `users.invite` | — | new invite with fresh token |
-| `PATCH /admin/users/:userId` | all: `users.manage` | `{ name?, phone?, status? }` | `User` |
+| `PATCH /admin/users/:userId` | all: `users.manage` | `{ name?, phone?, status? }` | `User`; rejects (409 `TENANT_LAST_ADMIN`) deactivating the tenant's last active `company_admin` |
 | `POST /admin/users/:userId/roles` | all: `roles.assign` | `{ roleCode }` | `User` |
-| `DELETE /admin/users/:userId/roles/:roleCode` | all: `roles.assign` | — | `User` |
+| `DELETE /admin/users/:userId/roles/:roleCode` | all: `roles.assign` | — | `User`; rejects (409 `TENANT_LAST_ADMIN`) removing the tenant's last active `company_admin` role and (409 `USER_LAST_ROLE`) removing a user's only remaining role |
 
 ### Admin settings — `/admin/settings` (`admin-settings.controller.ts`)
 
