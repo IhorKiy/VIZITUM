@@ -447,7 +447,7 @@ function buildLiveMetrics(
   );
   const completedRouteItems = routes.reduce(
     (sum, route) =>
-      sum + route.items.filter((item) => item.status === "completed").length,
+      sum + route.items.filter((item) => item.status === "visited").length,
     0,
   );
   const confirmedVisits = visits.filter(
@@ -509,7 +509,7 @@ function buildAttentionItems(
   const blockedRouteItems = routes
     .flatMap((route) =>
       route.items
-        .filter((item) => item.status !== "completed")
+        .filter((item) => item.status !== "visited")
         .map((item) => ({
           route,
           item,
