@@ -299,8 +299,8 @@ Status legend:
 
 - [x] Finalize the minimum customer onboarding dataset: users, locations, contacts, products/SKUs and initial route/task plan.
 - [x] Add sample customer import packs for demo/pilot preparation without exposing real customer data.
-- [ ] Define the first pilot reporting templates for distribution, service and partner-account visit types.
-- [ ] Review which report fields must be structured versus free-text before the first pilot.
+- [x] Define the first pilot reporting templates for distribution, service and partner-account visit types. Resolved via `docs/specs/report-templates-spec.md` and implemented in `src/modules/ai/ai-extraction.schemas.ts` (verified against `tests/ai-extraction-schemas.test.ts`).
+- [x] Review which report fields must be structured versus free-text before the first pilot. Decision recorded in `docs/specs/report-templates-spec.md` (structured common/template-specific fields vs. free-text summary/notes); Manager report detail view now also surfaces the actual created `Task` records (`createdTaskCount`/`createdTasks`) alongside the draft `tasksToCreate`, closing the one gap found against that spec's minimum field list.
 
 ### Track C: Manager and admin workflows
 
