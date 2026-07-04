@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { JsonLogger } from "../../common/json-logger.service";
+import { classifyAiDraftQuality } from "./ai-draft-quality";
 import {
   getAiExtractionSchema,
   type AiExtractionSchema,
@@ -380,6 +381,10 @@ export class AiService {
         extractionInput,
         job.model,
       );
+      const draftQuality = classifyAiDraftQuality(
+        extraction.draft,
+        tenant.segmentTemplate,
+      );
       const updatedJob = await this.prisma.aiJob.update({
         where: { id: job.id },
         data: {
@@ -392,7 +397,7 @@ export class AiService {
 
       this.logger.logJob(toJobLogEntry(updatedJob));
 
-      return toAiJobResponse(updatedJob);
+      return { ...toAiJobResponse(updatedJob), draftQuality };
     } catch (error) {
       const updatedJob = await this.prisma.aiJob.update({
         where: { id: job.id },

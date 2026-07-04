@@ -1,4 +1,4 @@
-import type { VisitStatus } from "@prisma/client";
+import type { TaskPriority, TaskStatus, VisitStatus } from "@prisma/client";
 
 export type VisitResponse = {
   id: string;
@@ -91,6 +91,15 @@ export type RegisteredAudioUploadResponse = {
   };
 };
 
+export type ReportCreatedTask = {
+  id: string;
+  title: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignedToUserId: string | null;
+  dueDate: string | null;
+};
+
 export type ReportResponse = {
   id: string;
   visitId: string;
@@ -105,6 +114,8 @@ export type ReportResponse = {
   aiMetadata: unknown;
   createdAt: string;
   updatedAt: string;
+  createdTaskCount: number;
+  createdTasks: ReportCreatedTask[];
 };
 
 export type ConfirmReportRequestBody = {

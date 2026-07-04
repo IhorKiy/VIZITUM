@@ -1,5 +1,7 @@
 import type { AiJobStatus, AiJobType } from "@prisma/client";
 
+import type { AiDraftQuality } from "./ai-draft-quality";
+
 export type CreateTranscriptionJobRequestBody = {
   inputObjectId?: unknown;
 };
@@ -29,6 +31,7 @@ export type AiJobResponse = {
   expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
+  draftQuality?: AiDraftQuality;
 };
 
 export type ConfirmAiDraftResponse = {

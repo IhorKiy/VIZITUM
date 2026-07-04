@@ -318,6 +318,15 @@ export type OperationsSummary = {
   requestId?: string;
 };
 
+export type ReportCreatedTask = {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  assignedToUserId: string | null;
+  dueDate: string | null;
+};
+
 export type Report = {
   id: string;
   visitId: string;
@@ -332,6 +341,8 @@ export type Report = {
   aiMetadata: unknown;
   createdAt: string;
   updatedAt: string;
+  createdTaskCount: number;
+  createdTasks: ReportCreatedTask[];
 };
 
 export type VisitNote = {

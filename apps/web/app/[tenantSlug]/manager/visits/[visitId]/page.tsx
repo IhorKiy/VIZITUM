@@ -181,8 +181,12 @@ function ReportDetail({ report }: { report: Report }) {
           value={data.mentionedProducts}
         />
         <ListReportSection title="Next actions" value={data.nextActions} />
+        <CreatedTasksSection
+          title="Created tasks"
+          tasks={report.createdTasks}
+        />
         <TasksToCreateSection
-          title="Tasks to create"
+          title="Draft tasks (as confirmed)"
           value={data.tasksToCreate}
         />
         <LocationUpdatesSection
@@ -262,6 +266,37 @@ function MentionedProductsSection({
         </div>
       ) : (
         <p>-</p>
+      )}
+    </section>
+  );
+}
+
+function CreatedTasksSection({
+  title,
+  tasks,
+}: {
+  title: string;
+  tasks: Report["createdTasks"];
+}) {
+  return (
+    <section className="report-detail-section">
+      <h3>
+        {title} ({tasks.length})
+      </h3>
+      {tasks.length > 0 ? (
+        <div className="report-detail-cards">
+          {tasks.map((task) => (
+            <article className="report-detail-card" key={task.id}>
+              <strong>{task.title}</strong>
+              <span>
+                {formatLabel(task.status)} · {formatLabel(task.priority)}
+                {task.dueDate ? ` · due ${task.dueDate}` : ""}
+              </span>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p>No tasks were created from this report.</p>
       )}
     </section>
   );
@@ -394,6 +429,16 @@ function buildVisitMetrics(
       value: quality.label,
       detail: quality.detail,
       tone: quality.tone,
+    },
+    {
+      label: "Created tasks",
+      value: report ? String(report.createdTaskCount) : "-",
+      detail: report
+        ? report.createdTaskCount > 0
+          ? "Follow-up tasks created from this report"
+          : "No follow-up tasks created"
+        : "No confirmed report yet",
+      tone: report && report.createdTaskCount > 0 ? "active" : "info",
     },
   ];
 }

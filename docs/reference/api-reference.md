@@ -71,13 +71,13 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | --- | --- | --- | --- |
 | `GET /visits` | any: `visits.read_own`, `visits.read_team` | query: `page, pageSize, representativeUserId, locationId, routePlanId, status (draft\|in_progress\|completed\|cancelled), startedFrom, startedTo` | paginated `Visit` (includes `location` and `representative` summaries) |
 | `GET /visits/:visitId` | any: `visits.read_own`, `visits.read_team` | — | `Visit` |
-| `GET /visits/:visitId/report` | any: `reports.read_own`, `reports.read_team` | — | confirmed `Report` for the visit |
+| `GET /visits/:visitId/report` | any: `reports.read_own`, `reports.read_team` | — | confirmed `Report` for the visit, including `createdTaskCount` and `createdTasks` (the actual `Task` rows linked via `reportId`, distinct from the draft `confirmedData.tasksToCreate`) |
 | `POST /visits` | all: `visits.create` | `{ locationId, representativeUserId, routeItemId?, visitType, startedAt? }` | `Visit` |
 | `PATCH /visits/:visitId` | all: `visits.update_own` | `{ status?, startedAt?, completedAt?, cancelledAt? }` | `Visit` |
 | `POST /visits/:visitId/notes/text` | all: `visits.update_own` | `{ textContent }` | `VisitNote` |
 | `POST /visits/:visitId/notes/audio/register` | all: `visits.update_own` | `{ fileName, contentType, sizeBytes, checksum? }` | `{ note, storageObject, uploadUrl? }` — client then PUTs the audio to `uploadUrl.url` |
 | `POST /visits/:visitId/ai/transcription-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ inputObjectId }` | `AiJob` |
-| `POST /visits/:visitId/ai/extraction-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ transcriptionJobId }` | `AiJob` |
+| `POST /visits/:visitId/ai/extraction-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ transcriptionJobId }` | `AiJob`; when extraction succeeds the response also carries `draftQuality` (`{ state: ready_to_confirm \| needs_review, reasons, missingRequiredFields, confidence }` per the weak-output criteria in `docs/specs/ai-quality-spec.md`) |
 | `POST /visits/:visitId/ai/drafts/confirm` | all: `visits.update_own`, `ai.use_reporting`, `reports.confirm_own` | `{ extractionJobId, confirmedData }` | `{ report, createdTaskCount }` |
 | `POST /visits/:visitId/reports/confirm` | all: `reports.confirm_own` | `{ schemaVersion, confirmedData }` | `Report` — manual confirmation path; must always work when AI is unavailable |
 

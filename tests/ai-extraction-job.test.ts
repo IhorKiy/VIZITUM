@@ -171,5 +171,8 @@ describe("AI extraction job", () => {
         .temporaryDraft.summary,
       "Visit summary",
     );
+    assert.equal(job.draftQuality?.state, "ready_to_confirm");
+    assert.deepEqual(job.draftQuality?.reasons, []);
+    assert.equal(job.draftQuality?.confidence, 0.91);
   });
 });
