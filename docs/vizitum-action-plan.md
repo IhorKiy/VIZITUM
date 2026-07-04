@@ -255,6 +255,7 @@ Status legend:
 - [x] Re-smoke Manager task assignment after the task option/counting fix deploys.
 - [x] Re-smoke cancelled-task filtering after deploy.
 - [x] Re-smoke pending/disabled submit states, Field audio recovery links, Admin import recovery/history, Admin invite history/resend and Manager route/representative/assignee/date filters after deploy. Completed staging re-smoke on 2026-07-03; only the approved invite/resend mutation for `kiyanichenko81@gmail.com` was repeated.
+- [x] Re-smoke P1 Manager location coverage, Manager representative workload and Field visit history screens on staging. Completed on 2026-07-04 with live tenant data, filter checks, drilldown links and no console errors.
 
 ### Final gate before production pilot
 
