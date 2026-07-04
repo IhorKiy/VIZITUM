@@ -83,6 +83,9 @@ Operations and readiness:
 - `docs/runbooks/staging-evidence-packet.md`
 - `docs/runbooks/staging-ux-review.md`
 - `docs/runbooks/expanded-staging-product-smoke.md`
+- `docs/runbooks/pilot-demo-script.md`
+- `docs/runbooks/pilot-onboarding-checklist.md`
+- `docs/runbooks/pilot-support-process.md`
 
 ## Current State
 

@@ -321,10 +321,10 @@ Status legend:
 ### Track E: Commercial and pilot readiness
 
 - [x] Add pilot review summary screen with usage metrics, threshold statuses and copyable review text.
-- [ ] Prepare pilot demo script based on the accepted staging smoke path.
-- [ ] Create a one-page pilot onboarding checklist for a customer admin.
+- [x] Prepare pilot demo script based on the accepted staging smoke path: `docs/runbooks/pilot-demo-script.md`.
+- [x] Create a one-page pilot onboarding checklist for a customer admin: `docs/runbooks/pilot-onboarding-checklist.md`.
 - [x] Define pilot success metrics: visits completed, reports confirmed, manager follow-up tasks, import success rate, active Field Representative coverage and manager review usage. Implemented via `src/modules/pilot-review` (`GET /pilot-review/summary`) against the exact thresholds in `docs/specs/pilot-readiness-spec.md`; `admin/review/page.tsx` renders it and `POST /pilot-review/dashboard-views` (called from `/manager` and `/admin/review`) measures manager review usage.
-- [ ] Prepare support process for pilot week: incident contact, response window and issue triage labels.
+- [x] Prepare support process for pilot week: incident contact, response window and issue triage labels: `docs/runbooks/pilot-support-process.md`.
 
 ### Track F: Final production-pilot gate
 
