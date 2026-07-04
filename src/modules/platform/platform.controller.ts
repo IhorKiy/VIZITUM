@@ -62,10 +62,7 @@ export class PlatformController {
 
   @Post(":tenantId/archive")
   @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
-  archiveTenant(
-    @Req() request: Request,
-    @Param("tenantId") tenantId: string,
-  ) {
+  archiveTenant(@Req() request: Request, @Param("tenantId") tenantId: string) {
     return this.platformService.archiveTenant(tenantId, {
       actorUserId: request.context?.userId,
       requestId: request.requestId,

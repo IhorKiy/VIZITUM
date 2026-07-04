@@ -703,7 +703,10 @@ export async function listPlatformTenants(): Promise<
 export async function createPlatformTenant(
   input: CreatePlatformTenantInput,
 ): Promise<
-  ApiResult<{ tenant: PlatformTenant; provisioningJob: PlatformProvisioningJob }>
+  ApiResult<{
+    tenant: PlatformTenant;
+    provisioningJob: PlatformProvisioningJob;
+  }>
 > {
   return apiPost<{
     tenant: PlatformTenant;

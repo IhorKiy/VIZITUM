@@ -161,8 +161,8 @@ export default async function PlatformTenantsPage({
       {pageState.error ? (
         <section className="notice-panel danger" aria-label="Save status">
           <p>
-            Could not create the tenant. Check name, slug and segment
-            template, or that the slug is not already in use.
+            Could not create the tenant. Check name, slug and segment template,
+            or that the slug is not already in use.
           </p>
         </section>
       ) : null}

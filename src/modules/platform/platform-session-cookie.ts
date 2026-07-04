@@ -1,9 +1,6 @@
 import type { Request, Response } from "express";
 
-import {
-  COOKIE_OPTIONS,
-  SESSION_TTL_DAYS,
-} from "../auth/auth.constants";
+import { COOKIE_OPTIONS, SESSION_TTL_DAYS } from "../auth/auth.constants";
 import { PLATFORM_SESSION_COOKIE_NAME } from "./platform-auth.constants";
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
