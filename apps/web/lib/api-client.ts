@@ -631,6 +631,111 @@ export async function getOperationsSummary(): Promise<
   return apiGet<OperationsSummary>("/operations/summary");
 }
 
+export type PlatformSegmentTemplate =
+  "distribution" | "service" | "partner_account";
+
+export type PlatformTenant = {
+  id: string;
+  name: string;
+  slug: string;
+  country: string;
+  timezone: string;
+  language: string;
+  status: string;
+  planCode: string;
+  productMode: string;
+  segmentTemplate: PlatformSegmentTemplate;
+  primaryDomain: string | null;
+  createdAt: string;
+};
+
+export type PlatformProvisioningJob = {
+  id: string;
+  tenantId: string;
+  status: string;
+  step: string | null;
+};
+
+export type CreatePlatformTenantInput = {
+  name: string;
+  slug: string;
+  segmentTemplate: PlatformSegmentTemplate;
+  country?: string;
+  timezone?: string;
+  language?: string;
+  primaryDomain?: string;
+};
+
+export type PlatformSession = {
+  platformUser: {
+    id: string;
+    email: string;
+    name: string;
+    status: string;
+  };
+  roleCodes: string[];
+  permissions: string[];
+};
+
+export async function platformLogin(input: {
+  email: string;
+  password: string;
+}): Promise<ApiResult<PlatformSession>> {
+  return apiPost<PlatformSession>("/platform/auth/login", input);
+}
+
+export async function getPlatformSession(): Promise<
+  ApiResult<PlatformSession>
+> {
+  return apiGet<PlatformSession>("/platform/auth/me");
+}
+
+export async function platformLogout(): Promise<ApiResult<{ ok: true }>> {
+  return apiPost<{ ok: true }>("/platform/auth/logout", {});
+}
+
+export async function listPlatformTenants(): Promise<
+  ApiResult<PlatformTenant[]>
+> {
+  return apiGet<PlatformTenant[]>("/platform/tenants");
+}
+
+export async function createPlatformTenant(
+  input: CreatePlatformTenantInput,
+): Promise<
+  ApiResult<{
+    tenant: PlatformTenant;
+    provisioningJob: PlatformProvisioningJob;
+  }>
+> {
+  return apiPost<{
+    tenant: PlatformTenant;
+    provisioningJob: PlatformProvisioningJob;
+  }>("/platform/tenants", input);
+}
+
+export type UpdatePlatformTenantInput = {
+  name?: string;
+  timezone?: string;
+  language?: string;
+  primaryDomain?: string | null;
+  planCode?: string;
+  status?: string;
+};
+
+export async function updatePlatformTenant(
+  tenantId: string,
+  input: UpdatePlatformTenantInput,
+): Promise<ApiResult<PlatformTenant>> {
+  return apiPatch<PlatformTenant>(`/platform/tenants/${tenantId}`, input);
+}
+
+export async function archivePlatformTenant(
+  tenantId: string,
+): Promise<ApiResult<PlatformTenant>> {
+  return apiPost<PlatformTenant>(`/platform/tenants/${tenantId}/archive`, {});
+}
+
 export async function confirmManualReport(
   visitId: string,
   confirmedData: Record<string, string>,

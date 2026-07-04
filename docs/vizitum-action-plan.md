@@ -104,6 +104,12 @@ Status legend:
 - [x] Implement tenant provisioning job record.
 - [x] Seed initial roles/capabilities for `team` mode.
 - [x] Add platform operation events.
+- [x] Expose platform tenant HTTP API (`GET`/`POST /api/platform/tenants`, `GET /api/platform/tenants/:tenantId`) guarded by the platform bearer token (`platform.tenants.read`/`manage`).
+- [x] Add platform-owner tenant console (`apps/web/app/platform/tenants`) with create form and registry list.
+- [x] Add platform tenant creation behavior tests (`tests/platform-tenant-creation.test.ts`).
+- [x] Add a session-based `platform_owner` identity (`PlatformUser`/`PlatformSession`, `POST /platform/auth/login`, console login/logout) and narrow the platform bearer token back to `platform.operations.read`.
+- [x] Advance provisioning jobs beyond `queued`/`tenant_created` (`provision` worker task moves tenant `draft`→`ready`, job `queued`→`succeeded`).
+- [x] Add tenant update/archive endpoints (`PATCH /api/platform/tenants/:tenantId`, `POST /api/platform/tenants/:tenantId/archive`) with console edit/archive actions.
 
 ## 8. Field Operations Backlog
 

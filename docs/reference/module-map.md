@@ -7,7 +7,7 @@ When you change a module's responsibility, routes, or key files, update this doc
 ## Backend entrypoints
 
 - `src/main.ts` — API server. Applies request-id middleware, access log, CSRF protection, sets global prefix **`/api`**, installs `ApiErrorFilter`. Listens on `HOST`/`PORT` (default `0.0.0.0:4000`).
-- `src/worker.ts` — run-to-completion worker process. `WORKER_TASK` selects the task; only `cleanup` exists (deletes expired failed AI jobs and expired temporary storage objects, then exits). Deployed as a cron, not a long-running queue consumer.
+- `src/worker.ts` — run-to-completion worker process. `WORKER_TASK` selects the task: `cleanup` (deletes expired failed AI jobs and expired temporary storage objects) or `provision` (advances `queued` platform provisioning jobs — moves a `draft`/`provisioning` tenant to `ready`, marks the job `succeeded`, records a `tenant.provisioned` event). Each runs to completion and exits. Deployed as crons, not long-running queue consumers.
 - `src/common/` — `request-id.middleware.ts`, `access-log.middleware.ts`, `api-error.filter.ts` (global error envelope), `json-logger.service.ts`, `sentry.service.ts`.
 
 Note: Redis/BullMQ appear in the LLD and `.env.example`, but no backend code currently consumes `REDIS_URL`. AI transcription/extraction jobs execute in the API process; the worker is a cron cleanup task.
@@ -30,7 +30,7 @@ Note: Redis/BullMQ appear in the LLD and `.env.example`, but no backend code cur
 | `imports` | `/api/imports` | CSV template catalog/download, validate-preview-then-confirm import jobs, row-level issues, import history. Template types: `users`, `locations`, `contacts`, `products`, `initial_visit_task_plan`. |
 | `storage` | `/api/storage/objects` | S3-compatible object storage (Cloudflare R2 in staging). Presigned upload/download URLs, temporary-object lifecycle. `storage.config.ts` reads `S3_*` env vars. |
 | `operations` | `/api/operations` | Platform operations summary (tenant counts, provisioning/import/AI/storage health counters). Accessible via session permission or platform bearer token. |
-| `platform` | — | Tenant capability/feature flags (`product-capabilities.ts`), platform-level tenant metadata helpers. |
+| `platform` | `/api/platform/tenants`, `/api/platform/auth` | Platform Owner identity + tenant lifecycle. `platform-auth.*` provides `PlatformUser` login/logout/me over a `vizitum_platform_session` cookie (own `PlatformSessionService`, resolved in `PermissionGuard` → `platform_owner` context). Tenant lifecycle: create/list/get/update/archive `PlatformTenant` rows, seed default product capabilities, queue a `PlatformProvisioningJob`. `ProvisioningService.runPendingProvisioningJobs` (the `provision` worker task) advances queued jobs to `ready`. Tenant routes require `platform.tenants.read`/`manage` (session only; the bearer token is limited to `platform.operations.read`). |
 | `health` | `/api/health` | Liveness (`/health`) and readiness (`/health/readiness`, 503 when not ready). Unauthenticated. |
 | `audit` | — | `AuditService.recordEvent` writes tenant-scoped `AuditEvent` rows (entityType/entityId/eventType/metadata). No controller of its own; consumed by other modules (e.g. `pilot-review`). |
 | `pilot-review` | `/api/pilot-review` | `GET /summary` computes the 6 pilot success thresholds from `docs/specs/pilot-readiness-spec.md` over the 7-day window starting at the tenant's first visit. `POST /dashboard-views` records a `manager_dashboard.viewed` audit event (called from `/manager` and `/admin/review` on page load) to measure manager review usage. |
@@ -69,6 +69,8 @@ Next.js App Router. All product screens live under the tenant slug: `apps/web/ap
 | `/[tenantSlug]/manager/locations` | `manager/locations/page.tsx` | Manager | Read-only `/locations` coverage list with visit/task activity from `/visits` and `/tasks` |
 | `/[tenantSlug]/manager/representatives` | `manager/representatives/page.tsx` | Manager | Read-only representative workload from `/routes`, `/visits` and `/tasks` |
 | `/[tenantSlug]/operations` | `operations/page.tsx` | Platform | `/operations/summary` |
+| `/platform/login` | `platform/login/page.tsx` | Platform (not tenant-scoped) | `POST /platform/auth/login`; forwards the platform session + CSRF cookies to the browser |
+| `/platform/tenants` | `platform/tenants/page.tsx` | Platform (not tenant-scoped) | `/platform/auth/me` (redirects to `/platform/login` when unauthenticated), `/platform/tenants*`, `/platform/auth/logout`; console authenticated via the `platform_owner` session cookie |
 
 ### Shared frontend libs (`apps/web/lib/`)
 
@@ -79,6 +81,6 @@ Next.js App Router. All product screens live under the tenant slug: `apps/web/ap
 
 ## Tests (`tests/`)
 
-Plain `node --test` + `tsx`, one behavior per file. Groups: `ai-*` (job lifecycle, schemas, draft confirmation, cleanup), `import-*` (CSV/XLSX parsing, validation, templates), `auth-tenant-isolation`, `users-service`, `storage-*`, `visit-audio-upload-registration`, `manager-list-filters`, `manual-report-after-ai-failure`, `operations-summary`, `health-readiness`, `json-logger`, `sentry-service`.
+Plain `node --test` + `tsx`, one behavior per file. Groups: `ai-*` (job lifecycle, schemas, draft confirmation, cleanup), `import-*` (CSV/XLSX parsing, validation, templates), `auth-tenant-isolation`, `platform-auth`, `platform-tenant-creation`, `platform-tenant-management`, `platform-provisioning`, `users-service`, `storage-*`, `visit-audio-upload-registration`, `manager-list-filters`, `manual-report-after-ai-failure`, `operations-summary`, `health-readiness`, `json-logger`, `sentry-service`.
 
 Behavior covered by these tests is treated as executable specification. See [executable-spec.md](executable-spec.md) for the product/platform contract map.

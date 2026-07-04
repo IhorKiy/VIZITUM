@@ -11,8 +11,9 @@ Deploy these services from the same repository and release SHA.
 | Web | Next.js frontend | `npm ci && npm run web:build` | `npm run web:start` | Frontend Sentry project and route smoke check |
 | API | Web service | `npm ci && npm run prisma:generate && npm run build` | `npm start` | `GET /api/health/readiness` |
 | Cleanup worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
+| Provision worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | `npm run worker:provision:prod` | Non-zero exit alert and `worker_provision_completed` log |
 
-The cleanup worker is intentionally a one-shot task. Schedule it at least hourly for the pilot unless provider limits or storage policy require a shorter interval.
+Both workers are intentionally one-shot tasks. Schedule the cleanup worker at least hourly for the pilot unless provider limits or storage policy require a shorter interval. Schedule the provision worker frequently enough (e.g. every few minutes) that newly created tenants reach `ready` promptly.
 
 ## Required Environment
 
@@ -69,8 +70,9 @@ If the release includes database changes, apply Prisma migrations through the ap
 6. Deploy web with the same release SHA.
 7. Trigger or wait for one cleanup worker run.
 8. Verify logs contain `worker_cleanup_completed`.
-9. Verify Sentry release/environment tags appear for API, worker and web.
-10. Record deployment timestamp, release SHA, operator and verification notes.
+9. On first deploy, seed the platform owner (`npm run seed:platform-owner` with `PLATFORM_OWNER_EMAIL`/`PLATFORM_OWNER_PASSWORD`) and confirm `/platform/login` grants access to the tenant console. Schedule the `provision` worker so newly created tenants reach `ready`.
+10. Verify Sentry release/environment tags appear for API, worker and web.
+11. Record deployment timestamp, release SHA, operator and verification notes.
 
 Use `docs/runbooks/production-ops-setup-guide.md` for first-time provider setup, `docs/runbooks/production-env-checklist.md` for production env var preparation and `docs/runbooks/production-launch-readiness-record.md` to collect final pilot-launch evidence across deploy, alerts, restore drill and smoke checks.
 
