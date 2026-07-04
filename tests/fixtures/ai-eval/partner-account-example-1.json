@@ -1,0 +1,24 @@
+{
+  "id": "partner-account-example-1",
+  "segmentTemplate": "partner_account",
+  "description": "Synthetic anonymized partner account visit: interest confirmed, decision maker role only (no personal names), next meeting agreed. No real names, addresses, contacts or commercial terms per docs/specs/ai-quality-spec.md.",
+  "expected": {
+    "resultStatus": "follow_up_required",
+    "agreements": ["Prepare pilot proposal for next meeting"],
+    "objections": ["Current supplier contract runs to end of quarter"],
+    "mentionedProducts": [
+      {
+        "name": "Product C",
+        "status": "interested",
+        "evidence": "asked for pilot pricing on product c"
+      }
+    ],
+    "nextActions": ["Send pilot proposal draft"],
+    "templateSpecific": {
+      "dealPotential": "medium",
+      "commercialTermsDiscussed": [],
+      "decisionMakers": ["Purchasing lead"],
+      "nextMeetingSuggested": true
+    }
+  }
+}

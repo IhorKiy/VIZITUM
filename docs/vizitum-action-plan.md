@@ -314,10 +314,10 @@ Status legend:
 
 ### Track D: AI reporting quality
 
-- [ ] Collect anonymized staging examples for each supported report type.
-- [ ] Evaluate AI extraction outputs against expected structured fields.
-- [ ] Add confidence/error states that let the field user confirm manually when AI output is weak.
-- [ ] Keep the manual report path as the reliable fallback for every pilot flow.
+- [~] Collect anonymized staging examples for each supported report type. Fixture format and synthetic anonymized starter examples exist in `tests/fixtures/ai-eval/` (one per template, anonymization pinned by `tests/ai-extraction-evaluation.test.ts`); real staging examples still need to be collected and anonymized per `docs/specs/ai-quality-spec.md` retention rules.
+- [x] Evaluate AI extraction outputs against expected structured fields. Evaluation harness in `src/modules/ai/ai-extraction-evaluation.ts`: field-level scoring against answer keys from approved report-template fields, 80% pilot accuracy threshold from `docs/specs/ai-quality-spec.md`.
+- [x] Add confidence/error states that let the field user confirm manually when AI output is weak. Weak-output criteria are now encoded server-side in `src/modules/ai/ai-draft-quality.ts` (missing required fields, empty summary, invalid result status, confidence < 0.6) and returned as `draftQuality` on successful extraction jobs; Field UI already shows the approved categorical states with manual fallback kept available.
+- [x] Keep the manual report path as the reliable fallback for every pilot flow. Pinned by `tests/manual-report-after-ai-failure.test.ts`; weak-output classification never blocks manual confirmation.
 
 ### Track E: Commercial and pilot readiness
 
