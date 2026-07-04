@@ -77,8 +77,8 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | `POST /visits/:visitId/notes/text` | all: `visits.update_own` | `{ textContent }` | `VisitNote` |
 | `POST /visits/:visitId/notes/audio/register` | all: `visits.update_own` | `{ fileName, contentType, sizeBytes, checksum? }` | `{ note, storageObject, uploadUrl? }` — client then PUTs the audio to `uploadUrl.url` |
 | `POST /visits/:visitId/ai/transcription-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ inputObjectId }` | `AiJob` |
-| `POST /visits/:visitId/ai/extraction-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ transcriptionJobId }` | `AiJob`; when extraction succeeds the response also carries `draftQuality` (`{ state: ready_to_confirm \| needs_review, reasons, missingRequiredFields, confidence }` per the weak-output criteria in `docs/specs/ai-quality-spec.md`) |
-| `POST /visits/:visitId/ai/drafts/confirm` | all: `visits.update_own`, `ai.use_reporting`, `reports.confirm_own` | `{ extractionJobId, confirmedData }` | `{ report, createdTaskCount }` |
+| `POST /visits/:visitId/ai/extraction-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ transcriptionJobId }` | `AiJob`; when extraction succeeds the response also carries `draftQuality` (`{ state: ready_to_confirm \| needs_review, reasons, missingRequiredFields, confidence }` per the weak-output criteria in `docs/specs/ai-quality-spec.md`) — persisted on the `ai_jobs` row (`draftQuality` column) so it survives re-reads of an already-succeeded job |
+| `POST /visits/:visitId/ai/drafts/confirm` | all: `visits.update_own`, `ai.use_reporting`, `reports.confirm_own` | `{ extractionJobId, confirmedData? }` | `{ report: Report, createdTaskCount }` — `report` is the same shape as `GET /visits/:visitId/report`, including `createdTasks`/`createdTaskCount` for tasks created by this confirmation |
 | `POST /visits/:visitId/reports/confirm` | all: `reports.confirm_own` | `{ schemaVersion, confirmedData }` | `Report` — manual confirmation path; must always work when AI is unavailable |
 
 ### Tasks — `/tasks` (`tasks.controller.ts`)

@@ -175,4 +175,45 @@ describe("AI extraction job", () => {
     assert.deepEqual(job.draftQuality?.reasons, []);
     assert.equal(job.draftQuality?.confidence, 0.91);
   });
+
+  it("returns the persisted draftQuality when re-reading an already-succeeded job", async () => {
+    const succeededJob = {
+      id: "extraction-job-a",
+      visitId: "visit-a",
+      type: "extraction",
+      status: "succeeded",
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      inputObjectId: "transcript-object-a",
+      temporaryTranscriptObjectId: null,
+      errorCode: null,
+      errorMessage: null,
+      startedAt: createdAt,
+      finishedAt: createdAt,
+      expiresAt: new Date("2026-06-30T10:00:00.000Z"),
+      createdAt,
+      updatedAt: createdAt,
+      draftQuality: {
+        state: "needs_review",
+        reasons: ["low_confidence"],
+        missingRequiredFields: [],
+        confidence: 0.4,
+      },
+    };
+    const service = new AiService(
+      {
+        aiJob: {
+          findFirst: async () => succeededJob,
+        },
+      } as never,
+      {} as never,
+      {} as never,
+    );
+
+    const job = await service.runExtractionJob("extraction-job-a");
+
+    assert.equal(job.draftQuality?.state, "needs_review");
+    assert.deepEqual(job.draftQuality?.reasons, ["low_confidence"]);
+    assert.equal(job.draftQuality?.confidence, 0.4);
+  });
 });

@@ -107,6 +107,22 @@ describe("AI draft confirmation", () => {
       platformTenant: {
         findUnique: async () => ({ segmentTemplate: "distribution" }),
       },
+      task: {
+        findMany: async (query: unknown) => {
+          operations.push({ createdTasksFindMany: query });
+
+          return [
+            {
+              id: "task-a",
+              title: "Call buyer",
+              status: "open",
+              priority: "high",
+              assignedToUserId: "rep-a",
+              dueDate: new Date("2026-07-05T00:00:00.000Z"),
+            },
+          ];
+        },
+      },
       $transaction: async (
         callback: (transaction: {
           report: { upsert: (query: unknown) => Promise<typeof report> };
@@ -195,7 +211,10 @@ describe("AI draft confirmation", () => {
 
     assert.equal(response.report.id, "report-a");
     assert.equal(response.createdTaskCount, 1);
-    assert.equal(operations.length, 8);
+    assert.equal(response.report.createdTaskCount, 1);
+    assert.equal(response.report.createdTasks.length, 1);
+    assert.equal(response.report.createdTasks[0].title, "Call buyer");
+    assert.equal(operations.length, 9);
     const taskCreate = operations.find(
       (operation): operation is { taskCreateMany: { data: unknown[] } } =>
         typeof operation === "object" &&

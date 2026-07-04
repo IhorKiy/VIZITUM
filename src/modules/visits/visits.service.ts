@@ -4,12 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type {
-  Prisma,
-  TaskPriority,
-  TaskStatus,
-  VisitStatus,
-} from "@prisma/client";
+import type { Prisma, VisitStatus } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -21,6 +16,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import { StorageService } from "../storage/storage.service";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  findReportCreatedTasks,
+  toReportResponse,
+} from "./report-response.util";
 import type {
   AddTextVisitNoteRequestBody,
   ConfirmReportRequestBody,
@@ -125,14 +124,11 @@ export class VisitsService {
       });
     }
 
-    const createdTasks = await this.prisma.task.findMany({
-      where: {
-        tenantId: context.tenantId,
-        reportId: report.id,
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const createdTasks = await findReportCreatedTasks(
+      this.prisma,
+      context.tenantId,
+      report.id,
+    );
 
     return toReportResponse(report, createdTasks);
   }
@@ -475,14 +471,11 @@ export class VisitsService {
       return result;
     });
 
-    const createdTasks = await this.prisma.task.findMany({
-      where: {
-        tenantId: context.tenantId,
-        reportId: report.id,
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const createdTasks = await findReportCreatedTasks(
+      this.prisma,
+      context.tenantId,
+      report.id,
+    );
 
     return toReportResponse(report, createdTasks);
   }
@@ -970,57 +963,6 @@ function toVisitNoteResponse(note: {
     temporaryAudioObjectId: note.temporaryAudioObjectId ?? null,
     createdByUserId: note.createdByUserId,
     createdAt: note.createdAt.toISOString(),
-  };
-}
-
-function toReportResponse(
-  report: {
-    id: string;
-    visitId: string;
-    locationId: string;
-    representativeUserId: string;
-    templateCode: string;
-    schemaVersion: string;
-    status: string;
-    confirmedData: unknown;
-    confirmedByUserId: string;
-    confirmedAt: Date;
-    aiMetadata: unknown;
-    createdAt: Date;
-    updatedAt: Date;
-  },
-  createdTasks: Array<{
-    id: string;
-    title: string;
-    status: TaskStatus;
-    priority: TaskPriority;
-    assignedToUserId: string | null;
-    dueDate: Date | null;
-  }> = [],
-): ReportResponse {
-  return {
-    id: report.id,
-    visitId: report.visitId,
-    locationId: report.locationId,
-    representativeUserId: report.representativeUserId,
-    templateCode: report.templateCode,
-    schemaVersion: report.schemaVersion,
-    status: report.status,
-    confirmedData: report.confirmedData,
-    confirmedByUserId: report.confirmedByUserId,
-    confirmedAt: report.confirmedAt.toISOString(),
-    aiMetadata: report.aiMetadata,
-    createdAt: report.createdAt.toISOString(),
-    updatedAt: report.updatedAt.toISOString(),
-    createdTaskCount: createdTasks.length,
-    createdTasks: createdTasks.map((task) => ({
-      id: task.id,
-      title: task.title,
-      status: task.status,
-      priority: task.priority,
-      assignedToUserId: task.assignedToUserId,
-      dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : null,
-    })),
   };
 }
 
