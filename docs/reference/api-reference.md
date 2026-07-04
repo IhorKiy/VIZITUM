@@ -71,14 +71,14 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | --- | --- | --- | --- |
 | `GET /visits` | any: `visits.read_own`, `visits.read_team` | query: `page, pageSize, representativeUserId, locationId, routePlanId, status (draft\|in_progress\|completed\|cancelled), startedFrom, startedTo` | paginated `Visit` (includes `location` and `representative` summaries) |
 | `GET /visits/:visitId` | any: `visits.read_own`, `visits.read_team` | — | `Visit` |
-| `GET /visits/:visitId/report` | any: `reports.read_own`, `reports.read_team` | — | confirmed `Report` for the visit |
+| `GET /visits/:visitId/report` | any: `reports.read_own`, `reports.read_team` | — | confirmed `Report` for the visit, including `createdTaskCount` and `createdTasks` (the actual `Task` rows linked via `reportId`, distinct from the draft `confirmedData.tasksToCreate`) |
 | `POST /visits` | all: `visits.create` | `{ locationId, representativeUserId, routeItemId?, visitType, startedAt? }` | `Visit` |
 | `PATCH /visits/:visitId` | all: `visits.update_own` | `{ status?, startedAt?, completedAt?, cancelledAt? }` | `Visit` |
 | `POST /visits/:visitId/notes/text` | all: `visits.update_own` | `{ textContent }` | `VisitNote` |
 | `POST /visits/:visitId/notes/audio/register` | all: `visits.update_own` | `{ fileName, contentType, sizeBytes, checksum? }` | `{ note, storageObject, uploadUrl? }` — client then PUTs the audio to `uploadUrl.url` |
 | `POST /visits/:visitId/ai/transcription-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ inputObjectId }` | `AiJob` |
-| `POST /visits/:visitId/ai/extraction-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ transcriptionJobId }` | `AiJob` |
-| `POST /visits/:visitId/ai/drafts/confirm` | all: `visits.update_own`, `ai.use_reporting`, `reports.confirm_own` | `{ extractionJobId, confirmedData }` | `{ report, createdTaskCount }` |
+| `POST /visits/:visitId/ai/extraction-jobs` | all: `visits.update_own`, `ai.use_reporting` | `{ transcriptionJobId }` | `AiJob`; when extraction succeeds the response also carries `draftQuality` (`{ state: ready_to_confirm \| needs_review, reasons, missingRequiredFields, confidence }` per the weak-output criteria in `docs/specs/ai-quality-spec.md`) — persisted on the `ai_jobs` row (`draftQuality` column) so it survives re-reads of an already-succeeded job |
+| `POST /visits/:visitId/ai/drafts/confirm` | all: `visits.update_own`, `ai.use_reporting`, `reports.confirm_own` | `{ extractionJobId, confirmedData? }` | `{ report: Report, createdTaskCount }` — `report` is the same shape as `GET /visits/:visitId/report`, including `createdTasks`/`createdTaskCount` for tasks created by this confirmation |
 | `POST /visits/:visitId/reports/confirm` | all: `reports.confirm_own` | `{ schemaVersion, confirmedData }` | `Report` — manual confirmation path; must always work when AI is unavailable |
 
 ### Tasks — `/tasks` (`tasks.controller.ts`)
@@ -148,9 +148,9 @@ Template types: `users`, `locations`, `contacts`, `products`, `initial_visit_tas
 | `POST /admin/users/invite` | all: `users.invite` | `{ email, roleCodes }` | `{ id, email, roleCodes, status, expiresAt, token }` — token is returned once for link building |
 | `GET /admin/users/invites` | all: `users.read` | — | invite history (status, expiry, createdBy/acceptedBy) |
 | `POST /admin/users/invites/:inviteId/resend` | all: `users.invite` | — | new invite with fresh token |
-| `PATCH /admin/users/:userId` | all: `users.manage` | `{ name?, phone?, status? }` | `User` |
+| `PATCH /admin/users/:userId` | all: `users.manage` | `{ name?, phone?, status? }` | `User`; rejects (409 `TENANT_LAST_ADMIN`) deactivating the tenant's last active `company_admin` |
 | `POST /admin/users/:userId/roles` | all: `roles.assign` | `{ roleCode }` | `User` |
-| `DELETE /admin/users/:userId/roles/:roleCode` | all: `roles.assign` | — | `User` |
+| `DELETE /admin/users/:userId/roles/:roleCode` | all: `roles.assign` | — | `User`; rejects (409 `TENANT_LAST_ADMIN`) removing the tenant's last active `company_admin` role and (409 `USER_LAST_ROLE`) removing a user's only remaining role |
 
 ### Admin settings — `/admin/settings` (`admin-settings.controller.ts`)
 

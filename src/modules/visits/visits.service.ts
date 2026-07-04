@@ -16,6 +16,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import { StorageService } from "../storage/storage.service";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  findReportCreatedTasks,
+  toReportResponse,
+} from "./report-response.util";
 import type {
   AddTextVisitNoteRequestBody,
   ConfirmReportRequestBody,
@@ -120,7 +124,13 @@ export class VisitsService {
       });
     }
 
-    return toReportResponse(report);
+    const createdTasks = await findReportCreatedTasks(
+      this.prisma,
+      context.tenantId,
+      report.id,
+    );
+
+    return toReportResponse(report, createdTasks);
   }
 
   async createVisit(
@@ -461,7 +471,13 @@ export class VisitsService {
       return result;
     });
 
-    return toReportResponse(report);
+    const createdTasks = await findReportCreatedTasks(
+      this.prisma,
+      context.tenantId,
+      report.id,
+    );
+
+    return toReportResponse(report, createdTasks);
   }
 
   private async findTenantVisit(
@@ -947,38 +963,6 @@ function toVisitNoteResponse(note: {
     temporaryAudioObjectId: note.temporaryAudioObjectId ?? null,
     createdByUserId: note.createdByUserId,
     createdAt: note.createdAt.toISOString(),
-  };
-}
-
-function toReportResponse(report: {
-  id: string;
-  visitId: string;
-  locationId: string;
-  representativeUserId: string;
-  templateCode: string;
-  schemaVersion: string;
-  status: string;
-  confirmedData: unknown;
-  confirmedByUserId: string;
-  confirmedAt: Date;
-  aiMetadata: unknown;
-  createdAt: Date;
-  updatedAt: Date;
-}): ReportResponse {
-  return {
-    id: report.id,
-    visitId: report.visitId,
-    locationId: report.locationId,
-    representativeUserId: report.representativeUserId,
-    templateCode: report.templateCode,
-    schemaVersion: report.schemaVersion,
-    status: report.status,
-    confirmedData: report.confirmedData,
-    confirmedByUserId: report.confirmedByUserId,
-    confirmedAt: report.confirmedAt.toISOString(),
-    aiMetadata: report.aiMetadata,
-    createdAt: report.createdAt.toISOString(),
-    updatedAt: report.updatedAt.toISOString(),
   };
 }
 

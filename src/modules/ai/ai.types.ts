@@ -1,5 +1,8 @@
 import type { AiJobStatus, AiJobType } from "@prisma/client";
 
+import type { ReportResponse } from "../visits/visits.types";
+import type { AiDraftQuality } from "./ai-draft-quality";
+
 export type CreateTranscriptionJobRequestBody = {
   inputObjectId?: unknown;
 };
@@ -29,24 +32,11 @@ export type AiJobResponse = {
   expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
+  draftQuality?: AiDraftQuality;
 };
 
 export type ConfirmAiDraftResponse = {
-  report: {
-    id: string;
-    visitId: string;
-    locationId: string;
-    representativeUserId: string;
-    templateCode: string;
-    schemaVersion: string;
-    status: string;
-    confirmedData: unknown;
-    confirmedByUserId: string;
-    confirmedAt: string;
-    aiMetadata: unknown;
-    createdAt: string;
-    updatedAt: string;
-  };
+  report: ReportResponse;
   createdTaskCount: number;
 };
 

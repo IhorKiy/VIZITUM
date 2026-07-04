@@ -1,0 +1,29 @@
+{
+  "id": "distribution-example-1",
+  "segmentTemplate": "distribution",
+  "description": "Synthetic anonymized distribution visit: shelf gap on one SKU, competitor promo mentioned, order likely. No real names, addresses, contacts or commercial terms per docs/specs/ai-quality-spec.md.",
+  "expected": {
+    "resultStatus": "follow_up_required",
+    "agreements": ["Restock Product A by next visit"],
+    "objections": [],
+    "mentionedProducts": [
+      {
+        "name": "Product A",
+        "status": "issue",
+        "evidence": "shelf was empty for product a"
+      },
+      {
+        "name": "Product B",
+        "status": "presented",
+        "evidence": "presented product b to the store contact"
+      }
+    ],
+    "nextActions": ["Send updated price list"],
+    "templateSpecific": {
+      "shelfAvailabilityNotes": ["Product A shelf empty"],
+      "competitorMentions": ["Competitor X running a promo"],
+      "merchandisingIssues": [],
+      "orderIntent": "possible"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "service-example-1",
+  "segmentTemplate": "service",
+  "description": "Synthetic anonymized service visit: filter replaced, one open issue needs a part, medium SLA risk. No real names, addresses, contacts or commercial terms per docs/specs/ai-quality-spec.md.",
+  "expected": {
+    "resultStatus": "parts_required",
+    "agreements": ["Return with replacement part within one week"],
+    "objections": [],
+    "mentionedProducts": [],
+    "nextActions": ["Order replacement part", "Schedule follow-up service visit"],
+    "templateSpecific": {
+      "workPerformed": ["Replaced unit filter", "Cleaned condenser"],
+      "issuesFound": ["Compressor makes intermittent noise"],
+      "partsRequired": ["Compressor mounting bracket"],
+      "slaRisk": "medium"
+    }
+  }
+}
