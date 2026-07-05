@@ -5,6 +5,8 @@ import { PrismaClient } from "@prisma/client";
 import { hash } from "argon2";
 
 const connectionString = required(process.env.DATABASE_URL, "DATABASE_URL");
+assertLocalDatabaseUrl(connectionString);
+
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
@@ -14,10 +16,7 @@ const tenantName = required(
   process.env.DEMO_TENANT_NAME || "Vizitum Demo Team",
   "DEMO_TENANT_NAME",
 );
-const password = required(
-  process.env.DEMO_ROLE_PASSWORD || "VizitumDemo123!",
-  "DEMO_ROLE_PASSWORD",
-);
+const password = required(process.env.DEMO_ROLE_PASSWORD, "DEMO_ROLE_PASSWORD");
 
 if (password.length < 8) {
   throw new Error("DEMO_ROLE_PASSWORD must be at least 8 characters.");
@@ -148,7 +147,6 @@ try {
         status: "ok",
         tenantSlug: result.tenant.slug,
         loginUrl: `http://localhost:3000/${result.tenant.slug}/login`,
-        password,
         users: users.map((user) => ({
           email: user.email,
           roles: user.roles,
@@ -631,6 +629,28 @@ function required(value, name) {
   }
 
   return normalizedValue;
+}
+
+function assertLocalDatabaseUrl(connectionString) {
+  let databaseUrl;
+
+  try {
+    databaseUrl = new URL(connectionString);
+  } catch {
+    throw new Error("DATABASE_URL must be a valid PostgreSQL URL.");
+  }
+
+  const localHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+  if (
+    (databaseUrl.protocol !== "postgresql:" &&
+      databaseUrl.protocol !== "postgres:") ||
+    !localHosts.has(databaseUrl.hostname.toLowerCase())
+  ) {
+    throw new Error(
+      "seed:demo-roles is local-only. DATABASE_URL must point to localhost, 127.0.0.1 or ::1.",
+    );
+  }
 }
 
 function normalizeEmail(value) {
