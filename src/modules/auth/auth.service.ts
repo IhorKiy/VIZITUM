@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import type { Request, Response } from "express";
 
+import { normalizeEmail } from "../../common/normalize";
 import { PrismaService } from "../prisma/prisma.service";
 import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
@@ -346,16 +347,6 @@ export class AuthService {
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
     };
   }
-}
-
-function normalizeEmail(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const email = value.trim().toLowerCase();
-
-  return email || null;
 }
 
 function normalizePassword(value: unknown): string | null {

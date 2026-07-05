@@ -7,6 +7,9 @@ import {
 import type { NextFunction, Request, Response } from "express";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { readCookieToken } from "../../common/cookie-token";
+import { MILLISECONDS_PER_DAY } from "../../common/time";
+import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import {
   CSRF_COOKIE_NAME,
   CSRF_COOKIE_OPTIONS,
@@ -15,10 +18,8 @@ import {
   HASH_ALGORITHM,
   SESSION_TTL_DAYS,
 } from "./auth.constants";
-import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import { readSessionToken } from "./session-cookie";
 
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export function createCsrfToken(sessionToken: string): string {
@@ -58,7 +59,7 @@ export function applyCsrfProtection(
   }
 
   const headerToken = request.header(CSRF_HEADER_NAME);
-  const cookieToken = readCookie(request, CSRF_COOKIE_NAME);
+  const cookieToken = readCookieToken(request, CSRF_COOKIE_NAME);
 
   if (!headerToken || !cookieToken || headerToken !== cookieToken) {
     throw new ForbiddenException({
@@ -112,26 +113,4 @@ function safeEqual(left: string, right: string): boolean {
   }
 
   return timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function readCookie(request: Request, name: string): string | null {
-  const cookieHeader = request.header("cookie");
-
-  if (!cookieHeader) {
-    return null;
-  }
-
-  for (const cookie of cookieHeader.split(";")) {
-    const [rawName, ...rawValueParts] = cookie.split("=");
-
-    if (rawName?.trim() !== name) {
-      continue;
-    }
-
-    const rawValue = rawValueParts.join("=").trim();
-
-    return rawValue ? decodeURIComponent(rawValue) : null;
-  }
-
-  return null;
 }
