@@ -165,6 +165,7 @@ describe("users service", () => {
   }
 
   it("blocks removing the tenant's last active company_admin role", async () => {
+    let capturedCountWhere: unknown;
     const service = new UsersService(
       withTransaction({
         user: {
@@ -178,7 +179,11 @@ describe("users service", () => {
               { roleCode: "team_manager" },
             ],
           }),
-          count: async () => 0,
+          count: async (query: { where: unknown }) => {
+            capturedCountWhere = query.where;
+
+            return 0;
+          },
         },
       }) as never,
     );
@@ -188,6 +193,13 @@ describe("users service", () => {
       (error: { response?: { code?: string } }) =>
         error.response?.code === "TENANT_LAST_ADMIN",
     );
+    assert.deepEqual(capturedCountWhere, {
+      tenantId: "tenant-a",
+      id: { not: "user-a" },
+      status: "active",
+      deletedAt: null,
+      roles: { some: { tenantId: "tenant-a", roleCode: "company_admin" } },
+    });
   });
 
   it("allows removing company_admin when another active admin remains", async () => {

@@ -304,7 +304,15 @@ function buildTaskWhere(
     ...(query.locationId ? { locationId: query.locationId } : {}),
     ...(query.visitId ? { visitId: query.visitId } : {}),
     ...(query.routePlanId
-      ? { visit: { routeItem: { routePlanId: query.routePlanId } } }
+      ? {
+          visit: {
+            tenantId: context.tenantId,
+            routeItem: {
+              tenantId: context.tenantId,
+              routePlanId: query.routePlanId,
+            },
+          },
+        }
       : {}),
     ...(dueDate ? { dueDate } : {}),
   };

@@ -34,6 +34,8 @@ Do not restore the shared production database without approval from the operatio
 
 Run before the production pilot and after major backup-provider changes.
 Use `docs/runbooks/restore-drill-record-template.md` to record evidence, findings and sign-off.
+For the final production-pilot gate, use the paid PostgreSQL backup or snapshot as the source and restore only into staging/recovery.
+Use `docs/runbooks/restore-target-setup.md` for step-by-step target creation before running checks.
 
 1. Choose a recent production-like backup or snapshot.
 2. Restore it into a staging or recovery database, not into production.

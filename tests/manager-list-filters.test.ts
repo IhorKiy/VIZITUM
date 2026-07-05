@@ -39,7 +39,10 @@ describe("manager list filters", () => {
     assert.deepEqual(capturedWhere, {
       tenantId: "tenant-a",
       representativeUserId: "rep-a",
-      routeItem: { routePlanId: "route-a" },
+      routeItem: {
+        tenantId: "tenant-a",
+        routePlanId: "route-a",
+      },
       status: "completed",
       startedAt: {
         gte: new Date("2026-07-01T00:00:00.000Z"),
@@ -76,7 +79,13 @@ describe("manager list filters", () => {
       assignedToUserId: "rep-a",
       status: "open",
       priority: "high",
-      visit: { routeItem: { routePlanId: "route-a" } },
+      visit: {
+        tenantId: "tenant-a",
+        routeItem: {
+          tenantId: "tenant-a",
+          routePlanId: "route-a",
+        },
+      },
       dueDate: {
         gte: new Date("2026-07-01T00:00:00.000Z"),
         lte: new Date("2026-07-05T23:59:59.999Z"),

@@ -27,6 +27,7 @@ export default async function AcceptInvitePage({
       },
       body: JSON.stringify({
         token: String(formData.get("token") ?? ""),
+        tenantSlug,
         name: String(formData.get("name") ?? ""),
         password: String(formData.get("password") ?? ""),
         phone: String(formData.get("phone") ?? ""),

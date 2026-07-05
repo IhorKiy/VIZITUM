@@ -627,6 +627,7 @@ export class VisitsService {
         tenantId,
         locationId,
         routePlan: {
+          tenantId,
           representativeUserId,
         },
       },
@@ -678,7 +679,12 @@ function buildVisitWhere(
       : {}),
     ...(query.locationId ? { locationId: query.locationId } : {}),
     ...(query.routePlanId
-      ? { routeItem: { routePlanId: query.routePlanId } }
+      ? {
+          routeItem: {
+            tenantId: context.tenantId,
+            routePlanId: query.routePlanId,
+          },
+        }
       : {}),
     ...(query.status ? { status: query.status } : {}),
     ...(startedAt ? { startedAt } : {}),
