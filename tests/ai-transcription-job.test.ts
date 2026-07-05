@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { BadRequestException } from "@nestjs/common";
 
 import { AiService } from "../src/modules/ai/ai.service";
 
@@ -17,6 +18,7 @@ const createdAt = new Date("2026-06-29T10:00:00.000Z");
 describe("AI transcription job", () => {
   it("creates a queued transcription job for own visit audio", async () => {
     const createdJobs: unknown[] = [];
+    let capturedAudioNoteQuery: unknown;
     const prisma = {
       visit: {
         findFirst: async () => ({
@@ -26,6 +28,13 @@ describe("AI transcription job", () => {
       },
       storageObject: {
         findFirst: async () => ({ id: "audio-object-a" }),
+      },
+      visitNote: {
+        findFirst: async (query: unknown) => {
+          capturedAudioNoteQuery = query;
+
+          return { id: "note-a" };
+        },
       },
       aiJob: {
         create: async (query: { data: Record<string, unknown> }) => {
@@ -62,6 +71,17 @@ describe("AI transcription job", () => {
     assert.equal(job.status, "queued");
     assert.equal(job.type, "transcription");
     assert.equal(job.inputObjectId, "audio-object-a");
+    assert.deepEqual(capturedAudioNoteQuery, {
+      where: {
+        tenantId: "tenant-a",
+        visitId: "visit-a",
+        inputType: "audio",
+        temporaryAudioObjectId: "audio-object-a",
+        createdByUserId: "rep-a",
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
     assert.deepEqual(createdJobs[0], {
       data: {
         tenantId: "tenant-a",
@@ -76,6 +96,46 @@ describe("AI transcription job", () => {
           .expiresAt,
       },
     });
+  });
+
+  it("rejects transcription input that is not registered on the same visit", async () => {
+    const prisma = {
+      visit: {
+        findFirst: async () => ({
+          id: "visit-a",
+          representativeUserId: "rep-a",
+        }),
+      },
+      storageObject: {
+        findFirst: async () => ({ id: "audio-object-a" }),
+      },
+      visitNote: {
+        findFirst: async () => null,
+      },
+      aiJob: {
+        create: async () => {
+          throw new Error("job should not be created");
+        },
+      },
+    };
+    const service = new AiService(prisma as never, {} as never);
+
+    await assert.rejects(
+      () =>
+        service.createTranscriptionJob(
+          context as never,
+          "visit-a",
+          "audio-object-a",
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        assert.equal(
+          (error.getResponse() as { code: string }).code,
+          "TRANSCRIPTION_INPUT_INVALID",
+        );
+        return true;
+      },
+    );
   });
 
   it("runs a transcription job and stores transcript metadata", async () => {

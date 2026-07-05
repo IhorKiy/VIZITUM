@@ -43,7 +43,7 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | `POST /auth/login` | `{ email, password, tenantSlug }` | `{ user: { id, email, name, status, lastSelectedRoleCode }, roleCodes, permissions }`; sets session + CSRF cookies |
 | `GET /auth/me` | — | Same shape as login, plus `productsEnabled` (tenant setting, used to hide the Products nav item) |
 | `POST /auth/role` | `{ roleCode }` | Switch `lastSelectedRoleCode` |
-| `POST /auth/invites/accept` | `{ token, name, password, phone? }` | Activates invited user, sets session + CSRF cookies |
+| `POST /auth/invites/accept` | `{ token, tenantSlug?, name, password, phone? }` | Activates invited user, sets session + CSRF cookies; when `tenantSlug` is supplied it must match the invite tenant |
 | `POST /auth/logout` | — | `{ ok: true }`; revokes session, clears cookies |
 
 ### Health — `/health` (public, `health.controller.ts`)

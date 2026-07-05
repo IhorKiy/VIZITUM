@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ExecutionContext } from "@nestjs/common";
-import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  UnauthorizedException,
+} from "@nestjs/common";
 
 import { AuthService } from "../src/modules/auth/auth.service";
 import { SESSION_COOKIE_NAME } from "../src/modules/auth/auth.constants";
@@ -257,6 +261,62 @@ describe("auth tenant isolation", () => {
         path: "tenant-a",
       },
     ]);
+  });
+
+  it("rejects invite acceptance when the page tenant does not match the invite tenant", async () => {
+    let capturedTenantLookup: unknown;
+    const authService = new AuthService(
+      {
+        invite: {
+          findUnique: async () => ({
+            id: "invite-a",
+            tenantId: "tenant-a",
+            email: "new-user@example.com",
+            roleCodes: ["field_representative"],
+            status: "pending",
+            expiresAt: new Date(Date.now() + 60_000),
+            createdByUserId: "admin-a",
+          }),
+        },
+        platformTenant: {
+          findUnique: async (query: unknown) => {
+            capturedTenantLookup = query;
+
+            return { id: "tenant-b" };
+          },
+        },
+      } as never,
+      {} as never,
+      new RolesService(),
+      createSessionService(createSession()) as never,
+      {} as never,
+    );
+
+    await assert.rejects(
+      () =>
+        authService.acceptInvite(
+          {
+            token: "invite-token",
+            tenantSlug: "tenant-b",
+            name: "New User",
+            password: "password123",
+          },
+          createRequest(),
+          {} as never,
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        assert.equal(
+          (error.getResponse() as { code: string }).code,
+          "INVITE_INVALID",
+        );
+        return true;
+      },
+    );
+    assert.deepEqual(capturedTenantLookup, {
+      where: { slug: "tenant-b" },
+      select: { id: true },
+    });
   });
 
   it("bumps lastSeenAt on every authenticated platform-session request", async () => {

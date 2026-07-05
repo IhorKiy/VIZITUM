@@ -14,7 +14,8 @@ if [ -z "${DATABASE_URL:-}" ]; then
   exit 1
 fi
 
-echo "Running restore drill checks against DATABASE_URL=${DATABASE_URL}"
+echo "Running restore drill checks against the restored staging/recovery DATABASE_URL."
+echo "DATABASE_URL is intentionally not printed because it may contain credentials."
 
 run_check "Prisma schema validation" npm run prisma:validate
 run_check "Prisma client generation" npm run prisma:generate

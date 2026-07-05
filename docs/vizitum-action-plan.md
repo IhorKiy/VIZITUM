@@ -236,22 +236,26 @@ Status legend:
 
 - [x] Keep staging API, web, PostgreSQL, Redis, R2, cleanup worker and UptimeRobot monitor as the validated baseline.
 - [~] Capture provider evidence links/screenshots for Render, Vercel, UptimeRobot, Cloudflare R2 and Sentry in the staging evidence packet.
-- [!] Choose a PostgreSQL plan/provider with automated backups because Render Free Tier shows backups/export/PITR unavailable.
+- [~] Paid PostgreSQL has been started for the final production-pilot gate; capture backup/export/restore evidence before marking this complete.
 - [ ] Configure production alert rules in Sentry, hosting, PostgreSQL and Redis providers.
 - [x] Implement platform operator bearer token path for operations summary endpoint checks.
 - [x] Configure staging platform operator token and rerun `npm run alerts:check` with `OPERATIONS_SUMMARY_URL`.
 - [x] Run product smoke checks against staging: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation work.
 - [x] Rerun expanded staging product smoke with `docs/runbooks/expanded-staging-product-smoke.md` after self-serve Field, Admin import and Manager actions deploy. 2026-07-02 recheck passed Field recording/audio fallback, Admin import and Manager flows; 2026-07-03 P0 role-screen and post-deploy recovery/history/resend/filter re-smoke passed Admin setup/users/review, Manager visits/tasks and Field location/tasks/AI draft messaging.
-- [x] Defer paid PostgreSQL backup/restore setup until the final production-pilot gate.
-- [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-record-template.md` after selecting a paid PostgreSQL plan/provider.
-- [ ] Create production services only after backup evidence, restore drill and smoke checks are complete.
+- [x] Enter final production-pilot gate after paid PostgreSQL became available.
+- [~] Capture paid PostgreSQL backup/export/restore evidence in `docs/runbooks/production-postgresql-evidence-2026-07-04.md`.
+- [x] Add restore target setup instructions in `docs/runbooks/restore-target-setup.md`.
+- [ ] Perform restore drill into staging/recovery database and complete `docs/runbooks/restore-drill-2026-07-04-production-pilot.md`.
+- [ ] Create production services after backup evidence and restore drill are complete, then repeat smoke checks.
 
 ## 16. Next Plan
 
-### Now, without paid infrastructure
+### Final pre-production execution
 
 - [x] Capture provider evidence links/screenshots for the current staging baseline: Render API, Render cron, Vercel web, UptimeRobot, Cloudflare R2 and Sentry. Sentry remains partial until an actual staging event/release is visible.
-- [ ] Configure production-critical alert rules where free tiers allow it: Sentry, UptimeRobot and hosting provider notifications.
+- [ ] Follow `docs/runbooks/final-production-pilot-execution.md` for the ordered final gate.
+- [ ] Capture paid PostgreSQL backup policy, latest backup, retention and restore path evidence in `docs/runbooks/production-postgresql-evidence-2026-07-04.md`.
+- [ ] Configure production-critical alert rules: Sentry, hosting/uptime, PostgreSQL and Redis provider notifications.
 - [x] Platform operations summary token path is implemented and verified on staging with `OPERATIONS_SUMMARY_URL`.
 - [x] Review the staging UX after smoke pass and list any pilot-blocking product issues.
 - [x] Prepare production env var checklist from the validated staging values, with production-specific names and buckets.
@@ -265,7 +269,7 @@ Status legend:
 
 ### Final gate before production pilot
 
-- [ ] Upgrade/select PostgreSQL with automated backups and export/restore support.
+- [~] Upgrade/select PostgreSQL with automated backups and export/restore support.
 - [ ] Run restore drill into a recovery database and attach evidence to `docs/runbooks/restore-drill-record-template.md`.
 - [ ] Create production services with separate DB, Redis, R2 bucket, Sentry environment and uptime monitor.
 - [ ] Repeat smoke checks against production: login, tenant lookup, field flow, imports, manager dashboard and manual report confirmation.
@@ -335,7 +339,7 @@ Status legend:
 
 ### Track F: Final production-pilot gate
 
-- [ ] Select or upgrade PostgreSQL with automated backups, export and restore support.
+- [~] Select or upgrade PostgreSQL with automated backups, export and restore support.
 - [ ] Run restore drill into a recovery database and attach evidence to `docs/runbooks/restore-drill-record-template.md`.
 - [ ] Create production services with separate database, Redis, R2 bucket, Sentry environment and uptime monitor.
 - [ ] Repeat expanded smoke checks against production.

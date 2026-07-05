@@ -57,7 +57,10 @@ export class PilotReviewService {
       this.prisma.routeItem.count({
         where: {
           tenantId: context.tenantId,
-          routePlan: { planDate: planDateWindow },
+          routePlan: {
+            tenantId: context.tenantId,
+            planDate: planDateWindow,
+          },
         },
       }),
       this.prisma.visit.findMany({
@@ -72,7 +75,15 @@ export class PilotReviewService {
         where: {
           tenantId: context.tenantId,
           OR: [{ createdAt: createdAtWindow }, { updatedAt: createdAtWindow }],
-          createdBy: { roles: { some: { roleCode: "team_manager" } } },
+          createdBy: {
+            tenantId: context.tenantId,
+            roles: {
+              some: {
+                tenantId: context.tenantId,
+                roleCode: "team_manager",
+              },
+            },
+          },
         },
       }),
       this.prisma.importJob.findMany({

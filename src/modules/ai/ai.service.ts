@@ -99,6 +99,25 @@ export class AiService {
       });
     }
 
+    const audioNote = await this.prisma.visitNote.findFirst({
+      where: {
+        tenantId: context.tenantId,
+        visitId: visit.id,
+        inputType: "audio",
+        temporaryAudioObjectId: inputObject.id,
+        createdByUserId: context.userId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!audioNote) {
+      throw new BadRequestException({
+        code: "TRANSCRIPTION_INPUT_INVALID",
+        message: "Input object must be registered on this visit.",
+      });
+    }
+
     const job = await this.prisma.aiJob.create({
       data: {
         tenantId: context.tenantId,

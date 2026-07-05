@@ -122,6 +122,7 @@ Before marking production env ready:
 - API readiness returns `status=ready`;
 - API readiness reports database `ok`;
 - API readiness reports no missing critical env vars;
+- production PostgreSQL is a paid/managed instance with backup/export/restore evidence attached;
 - `SENTRY_ENVIRONMENT=production` appears in Sentry events;
 - `SENTRY_RELEASE` equals the deployed commit SHA;
 - production web does not use demo fallback;

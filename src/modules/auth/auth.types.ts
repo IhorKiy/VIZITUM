@@ -14,6 +14,7 @@ export type SwitchRoleRequestBody = {
 
 export type AcceptInviteRequestBody = {
   token?: unknown;
+  tenantSlug?: unknown;
   name?: unknown;
   password?: unknown;
   phone?: unknown;

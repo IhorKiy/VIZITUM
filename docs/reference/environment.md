@@ -40,6 +40,7 @@ Same env as the API (it boots the same Nest application context: `DATABASE_URL`,
 | --- | --- | --- |
 | `OPERATIONS_SUMMARY_URL` | `scripts/production-alerts-check.mjs` (`npm run alerts:check`) | Full URL of `/api/operations/summary`. |
 | `OPERATIONS_SUMMARY_BEARER_TOKEN` | `production-alerts-check.mjs` | Bearer token for the summary endpoint. |
+| `DEMO_TENANT_SLUG`, `DEMO_TENANT_NAME`, `DEMO_ROLE_PASSWORD`, `DATABASE_URL` | `scripts/seed-demo-roles.mjs` (`npm run seed:demo-roles`) | Local demo tenant/user seed. `DEMO_ROLE_PASSWORD` is required and has no default; `DATABASE_URL` must point to localhost/127.0.0.1/::1. |
 | `SEED_TENANT_SLUG`, `SEED_TENANT_NAME`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_NAME`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_ROLE_CODES`, `SEED_SMOKE_DATA`, `SEED_CONFIRM_SMOKE_REPORT` | `scripts/seed-staging-admin.mjs` (`npm run seed:staging-admin`) | Staging tenant/admin provisioning. |
 | `PLATFORM_OWNER_EMAIL`, `PLATFORM_OWNER_NAME`, `PLATFORM_OWNER_PASSWORD` | `scripts/seed-platform-owner.mjs` (`npm run seed:platform-owner`) | Upserts the first `PlatformUser` (platform-owner login). `PLATFORM_OWNER_NAME` defaults to `Vizitum Platform Owner`. |
 | `API_READINESS_URL`, `DATABASE_URL` | `scripts/restore-drill-check.sh` (`npm run restore:drill:check`) | Restore drill validation. |

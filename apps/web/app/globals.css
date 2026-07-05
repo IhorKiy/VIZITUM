@@ -490,6 +490,7 @@ textarea {
 }
 
 .admin-users-panel {
+  grid-column: 1 / -1;
   min-width: 0;
 }
 
@@ -598,6 +599,20 @@ textarea {
   min-height: 40px;
   min-width: 0;
   padding: 0 10px;
+  width: 100%;
+}
+
+.user-actions-grid .inline-control-form {
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, max-content);
+}
+
+.user-actions-grid .inline-control-form:first-child {
+  grid-template-columns: minmax(120px, max-content);
+}
+
+.user-actions-grid .secondary-button {
   width: 100%;
 }
 

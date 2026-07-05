@@ -112,6 +112,7 @@ export class AuthService {
     response: Response,
   ): Promise<LoginResponse> {
     const token = normalizeToken(body.token);
+    const tenantSlug = normalizeTenantSlug(body.tenantSlug);
     const name = normalizeName(body.name);
     const password = normalizeNewPassword(body.password);
     const phone = normalizeOptionalString(body.phone);
@@ -134,6 +135,17 @@ export class AuthService {
 
     if (!invite || invite.status !== "pending") {
       throwInvalidInvite();
+    }
+
+    if (tenantSlug) {
+      const tenant = await this.prisma.platformTenant.findUnique({
+        where: { slug: tenantSlug },
+        select: { id: true },
+      });
+
+      if (!tenant || tenant.id !== invite.tenantId) {
+        throwInvalidInvite();
+      }
     }
 
     if (invite.expiresAt <= new Date()) {

@@ -337,7 +337,7 @@ export class UsersService {
         id: { not: excludeUserId },
         status: "active",
         deletedAt: null,
-        roles: { some: { roleCode: "company_admin" } },
+        roles: { some: { tenantId, roleCode: "company_admin" } },
       },
     });
 

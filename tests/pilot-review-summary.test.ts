@@ -53,6 +53,7 @@ describe("pilot review summary", () => {
   it("computes thresholds against the 7-day window from the first visit", async () => {
     let capturedVisitFindFirstWhere: unknown;
     let capturedRouteItemWhere: unknown;
+    let capturedManagerTaskWhere: unknown;
     const firstVisitCreatedAt = new Date("2026-06-01T00:00:00.000Z");
     const prisma = {
       visit: {
@@ -97,7 +98,11 @@ describe("pilot review summary", () => {
         },
       },
       task: {
-        count: async () => 2,
+        count: async (query: { where: unknown }) => {
+          capturedManagerTaskWhere = query.where;
+
+          return 2;
+        },
       },
       importJob: {
         findMany: async () => [{ rowCount: 100, validRowCount: 95 }],
@@ -120,9 +125,36 @@ describe("pilot review summary", () => {
     assert.deepEqual(capturedRouteItemWhere, {
       tenantId: "tenant-a",
       routePlan: {
+        tenantId: "tenant-a",
         planDate: {
           gte: new Date("2026-06-01T00:00:00.000Z"),
           lte: new Date("2026-06-08T00:00:00.000Z"),
+        },
+      },
+    });
+    assert.deepEqual(capturedManagerTaskWhere, {
+      tenantId: "tenant-a",
+      OR: [
+        {
+          createdAt: {
+            gte: new Date("2026-06-01T00:00:00.000Z"),
+            lte: new Date("2026-06-08T00:00:00.000Z"),
+          },
+        },
+        {
+          updatedAt: {
+            gte: new Date("2026-06-01T00:00:00.000Z"),
+            lte: new Date("2026-06-08T00:00:00.000Z"),
+          },
+        },
+      ],
+      createdBy: {
+        tenantId: "tenant-a",
+        roles: {
+          some: {
+            tenantId: "tenant-a",
+            roleCode: "team_manager",
+          },
         },
       },
     });
