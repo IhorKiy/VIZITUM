@@ -71,6 +71,9 @@ function normalizeRequired(value, name) {
   return trimmed;
 }
 
+// Plain node ESM script (no tsx/build step), so it can't import
+// src/common/normalize.ts. Must stay trim+lowercase to match it, or a seeded
+// owner won't match the email PlatformAuthService normalizes at login.
 function normalizeEmail(value) {
   return value.trim().toLowerCase();
 }

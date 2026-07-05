@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import type { Request, Response } from "express";
 
+import { normalizeEmail } from "../../common/normalize";
 import { createCsrfToken, writeCsrfCookie } from "../auth/csrf";
 import { PasswordService } from "../auth/password.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -112,10 +113,6 @@ function toSessionResponse(platformUser: {
     roleCodes: [PLATFORM_OWNER_ROLE_CODE],
     permissions: [...ROLE_PERMISSION_MATRIX.platform_owner],
   };
-}
-
-function normalizeEmail(value: unknown): string {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
 function throwInvalidCredentials(): never {

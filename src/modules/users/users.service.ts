@@ -13,6 +13,7 @@ import {
 } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 
+import { normalizeEmail } from "../../common/normalize";
 import {
   createPaginatedResponse,
   type PaginatedResponse,
@@ -425,16 +426,6 @@ function toUserResponse(user: UserWithRoles): UserResponse {
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   };
-}
-
-function normalizeEmail(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const email = value.trim().toLowerCase();
-
-  return email || null;
 }
 
 function normalizeRoleCodes(value: unknown): RoleCode[] {
