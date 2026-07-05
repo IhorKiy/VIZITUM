@@ -1,12 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import type { Session } from "@prisma/client";
-import { randomBytes } from "node:crypto";
 
+import {
+  issueSessionToken,
+  isSessionActive,
+} from "../../common/session-lifecycle";
 import { PrismaService } from "../prisma/prisma.service";
 import { SESSION_TOKEN_BYTES, SESSION_TTL_DAYS } from "./auth.constants";
 import { hashValue } from "./auth-crypto";
-
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type CreateSessionInput = {
   tenantId: string;
@@ -25,11 +26,11 @@ export class SessionService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createSession(input: CreateSessionInput): Promise<CreatedSession> {
-    const token = randomBytes(SESSION_TOKEN_BYTES).toString("base64url");
-    const sessionTokenHash = hashValue(token);
-    const expiresAt = new Date(
-      Date.now() + SESSION_TTL_DAYS * MILLISECONDS_PER_DAY,
+    const { token, expiresAt } = issueSessionToken(
+      SESSION_TOKEN_BYTES,
+      SESSION_TTL_DAYS,
     );
+    const sessionTokenHash = hashValue(token);
 
     const session = await this.prisma.session.create({
       data: {
@@ -50,7 +51,7 @@ export class SessionService {
       where: { sessionTokenHash: hashValue(token) },
     });
 
-    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+    if (!session || !isSessionActive(session)) {
       return null;
     }
 

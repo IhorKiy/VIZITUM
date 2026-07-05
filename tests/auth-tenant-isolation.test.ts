@@ -130,8 +130,7 @@ describe("auth tenant isolation", () => {
   });
 
   it("allows platform operations bearer token for operations summary checks", async () => {
-    const previousToken = process.env.PLATFORM_OPERATIONS_TOKEN;
-    process.env.PLATFORM_OPERATIONS_TOKEN = "operator-token";
+    const restoreEnv = setPlatformOperationsToken("operator-token");
 
     try {
       let sessionLookupCount = 0;
@@ -167,17 +166,12 @@ describe("auth tenant isolation", () => {
         permissions: [PERMISSIONS.PLATFORM_OPERATIONS_READ],
       });
     } finally {
-      if (previousToken === undefined) {
-        delete process.env.PLATFORM_OPERATIONS_TOKEN;
-      } else {
-        process.env.PLATFORM_OPERATIONS_TOKEN = previousToken;
-      }
+      restoreEnv();
     }
   });
 
   it("rejects the platform operations bearer token for tenant management", async () => {
-    const previousToken = process.env.PLATFORM_OPERATIONS_TOKEN;
-    process.env.PLATFORM_OPERATIONS_TOKEN = "operator-token";
+    const restoreEnv = setPlatformOperationsToken("operator-token");
 
     try {
       const reflector = {
@@ -213,11 +207,7 @@ describe("auth tenant isolation", () => {
         },
       );
     } finally {
-      if (previousToken === undefined) {
-        delete process.env.PLATFORM_OPERATIONS_TOKEN;
-      } else {
-        process.env.PLATFORM_OPERATIONS_TOKEN = previousToken;
-      }
+      restoreEnv();
     }
   });
 
@@ -268,6 +258,32 @@ describe("auth tenant isolation", () => {
     ]);
   });
 });
+
+// Sets PLATFORM_OPERATIONS_TOKEN for the plaintext comparison path and clears
+// PLATFORM_OPERATIONS_TOKEN_SHA256, since the guard prefers the hash var when
+// present — leaving it set (e.g. from an ambient .env) would make the guard
+// ignore the plaintext token this helper sets and break the test.
+function setPlatformOperationsToken(token: string): () => void {
+  const previousToken = process.env.PLATFORM_OPERATIONS_TOKEN;
+  const previousHash = process.env.PLATFORM_OPERATIONS_TOKEN_SHA256;
+
+  process.env.PLATFORM_OPERATIONS_TOKEN = token;
+  delete process.env.PLATFORM_OPERATIONS_TOKEN_SHA256;
+
+  return () => {
+    if (previousToken === undefined) {
+      delete process.env.PLATFORM_OPERATIONS_TOKEN;
+    } else {
+      process.env.PLATFORM_OPERATIONS_TOKEN = previousToken;
+    }
+
+    if (previousHash === undefined) {
+      delete process.env.PLATFORM_OPERATIONS_TOKEN_SHA256;
+    } else {
+      process.env.PLATFORM_OPERATIONS_TOKEN_SHA256 = previousHash;
+    }
+  };
+}
 
 function createSession() {
   return {

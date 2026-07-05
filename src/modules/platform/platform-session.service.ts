@@ -1,12 +1,13 @@
 import { Injectable } from "@nestjs/common";
-import type { PlatformSession } from "@prisma/client";
-import { randomBytes } from "node:crypto";
+import type { PlatformSession, PlatformUser } from "@prisma/client";
 
+import {
+  issueSessionToken,
+  isSessionActive,
+} from "../../common/session-lifecycle";
 import { hashValue } from "../auth/auth-crypto";
 import { SESSION_TOKEN_BYTES, SESSION_TTL_DAYS } from "../auth/auth.constants";
 import { PrismaService } from "../prisma/prisma.service";
-
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type CreatePlatformSessionInput = {
   platformUserId: string;
@@ -26,11 +27,11 @@ export class PlatformSessionService {
   async createSession(
     input: CreatePlatformSessionInput,
   ): Promise<CreatedPlatformSession> {
-    const token = randomBytes(SESSION_TOKEN_BYTES).toString("base64url");
-    const sessionTokenHash = hashValue(token);
-    const expiresAt = new Date(
-      Date.now() + SESSION_TTL_DAYS * MILLISECONDS_PER_DAY,
+    const { token, expiresAt } = issueSessionToken(
+      SESSION_TOKEN_BYTES,
+      SESSION_TTL_DAYS,
     );
+    const sessionTokenHash = hashValue(token);
 
     const session = await this.prisma.platformSession.create({
       data: {
@@ -47,12 +48,13 @@ export class PlatformSessionService {
 
   async findActiveSessionByToken(
     token: string,
-  ): Promise<PlatformSession | null> {
+  ): Promise<(PlatformSession & { platformUser: PlatformUser }) | null> {
     const session = await this.prisma.platformSession.findUnique({
       where: { sessionTokenHash: hashValue(token) },
+      include: { platformUser: true },
     });
 
-    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+    if (!session || !isSessionActive(session)) {
       return null;
     }
 

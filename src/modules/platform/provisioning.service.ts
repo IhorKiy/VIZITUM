@@ -134,11 +134,15 @@ export class ProvisioningService {
         return true;
       });
     } catch (error) {
+      // The transaction rolled back, so the earlier startedAt update (line 82)
+      // never persisted. Set it here too, or a job can end up "finished" but
+      // never "started", breaking any future duration calculation.
       await this.prisma.platformProvisioningJob.update({
         where: { id: jobId },
         data: {
           status: "failed",
           step: "failed",
+          startedAt: now,
           finishedAt: now,
           errorCode: "PROVISIONING_FAILED",
           errorMessage:
