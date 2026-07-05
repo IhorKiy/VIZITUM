@@ -20,6 +20,7 @@ import {
   type PaginationInput,
   resolvePagination,
 } from "../../common/pagination";
+import { MILLISECONDS_PER_DAY } from "../../common/time";
 import { hashValue } from "../auth/auth-crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
@@ -34,7 +35,6 @@ import type {
 
 const INVITE_TOKEN_BYTES = 32;
 const INVITE_TTL_DAYS = 7;
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 type UserWithRoles = User & { roles: UserRole[] };
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;

@@ -1,6 +1,6 @@
 import type { CookieOptions, Request, Response } from "express";
 
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+import { MILLISECONDS_PER_DAY } from "./time";
 
 export function readCookieToken(
   request: Request,

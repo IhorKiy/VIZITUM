@@ -10,6 +10,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 
+import { isSessionActive } from "../../common/session-lifecycle";
 import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS, type PermissionCode } from "../roles/permissions";
@@ -144,7 +145,7 @@ export class PermissionGuard implements CanActivate {
       include: { platformUser: true },
     });
 
-    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+    if (!session || !isSessionActive(session)) {
       return null;
     }
 

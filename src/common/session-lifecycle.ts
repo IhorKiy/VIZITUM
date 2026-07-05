@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+import { MILLISECONDS_PER_DAY } from "./time";
 
 export type IssuedSessionToken = {
   token: string;
