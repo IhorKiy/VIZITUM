@@ -4,6 +4,7 @@ import type { PlatformSession, PlatformUser } from "@prisma/client";
 import {
   issueSessionToken,
   isSessionActive,
+  touchSession,
 } from "../../common/session-lifecycle";
 import { hashValue } from "../auth/auth-crypto";
 import { SESSION_TOKEN_BYTES, SESSION_TTL_DAYS } from "../auth/auth.constants";
@@ -58,10 +59,7 @@ export class PlatformSessionService {
       return null;
     }
 
-    await this.prisma.platformSession.update({
-      where: { id: session.id },
-      data: { lastSeenAt: new Date() },
-    });
+    await touchSession(this.prisma.platformSession, session.id);
 
     return session;
   }

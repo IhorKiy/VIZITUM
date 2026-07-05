@@ -4,6 +4,7 @@ import type { Session } from "@prisma/client";
 import {
   issueSessionToken,
   isSessionActive,
+  touchSession,
 } from "../../common/session-lifecycle";
 import { PrismaService } from "../prisma/prisma.service";
 import { SESSION_TOKEN_BYTES, SESSION_TTL_DAYS } from "./auth.constants";
@@ -55,10 +56,7 @@ export class SessionService {
       return null;
     }
 
-    await this.prisma.session.update({
-      where: { id: session.id },
-      data: { lastSeenAt: new Date() },
-    });
+    await touchSession(this.prisma.session, session.id);
 
     return session;
   }

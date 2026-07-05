@@ -10,7 +10,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 
-import { isSessionActive } from "../../common/session-lifecycle";
+import { isSessionActive, touchSession } from "../../common/session-lifecycle";
 import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS, type PermissionCode } from "../roles/permissions";
@@ -148,6 +148,11 @@ export class PermissionGuard implements CanActivate {
     if (!session || !isSessionActive(session)) {
       return null;
     }
+
+    // Keeps lastSeenAt current on every authenticated request, not just
+    // /platform/auth/me — see touchSession's doc comment for why this is
+    // shared instead of an inline update.
+    await touchSession(this.prisma.platformSession, session.id);
 
     const { platformUser } = session;
 
