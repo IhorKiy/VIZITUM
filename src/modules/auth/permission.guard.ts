@@ -149,6 +149,14 @@ export class PermissionGuard implements CanActivate {
       return null;
     }
 
+    // Mirrors SessionService.findActiveSessionByToken's lastSeenAt bump on
+    // every authenticated request, so platform sessions don't look idle just
+    // because /platform/auth/me is the only caller that previously updated it.
+    await this.prisma.platformSession.update({
+      where: { id: session.id },
+      data: { lastSeenAt: new Date() },
+    });
+
     const { platformUser } = session;
 
     if (!platformUser || platformUser.status !== "active") {

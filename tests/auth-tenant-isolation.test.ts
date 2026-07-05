@@ -6,6 +6,7 @@ import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { SESSION_COOKIE_NAME } from "../src/modules/auth/auth.constants";
 import { PermissionGuard } from "../src/modules/auth/permission.guard";
+import { PLATFORM_SESSION_COOKIE_NAME } from "../src/modules/platform/platform-auth.constants";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
 import { RolesService } from "../src/modules/roles/roles.service";
 
@@ -257,6 +258,66 @@ describe("auth tenant isolation", () => {
       },
     ]);
   });
+
+  it("bumps lastSeenAt on every authenticated platform-session request", async () => {
+    const platformSession = {
+      id: "platform-session-a",
+      platformUserId: "platform-user-a",
+      sessionTokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+      createdAt: new Date(),
+      lastSeenAt: null,
+      userAgentHash: null,
+      ipHash: null,
+      platformUser: {
+        id: "platform-user-a",
+        email: "owner@vizitum.dev",
+        name: "Platform Owner",
+        status: "active",
+      },
+    };
+    const updateCalls: unknown[] = [];
+    const reflector = {
+      getAllAndOverride: (key: string) =>
+        key === "requiredPermissions"
+          ? [PERMISSIONS.PLATFORM_TENANTS_READ]
+          : undefined,
+    };
+    const guard = new PermissionGuard(
+      {
+        platformSession: {
+          findUnique: async () => platformSession,
+          update: async (args: unknown) => {
+            updateCalls.push(args);
+            return platformSession;
+          },
+        },
+      } as never,
+      reflector as never,
+      new RolesService(),
+      {
+        findActiveSessionByToken: async () => {
+          throw new Error("tenant session lookup must not run");
+        },
+      } as never,
+    );
+    const request = createPlatformSessionRequest("platform-session-token");
+
+    await assert.equal(
+      await guard.canActivate(createExecutionContext(request)),
+      true,
+    );
+    assert.equal(updateCalls.length, 1);
+    assert.equal(
+      (updateCalls[0] as { where: { id: string } }).where.id,
+      "platform-session-a",
+    );
+    assert.ok(
+      (updateCalls[0] as { data: { lastSeenAt: Date } }).data.lastSeenAt
+        instanceof Date,
+    );
+  });
 });
 
 // Sets PLATFORM_OPERATIONS_TOKEN for the plaintext comparison path and clears
@@ -318,6 +379,19 @@ function createRequest(token?: string, authorization?: string) {
 
       if (headerName === "cookie" && token) {
         return `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`;
+      }
+
+      return undefined;
+    },
+  };
+}
+
+function createPlatformSessionRequest(token: string) {
+  return {
+    requestId: "request-a",
+    header: (name: string) => {
+      if (name.toLowerCase() === "cookie") {
+        return `${PLATFORM_SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`;
       }
 
       return undefined;
