@@ -302,9 +302,12 @@ describe("auth tenant isolation", () => {
         },
       } as never,
     );
-    const request = createPlatformSessionRequest("platform-session-token");
+    const request = createRequest(undefined, undefined, {
+      cookieName: PLATFORM_SESSION_COOKIE_NAME,
+      token: "platform-session-token",
+    });
 
-    await assert.equal(
+    assert.equal(
       await guard.canActivate(createExecutionContext(request)),
       true,
     );
@@ -367,7 +370,14 @@ function createSessionService(session: ReturnType<typeof createSession>) {
   };
 }
 
-function createRequest(token?: string, authorization?: string) {
+function createRequest(
+  token?: string,
+  authorization?: string,
+  cookie?: { cookieName: string; token: string },
+) {
+  const resolvedCookie =
+    cookie ?? (token ? { cookieName: SESSION_COOKIE_NAME, token } : undefined);
+
   return {
     requestId: "request-a",
     header: (name: string) => {
@@ -377,21 +387,8 @@ function createRequest(token?: string, authorization?: string) {
         return authorization;
       }
 
-      if (headerName === "cookie" && token) {
-        return `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`;
-      }
-
-      return undefined;
-    },
-  };
-}
-
-function createPlatformSessionRequest(token: string) {
-  return {
-    requestId: "request-a",
-    header: (name: string) => {
-      if (name.toLowerCase() === "cookie") {
-        return `${PLATFORM_SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`;
+      if (headerName === "cookie" && resolvedCookie) {
+        return `${resolvedCookie.cookieName}=${encodeURIComponent(resolvedCookie.token)}`;
       }
 
       return undefined;

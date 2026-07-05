@@ -26,3 +26,23 @@ export function isSessionActive(session: {
 }): boolean {
   return !session.revokedAt && session.expiresAt > new Date();
 }
+
+export type SessionUpdateDelegate = {
+  update(args: {
+    where: { id: string };
+    data: { lastSeenAt: Date };
+  }): Promise<unknown>;
+};
+
+// Shared so every caller that marks a session as recently active — tenant
+// sessions, platform sessions, and the guard's own direct queries — stays in
+// sync with a single lastSeenAt policy.
+export async function touchSession(
+  delegate: SessionUpdateDelegate,
+  sessionId: string,
+): Promise<void> {
+  await delegate.update({
+    where: { id: sessionId },
+    data: { lastSeenAt: new Date() },
+  });
+}

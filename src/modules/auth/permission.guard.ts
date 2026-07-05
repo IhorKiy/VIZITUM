@@ -10,7 +10,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 
-import { isSessionActive } from "../../common/session-lifecycle";
+import { isSessionActive, touchSession } from "../../common/session-lifecycle";
 import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS, type PermissionCode } from "../roles/permissions";
@@ -149,13 +149,10 @@ export class PermissionGuard implements CanActivate {
       return null;
     }
 
-    // Mirrors SessionService.findActiveSessionByToken's lastSeenAt bump on
-    // every authenticated request, so platform sessions don't look idle just
-    // because /platform/auth/me is the only caller that previously updated it.
-    await this.prisma.platformSession.update({
-      where: { id: session.id },
-      data: { lastSeenAt: new Date() },
-    });
+    // Keeps lastSeenAt current on every authenticated request, not just
+    // /platform/auth/me — see touchSession's doc comment for why this is
+    // shared instead of an inline update.
+    await touchSession(this.prisma.platformSession, session.id);
 
     const { platformUser } = session;
 
