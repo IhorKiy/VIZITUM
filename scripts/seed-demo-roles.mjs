@@ -472,15 +472,28 @@ async function seedRepresentativeWorkspace(
     },
   });
 
-  await tx.visitNote.create({
-    data: {
+  const seededNote = await tx.visitNote.findFirst({
+    where: {
       tenantId: tenant.id,
       visitId: completedVisit.id,
+      createdByUserId: representative.id,
       inputType: "text",
       textContent: "Demo role seed: shelf check completed, follow-up needed.",
-      createdByUserId: representative.id,
+      deletedAt: null,
     },
   });
+
+  if (!seededNote) {
+    await tx.visitNote.create({
+      data: {
+        tenantId: tenant.id,
+        visitId: completedVisit.id,
+        inputType: "text",
+        textContent: "Demo role seed: shelf check completed, follow-up needed.",
+        createdByUserId: representative.id,
+      },
+    });
+  }
 
   const report = await tx.report.upsert({
     where: { visitId: completedVisit.id },
