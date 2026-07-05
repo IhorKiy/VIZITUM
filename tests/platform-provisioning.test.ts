@@ -70,6 +70,79 @@ describe("platform provisioning", () => {
     assert.equal(store.job.errorCode, "CAPABILITIES_MISSING");
   });
 
+  it("stamps startedAt and finishedAt when the transaction rolls back", async () => {
+    // Model real rollback semantics: mutations only land on the persisted
+    // job/tenant if the transaction callback resolves. The provisioning event
+    // write throws, so the earlier in-transaction startedAt update must be
+    // discarded, and the catch block (running outside the transaction) is
+    // responsible for stamping startedAt itself.
+    const persistedJob: Record<string, unknown> = {
+      id: "job-1",
+      tenantId: "tenant-1",
+      status: "queued",
+      step: null,
+      startedAt: null,
+      finishedAt: null,
+    };
+    const persistedTenant = { id: "tenant-1", status: "draft" };
+
+    const prisma = {
+      platformProvisioningJob: {
+        findMany: async ({ where }: { where: { status: string } }) =>
+          persistedJob.status === where.status
+            ? [{ id: persistedJob.id, tenantId: persistedJob.tenantId }]
+            : [],
+        update: async ({ data }: { data: Record<string, unknown> }) => {
+          Object.assign(persistedJob, data);
+          return persistedJob;
+        },
+      },
+      $transaction: async (
+        callback: (tx: unknown) => Promise<unknown>,
+      ) => {
+        const jobDraft = { ...persistedJob };
+        const tenantDraft = { ...persistedTenant };
+        const tx = {
+          platformProvisioningJob: {
+            update: async ({ data }: { data: Record<string, unknown> }) => {
+              Object.assign(jobDraft, data);
+              return jobDraft;
+            },
+          },
+          platformTenant: {
+            findUnique: async () => tenantDraft,
+            update: async ({ data }: { data: Record<string, unknown> }) => {
+              Object.assign(tenantDraft, data);
+              return tenantDraft;
+            },
+          },
+          productCapability: { count: async () => 4 },
+          platformOperationEvent: {
+            create: async () => {
+              throw new Error("event write failed");
+            },
+          },
+        };
+
+        // Throws before returning, so persistedJob/persistedTenant are never
+        // updated with jobDraft/tenantDraft — this is the rollback.
+        return callback(tx);
+      },
+    };
+
+    const service = new ProvisioningService(prisma as unknown as PrismaService);
+    const now = new Date("2026-07-04T12:00:00.000Z");
+
+    const result = await service.runPendingProvisioningJobs(now);
+
+    assert.equal(result.failedJobCount, 1);
+    assert.equal(persistedJob.status, "failed");
+    assert.equal(persistedJob.errorCode, "PROVISIONING_FAILED");
+    assert.equal(persistedJob.startedAt, now);
+    assert.equal(persistedJob.finishedAt, now);
+    assert.equal(persistedTenant.status, "draft");
+  });
+
   it("returns zero counts when no jobs are queued", async () => {
     const store = createStore({
       tenant: { id: "tenant-1", status: "ready" },

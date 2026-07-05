@@ -141,15 +141,14 @@ export class PermissionGuard implements CanActivate {
 
     const session = await this.prisma.platformSession.findUnique({
       where: { sessionTokenHash: hashValue(token) },
+      include: { platformUser: true },
     });
 
     if (!session || session.revokedAt || session.expiresAt <= new Date()) {
       return null;
     }
 
-    const platformUser = await this.prisma.platformUser.findUnique({
-      where: { id: session.platformUserId },
-    });
+    const { platformUser } = session;
 
     if (!platformUser || platformUser.status !== "active") {
       return null;

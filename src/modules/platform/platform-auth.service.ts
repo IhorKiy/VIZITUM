@@ -85,9 +85,7 @@ export class PlatformAuthService {
       throwUnauthenticated();
     }
 
-    const platformUser = await this.prisma.platformUser.findUnique({
-      where: { id: session.platformUserId },
-    });
+    const { platformUser } = session;
 
     if (!platformUser || platformUser.status !== "active") {
       throwUnauthenticated();

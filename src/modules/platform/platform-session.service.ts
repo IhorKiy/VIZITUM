@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { PlatformSession } from "@prisma/client";
+import type { PlatformSession, PlatformUser } from "@prisma/client";
 
 import {
   issueSessionToken,
@@ -48,9 +48,10 @@ export class PlatformSessionService {
 
   async findActiveSessionByToken(
     token: string,
-  ): Promise<PlatformSession | null> {
+  ): Promise<(PlatformSession & { platformUser: PlatformUser }) | null> {
     const session = await this.prisma.platformSession.findUnique({
       where: { sessionTokenHash: hashValue(token) },
+      include: { platformUser: true },
     });
 
     if (!session || !isSessionActive(session)) {
