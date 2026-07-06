@@ -12,6 +12,7 @@ import {
   type PlatformSegmentTemplate,
 } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
+import { CreateTenantModal } from "./create-tenant-modal";
 
 const SEGMENT_TEMPLATES: PlatformSegmentTemplate[] = [
   "distribution",
@@ -131,15 +132,11 @@ export default async function PlatformTenantsPage({
   const tenantsResult = await listPlatformTenants();
 
   return (
-    <main className="page">
+    <main className="page platform-page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Platform owner</p>
-          <h1>Tenants</h1>
-          <p>
-            Create and provision new tenants. Signed in as{" "}
-            {sessionResult.data.platformUser.email}.
-          </p>
+          <h1>VIZITUM</h1>
+          <p>platform</p>
         </div>
         <div className="toolbar">
           <form action={logoutAction}>
@@ -167,123 +164,89 @@ export default async function PlatformTenantsPage({
         </section>
       ) : null}
 
-      <section aria-label="Create tenant">
-        <form action={createTenantAction} className="visit-form compact">
-          <label>
-            Name
-            <input name="name" type="text" required />
-          </label>
-          <label>
-            Slug
-            <input name="slug" type="text" required />
-          </label>
-          <label>
-            Segment template
-            <select name="segmentTemplate" required defaultValue="">
-              <option value="" disabled>
-                Select a template
-              </option>
-              {SEGMENT_TEMPLATES.map((template) => (
-                <option key={template} value={template}>
-                  {template}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Country
-            <input name="country" type="text" placeholder="UA" />
-          </label>
-          <label>
-            Timezone
-            <input name="timezone" type="text" placeholder="Europe/Kiev" />
-          </label>
-          <label>
-            Language
-            <input name="language" type="text" placeholder="uk" />
-          </label>
-          <label>
-            Primary domain
-            <input name="primaryDomain" type="text" />
-          </label>
-          <PendingSubmitButton className="primary-button">
-            Create tenant
-          </PendingSubmitButton>
-        </form>
-      </section>
+      <CreateTenantModal
+        action={createTenantAction}
+        segmentTemplates={SEGMENT_TEMPLATES}
+      />
 
-      <section aria-label="Existing tenants">
+      <section
+        className="platform-tenants-section"
+        aria-label="Existing tenants"
+      >
         <h2>Existing tenants</h2>
         {tenantsResult.ok ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Slug</th>
-                <th>Status</th>
-                <th>Plan</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tenantsResult.data.map((tenant) => {
-                const isArchived = tenant.status === "archived";
+          <div className="tenant-collapse-list">
+            {tenantsResult.data.map((tenant) => {
+              const isArchived = tenant.status === "archived";
 
-                return (
-                  <tr key={tenant.id}>
-                    <td>{tenant.name}</td>
-                    <td>{tenant.slug}</td>
-                    <td>{tenant.status}</td>
-                    <td>{tenant.planCode}</td>
-                    <td>{new Date(tenant.createdAt).toLocaleString()}</td>
-                    <td>
-                      {isArchived ? (
-                        <span>Archived</span>
-                      ) : (
-                        <div className="toolbar">
-                          <form action={updateStatusAction}>
-                            <input
-                              type="hidden"
-                              name="tenantId"
-                              value={tenant.id}
-                            />
-                            <select
-                              name="status"
-                              defaultValue={tenant.status}
-                              aria-label={`Status for ${tenant.name}`}
-                            >
-                              {ASSIGNABLE_STATUSES.map((status) => (
-                                <option key={status} value={status}>
-                                  {status}
-                                </option>
-                              ))}
-                            </select>
-                            <PendingSubmitButton className="secondary-button">
-                              Save status
-                            </PendingSubmitButton>
-                          </form>
-                          <form action={archiveAction}>
-                            <input
-                              type="hidden"
-                              name="tenantId"
-                              value={tenant.id}
-                            />
-                            <PendingSubmitButton
-                              className="secondary-button"
-                              pendingLabel="Archiving..."
-                            >
-                              Archive
-                            </PendingSubmitButton>
-                          </form>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              return (
+                <details className="tenant-collapse" key={tenant.id}>
+                  <summary>{tenant.name}</summary>
+                  <div className="tenant-collapse-body">
+                    <dl className="tenant-detail-grid">
+                      <div>
+                        <dt>Slug</dt>
+                        <dd>{tenant.slug}</dd>
+                      </div>
+                      <div>
+                        <dt>Status</dt>
+                        <dd>{tenant.status}</dd>
+                      </div>
+                      <div>
+                        <dt>Plan</dt>
+                        <dd>{tenant.planCode}</dd>
+                      </div>
+                      <div>
+                        <dt>Created</dt>
+                        <dd>{new Date(tenant.createdAt).toLocaleString()}</dd>
+                      </div>
+                    </dl>
+
+                    {isArchived ? (
+                      <p className="tenant-archived-note">Archived</p>
+                    ) : (
+                      <div className="toolbar">
+                        <form action={updateStatusAction}>
+                          <input
+                            type="hidden"
+                            name="tenantId"
+                            value={tenant.id}
+                          />
+                          <select
+                            name="status"
+                            defaultValue={tenant.status}
+                            aria-label={`Status for ${tenant.name}`}
+                          >
+                            {ASSIGNABLE_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                          <PendingSubmitButton className="secondary-button">
+                            Save status
+                          </PendingSubmitButton>
+                        </form>
+                        <form action={archiveAction}>
+                          <input
+                            type="hidden"
+                            name="tenantId"
+                            value={tenant.id}
+                          />
+                          <PendingSubmitButton
+                            className="secondary-button"
+                            pendingLabel="Archiving..."
+                          >
+                            Archive
+                          </PendingSubmitButton>
+                        </form>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
         ) : (
           <p>{tenantsResult.message}</p>
         )}
