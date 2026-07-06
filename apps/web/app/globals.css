@@ -128,6 +128,10 @@ textarea {
   padding: 28px 32px 96px;
 }
 
+.platform-page {
+  padding: 28px 32px 96px;
+}
+
 .page-header {
   align-items: flex-start;
   display: flex;
@@ -917,6 +921,131 @@ textarea {
   margin-bottom: 0;
 }
 
+.platform-create-panel {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin: 0 auto 16px;
+  max-width: 1180px;
+}
+
+.platform-create-panel h2 {
+  margin: 0;
+}
+
+.platform-create-panel p {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.platform-tenants-section {
+  margin: 0 auto;
+  max-width: 1180px;
+}
+
+.tenant-collapse-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tenant-collapse {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.tenant-collapse summary {
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 800;
+  list-style-position: inside;
+  padding: 14px 16px;
+}
+
+.tenant-collapse summary:hover {
+  background: var(--surface-muted);
+}
+
+.tenant-collapse-body {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.tenant-detail-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.tenant-detail-grid div {
+  display: grid;
+  gap: 4px;
+}
+
+.tenant-detail-grid dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.tenant-detail-grid dd {
+  margin: 0;
+}
+
+.tenant-archived-note {
+  color: var(--muted);
+  font-weight: 700;
+  margin: 0;
+}
+
+.modal-dialog {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 24%);
+  color: var(--ink);
+  margin: auto;
+  max-height: min(720px, calc(100dvh - 32px));
+  max-width: min(640px, calc(100vw - 32px));
+  overflow: auto;
+  padding: 0;
+  width: 100%;
+}
+
+.modal-dialog::backdrop {
+  background: rgb(15 23 42 / 48%);
+}
+
+.modal-header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 20px 20px 16px;
+}
+
+.modal-header h2 {
+  margin: 2px 0 0;
+}
+
+.modal-form {
+  padding: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .filter-groups {
   display: grid;
   gap: 8px;
@@ -1308,6 +1437,10 @@ textarea {
     padding: 18px 14px 84px;
   }
 
+  .platform-page {
+    padding: 18px 14px 84px;
+  }
+
   .page-header,
   .notice-panel {
     display: grid;
@@ -1344,6 +1477,7 @@ textarea {
   }
 
   .panel-toolbar,
+  .platform-create-panel,
   .filter-form,
   .filter-groups {
     display: grid;
@@ -1355,6 +1489,10 @@ textarea {
   }
 
   .locations-filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  .tenant-detail-grid {
     grid-template-columns: 1fr;
   }
 
