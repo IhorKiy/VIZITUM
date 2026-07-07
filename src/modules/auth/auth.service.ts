@@ -23,6 +23,7 @@ import type {
   SwitchRoleRequestBody,
 } from "./auth.types";
 import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
+import { DEFAULT_ADMIN_LIMIT } from "../users/users.types";
 
 @Injectable()
 export class AuthService {
@@ -160,7 +161,7 @@ export class AuthService {
 
     const passwordHash = await this.passwordService.hashPassword(password);
 
-    const user = await this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         // Invite-time already checked the admin limit against the count of
         // *active* admins, which doesn't account for other pending invites
@@ -172,7 +173,7 @@ export class AuthService {
             where: { id: invite.tenantId },
             select: { adminLimit: true },
           });
-          const adminLimit = tenant?.adminLimit ?? 2;
+          const adminLimit = tenant?.adminLimit ?? DEFAULT_ADMIN_LIMIT;
           const activeAdminCount = await tx.user.count({
             where: {
               tenantId: invite.tenantId,
@@ -252,6 +253,8 @@ export class AuthService {
         // ordinary admin lifecycle. Written via `tx` directly (not
         // AuditService, which isn't transaction-aware) so it commits or rolls
         // back with the acceptance.
+        const demotedSuperadminIds: string[] = [];
+
         if (invite.roleCodes.includes("tenant_superadmin")) {
           const previousSuperadmins = await tx.user.findMany({
             where: {
@@ -270,6 +273,8 @@ export class AuthService {
           });
 
           for (const previousSuperadmin of previousSuperadmins) {
+            demotedSuperadminIds.push(previousSuperadmin.id);
+
             await tx.user.update({
               where: { id: previousSuperadmin.id },
               data: {
@@ -325,10 +330,23 @@ export class AuthService {
           },
         });
 
-        return acceptedUser;
+        return { acceptedUser, demotedSuperadminIds };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    const { acceptedUser: user, demotedSuperadminIds } = result;
+
+    // Revoked after commit, not inside the transaction: SessionService
+    // writes through `this.prisma`, not `tx`, so it can't participate in the
+    // transaction's atomicity anyway, and revoking only once the demotion is
+    // durably committed avoids revoking a session for a demotion that then
+    // rolls back.
+    for (const demotedSuperadminId of demotedSuperadminIds) {
+      await this.sessionService.revokeUserSessions(
+        invite.tenantId,
+        demotedSuperadminId,
+      );
+    }
 
     const { token: sessionToken } = await this.sessionService.createSession({
       tenantId: invite.tenantId,

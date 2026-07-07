@@ -28,19 +28,19 @@ import { SessionService } from "../auth/session.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
-import type {
-  AddUserRoleRequestBody,
-  DeleteUserResponse,
-  InviteHistoryItem,
-  InviteUserRequestBody,
-  InviteUserResponse,
-  UpdateUserRequestBody,
-  UserResponse,
+import {
+  DEFAULT_ADMIN_LIMIT,
+  type AddUserRoleRequestBody,
+  type DeleteUserResponse,
+  type InviteHistoryItem,
+  type InviteUserRequestBody,
+  type InviteUserResponse,
+  type UpdateUserRequestBody,
+  type UserResponse,
 } from "./users.types";
 
 const INVITE_TOKEN_BYTES = 32;
 const INVITE_TTL_DAYS = 7;
-const DEFAULT_ADMIN_LIMIT = 2;
 
 type UserWithRoles = User & { roles: UserRole[] };
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;
@@ -327,6 +327,13 @@ export class UsersService {
           status: updatedUser.status,
         },
       });
+
+      // Symmetric with deleteUser: a suspended admin shouldn't keep riding
+      // an existing session until it naturally expires or they hit a
+      // request PermissionGuard happens to reject.
+      if (updatedUser.status !== "active") {
+        await this.sessionService.revokeUserSessions(context.tenantId, userId);
+      }
     }
 
     return toUserResponse(updatedUser);
@@ -546,7 +553,7 @@ export class UsersService {
     context: RequestContext,
     userId: string,
   ): Promise<UserResponse> {
-    const promoted = await this.prisma.$transaction(
+    const { promoted, demotedSuperadminIds } = await this.prisma.$transaction(
       async (tx) => {
         const user = await this.findTenantUser(tx, context.tenantId, userId);
 
@@ -583,8 +590,14 @@ export class UsersService {
         // every tenant-side action against it, and there is no platform
         // endpoint for an inactive superadmin), which would make the
         // account a permanent dead end. See the matching note in
-        // AuthService.acceptInvite.
+        // AuthService.acceptInvite. Audited the same way as that path
+        // (superadmin.replaced) via `tx` directly, since AuditService isn't
+        // transaction-aware.
+        const demotedSuperadminIds: string[] = [];
+
         for (const previousSuperadmin of previousSuperadmins) {
+          demotedSuperadminIds.push(previousSuperadmin.id);
+
           await tx.user.update({
             where: { id: previousSuperadmin.id },
             data: {
@@ -617,6 +630,18 @@ export class UsersService {
             },
             update: {},
           });
+
+          await tx.auditEvent.create({
+            data: {
+              tenantId: context.tenantId,
+              actorUserId: context.userId ?? null,
+              entityType: "user",
+              entityId: previousSuperadmin.id,
+              eventType: "superadmin.replaced",
+              metadata: { newSuperadminUserId: user.id },
+              requestId: context.requestId,
+            },
+          });
         }
 
         await tx.userRole.deleteMany({
@@ -644,14 +669,28 @@ export class UsersService {
           update: {},
         });
 
-        return tx.user.update({
+        const promoted = await tx.user.update({
           where: { id: user.id },
           data: { lastSelectedRoleCode: "tenant_superadmin" },
           include: { roles: true },
         });
+
+        return { promoted, demotedSuperadminIds };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+
+    // Revoked after commit, not inside the transaction: SessionService
+    // writes through `this.prisma`, not `tx`, so it can't participate in the
+    // transaction's atomicity anyway, and revoking only once the demotion is
+    // durably committed avoids revoking a session for a demotion that then
+    // rolls back.
+    for (const demotedSuperadminId of demotedSuperadminIds) {
+      await this.sessionService.revokeUserSessions(
+        context.tenantId,
+        demotedSuperadminId,
+      );
+    }
 
     return toUserResponse(promoted);
   }

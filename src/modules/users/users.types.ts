@@ -1,5 +1,11 @@
 import type { RoleCode, UserStatus } from "@prisma/client";
 
+// PlatformTenant.adminLimit is non-nullable with a DB default, but reads
+// through a raw `select` (not the full row) come back typed as optional —
+// this is the fallback for that case, shared so users.service.ts and
+// auth.service.ts can't drift apart on what "no limit configured" means.
+export const DEFAULT_ADMIN_LIMIT = 2;
+
 export type UserResponse = {
   id: string;
   email: string;

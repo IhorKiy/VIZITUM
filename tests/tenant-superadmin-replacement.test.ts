@@ -23,6 +23,7 @@ describe("tenant superadmin replacement", () => {
     const roleDeletes: unknown[] = [];
     const roleUpserts: unknown[] = [];
     const auditEvents: unknown[] = [];
+    const revokedSessions: unknown[] = [];
     const client = {
       invite: {
         findUnique: async () => ({
@@ -79,7 +80,12 @@ describe("tenant superadmin replacement", () => {
       } as never,
       { hashPassword: async () => "hashed" } as never,
       new RolesService(),
-      { createSession: async () => ({ token: "session-token" }) } as never,
+      {
+        createSession: async () => ({ token: "session-token" }),
+        revokeUserSessions: async (tenantId: string, userId: string) => {
+          revokedSessions.push({ tenantId, userId });
+        },
+      } as never,
       {} as never,
     );
 
@@ -132,6 +138,10 @@ describe("tenant superadmin replacement", () => {
     assert.deepEqual(auditEvents[0]?.metadata, {
       newSuperadminUserId: "super2-user",
     });
+
+    assert.deepEqual(revokedSessions, [
+      { tenantId: "tenant-a", userId: "super1-user" },
+    ]);
   });
 
   it("does not touch any other user when accepting the tenant's first superadmin invite", async () => {
@@ -271,6 +281,8 @@ describe("tenant superadmin replacement", () => {
     const demoteUpdates: unknown[] = [];
     const roleDeletes: unknown[] = [];
     const roleUpserts: unknown[] = [];
+    const auditEvents: unknown[] = [];
+    const revokedSessions: unknown[] = [];
     const client = {
       user: {
         findFirst: async () => ({
@@ -309,13 +321,22 @@ describe("tenant superadmin replacement", () => {
           return {};
         },
       },
+      auditEvent: {
+        create: async (query: { data: Record<string, unknown> }) => {
+          auditEvents.push(query.data);
+        },
+      },
     };
     const usersService = new UsersService(
       {
         ...client,
         $transaction: async (cb: (tx: unknown) => unknown) => cb(client),
       } as never,
-      { revokeUserSessions: async () => {} } as never,
+      {
+        revokeUserSessions: async (tenantId: string, userId: string) => {
+          revokedSessions.push({ tenantId, userId });
+        },
+      } as never,
       { recordEvent: async () => {} } as never,
     );
 
@@ -359,6 +380,14 @@ describe("tenant superadmin replacement", () => {
       (demotedRoleUpsert as { create: { roleCode: string } }).create.roleCode,
       "company_admin",
     );
+
+    assert.equal(auditEvents.length, 1);
+    assert.equal(auditEvents[0]?.eventType, "superadmin.replaced");
+    assert.equal(auditEvents[0]?.entityId, "old-super");
+
+    assert.deepEqual(revokedSessions, [
+      { tenantId: "tenant-a", userId: "old-super" },
+    ]);
   });
 
   it("rejects promoting a user who isn't an active company_admin", async () => {

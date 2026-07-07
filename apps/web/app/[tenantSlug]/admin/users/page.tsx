@@ -429,6 +429,7 @@ export default async function AdminUsersPage({
               {users.map((user) => (
                 <UserRow
                   addRoleAction={addRoleAction}
+                  canInviteAdmins={canInviteAdmins}
                   canManageAdmins={canManageAdmins}
                   deleteUserAction={deleteUserAction}
                   key={user.id}
@@ -518,6 +519,7 @@ function InviteHistoryList({
 
 function UserRow({
   addRoleAction,
+  canInviteAdmins,
   canManageAdmins,
   deleteUserAction,
   removeRoleAction,
@@ -525,6 +527,7 @@ function UserRow({
   user,
 }: {
   addRoleAction: (formData: FormData) => Promise<void>;
+  canInviteAdmins: boolean;
   canManageAdmins: boolean;
   deleteUserAction: (formData: FormData) => Promise<void>;
   removeRoleAction: (formData: FormData) => Promise<void>;
@@ -534,10 +537,13 @@ function UserRow({
   const isSuperadmin = user.roleCodes.includes("tenant_superadmin");
   const isCompanyAdmin = user.roleCodes.includes("company_admin");
   const actionsLocked = isSuperadmin || (isCompanyAdmin && !canManageAdmins);
+  // Granting company_admin is gated server-side by admins.invite (like
+  // inviting one), not admins.manage — keep this select in sync with
+  // UsersService.addRole rather than reusing the manage-scoped flag above.
   const missingRoles = tenantRoles.filter(
     (role) =>
       !user.roleCodes.includes(role.code) &&
-      (role.code !== "company_admin" || canManageAdmins),
+      (role.code !== "company_admin" || canInviteAdmins),
   );
   const canRemoveRole = user.roleCodes.length > 1 && !actionsLocked;
   const nextStatus = user.status === "suspended" ? "active" : "suspended";
