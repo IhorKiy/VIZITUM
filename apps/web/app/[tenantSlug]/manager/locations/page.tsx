@@ -9,6 +9,8 @@ import {
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
+import { useFormatter } from "next-intl";
+
 import {
   formatDateTime,
   formatLabel,
@@ -363,6 +365,8 @@ function LocationsTable({
   locations: Location[];
   tenantSlug: string;
 }) {
+  const format = useFormatter();
+
   return (
     <table className="table drilldown-table">
       <thead>
@@ -400,6 +404,7 @@ function LocationsTable({
                 <strong>{activity?.visitCount ?? 0}</strong>
                 <span>
                   {formatDateTime(
+                    format,
                     activity?.lastVisitAt ?? null,
                     "No visits yet",
                   )}

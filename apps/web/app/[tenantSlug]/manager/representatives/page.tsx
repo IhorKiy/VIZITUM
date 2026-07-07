@@ -8,6 +8,8 @@ import {
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
+import { useFormatter } from "next-intl";
+
 import { formatDateTime, normalizeFilterValue } from "../../../../lib/format";
 
 type ManagerRepresentativesPageProps = {
@@ -291,6 +293,8 @@ function RepresentativesTable({
   representatives: RepresentativeSummary[];
   tenantSlug: string;
 }) {
+  const format = useFormatter();
+
   return (
     <table className="table drilldown-table">
       <thead>
@@ -325,7 +329,7 @@ function RepresentativesTable({
               </span>
             </td>
             <td>
-              {formatDateTime(representative.lastActivityAt, "No activity")}
+              {formatDateTime(format, representative.lastActivityAt, "No activity")}
             </td>
             <td>
               <div className="table-actions">

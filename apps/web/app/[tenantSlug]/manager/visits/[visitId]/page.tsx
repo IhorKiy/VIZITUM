@@ -5,10 +5,13 @@ import {
   type Report,
   type Visit,
 } from "../../../../../lib/api-client";
+import { useFormatter, useTranslations } from "next-intl";
+import { getFormatter } from "next-intl/server";
+
 import {
   formatDateTime,
   formatLabel,
-  formatLabelOrDash,
+  formatEnumLabelOrDash,
 } from "../../../../../lib/format";
 
 type ManagerVisitDetailPageProps = {
@@ -19,6 +22,7 @@ export default async function ManagerVisitDetailPage({
   params,
 }: ManagerVisitDetailPageProps) {
   const { tenantSlug, visitId } = await params;
+  const format = await getFormatter();
   const [visitResult, reportResult] = await Promise.all([
     getVisit(visitId),
     getVisitReport(visitId),
@@ -83,6 +87,7 @@ export default async function ManagerVisitDetailPage({
         {buildVisitMetrics(
           visit,
           reportResult.ok ? reportResult.data : null,
+          format,
         ).map((metric) => (
           <article className="metric-card" key={metric.label}>
             <header>
@@ -125,11 +130,11 @@ export default async function ManagerVisitDetailPage({
               </tr>
               <tr>
                 <th scope="row">Started</th>
-                <td>{formatDateTime(visit.startedAt)}</td>
+                <td>{formatDateTime(format, visit.startedAt)}</td>
               </tr>
               <tr>
                 <th scope="row">Completed</th>
-                <td>{formatDateTime(visit.completedAt)}</td>
+                <td>{formatDateTime(format, visit.completedAt)}</td>
               </tr>
             </tbody>
           </table>
@@ -160,6 +165,7 @@ export default async function ManagerVisitDetailPage({
 }
 
 function ReportDetail({ report }: { report: Report }) {
+  const format = useFormatter();
   const data = normalizeReportData(report.confirmedData);
 
   return (
@@ -168,7 +174,7 @@ function ReportDetail({ report }: { report: Report }) {
         <h2>Confirmed report</h2>
         <p>
           Template {formatLabel(report.templateCode)} · confirmed{" "}
-          {formatDateTime(report.confirmedAt)}
+          {formatDateTime(format, report.confirmedAt)}
         </p>
       </div>
       <div className="report-detail-list">
@@ -249,6 +255,7 @@ function MentionedProductsSection({
   title: string;
   value: unknown;
 }) {
+  const tCommon = useTranslations("common");
   const products = normalizeObjectList(value);
 
   return (
@@ -259,7 +266,7 @@ function MentionedProductsSection({
           {products.map((product, index) => (
             <article className="report-detail-card" key={`${title}-${index}`}>
               <strong>{formatScalarValue(product.name)}</strong>
-              <span>{formatLabelOrDash(product.status)}</span>
+              <span>{formatEnumLabelOrDash(tCommon, product.status)}</span>
               <p>{formatScalarValue(product.evidence)}</p>
             </article>
           ))}
@@ -309,6 +316,7 @@ function TasksToCreateSection({
   title: string;
   value: unknown;
 }) {
+  const tCommon = useTranslations("common");
   const tasks = normalizeObjectList(value);
 
   return (
@@ -320,8 +328,8 @@ function TasksToCreateSection({
             <article className="report-detail-card" key={`${title}-${index}`}>
               <strong>{formatScalarValue(task.title)}</strong>
               <span>
-                {formatLabelOrDash(task.priority)} ·{" "}
-                {formatLabelOrDash(task.assignee)} · due{" "}
+                {formatEnumLabelOrDash(tCommon, task.priority)} ·{" "}
+                {formatEnumLabelOrDash(tCommon, task.assignee)} · due{" "}
                 {formatScalarValue(task.dueDate)}
               </span>
               <p>{formatScalarValue(task.description)}</p>
@@ -342,6 +350,7 @@ function LocationUpdatesSection({
   title: string;
   value: unknown;
 }) {
+  const tCommon = useTranslations("common");
   const updates = normalizeObjectList(value);
 
   return (
@@ -351,7 +360,7 @@ function LocationUpdatesSection({
         <div className="report-detail-cards">
           {updates.map((update, index) => (
             <article className="report-detail-card" key={`${title}-${index}`}>
-              <strong>{formatLabelOrDash(update.field)}</strong>
+              <strong>{formatEnumLabelOrDash(tCommon, update.field)}</strong>
               <span>{formatScalarValue(update.proposedValue)}</span>
               <p>{formatScalarValue(update.reason)}</p>
             </article>
@@ -395,6 +404,7 @@ function KeyValueReportSection({
 function buildVisitMetrics(
   visit: Visit,
   report: Report | null,
+  format: ReturnType<typeof useFormatter>,
 ): Array<{
   label: string;
   value: string;
@@ -414,7 +424,7 @@ function buildVisitMetrics(
       label: "Report",
       value: report ? formatLabel(report.status) : "Missing",
       detail: report
-        ? `Confirmed ${formatDateTime(report.confirmedAt)}`
+        ? `Confirmed ${formatDateTime(format, report.confirmedAt)}`
         : "Manual confirmation is still available",
       tone: report ? "active" : "warning",
     },

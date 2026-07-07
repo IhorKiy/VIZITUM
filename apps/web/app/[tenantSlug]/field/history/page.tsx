@@ -1,3 +1,6 @@
+import { useFormatter, useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
+
 import { AppShell } from "../../../../components/app-shell";
 import {
   getCurrentSession,
@@ -5,7 +8,11 @@ import {
   type Visit,
   type VisitStatus,
 } from "../../../../lib/api-client";
-import { formatDateTime, formatLabel } from "../../../../lib/format";
+import {
+  formatDateTime,
+  formatEnumLabel,
+  type CommonTranslator,
+} from "../../../../lib/format";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -28,6 +35,11 @@ export default async function FieldHistoryPage({
   searchParams,
 }: FieldHistoryPageProps) {
   const { tenantSlug } = await params;
+  const [t, tField, tCommon] = await Promise.all([
+    getTranslations("field.history"),
+    getTranslations("field"),
+    getTranslations("common"),
+  ]);
   const sessionResult = await getCurrentSession();
 
   if (
@@ -38,25 +50,25 @@ export default async function FieldHistoryPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field-history">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Field flow</p>
-            <h1>Visit history</h1>
-            <p>
-              Field Representative access is required before visit history can
-              continue.
-            </p>
+            <p className="eyebrow">{tField("flowEyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("permissionBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="Permission status">
+        <section
+          className="notice-panel"
+          aria-label={t("permissionStatusAria")}
+        >
           <div>
-            <p className="eyebrow">Permission required</p>
-            <h2>History is not available</h2>
-            <p>Ask a Company Admin to assign the Field Representative role.</p>
+            <p className="eyebrow">{t("permissionRequiredEyebrow")}</p>
+            <h2>{t("permissionRequiredTitle")}</h2>
+            <p>{t("permissionRequiredBody")}</p>
           </div>
         </section>
       </AppShell>
@@ -89,23 +101,24 @@ export default async function FieldHistoryPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field-history">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Field flow</p>
-            <h1>Visit history</h1>
-            <p>
-              Live visit data is required before field history can continue.
-            </p>
+            <p className="eyebrow">{tField("flowEyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("connectionBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Visit history is not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{visitsResult.message}</p>
           </div>
         </section>
@@ -114,41 +127,44 @@ export default async function FieldHistoryPage({
   }
 
   const visits = visitsResult.data.items;
-  const counters = buildHistoryCounters(visits, visitsResult.data.total);
-  const filterSummary = buildHistoryFilterSummary({
-    startedFrom,
-    startedTo,
-    status: selectedStatus,
-  });
+  const counters = buildHistoryCounters(visits, visitsResult.data.total, t);
+  const filterSummary = buildHistoryFilterSummary(
+    {
+      startedFrom,
+      startedTo,
+      status: selectedStatus,
+    },
+    t,
+    tCommon,
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-history">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Field flow</p>
-          <h1>Visit history</h1>
-          <p>
-            Review your previous visits, confirmed reports and unfinished field
-            work across this tenant workspace.
-          </p>
+          <p className="eyebrow">{tField("flowEyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/field`}>
-            Today
+            {t("today")}
           </a>
           <a className="primary-button" href={`/${tenantSlug}/field#new-visit`}>
-            New visit
+            {t("newVisit")}
           </a>
         </div>
       </header>
 
-      <section className="manager-grid" aria-label="Visit history metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         {counters.map((counter) => (
           <article className="metric-card" key={counter.label}>
             <header>
               <p className="metric-label">{counter.label}</p>
               <span className={`status-pill ${counter.tone}`}>
-                {counter.tone === "active" ? "OK" : counter.tone}
+                {counter.tone === "active"
+                  ? tCommon("tone.ok")
+                  : tCommon(`tone.${counter.tone}`)}
               </span>
             </header>
             <p className="metric-value">{counter.value}</p>
@@ -160,10 +176,10 @@ export default async function FieldHistoryPage({
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
-            <h2>My visits</h2>
-            <p>Showing {filterSummary.toLowerCase()}.</p>
+            <h2>{t("myVisits")}</h2>
+            <p>{t("showingSummary", { summary: filterSummary })}</p>
           </div>
-          <div className="filter-pills" aria-label="Visit status filters">
+          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
             <a
               aria-current={!selectedStatus ? "page" : undefined}
               href={buildHistoryFilterHref(tenantSlug, null, {
@@ -171,7 +187,7 @@ export default async function FieldHistoryPage({
                 startedTo,
               })}
             >
-              All
+              {tCommon("all")}
             </a>
             {visitStatuses.map((status) => (
               <a
@@ -182,7 +198,7 @@ export default async function FieldHistoryPage({
                 })}
                 key={status}
               >
-                {formatLabel(status)}
+                {formatEnumLabel(tCommon, status)}
               </a>
             ))}
           </div>
@@ -196,7 +212,7 @@ export default async function FieldHistoryPage({
             <input name="status" type="hidden" value={selectedStatus} />
           ) : null}
           <label>
-            Started from
+            {t("startedFrom")}
             <input
               defaultValue={startedFrom ?? ""}
               name="startedFrom"
@@ -204,7 +220,7 @@ export default async function FieldHistoryPage({
             />
           </label>
           <label>
-            Started to
+            {t("startedTo")}
             <input
               defaultValue={startedTo ?? ""}
               name="startedTo"
@@ -213,14 +229,14 @@ export default async function FieldHistoryPage({
           </label>
           <div className="filter-actions">
             <button className="secondary-button" type="submit">
-              Apply filters
+              {tCommon("applyFilters")}
             </button>
             {hasFilters ? (
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/field/history`}
               >
-                Reset
+                {tCommon("reset")}
               </a>
             ) : null}
           </div>
@@ -230,22 +246,19 @@ export default async function FieldHistoryPage({
           <HistoryTable visits={visits} />
         ) : (
           <div className="empty-state-panel">
-            <h2>No visits match this filter</h2>
-            <p>
-              Use another status or date filter, or start a new visit from your
-              field workspace.
-            </p>
+            <h2>{t("emptyTitle")}</h2>
+            <p>{t("emptyBody")}</p>
             <div className="toolbar">
               {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/field/history`}
                 >
-                  Show all visits
+                  {t("showAllVisits")}
                 </a>
               ) : null}
               <a className="primary-button" href={`/${tenantSlug}/field`}>
-                Open today
+                {t("openToday")}
               </a>
             </div>
           </div>
@@ -256,15 +269,19 @@ export default async function FieldHistoryPage({
 }
 
 function HistoryTable({ visits }: { visits: Visit[] }) {
+  const t = useTranslations("field.history");
+  const tCommon = useTranslations("common");
+  const format = useFormatter();
+
   return (
     <table className="table drilldown-table">
       <thead>
         <tr>
-          <th>Location</th>
-          <th>Status</th>
-          <th>Type</th>
-          <th>Started</th>
-          <th>Completed</th>
+          <th>{t("tableLocation")}</th>
+          <th>{t("tableStatus")}</th>
+          <th>{t("tableType")}</th>
+          <th>{t("tableStarted")}</th>
+          <th>{t("tableCompleted")}</th>
         </tr>
       </thead>
       <tbody>
@@ -278,12 +295,12 @@ function HistoryTable({ visits }: { visits: Visit[] }) {
             </td>
             <td>
               <span className={`status-pill ${visitStatusTone(visit.status)}`}>
-                {formatLabel(visit.status)}
+                {formatEnumLabel(tCommon, visit.status)}
               </span>
             </td>
-            <td>{formatLabel(visit.visitType)}</td>
-            <td>{formatDateTime(visit.startedAt)}</td>
-            <td>{formatDateTime(visit.completedAt)}</td>
+            <td>{formatEnumLabel(tCommon, visit.visitType)}</td>
+            <td>{formatDateTime(format, visit.startedAt)}</td>
+            <td>{formatDateTime(format, visit.completedAt)}</td>
           </tr>
         ))}
       </tbody>
@@ -291,9 +308,14 @@ function HistoryTable({ visits }: { visits: Visit[] }) {
   );
 }
 
+type HistoryTranslator = Awaited<
+  ReturnType<typeof getTranslations<"field.history">>
+>;
+
 function buildHistoryCounters(
   visits: Visit[],
   total: number,
+  t: HistoryTranslator,
 ): Array<{
   label: string;
   value: string;
@@ -307,21 +329,21 @@ function buildHistoryCounters(
 
   return [
     {
-      label: "Visible visits",
+      label: t("visibleVisits"),
       value: String(total),
-      detail: `${visits.length} loaded on this page`,
+      detail: t("loadedOnPage", { count: visits.length }),
       tone: "active",
     },
     {
-      label: "Completed",
+      label: t("completedLabel"),
       value: String(completed.length),
-      detail: "Visits with confirmed completion",
+      detail: t("completedDetail"),
       tone: completed.length > 0 ? "active" : "info",
     },
     {
-      label: "Needs follow-up",
+      label: t("needsFollowUp"),
       value: String(unfinished.length),
-      detail: "Draft or in-progress visits",
+      detail: t("needsFollowUpDetail"),
       tone: unfinished.length > 0 ? "warning" : "active",
     },
   ];
@@ -354,15 +376,25 @@ function buildHistoryFilterHref(
   return `/${tenantSlug}/field/history${suffix ? `?${suffix}` : ""}`;
 }
 
-function buildHistoryFilterSummary(filters: {
-  startedFrom: string | null;
-  startedTo: string | null;
-  status: VisitStatus | null;
-}): string {
+function buildHistoryFilterSummary(
+  filters: {
+    startedFrom: string | null;
+    startedTo: string | null;
+    status: VisitStatus | null;
+  },
+  t: HistoryTranslator,
+  tCommon: CommonTranslator,
+): string {
   const parts = [
-    filters.status ? `${formatLabel(filters.status)} visits` : "All visits",
-    filters.startedFrom ? `from ${filters.startedFrom}` : null,
-    filters.startedTo ? `to ${filters.startedTo}` : null,
+    filters.status
+      ? t("summaryStatusVisits", {
+          status: formatEnumLabel(tCommon, filters.status),
+        })
+      : t("summaryAllVisits"),
+    filters.startedFrom
+      ? t("summaryFrom", { date: filters.startedFrom })
+      : null,
+    filters.startedTo ? t("summaryTo", { date: filters.startedTo }) : null,
   ].filter(Boolean);
 
   return parts.join(", ");

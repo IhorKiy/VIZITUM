@@ -5,6 +5,8 @@ import {
   type PilotReviewSummary,
   type PilotReviewThreshold,
 } from "../../../../lib/api-client";
+import { getFormatter } from "next-intl/server";
+
 import { formatDateTime } from "../../../../lib/format";
 
 type AdminReviewPageProps = {
@@ -15,6 +17,7 @@ export default async function AdminReviewPage({
   params,
 }: AdminReviewPageProps) {
   const { tenantSlug } = await params;
+  const format = await getFormatter();
 
   await recordDashboardView("admin_review").catch(() => undefined);
 
@@ -61,7 +64,7 @@ export default async function AdminReviewPage({
     applicableThresholds.length > 0
       ? Math.round((metThresholds.length / applicableThresholds.length) * 100)
       : 0;
-  const copySummary = buildReviewSummary(summary, readyPercent);
+  const copySummary = buildReviewSummary(summary, readyPercent, format);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-review">
@@ -110,7 +113,7 @@ export default async function AdminReviewPage({
           <p className="metric-value">{summary.windowStart ? "7 days" : "-"}</p>
           <p className="small-label">
             {summary.windowStart
-              ? `From ${formatDateTime(summary.windowStart)}`
+              ? `From ${formatDateTime(format, summary.windowStart)}`
               : "Waiting for the first field visit"}
           </p>
         </article>
@@ -120,7 +123,7 @@ export default async function AdminReviewPage({
             <span className="status-pill info">Window</span>
           </header>
           <p className="metric-value">
-            {summary.windowEnd ? formatDateTime(summary.windowEnd) : "-"}
+            {summary.windowEnd ? formatDateTime(format, summary.windowEnd) : "-"}
           </p>
           <p className="small-label">Seven calendar days from first visit</p>
         </article>
@@ -168,13 +171,14 @@ export default async function AdminReviewPage({
 function buildReviewSummary(
   summary: PilotReviewSummary,
   readyPercent: number,
+  format: Awaited<ReturnType<typeof getFormatter>>,
 ): string {
   const lines = [
     "Vizitum pilot review summary",
     "",
     `Threshold readiness: ${readyPercent}%`,
     summary.windowStart
-      ? `Pilot window: ${formatDateTime(summary.windowStart)} - ${formatDateTime(summary.windowEnd)}`
+      ? `Pilot window: ${formatDateTime(format, summary.windowStart)} - ${formatDateTime(format, summary.windowEnd)}`
       : "Pilot window: not started (no visits recorded yet)",
     "",
     "Thresholds:",
