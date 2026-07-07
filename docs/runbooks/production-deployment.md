@@ -11,8 +11,11 @@ Deploy these services from the same repository and release SHA.
 | Web | Next.js frontend | `npm ci && npm run web:build` | `npm run web:start` | Frontend Sentry project and route smoke check |
 | API | Web service | `npm ci && npm run prisma:generate && npm run build` | `npm start` | `GET /api/health/readiness` |
 | Cleanup worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
+| Purge worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | `npm run worker:purge:prod` | Non-zero exit alert and `worker_purge_completed` log |
 
 The cleanup worker is intentionally a one-shot task. Schedule it at least hourly for the pilot unless provider limits or storage policy require a shorter interval.
+
+The purge worker is the destructive half of tenant lifecycle: it auto-archives stale `pilot` tenants (only when `TENANT_PILOT_AUTO_ARCHIVE_DAYS` is set — unset means disabled) and **permanently deletes** archived tenants once `TENANT_PURGE_RETENTION_DAYS` (default 30) has elapsed since archiving, or immediately after an explicit purge request from the platform console. Daily scheduling is enough. It deletes R2 storage objects before database rows, is crash-safe/re-runnable (an interrupted purge resumes on the next run; a partially-purged tenant can never be unarchived), and refuses to run on misconfigured env values instead of assuming defaults. Every purge leaves a `tenant.purge_started`/`tenant.purged` trail in `platform_operation_events` with per-table row counts.
 
 There is no longer a provision worker: platform tenants are created directly with `status: "pilot"` (no `draft`/`provisioning` hold), so nothing needs to advance them. If a `worker:provision` cron is still scheduled with your provider from a previous deploy, disable it — the `worker:provision`/`worker:provision:prod` npm scripts and the underlying `ProvisioningService` were removed.
 

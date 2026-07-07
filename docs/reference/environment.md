@@ -19,13 +19,15 @@ Consolidated reference of environment variables actually read by the code. Sourc
 | `PLATFORM_OPERATIONS_TOKEN` | fallback | Plaintext operations token; used only when the SHA256 var is unset. Same scope as above. |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE` | no | Error reporting for 5xx responses; disabled when DSN is empty. |
 
-## Cleanup worker (`src/worker.ts`)
+## Worker (`src/worker.ts`)
 
 Same env as the API (it boots the same Nest application context: `DATABASE_URL`, `S3_*`, Sentry vars), plus:
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `WORKER_TASK` | no | Task selector: `cleanup` (default, and the only supported value). |
+| `WORKER_TASK` | no | Task selector: `cleanup` (default — expired AI jobs + temporary storage objects) or `purge` (tenant lifecycle: auto-archive stale pilots, purge archived tenants past retention). |
+| `TENANT_PURGE_RETENTION_DAYS` | no (`purge` task) | Days an archived tenant is kept before the purge worker may delete it (default `30`; `0` = eligible immediately). Anything that is not a non-negative integer makes the worker refuse to run — it never falls back to a default for destructive work. |
+| `TENANT_PILOT_AUTO_ARCHIVE_DAYS` | no (`purge` task) | Opt-in: archive `pilot` tenants with no activity (sessions/visits/imports, floored at tenant creation) for this many days. **Disabled when unset.** Must be a positive integer; `0` and garbage are rejected. |
 
 ## Web service (`apps/web`)
 

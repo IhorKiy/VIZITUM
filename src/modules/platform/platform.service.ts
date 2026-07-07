@@ -18,8 +18,14 @@ import type {
   CreateTenantInput,
   PlatformInviteSuperadminInput,
   PlatformPromoteSuperadminInput,
+  PlatformRequestPurgeInput,
   UpdateTenantInput,
 } from "./platform.types";
+import { MILLISECONDS_PER_DAY } from "../../common/time";
+import {
+  DEFAULT_TENANT_PURGE_RETENTION_DAYS,
+  resolveTenantPurgeRetentionDays,
+} from "./tenant-purge.service";
 
 const DEFAULT_COUNTRY = "UA";
 const DEFAULT_LANGUAGE = "uk";
@@ -164,10 +170,36 @@ export class PlatformService {
       }
     }
 
+    const retentionDays = this.resolveRetentionDaysForDisplay();
+
     return tenants.map((tenant) => ({
       ...tenant,
       metrics: metricsByTenantId.get(tenant.id),
+      // When the worker may purge this tenant on retention alone. Display
+      // hint for the platform console — the worker recomputes eligibility
+      // itself (including the purgeRequestedAt override) at run time.
+      purgeEligibleAt:
+        tenant.status === "archived" && tenant.archivedAt
+          ? new Date(
+              tenant.archivedAt.getTime() +
+                retentionDays * MILLISECONDS_PER_DAY,
+            )
+          : null,
     }));
+  }
+
+  // Unlike the worker (which refuses to run on a misconfigured retention
+  // env var), the read-only console falls back to the default: showing an
+  // approximate eligibility date is harmless, breaking the tenant list is
+  // not — and nothing is deleted based on this value.
+  private resolveRetentionDaysForDisplay(): number {
+    try {
+      return resolveTenantPurgeRetentionDays(
+        process.env.TENANT_PURGE_RETENTION_DAYS,
+      );
+    } catch {
+      return DEFAULT_TENANT_PURGE_RETENTION_DAYS;
+    }
   }
 
   async getTenant(tenantId: string) {
@@ -576,6 +608,17 @@ export class PlatformService {
       return tenant;
     }
 
+    // Once the purge worker has stamped purgeStartedAt, data has (or may
+    // have) already been destroyed — restoring the tenant would bring it
+    // back half-visible. Until then, unarchive stays the rescue hatch even
+    // for a tenant already marked for purge.
+    if (tenant.purgeStartedAt) {
+      throw new ConflictException({
+        code: "TENANT_PURGE_IN_PROGRESS",
+        message: "This tenant is being purged and can no longer be restored.",
+      });
+    }
+
     return this.prisma.$transaction(async (tx) => {
       // Conditional on status still being "archived": closes the race between
       // the check above and this write. If another request already restored
@@ -586,9 +629,111 @@ export class PlatformService {
       // tenancy.service.ts) until the platform owner deliberately reactivates
       // it, instead of silently resuming traffic to a tenant that was pulled
       // out of active management.
+      // `purgeStartedAt: null` closes the same race against the purge
+      // worker's claim; clearing `purgeRequestedAt` makes unarchive cancel a
+      // pending early-purge request, so a rescued tenant is never purged.
       const { count } = await tx.platformTenant.updateMany({
-        where: { id: tenantId, status: "archived" },
-        data: { status: "suspended", archivedAt: null },
+        where: { id: tenantId, status: "archived", purgeStartedAt: null },
+        data: {
+          status: "suspended",
+          archivedAt: null,
+          purgeRequestedAt: null,
+        },
+      });
+
+      const current = await tx.platformTenant.findUniqueOrThrow({
+        where: { id: tenantId },
+      });
+
+      if (count === 0) {
+        if (current.purgeStartedAt) {
+          throw new ConflictException({
+            code: "TENANT_PURGE_IN_PROGRESS",
+            message:
+              "This tenant is being purged and can no longer be restored.",
+          });
+        }
+
+        return current;
+      }
+
+      await tx.platformOperationEvent.create({
+        data: {
+          tenantId,
+          actorUserId: context.actorUserId,
+          eventType: "tenant.unarchived",
+          metadata: { restoredStatus: "suspended" },
+          requestId: context.requestId,
+        },
+      });
+
+      return current;
+    });
+  }
+
+  /**
+   * Marks an archived tenant for immediate purge by the worker. Deletes
+   * nothing itself — the worker does the destructive work in batches on its
+   * own schedule. Requires the caller to echo the tenant slug so a purge is
+   * always a deliberate, tenant-specific act: a mistyped slug is a 4xx and
+   * nothing happens. Idempotent and race-safe like archive/unarchive.
+   * Until the worker actually starts, unarchive remains the rescue hatch
+   * (it clears the mark).
+   */
+  async requestTenantPurge(tenantId: string, input: PlatformRequestPurgeInput) {
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException({
+        code: "TENANT_NOT_FOUND",
+        message: "Tenant was not found.",
+      });
+    }
+
+    const confirmSlug =
+      typeof input.confirmSlug === "string"
+        ? normalizeSlug(input.confirmSlug)
+        : "";
+
+    if (!confirmSlug || confirmSlug !== tenant.slug) {
+      throw new BadRequestException({
+        code: "TENANT_PURGE_CONFIRMATION_MISMATCH",
+        message:
+          "Purge confirmation does not match the tenant slug. Nothing was changed.",
+        fieldErrors: {
+          confirmSlug: ["Type the tenant slug exactly to confirm the purge."],
+        },
+      });
+    }
+
+    if (tenant.status !== "archived") {
+      throw new ConflictException({
+        code: "TENANT_NOT_ARCHIVED",
+        message: "Only an archived tenant can be marked for purge.",
+      });
+    }
+
+    // Idempotent: already marked for purge (or already being purged) is a
+    // no-op, not an error, and must not emit a duplicate event.
+    if (tenant.purgeRequestedAt || tenant.purgeStartedAt) {
+      return tenant;
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // Conditional write closes the race with a concurrent purge request,
+      // an unarchive (status no longer archived) or the purge worker's
+      // claim: any of those makes this match zero rows and we fall through
+      // to the idempotent no-op instead of emitting a duplicate event.
+      const { count } = await tx.platformTenant.updateMany({
+        where: {
+          id: tenantId,
+          status: "archived",
+          purgeRequestedAt: null,
+          purgeStartedAt: null,
+        },
+        data: { purgeRequestedAt: new Date() },
       });
 
       const current = await tx.platformTenant.findUniqueOrThrow({
@@ -602,10 +747,10 @@ export class PlatformService {
       await tx.platformOperationEvent.create({
         data: {
           tenantId,
-          actorUserId: context.actorUserId,
-          eventType: "tenant.unarchived",
-          metadata: { restoredStatus: "suspended" },
-          requestId: context.requestId,
+          actorUserId: input.actorUserId,
+          eventType: "tenant.purge_requested",
+          metadata: { slug: tenant.slug, name: tenant.name },
+          requestId: input.requestId,
         },
       });
 

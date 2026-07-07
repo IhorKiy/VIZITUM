@@ -707,6 +707,12 @@ export type PlatformTenant = {
   segmentTemplate: PlatformSegmentTemplate;
   primaryDomain: string | null;
   adminLimit: number;
+  archivedAt: string | null;
+  purgeRequestedAt: string | null;
+  purgeStartedAt: string | null;
+  // Backend-computed: when the purge worker may delete this archived tenant
+  // on retention alone (archivedAt + retention window). Null unless archived.
+  purgeEligibleAt?: string | null;
   createdAt: string;
   metrics?: PlatformTenantMetrics;
 };
@@ -787,6 +793,13 @@ export async function unarchivePlatformTenant(
   tenantId: string,
 ): Promise<ApiResult<PlatformTenant>> {
   return apiPost<PlatformTenant>(`/platform/tenants/${tenantId}/unarchive`, {});
+}
+
+export async function requestPlatformTenantPurge(
+  tenantId: string,
+  input: { confirmSlug: string },
+): Promise<ApiResult<PlatformTenant>> {
+  return apiPost<PlatformTenant>(`/platform/tenants/${tenantId}/purge`, input);
 }
 
 export async function listPlatformTenantUsers(
