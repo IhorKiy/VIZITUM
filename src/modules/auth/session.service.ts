@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import type { Session } from "@prisma/client";
 
 import {
@@ -24,7 +24,7 @@ export type CreatedSession = {
 
 @Injectable()
 export class SessionService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async createSession(input: CreateSessionInput): Promise<CreatedSession> {
     const { token, expiresAt } = issueSessionToken(

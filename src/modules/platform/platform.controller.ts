@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Inject,
   Param,
   Patch,
   Post,
@@ -20,10 +19,7 @@ import type { CreateTenantInput, UpdateTenantInput } from "./platform.types";
 @Controller("platform/tenants")
 @UseGuards(PermissionGuard)
 export class PlatformController {
-  constructor(
-    @Inject(PlatformService)
-    private readonly platformService: PlatformService,
-  ) {}
+  constructor(private readonly platformService: PlatformService) {}
 
   @Get()
   @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_READ)

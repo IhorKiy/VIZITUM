@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   HttpCode,
-  Inject,
   Post,
   Req,
   Res,
@@ -23,9 +22,7 @@ import { SessionService } from "./session.service";
 @Controller("auth")
 export class AuthController {
   constructor(
-    @Inject(AuthService)
     private readonly authService: AuthService,
-    @Inject(SessionService)
     private readonly sessionService: SessionService,
   ) {}
 

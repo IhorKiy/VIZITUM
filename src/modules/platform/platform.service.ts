@@ -1,10 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
-  Inject,
   Injectable,
   NotFoundException,
-  Optional,
 } from "@nestjs/common";
 import {
   PlanCode,
@@ -42,14 +40,9 @@ const PLATFORM_INVITE_ROLE_CODES = ["company_admin"];
 @Injectable()
 export class PlatformService {
   constructor(
-    @Inject(PrismaService)
     private readonly prisma: PrismaService,
-    @Optional()
-    @Inject(UsersService)
-    private readonly usersService?: UsersService,
-    @Optional()
-    @Inject(SessionService)
-    private readonly sessionService?: SessionService,
+    private readonly usersService: UsersService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async listTenants() {
@@ -62,42 +55,38 @@ export class PlatformService {
     }
 
     const tenantIds = tenants.map((tenant) => tenant.id);
-    const [
-      roleCounts,
-      visitCounts,
-      productCounts,
-      locationCounts,
-    ] = await Promise.all([
-      this.prisma.userRole.groupBy({
-        by: ["tenantId", "roleCode"],
-        where: {
-          tenantId: { in: tenantIds },
-          user: { deletedAt: null },
-        },
-        _count: { _all: true },
-      }),
-      this.prisma.visit.groupBy({
-        by: ["tenantId"],
-        where: { tenantId: { in: tenantIds } },
-        _count: { _all: true },
-      }),
-      this.prisma.product.groupBy({
-        by: ["tenantId"],
-        where: {
-          tenantId: { in: tenantIds },
-          deletedAt: null,
-        },
-        _count: { _all: true },
-      }),
-      this.prisma.location.groupBy({
-        by: ["tenantId"],
-        where: {
-          tenantId: { in: tenantIds },
-          deletedAt: null,
-        },
-        _count: { _all: true },
-      }),
-    ]);
+    const [roleCounts, visitCounts, productCounts, locationCounts] =
+      await Promise.all([
+        this.prisma.userRole.groupBy({
+          by: ["tenantId", "roleCode"],
+          where: {
+            tenantId: { in: tenantIds },
+            user: { deletedAt: null },
+          },
+          _count: { _all: true },
+        }),
+        this.prisma.visit.groupBy({
+          by: ["tenantId"],
+          where: { tenantId: { in: tenantIds } },
+          _count: { _all: true },
+        }),
+        this.prisma.product.groupBy({
+          by: ["tenantId"],
+          where: {
+            tenantId: { in: tenantIds },
+            deletedAt: null,
+          },
+          _count: { _all: true },
+        }),
+        this.prisma.location.groupBy({
+          by: ["tenantId"],
+          where: {
+            tenantId: { in: tenantIds },
+            deletedAt: null,
+          },
+          _count: { _all: true },
+        }),
+      ]);
 
     const metricsByTenantId = new Map<
       string,
@@ -195,12 +184,9 @@ export class PlatformService {
   async listTenantUsers(tenantId: string) {
     const tenant = await this.assertTenantCanManageUsers(tenantId);
 
-    return this.getUsersService().listUsers(
-      createPlatformTenantContext(tenant),
-      {
-        pageSize: 100,
-      },
-    );
+    return this.usersService.listUsers(createPlatformTenantContext(tenant), {
+      pageSize: 100,
+    });
   }
 
   async inviteTenantUser(
@@ -218,7 +204,7 @@ export class PlatformService {
     }
 
     const tenant = await this.assertTenantCanManageUsers(tenantId);
-    const invite = await this.getUsersService().inviteUser(
+    const invite = await this.usersService.inviteUser(
       createPlatformTenantContext(tenant),
       { ...input, roleCodes: PLATFORM_INVITE_ROLE_CODES },
     );
@@ -280,14 +266,14 @@ export class PlatformService {
     }
 
     const previousStatus = user.status;
-    const updatedUser = await this.getUsersService().updateUser(
+    const updatedUser = await this.usersService.updateUser(
       createPlatformTenantContext(tenant),
       userId,
       { status: input.status },
     );
 
     if (input.status === "suspended") {
-      await this.getSessionService().revokeUserSessions(tenantId, userId);
+      await this.sessionService.revokeUserSessions(tenantId, userId);
     }
 
     await this.prisma.platformOperationEvent.create({
@@ -442,22 +428,6 @@ export class PlatformService {
     }
 
     return tenant;
-  }
-
-  private getUsersService(): UsersService {
-    if (!this.usersService) {
-      throw new Error("UsersService is required for platform tenant users.");
-    }
-
-    return this.usersService;
-  }
-
-  private getSessionService(): SessionService {
-    if (!this.sessionService) {
-      throw new Error("SessionService is required for platform tenant users.");
-    }
-
-    return this.sessionService;
   }
 
   async archiveTenant(

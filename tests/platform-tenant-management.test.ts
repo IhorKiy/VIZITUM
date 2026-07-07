@@ -307,6 +307,46 @@ describe("platform tenant management", () => {
     assert.equal(store.revokedSessions.length, 0);
     assert.equal(store.events.length, 0);
   });
+
+  it("propagates the last-admin guard and skips revoke/audit on a rejected suspend", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      slug: "pilot-a",
+      status: "ready",
+    });
+    store.users.push({
+      id: "admin-1",
+      tenantId: "tenant-1",
+      email: "admin@example.com",
+      status: "active",
+      roles: [{ roleCode: "company_admin" }],
+    });
+    // The tenant's sole active Company Admin: UsersService.updateUser rejects
+    // with TENANT_LAST_ADMIN, and the platform service must surface that as-is.
+    store.updateUserError = new ConflictException({
+      code: "TENANT_LAST_ADMIN",
+      message: "A tenant must keep at least one active Company Admin.",
+    });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () =>
+        service.updateTenantAdminStatus("tenant-1", "admin-1", {
+          status: "suspended",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof ConflictException);
+        assert.equal(
+          (error.getResponse() as { code: string }).code,
+          "TENANT_LAST_ADMIN",
+        );
+        return true;
+      },
+    );
+
+    assert.equal(store.revokedSessions.length, 0);
+    assert.equal(store.events.length, 0);
+  });
 });
 
 function createStore(seed: Record<string, unknown> & { id: string }) {
@@ -381,6 +421,10 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
     updateUserCalls,
     revokedSessions,
     users,
+    // When set, the UsersService.updateUser stub throws this instead of
+    // succeeding, letting tests exercise how the platform service reacts to a
+    // rejected update (e.g. the last-admin guard) without booting Nest DI.
+    updateUserError: undefined as unknown,
   };
 }
 
@@ -414,6 +458,11 @@ function createPlatformService(store: ReturnType<typeof createStore>) {
       body: Record<string, unknown>,
     ) => {
       store.updateUserCalls.push({ context, userId, body });
+
+      if (store.updateUserError) {
+        throw store.updateUserError;
+      }
+
       const user = store.users.find((item) => item.id === userId);
 
       if (!user) {

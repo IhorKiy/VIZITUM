@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
@@ -47,13 +48,21 @@ const EMPTY_TENANT_METRICS = {
 };
 const SAVED_NOTICE_PARAMS = ["saved"];
 const ERROR_NOTICE_PARAMS = ["error"];
+// The invite token is a secret share-link, so it is passed to the confirmation
+// render through a short-lived httpOnly cookie instead of the URL (which would
+// leak it into browser history, the Referer header and server access logs).
+const INVITE_FLASH_COOKIE = "platform_invite_flash";
+const INVITE_FLASH_MAX_AGE_SECONDS = 120;
+
+type InviteFlash = {
+  email: string;
+  tenantSlug: string;
+  token: string;
+};
 
 type PlatformTenantsPageProps = {
   searchParams: Promise<{
     error?: string;
-    inviteEmail?: string;
-    inviteTenantSlug?: string;
-    inviteToken?: string;
     invited?: string;
     saved?: string;
   }>;
@@ -184,14 +193,21 @@ export default async function PlatformTenantsPage({
       redirect("/platform/tenants?error=invite");
     }
 
-    const query = new URLSearchParams({
-      inviteEmail: result.data.email,
-      inviteTenantSlug: tenantSlug,
-      inviteToken: result.data.token,
-      invited: "1",
+    const flash: InviteFlash = {
+      email: result.data.email,
+      tenantSlug,
+      token: result.data.token,
+    };
+    const cookieStore = await cookies();
+    cookieStore.set(INVITE_FLASH_COOKIE, JSON.stringify(flash), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/platform/tenants",
+      maxAge: INVITE_FLASH_MAX_AGE_SECONDS,
     });
 
-    redirect(`/platform/tenants?${query.toString()}`);
+    redirect("/platform/tenants?invited=1");
   }
 
   async function updateTenantAdminStatusAction(formData: FormData) {
@@ -230,12 +246,12 @@ export default async function PlatformTenantsPage({
         })),
       )
     : [];
-  const inviteLink =
-    pageState.inviteToken && pageState.inviteTenantSlug
-      ? `/${pageState.inviteTenantSlug}/invites/accept?token=${encodeURIComponent(
-          pageState.inviteToken,
-        )}`
-      : null;
+  const inviteFlash = pageState.invited ? await readInviteFlash() : null;
+  const inviteLink = inviteFlash
+    ? `/${inviteFlash.tenantSlug}/invites/accept?token=${encodeURIComponent(
+        inviteFlash.token,
+      )}`
+    : null;
 
   return (
     <main className="page platform-page">
@@ -276,8 +292,8 @@ export default async function PlatformTenantsPage({
             <h2>Company Admin invite is ready</h2>
             <p>
               The invite was created
-              {pageState.inviteEmail ? ` for ${pageState.inviteEmail}` : ""}.
-              Share this link through a trusted channel.
+              {inviteFlash?.email ? ` for ${inviteFlash.email}` : ""}. Share
+              this link through a trusted channel.
             </p>
             {inviteLink ? (
               <code className="copyable-value">{inviteLink}</code>
@@ -419,4 +435,32 @@ export default async function PlatformTenantsPage({
       </section>
     </main>
   );
+}
+
+async function readInviteFlash(): Promise<InviteFlash | null> {
+  const raw = (await cookies()).get(INVITE_FLASH_COOKIE)?.value;
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<InviteFlash>;
+
+    if (
+      typeof parsed.email === "string" &&
+      typeof parsed.tenantSlug === "string" &&
+      typeof parsed.token === "string"
+    ) {
+      return {
+        email: parsed.email,
+        tenantSlug: parsed.tenantSlug,
+        token: parsed.token,
+      };
+    }
+  } catch {
+    // Ignore a malformed or tampered flash cookie and fall back to no link.
+  }
+
+  return null;
 }

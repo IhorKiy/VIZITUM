@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   HttpCode,
-  Inject,
   Post,
   Req,
   Res,
@@ -22,9 +21,7 @@ import { PlatformSessionService } from "./platform-session.service";
 @Controller("platform/auth")
 export class PlatformAuthController {
   constructor(
-    @Inject(PlatformAuthService)
     private readonly platformAuthService: PlatformAuthService,
-    @Inject(PlatformSessionService)
     private readonly platformSessionService: PlatformSessionService,
   ) {}
 

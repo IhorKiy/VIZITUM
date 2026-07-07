@@ -1,4 +1,4 @@
-import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import type { Request, Response } from "express";
 
 import { normalizeEmail } from "../../common/normalize";
@@ -18,11 +18,8 @@ import { PlatformSessionService } from "./platform-session.service";
 @Injectable()
 export class PlatformAuthService {
   constructor(
-    @Inject(PrismaService)
     private readonly prisma: PrismaService,
-    @Inject(PasswordService)
     private readonly passwordService: PasswordService,
-    @Inject(PlatformSessionService)
     private readonly platformSessionService: PlatformSessionService,
   ) {}
 
