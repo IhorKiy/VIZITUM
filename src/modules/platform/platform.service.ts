@@ -7,15 +7,16 @@ import {
 import { RoleCode, SegmentTemplate, TenantStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
-import { SessionService } from "../auth/session.service";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import { UsersService } from "../users/users.service";
+import type { InviteHistoryItem, UserResponse } from "../users/users.types";
 import { TEAM_MODE_CAPABILITIES } from "./product-capabilities";
 import type {
   CreateTenantInput,
-  PlatformInviteTenantUserInput,
-  PlatformUpdateTenantAdminStatusInput,
+  PlatformInviteSuperadminInput,
+  PlatformPromoteSuperadminInput,
   UpdateTenantInput,
 } from "./platform.types";
 
@@ -40,14 +41,13 @@ const NON_ASSIGNABLE_STATUSES = new Set<TenantStatus>([
 const ASSIGNABLE_STATUSES: TenantStatus[] = Object.values(TenantStatus).filter(
   (status) => !NON_ASSIGNABLE_STATUSES.has(status),
 );
-const PLATFORM_INVITE_ROLE_CODES = ["company_admin"];
 
 @Injectable()
 export class PlatformService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
-    private readonly sessionService: SessionService,
+    private readonly auditService: AuditService,
   ) {}
 
   async listTenants() {
@@ -194,112 +194,162 @@ export class PlatformService {
     });
   }
 
-  async inviteTenantUser(
+  /**
+   * Invites a tenant's first superadmin, or replaces the current one. Any
+   * existing *pending* superadmin invite is revoked first, which collapses
+   * "resend to the same person" and "send to a different person" into one
+   * code path. A currently *active* superadmin (if any) is left untouched
+   * until the new invite is accepted — see AuthService.acceptInvite for the
+   * automatic demotion that happens at that point.
+   */
+  async inviteOrReplaceTenantSuperadmin(
     tenantId: string,
-    input: PlatformInviteTenantUserInput,
+    input: PlatformInviteSuperadminInput,
   ) {
-    if (!isCompanyAdminOnlyInvite(input.roleCodes)) {
-      throw new BadRequestException({
-        code: "PLATFORM_INVITE_ROLE_INVALID",
-        message: "Platform tenant invites can only create Company Admins.",
-        fieldErrors: {
-          roleCodes: ["Only the company_admin role is allowed."],
-        },
-      });
-    }
-
     const tenant = await this.assertTenantCanManageUsers(tenantId);
-    const invite = await this.usersService.inviteUser(
-      createPlatformTenantContext(tenant),
-      { ...input, roleCodes: PLATFORM_INVITE_ROLE_CODES },
+
+    await this.prisma.invite.updateMany({
+      where: {
+        tenantId,
+        status: "pending",
+        roleCodes: { has: "tenant_superadmin" },
+      },
+      data: { status: "revoked" },
+    });
+
+    const context = createPlatformTenantContext(tenant, input.requestId);
+    const invite = await this.usersService.inviteSuperadmin(
+      context,
+      typeof input.email === "string" ? input.email : "",
     );
 
     await this.prisma.platformOperationEvent.create({
       data: {
         tenantId,
         actorUserId: input.actorUserId,
-        eventType: "tenant.user_invited",
-        metadata: {
-          email: invite.email,
-          inviteId: invite.id,
-          roleCodes: invite.roleCodes,
-        },
+        eventType: "tenant.superadmin_invited",
+        metadata: { email: invite.email, inviteId: invite.id },
         requestId: input.requestId,
       },
+    });
+
+    await this.auditService.recordEvent(context, {
+      entityType: "user",
+      entityId: invite.id,
+      eventType: "superadmin.invited",
+      metadata: { email: invite.email, actorPlatformUserId: input.actorUserId },
     });
 
     return invite;
   }
 
-  async updateTenantAdminStatus(
+  /**
+   * Bootstrap/migration path for tenants that already have Company Admins
+   * but no superadmin yet: promotes an existing active Company Admin
+   * in-place instead of going through an invite/accept cycle.
+   */
+  async promoteToSuperadmin(
     tenantId: string,
-    userId: string,
-    input: PlatformUpdateTenantAdminStatusInput,
+    input: PlatformPromoteSuperadminInput,
   ) {
-    if (input.status !== "active" && input.status !== "suspended") {
+    const userId = typeof input.userId === "string" ? input.userId : "";
+
+    if (!userId) {
       throw new BadRequestException({
-        code: "PLATFORM_ADMIN_STATUS_INVALID",
-        message: "A valid Company Admin status is required.",
-        fieldErrors: {
-          status: ["Use active or suspended."],
-        },
+        code: "SUPERADMIN_CANDIDATE_INVALID",
+        message: "A user id is required to promote a Company Admin.",
+        fieldErrors: { userId: ["A user id is required."] },
       });
     }
 
     const tenant = await this.assertTenantCanManageUsers(tenantId);
-    const user = await this.prisma.user.findFirst({
-      where: {
-        id: userId,
-        tenantId,
-        deletedAt: null,
-      },
-      include: { roles: true },
-    });
-
-    if (!user) {
-      throw new NotFoundException({
-        code: "USER_NOT_FOUND",
-        message: "User was not found.",
-      });
-    }
-
-    if (!user.roles.some((role) => role.roleCode === "company_admin")) {
-      throw new BadRequestException({
-        code: "PLATFORM_ADMIN_ROLE_REQUIRED",
-        message: "Only Company Admin users can be managed here.",
-      });
-    }
-
-    const previousStatus = user.status;
-    const updatedUser = await this.usersService.updateUser(
-      createPlatformTenantContext(tenant),
+    const context = createPlatformTenantContext(tenant, input.requestId);
+    const promoted = await this.usersService.promoteToSuperadmin(
+      context,
       userId,
-      { status: input.status },
     );
-
-    if (input.status === "suspended") {
-      await this.sessionService.revokeUserSessions(tenantId, userId);
-    }
 
     await this.prisma.platformOperationEvent.create({
       data: {
         tenantId,
         actorUserId: input.actorUserId,
-        eventType:
-          input.status === "suspended"
-            ? "tenant.admin_suspended"
-            : "tenant.admin_reactivated",
-        metadata: {
-          userId,
-          email: updatedUser.email,
-          previousStatus,
-          status: updatedUser.status,
-        },
+        eventType: "tenant.superadmin_promoted",
+        metadata: { userId: promoted.id, email: promoted.email },
         requestId: input.requestId,
       },
     });
 
-    return updatedUser;
+    await this.auditService.recordEvent(context, {
+      entityType: "user",
+      entityId: promoted.id,
+      eventType: "superadmin.promoted",
+      metadata: {
+        email: promoted.email,
+        actorPlatformUserId: input.actorUserId,
+      },
+    });
+
+    return promoted;
+  }
+
+  async getTenantSuperadmin(tenantId: string): Promise<{
+    activeSuperadmin: UserResponse | null;
+    pendingInvite: InviteHistoryItem | null;
+  }> {
+    await this.assertTenantCanManageUsers(tenantId);
+
+    const [activeSuperadmin, pendingInvite] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: {
+          tenantId,
+          status: "active",
+          deletedAt: null,
+          roles: { some: { tenantId, roleCode: "tenant_superadmin" } },
+        },
+        include: { roles: true },
+      }),
+      this.prisma.invite.findFirst({
+        where: {
+          tenantId,
+          status: "pending",
+          roleCodes: { has: "tenant_superadmin" },
+        },
+        include: {
+          createdBy: { select: { id: true, email: true, name: true } },
+          acceptedBy: { select: { id: true, email: true, name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    return {
+      activeSuperadmin: activeSuperadmin
+        ? {
+            id: activeSuperadmin.id,
+            email: activeSuperadmin.email,
+            name: activeSuperadmin.name,
+            phone: activeSuperadmin.phone,
+            status: activeSuperadmin.status,
+            lastSelectedRoleCode: activeSuperadmin.lastSelectedRoleCode,
+            roleCodes: activeSuperadmin.roles.map((role) => role.roleCode),
+            createdAt: activeSuperadmin.createdAt.toISOString(),
+            updatedAt: activeSuperadmin.updatedAt.toISOString(),
+          }
+        : null,
+      pendingInvite: pendingInvite
+        ? {
+            id: pendingInvite.id,
+            email: pendingInvite.email,
+            roleCodes: pendingInvite.roleCodes,
+            status: pendingInvite.status,
+            expiresAt: pendingInvite.expiresAt.toISOString(),
+            acceptedAt: pendingInvite.acceptedAt?.toISOString() ?? null,
+            createdAt: pendingInvite.createdAt.toISOString(),
+            createdBy: pendingInvite.createdBy,
+            acceptedBy: pendingInvite.acceptedBy,
+          }
+        : null,
+    };
   }
 
   async updateTenant(tenantId: string, input: UpdateTenantInput) {
@@ -366,6 +416,14 @@ export class PlatformService {
         ];
       } else {
         data.status = input.status;
+      }
+    }
+
+    if (input.adminLimit !== undefined) {
+      if (!Number.isInteger(input.adminLimit) || input.adminLimit < 1) {
+        fieldErrors.adminLimit = ["Admin limit must be a positive integer."];
+      } else {
+        data.adminLimit = input.adminLimit;
       }
     }
 
@@ -631,12 +689,12 @@ export class PlatformService {
   }
 }
 
-function createPlatformTenantContext(tenant: {
-  id: string;
-  slug: string;
-}): RequestContext {
+function createPlatformTenantContext(
+  tenant: { id: string; slug: string },
+  requestId?: string,
+): RequestContext {
   return {
-    requestId: "platform",
+    requestId: requestId ?? "platform",
     tenantId: tenant.id,
     tenantSlug: tenant.slug,
     roleCodes: [],
@@ -646,12 +704,4 @@ function createPlatformTenantContext(tenant: {
 
 function normalizeSlug(value: string): string {
   return value.trim().toLowerCase();
-}
-
-function isCompanyAdminOnlyInvite(roleCodes: unknown): boolean {
-  return (
-    Array.isArray(roleCodes) &&
-    roleCodes.length === 1 &&
-    roleCodes[0] === "company_admin"
-  );
 }

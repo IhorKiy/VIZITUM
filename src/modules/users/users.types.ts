@@ -55,3 +55,8 @@ export type UpdateUserRequestBody = {
 export type AddUserRoleRequestBody = {
   roleCode?: unknown;
 };
+
+export type DeleteUserResponse = {
+  id: string;
+  status: "deleted";
+};

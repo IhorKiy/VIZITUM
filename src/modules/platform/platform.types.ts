@@ -1,6 +1,4 @@
 import type { SegmentTemplate, TenantStatus } from "@prisma/client";
-import type { UserStatus } from "@prisma/client";
-import type { InviteUserRequestBody } from "../users/users.types";
 
 export type CreateTenantInput = {
   name: string;
@@ -20,17 +18,19 @@ export type UpdateTenantInput = {
   language?: string;
   primaryDomain?: string | null;
   status?: TenantStatus;
+  adminLimit?: number;
   actorUserId?: string;
   requestId?: string;
 };
 
-export type PlatformInviteTenantUserInput = InviteUserRequestBody & {
+export type PlatformInviteSuperadminInput = {
+  email?: unknown;
   actorUserId?: string;
   requestId?: string;
 };
 
-export type PlatformUpdateTenantAdminStatusInput = {
-  status: UserStatus;
+export type PlatformPromoteSuperadminInput = {
+  userId?: unknown;
   actorUserId?: string;
   requestId?: string;
 };

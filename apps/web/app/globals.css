@@ -250,6 +250,12 @@ textarea {
   opacity: 0.72;
 }
 
+.secondary-button.danger {
+  background: #fff1f1;
+  border-color: #e2b4b4;
+  color: #6c3a3a;
+}
+
 .dashboard-grid,
 .manager-grid,
 .import-grid,

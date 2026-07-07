@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -159,6 +160,36 @@ export class AuthService {
     const passwordHash = await this.passwordService.hashPassword(password);
 
     const user = await this.prisma.$transaction(async (tx) => {
+      // Invite-time already checked the admin limit against the count of
+      // *active* admins, which doesn't account for other pending invites
+      // sent before any of them were accepted. Re-check here so a burst of
+      // invites can't collectively push the tenant past its admin limit
+      // once they're all accepted.
+      if (invite.roleCodes.includes("company_admin")) {
+        const tenant = await tx.platformTenant.findUnique({
+          where: { id: invite.tenantId },
+          select: { adminLimit: true },
+        });
+        const adminLimit = tenant?.adminLimit ?? 2;
+        const activeAdminCount = await tx.user.count({
+          where: {
+            tenantId: invite.tenantId,
+            status: "active",
+            deletedAt: null,
+            roles: {
+              some: { tenantId: invite.tenantId, roleCode: "company_admin" },
+            },
+          },
+        });
+
+        if (activeAdminCount >= adminLimit) {
+          throw new ConflictException({
+            code: "TENANT_ADMIN_LIMIT",
+            message: `This tenant is limited to ${adminLimit} active Company Admin(s).`,
+          });
+        }
+      }
+
       const acceptedUser = await tx.user.upsert({
         where: {
           tenantId_email: {
@@ -202,6 +233,48 @@ export class AuthService {
           },
           update: {},
         });
+      }
+
+      // Superadmin replacement: at most one active superadmin at a time.
+      // The previously active superadmin (if any) stays active right up
+      // until this moment — see PlatformService.inviteOrReplaceTenantSuperadmin
+      // — and is auto-deactivated here, atomically with the new one taking
+      // over. Written via `tx` directly (not AuditService, which isn't
+      // transaction-aware) so it commits or rolls back with the acceptance.
+      if (invite.roleCodes.includes("tenant_superadmin")) {
+        const previousSuperadmins = await tx.user.findMany({
+          where: {
+            tenantId: invite.tenantId,
+            id: { not: acceptedUser.id },
+            status: "active",
+            deletedAt: null,
+            roles: {
+              some: {
+                tenantId: invite.tenantId,
+                roleCode: "tenant_superadmin",
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        for (const previousSuperadmin of previousSuperadmins) {
+          await tx.user.update({
+            where: { id: previousSuperadmin.id },
+            data: { status: "suspended" },
+          });
+
+          await tx.auditEvent.create({
+            data: {
+              tenantId: invite.tenantId,
+              actorUserId: null,
+              entityType: "user",
+              entityId: previousSuperadmin.id,
+              eventType: "superadmin.replaced",
+              metadata: { newSuperadminUserId: acceptedUser.id },
+            },
+          });
+        }
       }
 
       await tx.invite.update({

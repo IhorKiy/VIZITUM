@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -21,11 +22,15 @@ import {
   resolvePagination,
 } from "../../common/pagination";
 import { MILLISECONDS_PER_DAY } from "../../common/time";
+import { AuditService } from "../audit/audit.service";
 import { hashValue } from "../auth/auth-crypto";
+import { SessionService } from "../auth/session.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
   AddUserRoleRequestBody,
+  DeleteUserResponse,
   InviteHistoryItem,
   InviteUserRequestBody,
   InviteUserResponse,
@@ -35,25 +40,35 @@ import type {
 
 const INVITE_TOKEN_BYTES = 32;
 const INVITE_TTL_DAYS = 7;
+const DEFAULT_ADMIN_LIMIT = 2;
 
 type UserWithRoles = User & { roles: UserRole[] };
 type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sessionService: SessionService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listUsers(
     context: RequestContext,
     paginationInput: PaginationInput,
-  ): Promise<PaginatedResponse<UserResponse>> {
+  ): Promise<
+    PaginatedResponse<UserResponse> & {
+      adminLimit: number;
+      activeAdminCount: number;
+    }
+  > {
     const pagination = resolvePagination(paginationInput);
     const where = {
       tenantId: context.tenantId,
       deletedAt: null,
     };
 
-    const [users, total] = await Promise.all([
+    const [users, total, tenant, activeAdminCount] = await Promise.all([
       this.prisma.user.findMany({
         where,
         include: { roles: true },
@@ -62,13 +77,27 @@ export class UsersService {
         take: pagination.take,
       }),
       this.prisma.user.count({ where }),
+      this.prisma.platformTenant.findUnique({
+        where: { id: context.tenantId },
+        select: { adminLimit: true },
+      }),
+      this.prisma.user.count({
+        where: {
+          tenantId: context.tenantId,
+          status: "active",
+          deletedAt: null,
+          roles: {
+            some: { tenantId: context.tenantId, roleCode: "company_admin" },
+          },
+        },
+      }),
     ]);
 
-    return createPaginatedResponse(
-      users.map(toUserResponse),
-      pagination,
-      total,
-    );
+    return {
+      ...createPaginatedResponse(users.map(toUserResponse), pagination, total),
+      adminLimit: tenant?.adminLimit ?? DEFAULT_ADMIN_LIMIT,
+      activeAdminCount,
+    };
   }
 
   async inviteUser(
@@ -91,6 +120,12 @@ export class UsersService {
       });
     }
 
+    const invitesAdmin = roleCodes.includes("company_admin");
+
+    if (invitesAdmin) {
+      this.assertActorCanInviteAdmins(context);
+    }
+
     const existingUser = await this.prisma.user.findUnique({
       where: {
         tenantId_email: {
@@ -111,7 +146,22 @@ export class UsersService {
       });
     }
 
-    return this.createInvite(context, email, roleCodes);
+    if (invitesAdmin) {
+      await this.assertAdminLimitNotExceeded(this.prisma, context.tenantId);
+    }
+
+    const invite = await this.createInvite(context, email, roleCodes);
+
+    if (invitesAdmin) {
+      await this.auditService.recordEvent(context, {
+        entityType: "user",
+        entityId: invite.id,
+        eventType: "admin.invited",
+        metadata: { email: invite.email },
+      });
+    }
+
+    return invite;
   }
 
   async listInvites(context: RequestContext): Promise<InviteHistoryItem[]> {
@@ -186,6 +236,18 @@ export class UsersService {
       });
     }
 
+    if (invite.roleCodes.includes("tenant_superadmin")) {
+      throw new ForbiddenException({
+        code: "ADMIN_MANAGEMENT_FORBIDDEN",
+        message:
+          "Only the platform owner can manage the tenant superadmin invite.",
+      });
+    }
+
+    if (invite.roleCodes.includes("company_admin")) {
+      this.assertActorCanInviteAdmins(context);
+    }
+
     await this.prisma.invite.update({
       where: { id: invite.id },
       data: { status: "revoked" },
@@ -201,39 +263,71 @@ export class UsersService {
   ): Promise<UserResponse> {
     const status = normalizeUserStatus(body.status);
 
-    const updatedUser = await this.prisma.$transaction(
-      async (tx) => {
-        const user = await this.findTenantUser(tx, context.tenantId, userId);
-
-        if (
-          status &&
-          status !== "active" &&
-          user.status === "active" &&
-          user.roles.some((role) => role.roleCode === "company_admin")
-        ) {
-          await this.assertOtherActiveCompanyAdminExists(
-            tx,
-            context.tenantId,
-            user.id,
+    const { user: updatedUser, statusChangeAudit } =
+      await this.prisma.$transaction(
+        async (tx) => {
+          const user = await this.findTenantUser(tx, context.tenantId, userId);
+          const isCompanyAdminTarget = user.roles.some(
+            (role) => role.roleCode === "company_admin",
           );
-        }
+          const isStatusChanging = Boolean(status) && status !== user.status;
+          let statusChangeAudit: { previousStatus: UserStatus } | null = null;
 
-        return tx.user.update({
-          where: { id: user.id },
-          data: {
-            ...(typeof body.name === "string" && body.name.trim()
-              ? { name: body.name.trim() }
-              : {}),
-            ...(body.phone === null || typeof body.phone === "string"
-              ? { phone: normalizeOptionalString(body.phone) }
-              : {}),
-            ...(status ? { status } : {}),
-          },
-          include: { roles: true },
-        });
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
+          if (isStatusChanging) {
+            this.assertTargetNotSuperadmin(user);
+
+            if (isCompanyAdminTarget) {
+              this.assertActorCanManageAdmins(context);
+
+              if (user.status === "active" && status !== "active") {
+                await this.assertLeadershipNotLocked(
+                  tx,
+                  context.tenantId,
+                  user.id,
+                );
+              }
+
+              if (status === "active" && user.status !== "active") {
+                await this.assertAdminLimitNotExceeded(tx, context.tenantId);
+              }
+
+              statusChangeAudit = { previousStatus: user.status };
+            }
+          }
+
+          const updated = await tx.user.update({
+            where: { id: user.id },
+            data: {
+              ...(typeof body.name === "string" && body.name.trim()
+                ? { name: body.name.trim() }
+                : {}),
+              ...(body.phone === null || typeof body.phone === "string"
+                ? { phone: normalizeOptionalString(body.phone) }
+                : {}),
+              ...(status ? { status } : {}),
+            },
+            include: { roles: true },
+          });
+
+          return { user: updated, statusChangeAudit };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+
+    if (statusChangeAudit) {
+      await this.auditService.recordEvent(context, {
+        entityType: "user",
+        entityId: userId,
+        eventType:
+          updatedUser.status === "active"
+            ? "admin.reactivated"
+            : "admin.suspended",
+        metadata: {
+          previousStatus: statusChangeAudit.previousStatus,
+          status: updatedUser.status,
+        },
+      });
+    }
 
     return toUserResponse(updatedUser);
   }
@@ -255,6 +349,15 @@ export class UsersService {
       userId,
     );
 
+    this.assertTargetNotSuperadmin(user);
+
+    const grantsAdmin = roleCode === "company_admin";
+
+    if (grantsAdmin) {
+      this.assertActorCanInviteAdmins(context);
+      await this.assertAdminLimitNotExceeded(this.prisma, context.tenantId);
+    }
+
     await this.prisma.userRole.upsert({
       where: {
         tenantId_userId_roleCode: {
@@ -272,6 +375,14 @@ export class UsersService {
       update: {},
     });
 
+    if (grantsAdmin) {
+      await this.auditService.recordEvent(context, {
+        entityType: "user",
+        entityId: user.id,
+        eventType: "admin.role_granted",
+      });
+    }
+
     return this.getUserResponse(context.tenantId, user.id);
   }
 
@@ -286,20 +397,24 @@ export class UsersService {
       throwInvalidRole();
     }
 
+    let revokesAdmin = false;
+
     await this.prisma.$transaction(
       async (tx) => {
         const user = await this.findTenantUser(tx, context.tenantId, userId);
 
-        if (
+        this.assertTargetNotSuperadmin(user);
+
+        revokesAdmin =
           roleCode === "company_admin" &&
-          user.status === "active" &&
-          user.roles.some((role) => role.roleCode === "company_admin")
-        ) {
-          await this.assertOtherActiveCompanyAdminExists(
-            tx,
-            context.tenantId,
-            user.id,
-          );
+          user.roles.some((role) => role.roleCode === "company_admin");
+
+        if (revokesAdmin) {
+          this.assertActorCanManageAdmins(context);
+
+          if (user.status === "active") {
+            await this.assertLeadershipNotLocked(tx, context.tenantId, user.id);
+          }
         }
 
         if (
@@ -323,14 +438,266 @@ export class UsersService {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
+    if (revokesAdmin) {
+      await this.auditService.recordEvent(context, {
+        entityType: "user",
+        entityId: userId,
+        eventType: "admin.role_revoked",
+      });
+    }
+
     return this.getUserResponse(context.tenantId, userId);
   }
 
-  private async assertOtherActiveCompanyAdminExists(
+  async deleteUser(
+    context: RequestContext,
+    userId: string,
+  ): Promise<DeleteUserResponse> {
+    await this.prisma.$transaction(
+      async (tx) => {
+        const user = await this.findTenantUser(tx, context.tenantId, userId);
+
+        this.assertTargetNotSuperadmin(user);
+
+        if (!user.roles.some((role) => role.roleCode === "company_admin")) {
+          throw new BadRequestException({
+            code: "ADMIN_ROLE_REQUIRED",
+            message: "Only Company Admin users can be deleted here.",
+          });
+        }
+
+        this.assertActorCanManageAdmins(context);
+
+        if (user.status === "active") {
+          await this.assertLeadershipNotLocked(tx, context.tenantId, user.id);
+        }
+
+        await tx.user.update({
+          where: { id: user.id },
+          data: { status: "deleted", deletedAt: new Date() },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    await this.sessionService.revokeUserSessions(context.tenantId, userId);
+    await this.auditService.recordEvent(context, {
+      entityType: "user",
+      entityId: userId,
+      eventType: "admin.deleted",
+    });
+
+    return { id: userId, status: "deleted" };
+  }
+
+  /**
+   * Used only by PlatformService — the tenant-facing inviteUser never
+   * accepts tenant_superadmin, so the platform owner's invite/replace flow
+   * goes through this dedicated path instead.
+   */
+  async inviteSuperadmin(
+    context: RequestContext,
+    emailInput: string,
+  ): Promise<InviteUserResponse> {
+    const email = normalizeEmail(emailInput);
+
+    if (!email) {
+      throw new BadRequestException({
+        code: "INVITE_INVALID",
+        message: "Email is required.",
+        fieldErrors: { email: ["Email is required."] },
+      });
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: {
+        tenantId_email: { tenantId: context.tenantId, email },
+      },
+      select: { id: true, deletedAt: true },
+    });
+
+    if (existingUser && !existingUser.deletedAt) {
+      throw new ConflictException({
+        code: "USER_ALREADY_EXISTS",
+        message: "User already exists in this tenant.",
+        fieldErrors: { email: ["User already exists in this tenant."] },
+      });
+    }
+
+    return this.createInvite(context, email, ["tenant_superadmin"]);
+  }
+
+  /**
+   * Used only by PlatformService's bootstrap/migration path — promotes an
+   * existing active Company Admin to tenant superadmin, demoting any other
+   * currently active superadmin (see the replacement semantics in
+   * docs/plans/tenant-superadmin-plan-prompt.md).
+   */
+  async promoteToSuperadmin(
+    context: RequestContext,
+    userId: string,
+  ): Promise<UserResponse> {
+    const promoted = await this.prisma.$transaction(
+      async (tx) => {
+        const user = await this.findTenantUser(tx, context.tenantId, userId);
+
+        if (
+          user.status !== "active" ||
+          !user.roles.some((role) => role.roleCode === "company_admin")
+        ) {
+          throw new BadRequestException({
+            code: "ADMIN_ROLE_REQUIRED",
+            message:
+              "Only an active Company Admin can be promoted to tenant superadmin.",
+          });
+        }
+
+        const previousSuperadmins = await tx.user.findMany({
+          where: {
+            tenantId: context.tenantId,
+            id: { not: user.id },
+            status: "active",
+            deletedAt: null,
+            roles: {
+              some: {
+                tenantId: context.tenantId,
+                roleCode: "tenant_superadmin",
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        for (const previousSuperadmin of previousSuperadmins) {
+          await tx.user.update({
+            where: { id: previousSuperadmin.id },
+            data: { status: "suspended" },
+          });
+        }
+
+        await tx.userRole.deleteMany({
+          where: {
+            tenantId: context.tenantId,
+            userId: user.id,
+            roleCode: "company_admin",
+          },
+        });
+
+        await tx.userRole.upsert({
+          where: {
+            tenantId_userId_roleCode: {
+              tenantId: context.tenantId,
+              userId: user.id,
+              roleCode: "tenant_superadmin",
+            },
+          },
+          create: {
+            tenantId: context.tenantId,
+            userId: user.id,
+            roleCode: "tenant_superadmin",
+            assignedByUserId: context.userId,
+          },
+          update: {},
+        });
+
+        return tx.user.update({
+          where: { id: user.id },
+          data: { lastSelectedRoleCode: "tenant_superadmin" },
+          include: { roles: true },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    return toUserResponse(promoted);
+  }
+
+  private assertActorCanInviteAdmins(context: RequestContext): void {
+    if (!context.permissions.includes(PERMISSIONS.ADMINS_INVITE)) {
+      throw new ForbiddenException({
+        code: "ADMIN_MANAGEMENT_FORBIDDEN",
+        message: "Only the tenant superadmin can invite Company Admins.",
+      });
+    }
+  }
+
+  private assertActorCanManageAdmins(context: RequestContext): void {
+    if (!context.permissions.includes(PERMISSIONS.ADMINS_MANAGE)) {
+      throw new ForbiddenException({
+        code: "ADMIN_MANAGEMENT_FORBIDDEN",
+        message: "Only the tenant superadmin can manage Company Admins.",
+      });
+    }
+  }
+
+  private assertTargetNotSuperadmin(user: UserWithRoles): void {
+    if (user.roles.some((role) => role.roleCode === "tenant_superadmin")) {
+      throw new ConflictException({
+        code: "SUPERADMIN_PROTECTED",
+        message:
+          "The tenant superadmin can only be replaced by the platform owner.",
+      });
+    }
+  }
+
+  private async assertAdminLimitNotExceeded(
+    client: PrismaClientOrTx,
+    tenantId: string,
+  ): Promise<void> {
+    const tenant = await client.platformTenant.findUnique({
+      where: { id: tenantId },
+      select: { adminLimit: true },
+    });
+    const adminLimit = tenant?.adminLimit ?? DEFAULT_ADMIN_LIMIT;
+
+    const activeAdminCount = await client.user.count({
+      where: {
+        tenantId,
+        status: "active",
+        deletedAt: null,
+        roles: { some: { tenantId, roleCode: "company_admin" } },
+      },
+    });
+
+    if (activeAdminCount >= adminLimit) {
+      throw new ConflictException({
+        code: "TENANT_ADMIN_LIMIT",
+        message: `This tenant is limited to ${adminLimit} active Company Admin(s).`,
+      });
+    }
+  }
+
+  /**
+   * Anti-lockout guard for company_admin. The tenant_superadmin side of this
+   * invariant ("keep at least one active superadmin") doesn't need a count
+   * check here: assertTargetNotSuperadmin already blocks every status/role
+   * change against a superadmin target unconditionally, and the only flows
+   * that legitimately change who the active superadmin is
+   * (promoteToSuperadmin, the accept-invite replacement in AuthService)
+   * activate the new one before deactivating the old one, so the active
+   * count never transiently hits zero. Tenants that haven't been migrated
+   * to have a superadmin yet (bootstrap fallback) fall back to the old rule
+   * of protecting the last active company_admin instead — once a superadmin
+   * is active, the Company Admin count is free to hit zero.
+   */
+  private async assertLeadershipNotLocked(
     client: PrismaClientOrTx,
     tenantId: string,
     excludeUserId: string,
   ): Promise<void> {
+    const activeSuperadminCount = await client.user.count({
+      where: {
+        tenantId,
+        status: "active",
+        deletedAt: null,
+        roles: { some: { tenantId, roleCode: "tenant_superadmin" } },
+      },
+    });
+
+    if (activeSuperadminCount > 0) {
+      return;
+    }
+
     const otherActiveAdminCount = await client.user.count({
       where: {
         tenantId,

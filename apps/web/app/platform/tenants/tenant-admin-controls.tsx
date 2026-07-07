@@ -6,47 +6,54 @@ import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import type { TenantUser } from "../../../lib/api-client";
 
 type TenantAdminControlsProps = {
+  activeSuperadmin: TenantUser | null;
   admins: TenantUser[];
   inviteAction: (formData: FormData) => Promise<void>;
   isArchived: boolean;
+  pendingSuperadminInvite: boolean;
+  promoteAction: (formData: FormData) => Promise<void>;
   tenantId: string;
   tenantName: string;
   tenantSlug: string;
   usersAvailable: boolean;
-  updateStatusAction: (formData: FormData) => Promise<void>;
 };
 
 export function TenantAdminControls({
+  activeSuperadmin,
   admins,
   inviteAction,
   isArchived,
+  pendingSuperadminInvite,
+  promoteAction,
   tenantId,
   tenantName,
   tenantSlug,
   usersAvailable,
-  updateStatusAction,
 }: TenantAdminControlsProps) {
   const inviteDialogRef = useRef<HTMLDialogElement>(null);
-  const listDialogRef = useRef<HTMLDialogElement>(null);
-  const hasAdmins = usersAvailable && admins.length > 0;
+  const manageDialogRef = useRef<HTMLDialogElement>(null);
+  const promotableAdmins = admins.filter((admin) => admin.status === "active");
+  const inviteButtonLabel = activeSuperadmin
+    ? "Replace superadmin"
+    : "Invite superadmin";
 
   return (
     <div className="tenant-admin-cell-actions">
       <button
-        aria-label={`Invite company admin for ${tenantName}`}
+        aria-label={`${inviteButtonLabel} for ${tenantName}`}
         className="icon-button tenant-metric-action"
         disabled={isArchived}
         onClick={() => inviteDialogRef.current?.showModal()}
-        title="Invite company admin"
+        title={inviteButtonLabel}
         type="button"
       >
         +
       </button>
       <button
-        aria-label={`View company admins for ${tenantName}`}
+        aria-label={`Manage superadmin and admins for ${tenantName}`}
         className="secondary-button tenant-metric-list-action"
-        disabled={!hasAdmins}
-        onClick={() => listDialogRef.current?.showModal()}
+        disabled={!usersAvailable}
+        onClick={() => manageDialogRef.current?.showModal()}
         type="button"
       >
         Admins
@@ -59,9 +66,9 @@ export function TenantAdminControls({
       >
         <div className="modal-header">
           <div>
-            <p className="eyebrow">Company Admin</p>
+            <p className="eyebrow">Tenant Superadmin</p>
             <h2 id={`tenant-admin-invite-title-${tenantId}`}>
-              Invite company admin
+              {inviteButtonLabel}
             </h2>
           </div>
           <button
@@ -81,11 +88,18 @@ export function TenantAdminControls({
             Email
             <input
               name="email"
-              placeholder="admin@example.com"
+              placeholder="superadmin@example.com"
               required
               type="email"
             />
           </label>
+          <p className="tenant-status-confirmation">
+            {activeSuperadmin
+              ? `${activeSuperadmin.email} stays active until this invite is accepted, then is automatically deactivated.`
+              : pendingSuperadminInvite
+                ? "This replaces the currently pending superadmin invite."
+                : "The superadmin invites and manages this tenant's Company Admins."}
+          </p>
           <div className="modal-actions">
             <button
               className="secondary-button"
@@ -107,17 +121,17 @@ export function TenantAdminControls({
       <dialog
         aria-labelledby={`tenant-admin-list-title-${tenantId}`}
         className="modal-dialog"
-        ref={listDialogRef}
+        ref={manageDialogRef}
       >
         <div className="modal-header">
           <div>
-            <p className="eyebrow">Company Admins</p>
-            <h2 id={`tenant-admin-list-title-${tenantId}`}>Company admins</h2>
+            <p className="eyebrow">Superadmin & Company Admins</p>
+            <h2 id={`tenant-admin-list-title-${tenantId}`}>{tenantName}</h2>
           </div>
           <button
             aria-label="Close admins modal"
             className="icon-button"
-            onClick={() => listDialogRef.current?.close()}
+            onClick={() => manageDialogRef.current?.close()}
             type="button"
           >
             ×
@@ -125,43 +139,39 @@ export function TenantAdminControls({
         </div>
 
         <div className="visit-form compact modal-form tenant-admin-modal-body">
-          <label>
-            Tenant
-            <input readOnly type="text" value={tenantName} />
-          </label>
           <p className="tenant-status-confirmation">
-            Review active Company Admin access for this tenant.
+            {activeSuperadmin
+              ? `Superadmin: ${activeSuperadmin.email} (${activeSuperadmin.status})`
+              : "This tenant has no active superadmin yet."}
           </p>
           <div className="tenant-admin-list modal-admin-list">
-            {admins.map((user) => (
-              <div className="tenant-admin-row" key={user.id}>
-                <span>{user.email}</span>
-                <span className="role-chip">{user.status}</span>
-                <form
-                  action={updateStatusAction}
-                  className="tenant-admin-action"
-                >
-                  <input name="tenantId" type="hidden" value={tenantId} />
-                  <input name="userId" type="hidden" value={user.id} />
-                  <input
-                    name="status"
-                    type="hidden"
-                    value={user.status === "suspended" ? "active" : "suspended"}
-                  />
-                  <PendingSubmitButton
-                    className="secondary-button"
-                    pendingLabel="Saving..."
-                  >
-                    {user.status === "suspended" ? "Reactivate" : "Suspend"}
-                  </PendingSubmitButton>
-                </form>
-              </div>
-            ))}
+            {promotableAdmins.length === 0 ? (
+              <p className="empty-state">
+                No active Company Admins to promote.
+              </p>
+            ) : (
+              promotableAdmins.map((admin) => (
+                <div className="tenant-admin-row" key={admin.id}>
+                  <span>{admin.email}</span>
+                  <span className="role-chip">{admin.status}</span>
+                  <form action={promoteAction} className="tenant-admin-action">
+                    <input name="tenantId" type="hidden" value={tenantId} />
+                    <input name="userId" type="hidden" value={admin.id} />
+                    <PendingSubmitButton
+                      className="secondary-button"
+                      pendingLabel="Promoting..."
+                    >
+                      Promote to superadmin
+                    </PendingSubmitButton>
+                  </form>
+                </div>
+              ))
+            )}
           </div>
           <div className="modal-actions">
             <button
               className="secondary-button"
-              onClick={() => listDialogRef.current?.close()}
+              onClick={() => manageDialogRef.current?.close()}
               type="button"
             >
               Close
