@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { Session } from "@prisma/client";
 
 import {
@@ -24,7 +24,7 @@ export type CreatedSession = {
 
 @Injectable()
 export class SessionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async createSession(input: CreateSessionInput): Promise<CreatedSession> {
     const { token, expiresAt } = issueSessionToken(
@@ -72,6 +72,17 @@ export class SessionService {
     await this.prisma.session.updateMany({
       where: {
         sessionTokenHash: hashValue(token),
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async revokeUserSessions(tenantId: string, userId: string): Promise<void> {
+    await this.prisma.session.updateMany({
+      where: {
+        tenantId,
+        userId,
         revokedAt: null,
       },
       data: { revokedAt: new Date() },

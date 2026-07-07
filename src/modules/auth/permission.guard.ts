@@ -4,6 +4,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -26,9 +27,13 @@ import { SessionService } from "./session.service";
 @Injectable()
 export class PermissionGuard implements CanActivate {
   constructor(
+    @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Inject(Reflector)
     private readonly reflector: Reflector,
+    @Inject(RolesService)
     private readonly rolesService: RolesService,
+    @Inject(SessionService)
     private readonly sessionService: SessionService,
   ) {}
 

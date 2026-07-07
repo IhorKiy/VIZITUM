@@ -1,15 +1,30 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
-import { PlanCode, SegmentTemplate, TenantStatus } from "@prisma/client";
+import {
+  PlanCode,
+  RoleCode,
+  SegmentTemplate,
+  TenantStatus,
+} from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
+import { SessionService } from "../auth/session.service";
 import { PrismaService } from "../prisma/prisma.service";
+import type { RequestContext } from "../tenancy/request-context";
+import { UsersService } from "../users/users.service";
 import { TEAM_MODE_CAPABILITIES } from "./product-capabilities";
-import type { CreateTenantInput, UpdateTenantInput } from "./platform.types";
+import type {
+  CreateTenantInput,
+  PlatformInviteTenantUserInput,
+  PlatformUpdateTenantAdminStatusInput,
+  UpdateTenantInput,
+} from "./platform.types";
 
 const DEFAULT_COUNTRY = "UA";
 const DEFAULT_LANGUAGE = "uk";
@@ -22,15 +37,137 @@ const PLAN_CODES = Object.values(PlanCode);
 const ASSIGNABLE_STATUSES: TenantStatus[] = Object.values(TenantStatus).filter(
   (status) => status !== "archived",
 );
+const PLATFORM_INVITE_ROLE_CODES = ["company_admin"];
 
 @Injectable()
 export class PlatformService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService,
+    @Optional()
+    @Inject(UsersService)
+    private readonly usersService?: UsersService,
+    @Optional()
+    @Inject(SessionService)
+    private readonly sessionService?: SessionService,
+  ) {}
 
   async listTenants() {
-    return this.prisma.platformTenant.findMany({
+    const tenants = await this.prisma.platformTenant.findMany({
       orderBy: { createdAt: "desc" },
     });
+
+    if (!tenants.length) {
+      return [];
+    }
+
+    const tenantIds = tenants.map((tenant) => tenant.id);
+    const [
+      roleCounts,
+      visitCounts,
+      productCounts,
+      locationCounts,
+    ] = await Promise.all([
+      this.prisma.userRole.groupBy({
+        by: ["tenantId", "roleCode"],
+        where: {
+          tenantId: { in: tenantIds },
+          user: { deletedAt: null },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.visit.groupBy({
+        by: ["tenantId"],
+        where: { tenantId: { in: tenantIds } },
+        _count: { _all: true },
+      }),
+      this.prisma.product.groupBy({
+        by: ["tenantId"],
+        where: {
+          tenantId: { in: tenantIds },
+          deletedAt: null,
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.location.groupBy({
+        by: ["tenantId"],
+        where: {
+          tenantId: { in: tenantIds },
+          deletedAt: null,
+        },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const metricsByTenantId = new Map<
+      string,
+      {
+        companyAdminCount: number;
+        teamManagerCount: number;
+        fieldRepresentativeCount: number;
+        visitCount: number;
+        productCount: number;
+        locationCount: number;
+      }
+    >(
+      tenantIds.map((tenantId) => [
+        tenantId,
+        {
+          companyAdminCount: 0,
+          teamManagerCount: 0,
+          fieldRepresentativeCount: 0,
+          visitCount: 0,
+          productCount: 0,
+          locationCount: 0,
+        },
+      ]),
+    );
+
+    for (const roleCount of roleCounts) {
+      const metrics = metricsByTenantId.get(roleCount.tenantId);
+
+      if (!metrics) {
+        continue;
+      }
+
+      if (roleCount.roleCode === RoleCode.company_admin) {
+        metrics.companyAdminCount = roleCount._count._all;
+      }
+
+      if (roleCount.roleCode === RoleCode.team_manager) {
+        metrics.teamManagerCount = roleCount._count._all;
+      }
+
+      if (roleCount.roleCode === RoleCode.field_representative) {
+        metrics.fieldRepresentativeCount = roleCount._count._all;
+      }
+    }
+
+    for (const visitCount of visitCounts) {
+      const metrics = metricsByTenantId.get(visitCount.tenantId);
+      if (metrics) {
+        metrics.visitCount = visitCount._count._all;
+      }
+    }
+
+    for (const productCount of productCounts) {
+      const metrics = metricsByTenantId.get(productCount.tenantId);
+      if (metrics) {
+        metrics.productCount = productCount._count._all;
+      }
+    }
+
+    for (const locationCount of locationCounts) {
+      const metrics = metricsByTenantId.get(locationCount.tenantId);
+      if (metrics) {
+        metrics.locationCount = locationCount._count._all;
+      }
+    }
+
+    return tenants.map((tenant) => ({
+      ...tenant,
+      metrics: metricsByTenantId.get(tenant.id),
+    }));
   }
 
   async getTenant(tenantId: string) {
@@ -53,6 +190,125 @@ export class PlatformService {
     );
 
     return { tenant, provisioningJob };
+  }
+
+  async listTenantUsers(tenantId: string) {
+    const tenant = await this.assertTenantCanManageUsers(tenantId);
+
+    return this.getUsersService().listUsers(
+      createPlatformTenantContext(tenant),
+      {
+        pageSize: 100,
+      },
+    );
+  }
+
+  async inviteTenantUser(
+    tenantId: string,
+    input: PlatformInviteTenantUserInput,
+  ) {
+    if (!isCompanyAdminOnlyInvite(input.roleCodes)) {
+      throw new BadRequestException({
+        code: "PLATFORM_INVITE_ROLE_INVALID",
+        message: "Platform tenant invites can only create Company Admins.",
+        fieldErrors: {
+          roleCodes: ["Only the company_admin role is allowed."],
+        },
+      });
+    }
+
+    const tenant = await this.assertTenantCanManageUsers(tenantId);
+    const invite = await this.getUsersService().inviteUser(
+      createPlatformTenantContext(tenant),
+      { ...input, roleCodes: PLATFORM_INVITE_ROLE_CODES },
+    );
+
+    await this.prisma.platformOperationEvent.create({
+      data: {
+        tenantId,
+        actorUserId: input.actorUserId,
+        eventType: "tenant.user_invited",
+        metadata: {
+          email: invite.email,
+          inviteId: invite.id,
+          roleCodes: invite.roleCodes,
+        },
+        requestId: input.requestId,
+      },
+    });
+
+    return invite;
+  }
+
+  async updateTenantAdminStatus(
+    tenantId: string,
+    userId: string,
+    input: PlatformUpdateTenantAdminStatusInput,
+  ) {
+    if (input.status !== "active" && input.status !== "suspended") {
+      throw new BadRequestException({
+        code: "PLATFORM_ADMIN_STATUS_INVALID",
+        message: "A valid Company Admin status is required.",
+        fieldErrors: {
+          status: ["Use active or suspended."],
+        },
+      });
+    }
+
+    const tenant = await this.assertTenantCanManageUsers(tenantId);
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        tenantId,
+        deletedAt: null,
+      },
+      include: { roles: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException({
+        code: "USER_NOT_FOUND",
+        message: "User was not found.",
+      });
+    }
+
+    if (!user.roles.some((role) => role.roleCode === "company_admin")) {
+      throw new BadRequestException({
+        code: "PLATFORM_ADMIN_ROLE_REQUIRED",
+        message: "Only Company Admin users can be managed here.",
+      });
+    }
+
+    const previousStatus = user.status;
+    const updatedUser = await this.getUsersService().updateUser(
+      createPlatformTenantContext(tenant),
+      userId,
+      { status: input.status },
+    );
+
+    if (input.status === "suspended") {
+      await this.getSessionService().revokeUserSessions(tenantId, userId);
+    }
+
+    await this.prisma.platformOperationEvent.create({
+      data: {
+        tenantId,
+        actorUserId: input.actorUserId,
+        eventType:
+          input.status === "suspended"
+            ? "tenant.admin_suspended"
+            : "tenant.admin_reactivated",
+        metadata: {
+          userId,
+          email: updatedUser.email,
+          previousStatus,
+          status: updatedUser.status,
+        },
+        requestId: input.requestId,
+      },
+    });
+
+    return updatedUser;
   }
 
   async updateTenant(tenantId: string, input: UpdateTenantInput) {
@@ -163,6 +419,45 @@ export class PlatformService {
 
       return updated;
     });
+  }
+
+  private async assertTenantCanManageUsers(tenantId: string) {
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, slug: true, status: true },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException({
+        code: "TENANT_NOT_FOUND",
+        message: "Tenant was not found.",
+      });
+    }
+
+    if (tenant.status === "archived") {
+      throw new ConflictException({
+        code: "TENANT_ARCHIVED",
+        message: "An archived tenant cannot be managed.",
+      });
+    }
+
+    return tenant;
+  }
+
+  private getUsersService(): UsersService {
+    if (!this.usersService) {
+      throw new Error("UsersService is required for platform tenant users.");
+    }
+
+    return this.usersService;
+  }
+
+  private getSessionService(): SessionService {
+    if (!this.sessionService) {
+      throw new Error("SessionService is required for platform tenant users.");
+    }
+
+    return this.sessionService;
   }
 
   async archiveTenant(
@@ -306,6 +601,27 @@ export class PlatformService {
   }
 }
 
+function createPlatformTenantContext(tenant: {
+  id: string;
+  slug: string;
+}): RequestContext {
+  return {
+    requestId: "platform",
+    tenantId: tenant.id,
+    tenantSlug: tenant.slug,
+    roleCodes: [],
+    permissions: [],
+  };
+}
+
 function normalizeSlug(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function isCompanyAdminOnlyInvite(roleCodes: unknown): boolean {
+  return (
+    Array.isArray(roleCodes) &&
+    roleCodes.length === 1 &&
+    roleCodes[0] === "company_admin"
+  );
 }

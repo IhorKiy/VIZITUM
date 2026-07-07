@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -13,7 +14,7 @@ import type {
 
 @Injectable()
 export class TenancyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async resolveTenant(
     input: TenantResolutionInput,

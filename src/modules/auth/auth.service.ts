@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -25,10 +26,15 @@ import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
 @Injectable()
 export class AuthService {
   constructor(
+    @Inject(PrismaService)
     private readonly prisma: PrismaService,
+    @Inject(PasswordService)
     private readonly passwordService: PasswordService,
+    @Inject(RolesService)
     private readonly rolesService: RolesService,
+    @Inject(SessionService)
     private readonly sessionService: SessionService,
+    @Inject(TenancyService)
     private readonly tenancyService: TenancyService,
   ) {}
 

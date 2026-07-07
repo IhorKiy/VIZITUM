@@ -104,6 +104,18 @@ function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
           .filter((job) => job.tenantId === where.tenantId)
           .slice(-1)[0] ?? null,
     },
+    userRole: {
+      groupBy: async () => [],
+    },
+    visit: {
+      groupBy: async () => [],
+    },
+    product: {
+      groupBy: async () => [],
+    },
+    location: {
+      groupBy: async () => [],
+    },
     $transaction: async (
       callback: (tx: {
         platformTenant: { create: (args: { data: Record<string, unknown> }) => Promise<Record<string, unknown>> };

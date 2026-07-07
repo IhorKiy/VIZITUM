@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -41,7 +42,7 @@ type PrismaClientOrTx = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async listUsers(
     context: RequestContext,
