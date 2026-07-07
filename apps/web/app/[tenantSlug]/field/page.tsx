@@ -112,13 +112,18 @@ export default async function FieldPage({
     ? (sessionResult.data.user.name.split(" ")[0] ??
       sessionResult.data.user.name)
     : "Гість";
+  const tenantTimezone = sessionResult.ok
+    ? sessionResult.data.tenantTimezone
+    : undefined;
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       <header className="page-header greeting-header">
         <div>
           <h1>Привіт, {firstName}!</h1>
-          <p className="greeting-date">{formatGreetingDate(new Date())}</p>
+          <p className="greeting-date">
+            {formatGreetingDate(new Date(), tenantTimezone)}
+          </p>
         </div>
         <div className="toolbar" aria-label="Visit actions">
           <a className="secondary-button" href={`/${tenantSlug}/field/history`}>
@@ -270,12 +275,13 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
     .sort((a, b) => a.sequence - b.sequence);
 }
 
-function formatGreetingDate(date: Date): string {
+function formatGreetingDate(date: Date, timeZone?: string): string {
   const parts = new Intl.DateTimeFormat("uk-UA", {
     day: "numeric",
     month: "long",
     weekday: "long",
     year: "numeric",
+    ...(timeZone ? { timeZone } : {}),
   }).formatToParts(date);
 
   const weekday = capitalize(
