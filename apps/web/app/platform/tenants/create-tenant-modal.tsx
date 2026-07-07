@@ -4,6 +4,7 @@ import { useRef } from "react";
 
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import type { PlatformSegmentTemplate } from "../../../lib/api-client";
+import { defaultTimezoneOption, listTimezones } from "../../../lib/timezones";
 
 type CreateTenantModalProps = {
   action: (formData: FormData) => Promise<void>;
@@ -15,6 +16,8 @@ export function CreateTenantModal({
   segmentTemplates,
 }: CreateTenantModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const timezones = listTimezones();
+  const defaultTimezone = defaultTimezoneOption(timezones);
 
   return (
     <>
@@ -75,7 +78,13 @@ export function CreateTenantModal({
           </label>
           <label>
             Timezone
-            <input name="timezone" type="text" placeholder="Europe/Kiev" />
+            <select name="timezone" defaultValue={defaultTimezone} required>
+              {timezones.map((timezone) => (
+                <option key={timezone} value={timezone}>
+                  {timezone}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Language

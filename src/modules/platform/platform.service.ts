@@ -7,6 +7,7 @@ import {
 import { RoleCode, SegmentTemplate, TenantStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
+import { normalizeTimezone } from "../../common/normalize";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
@@ -386,10 +387,10 @@ export class PlatformService {
     }
 
     if (input.timezone !== undefined) {
-      const timezone = input.timezone.trim();
+      const timezone = normalizeTimezone(input.timezone);
 
       if (!timezone) {
-        fieldErrors.timezone = ["Timezone cannot be empty."];
+        fieldErrors.timezone = ["Enter a valid IANA time zone."];
       } else {
         data.timezone = timezone;
       }
@@ -617,6 +618,18 @@ export class PlatformService {
       fieldErrors.segmentTemplate = ["A valid segment template is required."];
     }
 
+    let timezone = DEFAULT_TIMEZONE;
+
+    if (input.timezone !== undefined && input.timezone.trim()) {
+      const normalized = normalizeTimezone(input.timezone);
+
+      if (!normalized) {
+        fieldErrors.timezone = ["Enter a valid IANA time zone."];
+      } else {
+        timezone = normalized;
+      }
+    }
+
     if (Object.keys(fieldErrors).length) {
       throw new BadRequestException({
         code: "TENANT_INVALID",
@@ -646,7 +659,7 @@ export class PlatformService {
           name,
           slug,
           country: input.country?.trim() || DEFAULT_COUNTRY,
-          timezone: input.timezone?.trim() || DEFAULT_TIMEZONE,
+          timezone,
           language: input.language?.trim() || DEFAULT_LANGUAGE,
           segmentTemplate: input.segmentTemplate,
           databaseKey: DEFAULT_DATABASE_KEY,

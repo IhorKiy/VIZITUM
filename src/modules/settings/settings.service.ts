@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 
+import { normalizeTimezone } from "../../common/normalize";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
@@ -114,26 +115,6 @@ function normalizeName(value: unknown): string | null {
   const trimmed = value.trim();
 
   return trimmed.length > 0 && trimmed.length <= 200 ? trimmed : null;
-}
-
-function normalizeTimezone(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return null;
-  }
-
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: trimmed });
-
-    return trimmed;
-  } catch {
-    return null;
-  }
 }
 
 function normalizeProductsEnabled(value: unknown): boolean | null | undefined {

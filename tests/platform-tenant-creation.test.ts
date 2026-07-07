@@ -27,6 +27,45 @@ describe("platform tenant creation", () => {
     );
   });
 
+  it("rejects a timezone that is not a real IANA time zone", async () => {
+    const service = new PlatformService(createPrismaStub() as unknown as PrismaService);
+
+    await assert.rejects(
+      () =>
+        service.createTenant({
+          name: "Acme Co",
+          slug: "acme",
+          segmentTemplate: "distribution",
+          timezone: "Not/A_Real_Zone",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as { fieldErrors: Record<string, string[]> };
+        assert.ok(response.fieldErrors.timezone);
+        return true;
+      },
+    );
+  });
+
+  it("stores the selected timezone and falls back to the default when omitted", async () => {
+    const service = new PlatformService(createPrismaStub() as unknown as PrismaService);
+
+    const withTimezone = await service.createTenant({
+      name: "Acme Co",
+      slug: "acme",
+      segmentTemplate: "distribution",
+      timezone: " Europe/Kyiv ",
+    });
+    assert.equal(withTimezone.tenant.timezone, "Europe/Kyiv");
+
+    const withoutTimezone = await service.createTenant({
+      name: "Beta Co",
+      slug: "beta",
+      segmentTemplate: "distribution",
+    });
+    assert.equal(withoutTimezone.tenant.timezone, "Europe/Kiev");
+  });
+
   it("rejects a duplicate slug", async () => {
     const prisma = createPrismaStub({ existingTenant: { id: "tenant-existing" } });
     const service = new PlatformService(prisma as unknown as PrismaService);

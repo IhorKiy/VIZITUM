@@ -33,6 +33,48 @@ describe("platform tenant management", () => {
     assert.deepEqual(store.events[0]?.metadata, { fields: ["name", "status"] });
   });
 
+  it("updates the timezone to a valid IANA time zone", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      timezone: "Europe/Kiev",
+    });
+    const service = createPlatformService(store);
+
+    const updated = await service.updateTenant("tenant-1", {
+      timezone: " America/New_York ",
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(updated.timezone, "America/New_York");
+    assert.deepEqual(store.events[0]?.metadata, { fields: ["timezone"] });
+  });
+
+  it("rejects a timezone that is not a real IANA time zone", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      timezone: "Europe/Kiev",
+    });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { timezone: "Not/A_Real_Zone" }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          code: string;
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.equal(response.code, "TENANT_UPDATE_INVALID");
+        assert.ok(response.fieldErrors.timezone);
+        return true;
+      },
+    );
+    assert.equal(store.tenant.timezone, "Europe/Kiev");
+    assert.equal(store.events.length, 0);
+  });
+
   it("updates the admin limit", async () => {
     const store = createStore({ id: "tenant-1", status: "pilot" });
     const service = createPlatformService(store);

@@ -29,6 +29,7 @@ import { CreateTenantModal } from "./create-tenant-modal";
 import { NameChangeForm } from "./name-change-form";
 import { StatusChangeForm } from "./status-change-form";
 import { TenantAdminControls } from "./tenant-admin-controls";
+import { TimezoneForm } from "./timezone-form";
 
 const SEGMENT_TEMPLATES: PlatformSegmentTemplate[] = [
   "distribution",
@@ -246,6 +247,21 @@ export default async function PlatformTenantsPage({
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
 
+  async function updateTimezoneAction(formData: FormData) {
+    "use server";
+
+    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const timezone = String(formData.get("timezone") ?? "").trim();
+
+    if (!tenantId || !timezone) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    const result = await updatePlatformTenant(tenantId, { timezone });
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
   async function updateAdminLimitAction(formData: FormData) {
     "use server";
 
@@ -335,6 +351,10 @@ export default async function PlatformTenantsPage({
                 <dd>{formatShortDate(tenant.createdAt)}</dd>
               </div>
               <div>
+                <dt>Timezone</dt>
+                <dd>{tenant.timezone}</dd>
+              </div>
+              <div>
                 <dt>Admins</dt>
                 <dd className="tenant-admin-metric-value">
                   <span>
@@ -403,6 +423,11 @@ export default async function PlatformTenantsPage({
                 tenantId={tenant.id}
                 tenantName={tenant.name}
                 updateAction={updateStatusAction}
+              />
+              <TimezoneForm
+                action={updateTimezoneAction}
+                currentTimezone={tenant.timezone}
+                tenantId={tenant.id}
               />
               <AdminLimitForm
                 action={updateAdminLimitAction}
