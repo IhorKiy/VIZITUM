@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import "dotenv/config";
+import "./types/express";
 
 import { NestFactory } from "@nestjs/core";
 

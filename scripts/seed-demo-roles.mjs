@@ -16,7 +16,7 @@ const tenantName = required(
   process.env.DEMO_TENANT_NAME || "Vizitum Demo Team",
   "DEMO_TENANT_NAME",
 );
-const password = required(process.env.DEMO_ROLE_PASSWORD, "DEMO_ROLE_PASSWORD");
+const password = process.env.DEMO_ROLE_PASSWORD || "Demo12345!";
 
 if (password.length < 8) {
   throw new Error("DEMO_ROLE_PASSWORD must be at least 8 characters.");
@@ -147,6 +147,7 @@ try {
         status: "ok",
         tenantSlug: result.tenant.slug,
         loginUrl: `http://localhost:3000/${result.tenant.slug}/login`,
+        password,
         users: users.map((user) => ({
           email: user.email,
           roles: user.roles,

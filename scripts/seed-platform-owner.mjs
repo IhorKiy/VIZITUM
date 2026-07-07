@@ -8,19 +8,25 @@ const connectionString = normalizeRequired(
   process.env.DATABASE_URL,
   "DATABASE_URL",
 );
+const isLocalDatabase = isLocalDatabaseUrl(connectionString);
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
 
 const ownerEmail = normalizeEmail(
-  normalizeRequired(process.env.PLATFORM_OWNER_EMAIL, "PLATFORM_OWNER_EMAIL"),
+  normalizeRequired(
+    process.env.PLATFORM_OWNER_EMAIL ||
+      (isLocalDatabase ? "owner@platform.local" : undefined),
+    "PLATFORM_OWNER_EMAIL",
+  ),
 );
 const ownerName = normalizeRequired(
   process.env.PLATFORM_OWNER_NAME || "Vizitum Platform Owner",
   "PLATFORM_OWNER_NAME",
 );
 const ownerPassword = normalizeRequired(
-  process.env.PLATFORM_OWNER_PASSWORD,
+  process.env.PLATFORM_OWNER_PASSWORD ||
+    (isLocalDatabase ? "Owner12345!" : undefined),
   "PLATFORM_OWNER_PASSWORD",
 );
 
@@ -76,4 +82,17 @@ function normalizeRequired(value, name) {
 // owner won't match the email PlatformAuthService normalizes at login.
 function normalizeEmail(value) {
   return value.trim().toLowerCase();
+}
+
+function isLocalDatabaseUrl(connectionString) {
+  try {
+    const url = new URL(connectionString);
+    const localHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+    return (
+      (url.protocol === "postgresql:" || url.protocol === "postgres:") &&
+      localHosts.has(url.hostname.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
 }

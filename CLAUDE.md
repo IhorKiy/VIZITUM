@@ -9,7 +9,7 @@ This repository also has an [AGENTS.md](AGENTS.md) with the full product/roadmap
 Backend (NestJS, root workspace):
 
 ```sh
-npm run dev                 # tsx watch src/main.ts
+npm run dev                 # node --watch --require ts-node/register src/main.ts
 npm run build                # tsc -p tsconfig.json (runs prisma:generate first via prebuild)
 npm run start                # node dist/main.js
 npm run lint                  # eslint src prisma.config.ts
@@ -22,6 +22,8 @@ Run a single test file:
 ```sh
 node --import tsx --test tests/auth-tenant-isolation.test.ts
 ```
+
+`npm run dev` and the local workers run through `ts-node`, not `tsx`: `tsx` (esbuild) never emits the `design:paramtypes` metadata NestJS's DI relies on, so every constructor-injected dependency silently resolves to `undefined` at runtime (routes still register, but every handler throws). Tests are unaffected since they instantiate services directly with `new`, bypassing Nest DI. `tsx` remains fine for the test runner and for anything that doesn't boot a full Nest app.
 
 Database (Prisma + local Postgres via docker-compose):
 
@@ -43,7 +45,7 @@ npm run web:typecheck
 Worker and ops:
 
 ```sh
-npm run worker:cleanup         # local cleanup worker (tsx)
+npm run worker:cleanup         # local cleanup worker (ts-node)
 npm run worker:cleanup:prod    # compiled worker (node dist/worker.js)
 npm run alerts:check           # scripts/production-alerts-check.mjs, needs OPERATIONS_SUMMARY_URL
 npm run restore:drill:check
