@@ -4,6 +4,8 @@ import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   addAdminUserRole,
+  deleteAdminUser,
+  getCurrentSession,
   inviteAdminUser,
   listAdminInvites,
   listAdminUsers,
@@ -19,11 +21,13 @@ type AdminUsersPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     error?: string;
+    message?: string;
     inviteEmail?: string;
     inviteToken?: string;
     invited?: string;
     role?: string;
     status?: string;
+    deleted?: string;
   }>;
 };
 
@@ -55,7 +59,9 @@ export default async function AdminUsersPage({
     const result = await inviteAdminUser({ email, roleCodes });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/users?error=invite`);
+      redirect(
+        `/${tenantSlug}/admin/users?error=invite&message=${encodeURIComponent(result.message)}`,
+      );
     }
 
     const query = new URLSearchParams({
@@ -79,7 +85,9 @@ export default async function AdminUsersPage({
     const result = await resendAdminInvite(inviteId);
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/users?error=invite`);
+      redirect(
+        `/${tenantSlug}/admin/users?error=invite&message=${encodeURIComponent(result.message)}`,
+      );
     }
 
     const query = new URLSearchParams({
@@ -104,7 +112,9 @@ export default async function AdminUsersPage({
     const result = await updateAdminUser(userId, { status });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/users?error=status`);
+      redirect(
+        `/${tenantSlug}/admin/users?error=status&message=${encodeURIComponent(result.message)}`,
+      );
     }
 
     redirect(`/${tenantSlug}/admin/users?status=updated`);
@@ -123,7 +133,9 @@ export default async function AdminUsersPage({
     const result = await addAdminUserRole(userId, roleCode);
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/users?error=role`);
+      redirect(
+        `/${tenantSlug}/admin/users?error=role&message=${encodeURIComponent(result.message)}`,
+      );
     }
 
     redirect(`/${tenantSlug}/admin/users?role=updated`);
@@ -142,16 +154,42 @@ export default async function AdminUsersPage({
     const result = await removeAdminUserRole(userId, roleCode);
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/users?error=role`);
+      redirect(
+        `/${tenantSlug}/admin/users?error=role&message=${encodeURIComponent(result.message)}`,
+      );
     }
 
     redirect(`/${tenantSlug}/admin/users?role=updated`);
   }
 
-  const [usersResult, invitesResult] = await Promise.all([
+  async function deleteUserAction(formData: FormData) {
+    "use server";
+
+    const userId = String(formData.get("userId") ?? "").trim();
+
+    if (!userId) {
+      redirect(`/${tenantSlug}/admin/users?error=delete`);
+    }
+
+    const result = await deleteAdminUser(userId);
+
+    if (!result.ok) {
+      redirect(
+        `/${tenantSlug}/admin/users?error=delete&message=${encodeURIComponent(result.message)}`,
+      );
+    }
+
+    redirect(`/${tenantSlug}/admin/users?deleted=1`);
+  }
+
+  const [usersResult, invitesResult, sessionResult] = await Promise.all([
     listAdminUsers(),
     listAdminInvites(),
+    getCurrentSession(),
   ]);
+  const permissions = sessionResult.ok ? sessionResult.data.permissions : [];
+  const canInviteAdmins = permissions.includes("admins.invite");
+  const canManageAdmins = permissions.includes("admins.manage");
   const inviteLink = pageState.inviteToken
     ? `/${tenantSlug}/invites/accept?token=${encodeURIComponent(
         pageState.inviteToken,
@@ -189,6 +227,8 @@ export default async function AdminUsersPage({
   }
 
   const users = usersResult.data.items;
+  const superadmin =
+    users.find((user) => user.roleCodes.includes("tenant_superadmin")) ?? null;
   const activeCount = users.filter((user) => user.status === "active").length;
   const managerCount = users.filter((user) =>
     user.roleCodes.includes("team_manager"),
@@ -231,13 +271,18 @@ export default async function AdminUsersPage({
         </section>
       ) : null}
 
-      {pageState.status || pageState.role ? (
+      {pageState.status || pageState.role || pageState.deleted ? (
         <section className="notice-panel success" aria-label="User update">
           <div>
             <p className="eyebrow">User updated</p>
-            <h2>Tenant access was updated</h2>
+            <h2>
+              {pageState.deleted
+                ? "The user was deleted"
+                : "Tenant access was updated"}
+            </h2>
             <p>
-              The latest user list reflects the saved role or status change.
+              The latest user list reflects the saved role, status or deletion
+              change.
             </p>
           </div>
         </section>
@@ -249,8 +294,8 @@ export default async function AdminUsersPage({
             <p className="eyebrow">Update failed</p>
             <h2>Check the user details and try again</h2>
             <p>
-              Email, status and role changes must match the tenant&apos;s
-              allowed Team Pilot roles.
+              {pageState.message ??
+                "Email, status and role changes must match the tenant's allowed Team Pilot roles."}
             </p>
           </div>
         </section>
@@ -264,6 +309,16 @@ export default async function AdminUsersPage({
           </header>
           <p className="metric-value">{usersResult.data.total}</p>
           <p className="small-label">{activeCount} active users</p>
+        </article>
+        <article className="metric-card">
+          <header>
+            <p className="metric-label">Admin seats</p>
+            <span className="status-pill info">Limit</span>
+          </header>
+          <p className="metric-value">
+            {usersResult.data.activeAdminCount} / {usersResult.data.adminLimit}
+          </p>
+          <p className="small-label">Active Company Admins in use</p>
         </article>
         <article className="metric-card">
           <header>
@@ -283,6 +338,20 @@ export default async function AdminUsersPage({
         </article>
       </section>
 
+      {superadmin ? (
+        <section className="notice-panel" aria-label="Tenant superadmin">
+          <div>
+            <p className="eyebrow">Tenant superadmin</p>
+            <h2>{superadmin.name}</h2>
+            <p>
+              {superadmin.email} — invited and replaced only by the platform
+              owner. Company Admins cannot suspend, delete or re-role the
+              superadmin.
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       <section className="admin-users-grid">
         <div className="panel">
           <div className="panel-title-stack">
@@ -290,6 +359,9 @@ export default async function AdminUsersPage({
             <p>
               Invite links are generated after validation and should be shared
               through a trusted customer channel.
+              {canInviteAdmins
+                ? ""
+                : " Only the tenant superadmin can invite Company Admins."}
             </p>
           </div>
           <form action={inviteUserAction} className="visit-form compact">
@@ -306,7 +378,11 @@ export default async function AdminUsersPage({
               <legend>Roles</legend>
               {tenantRoles.map((role) => (
                 <label key={role.code}>
-                  <input name={role.code} type="checkbox" />
+                  <input
+                    disabled={role.code === "company_admin" && !canInviteAdmins}
+                    name={role.code}
+                    type="checkbox"
+                  />
                   <span>{role.label}</span>
                 </label>
               ))}
@@ -353,6 +429,9 @@ export default async function AdminUsersPage({
               {users.map((user) => (
                 <UserRow
                   addRoleAction={addRoleAction}
+                  canInviteAdmins={canInviteAdmins}
+                  canManageAdmins={canManageAdmins}
+                  deleteUserAction={deleteUserAction}
                   key={user.id}
                   removeRoleAction={removeRoleAction}
                   updateUserStatusAction={updateUserStatusAction}
@@ -420,7 +499,8 @@ function InviteHistoryList({
               <span>Accepted by {invite.acceptedBy.name}</span>
             ) : null}
           </div>
-          {invite.status === "pending" ? (
+          {invite.status === "pending" &&
+          !invite.roleCodes.includes("tenant_superadmin") ? (
             <form action={resendInviteAction} className="inline-control-form">
               <input name="inviteId" type="hidden" value={invite.id} />
               <PendingSubmitButton
@@ -439,19 +519,33 @@ function InviteHistoryList({
 
 function UserRow({
   addRoleAction,
+  canInviteAdmins,
+  canManageAdmins,
+  deleteUserAction,
   removeRoleAction,
   updateUserStatusAction,
   user,
 }: {
   addRoleAction: (formData: FormData) => Promise<void>;
+  canInviteAdmins: boolean;
+  canManageAdmins: boolean;
+  deleteUserAction: (formData: FormData) => Promise<void>;
   removeRoleAction: (formData: FormData) => Promise<void>;
   updateUserStatusAction: (formData: FormData) => Promise<void>;
   user: TenantUser;
 }) {
+  const isSuperadmin = user.roleCodes.includes("tenant_superadmin");
+  const isCompanyAdmin = user.roleCodes.includes("company_admin");
+  const actionsLocked = isSuperadmin || (isCompanyAdmin && !canManageAdmins);
+  // Granting company_admin is gated server-side by admins.invite (like
+  // inviting one), not admins.manage — keep this select in sync with
+  // UsersService.addRole rather than reusing the manage-scoped flag above.
   const missingRoles = tenantRoles.filter(
-    (role) => !user.roleCodes.includes(role.code),
+    (role) =>
+      !user.roleCodes.includes(role.code) &&
+      (role.code !== "company_admin" || canInviteAdmins),
   );
-  const canRemoveRole = user.roleCodes.length > 1;
+  const canRemoveRole = user.roleCodes.length > 1 && !actionsLocked;
   const nextStatus = user.status === "suspended" ? "active" : "suspended";
 
   return (
@@ -474,66 +568,87 @@ function UserRow({
         ))}
       </div>
 
-      <div className="user-actions-grid">
-        <form action={updateUserStatusAction} className="inline-control-form">
-          <input name="userId" type="hidden" value={user.id} />
-          <input name="status" type="hidden" value={nextStatus} />
-          <PendingSubmitButton
-            className="secondary-button"
-            pendingLabel="Saving..."
-          >
-            {nextStatus === "active" ? "Reactivate" : "Suspend"}
-          </PendingSubmitButton>
-        </form>
+      {isSuperadmin ? (
+        <p className="small-label">
+          Managed by the platform owner — Company Admins cannot change this
+          user.
+        </p>
+      ) : (
+        <div className="user-actions-grid">
+          <form action={updateUserStatusAction} className="inline-control-form">
+            <input name="userId" type="hidden" value={user.id} />
+            <input name="status" type="hidden" value={nextStatus} />
+            <PendingSubmitButton
+              className="secondary-button"
+              disabled={actionsLocked}
+              pendingLabel="Saving..."
+            >
+              {nextStatus === "active" ? "Reactivate" : "Suspend"}
+            </PendingSubmitButton>
+          </form>
 
-        <form action={addRoleAction} className="inline-control-form">
-          <input name="userId" type="hidden" value={user.id} />
-          <select
-            aria-label={`Add role to ${user.name}`}
-            disabled={missingRoles.length === 0}
-            name="roleCode"
-            required
-          >
-            <option value="">Add role</option>
-            {missingRoles.map((role) => (
-              <option key={role.code} value={role.code}>
-                {role.label}
-              </option>
-            ))}
-          </select>
-          <PendingSubmitButton
-            className="secondary-button"
-            disabled={missingRoles.length === 0}
-            pendingLabel="Saving..."
-          >
-            Add
-          </PendingSubmitButton>
-        </form>
+          <form action={addRoleAction} className="inline-control-form">
+            <input name="userId" type="hidden" value={user.id} />
+            <select
+              aria-label={`Add role to ${user.name}`}
+              disabled={missingRoles.length === 0}
+              name="roleCode"
+              required
+            >
+              <option value="">Add role</option>
+              {missingRoles.map((role) => (
+                <option key={role.code} value={role.code}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+            <PendingSubmitButton
+              className="secondary-button"
+              disabled={missingRoles.length === 0}
+              pendingLabel="Saving..."
+            >
+              Add
+            </PendingSubmitButton>
+          </form>
 
-        <form action={removeRoleAction} className="inline-control-form">
-          <input name="userId" type="hidden" value={user.id} />
-          <select
-            aria-label={`Remove role from ${user.name}`}
-            disabled={!canRemoveRole}
-            name="roleCode"
-            required
-          >
-            <option value="">Remove role</option>
-            {user.roleCodes.map((roleCode) => (
-              <option key={roleCode} value={roleCode}>
-                {formatRole(roleCode)}
-              </option>
-            ))}
-          </select>
-          <PendingSubmitButton
-            className="secondary-button"
-            disabled={!canRemoveRole}
-            pendingLabel="Saving..."
-          >
-            Remove
-          </PendingSubmitButton>
-        </form>
-      </div>
+          <form action={removeRoleAction} className="inline-control-form">
+            <input name="userId" type="hidden" value={user.id} />
+            <select
+              aria-label={`Remove role from ${user.name}`}
+              disabled={!canRemoveRole}
+              name="roleCode"
+              required
+            >
+              <option value="">Remove role</option>
+              {user.roleCodes.map((roleCode) => (
+                <option key={roleCode} value={roleCode}>
+                  {formatRole(roleCode)}
+                </option>
+              ))}
+            </select>
+            <PendingSubmitButton
+              className="secondary-button"
+              disabled={!canRemoveRole}
+              pendingLabel="Saving..."
+            >
+              Remove
+            </PendingSubmitButton>
+          </form>
+
+          {isCompanyAdmin ? (
+            <form action={deleteUserAction} className="inline-control-form">
+              <input name="userId" type="hidden" value={user.id} />
+              <PendingSubmitButton
+                className="secondary-button danger"
+                disabled={actionsLocked}
+                pendingLabel="Deleting..."
+              >
+                Delete
+              </PendingSubmitButton>
+            </form>
+          ) : null}
+        </div>
+      )}
     </article>
   );
 }
@@ -564,6 +679,8 @@ function normalizeUserStatus(
 
 function formatRole(roleCode: TenantRoleCode): string {
   switch (roleCode) {
+    case "tenant_superadmin":
+      return "Tenant Superadmin";
     case "company_admin":
       return "Company Admin";
     case "team_manager":

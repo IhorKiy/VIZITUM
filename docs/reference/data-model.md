@@ -14,7 +14,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 
 | Model | Table | Purpose |
 | --- | --- | --- |
-| `PlatformTenant` | `platform_tenants` | Tenant registry: `slug` (unique, used in URLs), `status` (TenantStatus — doubles as the plan tier for a live tenant: `pilot`/`team`/`business`, or `suspended`/`archived`; there is no separate plan field), `productMode`, `segmentTemplate`, `databasePlacement` (shared/dedicated), `timezone`, `language`. |
+| `PlatformTenant` | `platform_tenants` | Tenant registry: `slug` (unique, used in URLs), `status` (TenantStatus — doubles as the plan tier for a live tenant: `pilot`/`team`/`business`, or `suspended`/`archived`; there is no separate plan field), `productMode`, `segmentTemplate`, `databasePlacement` (shared/dedicated), `timezone`, `language`, `adminLimit` (Int, default 2 — max active `company_admin` users; enforced by `UsersService`, editable via `PATCH /platform/tenants/:tenantId`). |
 | `PlatformUser` | `platform_users` | Platform-owner identity, separate from tenant `users`: `email` (globally unique), `passwordHash`, `status` (PlatformUserStatus: active/suspended). Holds the `platform_owner` role. |
 | `PlatformSession` | `platform_sessions` | Platform-owner session (token hash, expiry, revoke) for `vizitum_platform_session`; mirrors `sessions` but keyed by `platformUserId`, no `tenantId`. |
 | `PlatformProvisioningJob` | `platform_provisioning_jobs` | Tenant provisioning job state (JobStatus, step, error). Legacy: tenants are created straight into `pilot` and no longer get a job row; existing rows are kept for history and still readable via `GET /platform/tenants/:tenantId`. |
@@ -25,7 +25,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 | Model | Table | Purpose |
 | --- | --- | --- |
 | `User` | `users` | Tenant user: `status` (invited/active/suspended/deleted), `passwordHash`, `lastSelectedRoleCode`. Email unique per tenant. |
-| `UserRole` | `user_roles` | Role assignment (`roleCode`: company_admin / team_manager / field_representative), unique per (tenant, user, role). Users can hold multiple roles. |
+| `UserRole` | `user_roles` | Role assignment (`roleCode`: tenant_superadmin / company_admin / team_manager / field_representative), unique per (tenant, user, role). Users can hold multiple roles, but a `tenant_superadmin` holds only that single role — see [permissions.md](permissions.md). |
 | `Invite` | `invites` | Invite with `tokenHash` (raw token never stored), `roleCodes[]`, status (pending/accepted/expired/revoked), `expiresAt`. |
 | `Session` | `sessions` | Backend session: `sessionTokenHash` (unique), `expiresAt`, `revokedAt`, hashed user agent/IP. |
 | `TenantSetting` | `tenant_settings` | Key-value JSON settings per tenant (e.g. `products_enabled` used by the settings module). |
@@ -73,7 +73,7 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 
 | Model | Table | Purpose |
 | --- | --- | --- |
-| `AuditEvent` | `audit_events` | Tenant-scoped audit trail (`entityType`, `entityId`, `eventType`, `metadata`, `requestId`), written via `AuditService.recordEvent`. Currently used for `manager_dashboard.viewed` events recorded by the `pilot-review` module. |
+| `AuditEvent` | `audit_events` | Tenant-scoped audit trail (`entityType`, `entityId`, `eventType`, `metadata`, `requestId`), written via `AuditService.recordEvent`. Used for `manager_dashboard.viewed` events (`pilot-review` module) and the superadmin/admin lifecycle (`admin.invited`/`admin.suspended`/`admin.reactivated`/`admin.deleted`/`admin.role_granted`/`admin.role_revoked`/`superadmin.invited`/`superadmin.promoted`/`superadmin.replaced`, from `UsersService`, `PlatformService` and `AuthService.acceptInvite`). |
 
 ## Enums
 

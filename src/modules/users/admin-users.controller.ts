@@ -92,6 +92,12 @@ export class AdminUsersController {
       roleCode,
     );
   }
+
+  @Delete(":userId")
+  @RequirePermissions(PERMISSIONS.ADMINS_MANAGE)
+  deleteUser(@Req() request: Request, @Param("userId") userId: string) {
+    return this.usersService.deleteUser(getRequestContext(request), userId);
+  }
 }
 
 function getRequestContext(request: Request): RequestContext {

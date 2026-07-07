@@ -10,6 +10,8 @@ export const PERMISSIONS = {
   USERS_INVITE: "users.invite",
   USERS_MANAGE: "users.manage",
   ROLES_ASSIGN: "roles.assign",
+  ADMINS_INVITE: "admins.invite",
+  ADMINS_MANAGE: "admins.manage",
 
   LOCATIONS_READ: "locations.read",
   LOCATIONS_MANAGE: "locations.manage",

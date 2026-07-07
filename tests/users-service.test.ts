@@ -8,13 +8,33 @@ const context = {
   tenantId: "tenant-a",
   tenantSlug: "tenant-a",
   userId: "user-a",
-  roleCodes: ["company_admin"],
-  permissions: [],
+  roleCodes: ["tenant_superadmin"],
+  permissions: ["admins.invite", "admins.manage"],
 };
+
+function noopSessionService() {
+  return { revokeUserSessions: async () => {} };
+}
+
+function noopAuditService() {
+  return { recordEvent: async () => {} };
+}
+
+function createService(
+  client: Record<string, unknown>,
+  sessionService: unknown = noopSessionService(),
+  auditService: unknown = noopAuditService(),
+) {
+  return new UsersService(
+    client as never,
+    sessionService as never,
+    auditService as never,
+  );
+}
 
 describe("users service", () => {
   it("lists recent tenant invites with resolved expiry status", async () => {
-    const service = new UsersService({
+    const service = createService({
       invite: {
         findMany: async (query: unknown) => {
           assert.deepEqual(query, {
@@ -73,7 +93,7 @@ describe("users service", () => {
           ];
         },
       },
-    } as never);
+    });
 
     const invites = await service.listInvites(context as never);
 
@@ -86,7 +106,7 @@ describe("users service", () => {
   it("resends a pending invite by revoking the old invite and creating a fresh token", async () => {
     const updates: unknown[] = [];
     const creates: unknown[] = [];
-    const service = new UsersService({
+    const service = createService({
       invite: {
         findFirst: async (query: unknown) => {
           assert.deepEqual(query, {
@@ -135,7 +155,7 @@ describe("users service", () => {
           };
         },
       },
-    } as never);
+    });
 
     const resentInvite = await service.resendInvite(
       context as never,
@@ -164,9 +184,9 @@ describe("users service", () => {
     };
   }
 
-  it("blocks removing the tenant's last active company_admin role", async () => {
+  it("blocks removing the tenant's last active company_admin role when no superadmin exists (bootstrap fallback)", async () => {
     let capturedCountWhere: unknown;
-    const service = new UsersService(
+    const service = createService(
       withTransaction({
         user: {
           findFirst: async () => ({
@@ -185,7 +205,7 @@ describe("users service", () => {
             return 0;
           },
         },
-      }) as never,
+      }),
     );
 
     await assert.rejects(
@@ -202,9 +222,9 @@ describe("users service", () => {
     });
   });
 
-  it("allows removing company_admin when another active admin remains", async () => {
+  it("allows removing company_admin when another active admin (or an active superadmin) remains", async () => {
     const deletedRoles: unknown[] = [];
-    const service = new UsersService(
+    const service = createService(
       withTransaction({
         user: {
           findFirst: async () => ({
@@ -226,7 +246,7 @@ describe("users service", () => {
             deletedRoles.push(query);
           },
         },
-      }) as never,
+      }),
     );
 
     await service.removeRole(context as never, "user-a", "company_admin");
@@ -235,7 +255,7 @@ describe("users service", () => {
   });
 
   it("blocks removing a user's only remaining role", async () => {
-    const service = new UsersService(
+    const service = createService(
       withTransaction({
         user: {
           findFirst: async () => ({
@@ -246,7 +266,7 @@ describe("users service", () => {
             roles: [{ roleCode: "field_representative" }],
           }),
         },
-      }) as never,
+      }),
     );
 
     await assert.rejects(
@@ -257,8 +277,8 @@ describe("users service", () => {
     );
   });
 
-  it("blocks suspending the tenant's last active company_admin", async () => {
-    const service = new UsersService(
+  it("blocks suspending the tenant's last active company_admin when no superadmin exists (bootstrap fallback)", async () => {
+    const service = createService(
       withTransaction({
         user: {
           findFirst: async () => ({
@@ -270,7 +290,7 @@ describe("users service", () => {
           }),
           count: async () => 0,
         },
-      }) as never,
+      }),
     );
 
     await assert.rejects(
@@ -283,8 +303,8 @@ describe("users service", () => {
     );
   });
 
-  it("allows suspending a company_admin when another active admin remains", async () => {
-    const service = new UsersService(
+  it("allows suspending a company_admin when another active admin (or an active superadmin) remains", async () => {
+    const service = createService(
       withTransaction({
         user: {
           findFirst: async () => ({
@@ -307,7 +327,7 @@ describe("users service", () => {
             updatedAt: new Date("2026-07-04T00:00:00.000Z"),
           }),
         },
-      }) as never,
+      }),
     );
 
     const updated = await service.updateUser(context as never, "user-a", {
@@ -315,6 +335,91 @@ describe("users service", () => {
     });
 
     assert.equal(updated.status, "suspended");
+  });
+
+  it("rejects a plain company_admin actor suspending another company_admin", async () => {
+    const nonAdminActorContext = {
+      ...context,
+      roleCodes: ["company_admin"],
+      permissions: [],
+    };
+    const service = createService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-b",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "company_admin" }],
+          }),
+        },
+      }),
+    );
+
+    await assert.rejects(
+      () =>
+        service.updateUser(nonAdminActorContext as never, "user-b", {
+          status: "suspended",
+        }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "ADMIN_MANAGEMENT_FORBIDDEN",
+    );
+  });
+
+  it("rejects a plain company_admin actor editing another company_admin's profile fields (no status change involved)", async () => {
+    const nonAdminActorContext = {
+      ...context,
+      roleCodes: ["company_admin"],
+      permissions: [],
+    };
+    const service = createService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-b",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "company_admin" }],
+          }),
+        },
+      }),
+    );
+
+    await assert.rejects(
+      () =>
+        service.updateUser(nonAdminActorContext as never, "user-b", {
+          name: "New Name",
+        }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "ADMIN_MANAGEMENT_FORBIDDEN",
+    );
+  });
+
+  it("rejects editing the tenant superadmin's profile fields even when no status change is requested", async () => {
+    const service = createService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "super-1",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "tenant_superadmin" }],
+          }),
+        },
+      }),
+    );
+
+    await assert.rejects(
+      () =>
+        service.updateUser(context as never, "super-1", {
+          phone: "+15551234567",
+        }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "SUPERADMIN_PROTECTED",
+    );
   });
 
   it("runs the last-admin lockout check under a serializable transaction to close the check-then-act race", async () => {
@@ -350,7 +455,7 @@ describe("users service", () => {
         return callback(client);
       },
     };
-    const service = new UsersService(client as never);
+    const service = createService(client);
 
     await service.updateUser(context as never, "user-a", {
       status: "suspended",

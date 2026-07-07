@@ -33,6 +33,99 @@ describe("platform tenant management", () => {
     assert.deepEqual(store.events[0]?.metadata, { fields: ["name", "status"] });
   });
 
+  it("updates the timezone to a valid IANA time zone", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      timezone: "Europe/Kiev",
+    });
+    const service = createPlatformService(store);
+
+    const updated = await service.updateTenant("tenant-1", {
+      timezone: " America/New_York ",
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(updated.timezone, "America/New_York");
+    assert.deepEqual(store.events[0]?.metadata, { fields: ["timezone"] });
+  });
+
+  it("canonicalizes timezone casing instead of storing the caller's literal string", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      timezone: "Europe/Kiev",
+    });
+    const service = createPlatformService(store);
+    const canonicalKyiv = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Kyiv",
+    }).resolvedOptions().timeZone;
+
+    const updated = await service.updateTenant("tenant-1", {
+      timezone: "europe/kyiv",
+    });
+
+    assert.equal(updated.timezone, canonicalKyiv);
+  });
+
+  it("rejects a timezone that is not a real IANA time zone", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      timezone: "Europe/Kiev",
+    });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { timezone: "Not/A_Real_Zone" }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          code: string;
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.equal(response.code, "TENANT_UPDATE_INVALID");
+        assert.ok(response.fieldErrors.timezone);
+        return true;
+      },
+    );
+    assert.equal(store.tenant.timezone, "Europe/Kiev");
+    assert.equal(store.events.length, 0);
+  });
+
+  it("updates the admin limit", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    const updated = await service.updateTenant("tenant-1", {
+      adminLimit: 5,
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(updated.adminLimit, 5);
+    assert.deepEqual(store.events[0]?.metadata, { fields: ["adminLimit"] });
+  });
+
+  it("rejects a non-positive-integer admin limit", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { adminLimit: 0 }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          code: string;
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.equal(response.code, "TENANT_UPDATE_INVALID");
+        assert.ok(response.fieldErrors.adminLimit);
+        return true;
+      },
+    );
+    assert.equal(store.events.length, 0);
+  });
+
   it("rejects setting status to archived through update", async () => {
     const store = createStore({ id: "tenant-1", status: "ready" });
     const service = createPlatformService(store);
@@ -218,7 +311,7 @@ describe("platform tenant management", () => {
     assert.equal(store.events.length, 0);
   });
 
-  it("invites a tenant user from the platform context and records an event", async () => {
+  it("invites a tenant's first superadmin and records platform + audit events", async () => {
     const store = createStore({
       id: "tenant-1",
       slug: "pilot-a",
@@ -226,30 +319,48 @@ describe("platform tenant management", () => {
     });
     const service = createPlatformService(store);
 
-    const invite = await service.inviteTenantUser("tenant-1", {
-      email: "admin@example.com",
-      roleCodes: ["company_admin"],
+    const invite = await service.inviteOrReplaceTenantSuperadmin("tenant-1", {
+      email: "super@example.com",
       actorUserId: "platform-owner-1",
       requestId: "request-1",
     });
 
-    assert.equal(invite.email, "admin@example.com");
-    assert.equal(store.inviteCalls.length, 1);
-    assert.equal(store.inviteCalls[0]?.context.tenantId, "tenant-1");
-    assert.equal(store.inviteCalls[0]?.context.tenantSlug, "pilot-a");
-    assert.equal(store.inviteCalls[0]?.context.userId, undefined);
-    assert.deepEqual(store.inviteCalls[0]?.body.roleCodes, ["company_admin"]);
+    assert.equal(invite.email, "super@example.com");
+    assert.equal(store.superadminInviteCalls.length, 1);
+    assert.equal(store.superadminInviteCalls[0]?.context.tenantId, "tenant-1");
+    assert.equal(
+      store.superadminInviteCalls[0]?.context.tenantSlug,
+      "pilot-a",
+    );
+    assert.equal(store.superadminInviteCalls[0]?.email, "super@example.com");
     assert.equal(store.events.length, 1);
-    assert.equal(store.events[0]?.eventType, "tenant.user_invited");
+    assert.equal(store.events[0]?.eventType, "tenant.superadmin_invited");
     assert.equal(store.events[0]?.actorUserId, "platform-owner-1");
-    assert.deepEqual(store.events[0]?.metadata, {
-      email: "admin@example.com",
-      inviteId: "invite-1",
-      roleCodes: ["company_admin"],
+    assert.equal(store.auditEvents.length, 1);
+    assert.equal(store.auditEvents[0]?.eventType, "superadmin.invited");
+  });
+
+  it("revokes any existing pending superadmin invite before creating a new one", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      slug: "pilot-a",
+      status: "ready",
+    });
+    const service = createPlatformService(store);
+
+    await service.inviteOrReplaceTenantSuperadmin("tenant-1", {
+      email: "replacement@example.com",
+    });
+
+    assert.equal(store.revokedPendingSuperadminInviteCalls.length, 1);
+    assert.deepEqual(store.revokedPendingSuperadminInviteCalls[0], {
+      tenantId: "tenant-1",
+      status: "pending",
+      roleCodes: { has: "tenant_superadmin" },
     });
   });
 
-  it("rejects platform tenant user invites for archived tenants", async () => {
+  it("rejects superadmin invites for archived tenants", async () => {
     const store = createStore({
       id: "tenant-1",
       slug: "pilot-a",
@@ -259,18 +370,17 @@ describe("platform tenant management", () => {
 
     await assert.rejects(
       () =>
-        service.inviteTenantUser("tenant-1", {
-          email: "admin@example.com",
-          roleCodes: ["company_admin"],
+        service.inviteOrReplaceTenantSuperadmin("tenant-1", {
+          email: "super@example.com",
         }),
       ConflictException,
     );
 
-    assert.equal(store.inviteCalls.length, 0);
+    assert.equal(store.superadminInviteCalls.length, 0);
     assert.equal(store.events.length, 0);
   });
 
-  it("rejects platform tenant user invites for non-admin roles", async () => {
+  it("promotes an active Company Admin to superadmin and records platform + audit events", async () => {
     const store = createStore({
       id: "tenant-1",
       slug: "pilot-a",
@@ -278,166 +388,168 @@ describe("platform tenant management", () => {
     });
     const service = createPlatformService(store);
 
-    await assert.rejects(
-      () =>
-        service.inviteTenantUser("tenant-1", {
-          email: "manager@example.com",
-          roleCodes: ["team_manager"],
-        }),
-      (error: unknown) => {
-        assert.ok(error instanceof BadRequestException);
-        assert.equal(
-          (error.getResponse() as { code: string }).code,
-          "PLATFORM_INVITE_ROLE_INVALID",
-        );
-        return true;
-      },
-    );
-
-    assert.equal(store.inviteCalls.length, 0);
-    assert.equal(store.events.length, 0);
-  });
-
-  it("suspends a Company Admin, revokes sessions and records an event", async () => {
-    const store = createStore({
-      id: "tenant-1",
-      slug: "pilot-a",
-      status: "ready",
-    });
-    store.users.push({
-      id: "admin-1",
-      tenantId: "tenant-1",
-      email: "admin@example.com",
-      status: "active",
-      roles: [{ roleCode: "company_admin" }],
-    });
-    const service = createPlatformService(store);
-
-    const updated = await service.updateTenantAdminStatus(
-      "tenant-1",
-      "admin-1",
-      {
-        status: "suspended",
-        actorUserId: "platform-owner-1",
-        requestId: "request-1",
-      },
-    );
-
-    assert.equal(updated.status, "suspended");
-    assert.deepEqual(store.updateUserCalls[0]?.body, { status: "suspended" });
-    assert.deepEqual(store.revokedSessions[0], {
-      tenantId: "tenant-1",
+    const promoted = await service.promoteToSuperadmin("tenant-1", {
       userId: "admin-1",
+      actorUserId: "platform-owner-1",
+      requestId: "request-1",
     });
+
+    assert.equal(promoted.id, "admin-1");
+    assert.equal(store.promoteCalls.length, 1);
+    assert.equal(store.promoteCalls[0]?.userId, "admin-1");
     assert.equal(store.events.length, 1);
-    assert.equal(store.events[0]?.eventType, "tenant.admin_suspended");
-    assert.deepEqual(store.events[0]?.metadata, {
-      userId: "admin-1",
-      email: "admin@example.com",
-      previousStatus: "active",
-      status: "suspended",
-    });
+    assert.equal(store.events[0]?.eventType, "tenant.superadmin_promoted");
+    assert.equal(store.auditEvents.length, 1);
+    assert.equal(store.auditEvents[0]?.eventType, "superadmin.promoted");
   });
 
-  it("reactivates a suspended Company Admin without revoking sessions", async () => {
+  it("rejects promoting without a user id", async () => {
     const store = createStore({
       id: "tenant-1",
       slug: "pilot-a",
       status: "ready",
-    });
-    store.users.push({
-      id: "admin-1",
-      tenantId: "tenant-1",
-      email: "admin@example.com",
-      status: "suspended",
-      roles: [{ roleCode: "company_admin" }],
-    });
-    const service = createPlatformService(store);
-
-    const updated = await service.updateTenantAdminStatus(
-      "tenant-1",
-      "admin-1",
-      { status: "active" },
-    );
-
-    assert.equal(updated.status, "active");
-    assert.equal(store.revokedSessions.length, 0);
-    assert.equal(store.events[0]?.eventType, "tenant.admin_reactivated");
-  });
-
-  it("rejects platform admin status changes for non-admin users", async () => {
-    const store = createStore({
-      id: "tenant-1",
-      slug: "pilot-a",
-      status: "ready",
-    });
-    store.users.push({
-      id: "manager-1",
-      tenantId: "tenant-1",
-      email: "manager@example.com",
-      status: "active",
-      roles: [{ roleCode: "team_manager" }],
     });
     const service = createPlatformService(store);
 
     await assert.rejects(
-      () =>
-        service.updateTenantAdminStatus("tenant-1", "manager-1", {
-          status: "suspended",
-        }),
+      () => service.promoteToSuperadmin("tenant-1", {}),
       (error: unknown) => {
         assert.ok(error instanceof BadRequestException);
         assert.equal(
           (error.getResponse() as { code: string }).code,
-          "PLATFORM_ADMIN_ROLE_REQUIRED",
+          "SUPERADMIN_CANDIDATE_INVALID",
         );
         return true;
       },
     );
 
-    assert.equal(store.updateUserCalls.length, 0);
-    assert.equal(store.revokedSessions.length, 0);
+    assert.equal(store.promoteCalls.length, 0);
     assert.equal(store.events.length, 0);
   });
 
-  it("propagates the last-admin guard and skips revoke/audit on a rejected suspend", async () => {
+  it("rejects promoting for archived tenants", async () => {
     const store = createStore({
       id: "tenant-1",
       slug: "pilot-a",
-      status: "ready",
-    });
-    store.users.push({
-      id: "admin-1",
-      tenantId: "tenant-1",
-      email: "admin@example.com",
-      status: "active",
-      roles: [{ roleCode: "company_admin" }],
-    });
-    // The tenant's sole active Company Admin: UsersService.updateUser rejects
-    // with TENANT_LAST_ADMIN, and the platform service must surface that as-is.
-    store.updateUserError = new ConflictException({
-      code: "TENANT_LAST_ADMIN",
-      message: "A tenant must keep at least one active Company Admin.",
+      status: "archived",
     });
     const service = createPlatformService(store);
 
     await assert.rejects(
       () =>
-        service.updateTenantAdminStatus("tenant-1", "admin-1", {
-          status: "suspended",
-        }),
+        service.promoteToSuperadmin("tenant-1", { userId: "admin-1" }),
+      ConflictException,
+    );
+
+    assert.equal(store.promoteCalls.length, 0);
+  });
+
+  it("propagates the promote guard (e.g. ADMIN_ROLE_REQUIRED) as-is", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      slug: "pilot-a",
+      status: "ready",
+    });
+    // Only an active Company Admin can be promoted: UsersService.promoteToSuperadmin
+    // rejects otherwise, and the platform service must surface that as-is.
+    store.promoteError = new BadRequestException({
+      code: "ADMIN_ROLE_REQUIRED",
+      message:
+        "Only an active Company Admin can be promoted to tenant superadmin.",
+    });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () =>
+        service.promoteToSuperadmin("tenant-1", { userId: "manager-1" }),
       (error: unknown) => {
-        assert.ok(error instanceof ConflictException);
+        assert.ok(error instanceof BadRequestException);
         assert.equal(
           (error.getResponse() as { code: string }).code,
-          "TENANT_LAST_ADMIN",
+          "ADMIN_ROLE_REQUIRED",
         );
         return true;
       },
     );
 
-    assert.equal(store.revokedSessions.length, 0);
     assert.equal(store.events.length, 0);
+  });
+
+  it("reports no active superadmin and no pending invite for a fresh tenant", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      slug: "pilot-a",
+      status: "ready",
+    });
+    const service = createPlatformService(store);
+
+    const summary = await service.getTenantSuperadmin("tenant-1");
+
+    assert.deepEqual(summary, { activeSuperadmin: null, pendingInvite: null });
+  });
+
+  it("reports the active superadmin and pending invite when present", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      slug: "pilot-a",
+      status: "ready",
+    });
+    store.superadmin = {
+      id: "super-1",
+      tenantId: "tenant-1",
+      email: "super@example.com",
+      name: "Super One",
+      phone: null,
+      status: "active",
+      lastSelectedRoleCode: "tenant_superadmin",
+      roles: [{ roleCode: "tenant_superadmin" }],
+      createdAt: new Date("2026-07-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-01T00:00:00.000Z"),
+    };
+    store.pendingSuperadminInvite = {
+      id: "invite-1",
+      email: "next@example.com",
+      roleCodes: ["tenant_superadmin"],
+      status: "pending",
+      expiresAt: new Date("2026-07-14T00:00:00.000Z"),
+      acceptedAt: null,
+      createdAt: new Date("2026-07-07T00:00:00.000Z"),
+      createdBy: null,
+      acceptedBy: null,
+    };
+    const service = createPlatformService(store);
+
+    const summary = await service.getTenantSuperadmin("tenant-1");
+
+    assert.equal(summary.activeSuperadmin?.email, "super@example.com");
+    assert.equal(summary.pendingInvite?.email, "next@example.com");
+  });
+
+  it("does not report a superadmin invite as pending once it has expired", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      slug: "pilot-a",
+      status: "ready",
+    });
+    store.pendingSuperadminInvite = {
+      id: "invite-1",
+      email: "next@example.com",
+      roleCodes: ["tenant_superadmin"],
+      // Still "pending" in the DB — nothing transitions the row on expiry —
+      // but expiresAt is in the past, so the console must not surface it as
+      // an actionable pending invite.
+      status: "pending",
+      expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      acceptedAt: null,
+      createdAt: new Date("2019-12-25T00:00:00.000Z"),
+      createdBy: null,
+      acceptedBy: null,
+    };
+    const service = createPlatformService(store);
+
+    const summary = await service.getTenantSuperadmin("tenant-1");
+
+    assert.equal(summary.pendingInvite, null);
   });
 });
 
@@ -445,26 +557,18 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
   const tenant: Record<string, unknown> = {
     archivedAt: null,
     slug: "tenant-a",
+    adminLimit: 2,
     ...seed,
   };
   const events: Array<Record<string, unknown>> = [];
-  const inviteCalls: Array<{
+  const auditEvents: Array<Record<string, unknown>> = [];
+  const superadminInviteCalls: Array<{
     context: RequestContext;
-    body: Record<string, unknown>;
-  }> = [];
-  const updateUserCalls: Array<{
-    context: RequestContext;
-    userId: string;
-    body: Record<string, unknown>;
-  }> = [];
-  const revokedSessions: Array<{ tenantId: string; userId: string }> = [];
-  const users: Array<{
-    id: string;
-    tenantId: string;
     email: string;
-    status: string;
-    roles: Array<{ roleCode: string }>;
   }> = [];
+  const promoteCalls: Array<{ context: RequestContext; userId: string }> = [];
+  const revokedPendingSuperadminInviteCalls: Array<Record<string, unknown>> =
+    [];
   // When `status` is set, the next updateMany call applies it to the tenant
   // before checking its where clause, simulating a concurrent writer that
   // changed the row between the outer idempotency check and the
@@ -518,15 +622,21 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
         return data;
       },
     },
-    user: {
-      findFirst: async ({
+    invite: {
+      updateMany: async ({
         where,
       }: {
-        where: { id: string; tenantId: string; deletedAt: null };
-      }) =>
-        users.find(
-          (user) => user.id === where.id && user.tenantId === where.tenantId,
-        ) ?? null,
+        where: Record<string, unknown>;
+      }) => {
+        revokedPendingSuperadminInviteCalls.push(where);
+        return { count: 0 };
+      },
+      findFirst: async () =>
+        (store.pendingSuperadminInvite as Record<string, unknown>) ?? null,
+    },
+    user: {
+      findFirst: async () =>
+        (store.superadmin as Record<string, unknown>) ?? null,
     },
   };
 
@@ -536,87 +646,75 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
       callback(client),
   };
 
-  return {
+  const store = {
     prisma,
     tenant,
     events,
-    inviteCalls,
-    updateUserCalls,
-    revokedSessions,
-    users,
-    // When set, the UsersService.updateUser stub throws this instead of
-    // succeeding, letting tests exercise how the platform service reacts to a
-    // rejected update (e.g. the last-admin guard) without booting Nest DI.
-    updateUserError: undefined as unknown,
+    auditEvents,
+    superadminInviteCalls,
+    promoteCalls,
+    revokedPendingSuperadminInviteCalls,
     raceState,
+    superadmin: undefined as Record<string, unknown> | undefined,
+    pendingSuperadminInvite: undefined as Record<string, unknown> | undefined,
+    // When set, UsersService.promoteToSuperadmin throws this instead of
+    // succeeding, letting tests exercise how the platform service reacts to
+    // a rejected promote (e.g. a non-admin candidate) without booting Nest DI.
+    promoteError: undefined as unknown,
   };
+
+  return store;
 }
 
 function createPlatformService(store: ReturnType<typeof createStore>) {
   const usersService = {
-    inviteUser: async (
-      context: RequestContext,
-      body: Record<string, unknown>,
-    ) => {
-      store.inviteCalls.push({ context, body });
+    inviteSuperadmin: async (context: RequestContext, email: string) => {
+      store.superadminInviteCalls.push({ context, email });
 
       return {
         id: "invite-1",
-        email: String(body.email),
-        roleCodes: body.roleCodes,
+        email,
+        roleCodes: ["tenant_superadmin"],
         status: "pending",
         expiresAt: new Date("2026-07-13T00:00:00.000Z").toISOString(),
         token: "invite-token",
       };
     },
-    listUsers: async () => ({
-      items: [],
-      page: 1,
-      pageSize: 100,
-      total: 0,
-      totalPages: 0,
-    }),
-    updateUser: async (
+    promoteToSuperadmin: async (
       context: RequestContext,
       userId: string,
-      body: Record<string, unknown>,
     ) => {
-      store.updateUserCalls.push({ context, userId, body });
+      store.promoteCalls.push({ context, userId });
 
-      if (store.updateUserError) {
-        throw store.updateUserError;
+      if (store.promoteError) {
+        throw store.promoteError;
       }
-
-      const user = store.users.find((item) => item.id === userId);
-
-      if (!user) {
-        throw new Error("missing test user");
-      }
-
-      user.status = String(body.status);
 
       return {
-        id: user.id,
-        email: user.email,
-        name: user.email,
+        id: userId,
+        email: "promoted@example.com",
+        name: "Promoted Admin",
         phone: null,
-        status: user.status,
-        lastSelectedRoleCode: null,
-        roleCodes: user.roles.map((role) => role.roleCode),
+        status: "active",
+        lastSelectedRoleCode: "tenant_superadmin",
+        roleCodes: ["tenant_superadmin"],
         createdAt: new Date("2026-07-01T00:00:00.000Z").toISOString(),
         updatedAt: new Date("2026-07-01T00:00:00.000Z").toISOString(),
       };
     },
   } as unknown as UsersService;
-  const sessionService = {
-    revokeUserSessions: async (tenantId: string, userId: string) => {
-      store.revokedSessions.push({ tenantId, userId });
+  const auditService = {
+    recordEvent: async (
+      _context: RequestContext,
+      input: Record<string, unknown>,
+    ) => {
+      store.auditEvents.push(input);
     },
   };
 
   return new PlatformService(
     store.prisma as unknown as PrismaService,
     usersService,
-    sessionService as never,
+    auditService as never,
   );
 }

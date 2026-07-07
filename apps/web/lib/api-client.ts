@@ -21,7 +21,10 @@ export type RouteItemStatus = "planned" | "visited" | "skipped";
 export type TaskStatus = "open" | "in_progress" | "done" | "cancelled";
 export type TaskPriority = "low" | "normal" | "high";
 export type TenantRoleCode =
-  "company_admin" | "team_manager" | "field_representative";
+  | "tenant_superadmin"
+  | "company_admin"
+  | "team_manager"
+  | "field_representative";
 export type TenantUserStatus = "active" | "invited" | "suspended";
 export type ProductStatus = "active" | "inactive" | "archived";
 export type LocationStatus = "active" | "inactive" | "archived";
@@ -549,10 +552,15 @@ export async function recordDashboardView(
   });
 }
 
+export type AdminUsersListResponse = PaginatedResponse<TenantUser> & {
+  adminLimit: number;
+  activeAdminCount: number;
+};
+
 export async function listAdminUsers(): Promise<
-  ApiResult<PaginatedResponse<TenantUser>>
+  ApiResult<AdminUsersListResponse>
 > {
-  return apiGet<PaginatedResponse<TenantUser>>("/admin/users?pageSize=100");
+  return apiGet<AdminUsersListResponse>("/admin/users?pageSize=100");
 }
 
 export async function inviteAdminUser(
@@ -599,6 +607,12 @@ export async function removeAdminUserRole(
   roleCode: TenantRoleCode,
 ): Promise<ApiResult<TenantUser>> {
   return apiDelete<TenantUser>(`/admin/users/${userId}/roles/${roleCode}`);
+}
+
+export async function deleteAdminUser(
+  userId: string,
+): Promise<ApiResult<{ id: string; status: "deleted" }>> {
+  return apiDelete<{ id: string; status: "deleted" }>(`/admin/users/${userId}`);
 }
 
 export async function createTask(input: {
@@ -692,6 +706,7 @@ export type PlatformTenant = {
   productMode: string;
   segmentTemplate: PlatformSegmentTemplate;
   primaryDomain: string | null;
+  adminLimit: number;
   createdAt: string;
   metrics?: PlatformTenantMetrics;
 };
@@ -752,6 +767,7 @@ export type UpdatePlatformTenantInput = {
   language?: string;
   primaryDomain?: string | null;
   status?: string;
+  adminLimit?: number;
 };
 
 export async function updatePlatformTenant(
@@ -781,24 +797,36 @@ export async function listPlatformTenantUsers(
   );
 }
 
-export async function invitePlatformTenantUser(
+export type TenantSuperadminSummary = {
+  activeSuperadmin: TenantUser | null;
+  pendingInvite: InviteHistoryItem | null;
+};
+
+export async function getPlatformTenantSuperadmin(
+  tenantId: string,
+): Promise<ApiResult<TenantSuperadminSummary>> {
+  return apiGet<TenantSuperadminSummary>(
+    `/platform/tenants/${tenantId}/superadmin`,
+  );
+}
+
+export async function invitePlatformTenantSuperadmin(
   tenantId: string,
   input: { email: string },
 ): Promise<ApiResult<InviteUserResult>> {
   return apiPost<InviteUserResult>(
-    `/platform/tenants/${tenantId}/users/invite`,
-    { email: input.email, roleCodes: ["company_admin"] },
+    `/platform/tenants/${tenantId}/superadmin/invite`,
+    { email: input.email },
   );
 }
 
-export async function updatePlatformTenantAdminStatus(
+export async function promotePlatformTenantSuperadmin(
   tenantId: string,
-  userId: string,
-  status: Extract<TenantUserStatus, "active" | "suspended">,
+  input: { userId: string },
 ): Promise<ApiResult<TenantUser>> {
-  return apiPatch<TenantUser>(
-    `/platform/tenants/${tenantId}/users/${userId}/status`,
-    { status },
+  return apiPost<TenantUser>(
+    `/platform/tenants/${tenantId}/superadmin/promote`,
+    { userId: input.userId },
   );
 }
 

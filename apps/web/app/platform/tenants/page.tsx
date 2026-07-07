@@ -8,24 +8,28 @@ import {
   buildRequestHeaders,
   createPlatformTenant,
   getPlatformSession,
-  invitePlatformTenantUser,
+  getPlatformTenantSuperadmin,
+  invitePlatformTenantSuperadmin,
   listPlatformTenantUsers,
   listPlatformTenants,
+  promotePlatformTenantSuperadmin,
   unarchivePlatformTenant,
-  updatePlatformTenantAdminStatus,
   updatePlatformTenant,
   type PlatformSegmentTemplate,
   type PlatformTenant,
+  type TenantSuperadminSummary,
   type TenantUser,
 } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
 import { formatLabel, formatShortDate } from "../../../lib/format";
+import { AdminLimitForm } from "./admin-limit-form";
 import { ArchiveTenantForm } from "./archive-tenant-form";
 import { AutoDismissNotice } from "./auto-dismiss-notice";
 import { CreateTenantModal } from "./create-tenant-modal";
 import { NameChangeForm } from "./name-change-form";
 import { StatusChangeForm } from "./status-change-form";
 import { TenantAdminControls } from "./tenant-admin-controls";
+import { TimezoneForm } from "./timezone-form";
 
 const SEGMENT_TEMPLATES: PlatformSegmentTemplate[] = [
   "distribution",
@@ -190,7 +194,7 @@ export default async function PlatformTenantsPage({
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
 
-  async function inviteTenantUserAction(formData: FormData) {
+  async function inviteSuperadminAction(formData: FormData) {
     "use server";
 
     const tenantId = String(formData.get("tenantId") ?? "").trim();
@@ -201,7 +205,7 @@ export default async function PlatformTenantsPage({
       redirect("/platform/tenants?error=invite");
     }
 
-    const result = await invitePlatformTenantUser(tenantId, {
+    const result = await invitePlatformTenantSuperadmin(tenantId, {
       email,
     });
 
@@ -226,26 +230,49 @@ export default async function PlatformTenantsPage({
     redirect("/platform/tenants?invited=1");
   }
 
-  async function updateTenantAdminStatusAction(formData: FormData) {
+  async function promoteSuperadminAction(formData: FormData) {
     "use server";
 
     const tenantId = String(formData.get("tenantId") ?? "").trim();
     const userId = String(formData.get("userId") ?? "").trim();
-    const status = String(formData.get("status") ?? "").trim();
 
-    if (
-      !tenantId ||
-      !userId ||
-      (status !== "active" && status !== "suspended")
-    ) {
+    if (!tenantId || !userId) {
       redirect("/platform/tenants?error=1");
     }
 
-    const result = await updatePlatformTenantAdminStatus(
-      tenantId,
+    const result = await promotePlatformTenantSuperadmin(tenantId, {
       userId,
-      status,
-    );
+    });
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
+  async function updateTimezoneAction(formData: FormData) {
+    "use server";
+
+    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const timezone = String(formData.get("timezone") ?? "").trim();
+
+    if (!tenantId || !timezone) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    const result = await updatePlatformTenant(tenantId, { timezone });
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
+  async function updateAdminLimitAction(formData: FormData) {
+    "use server";
+
+    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const adminLimit = Number(formData.get("adminLimit"));
+
+    if (!tenantId || !Number.isInteger(adminLimit) || adminLimit < 1) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    const result = await updatePlatformTenant(tenantId, { adminLimit });
 
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
@@ -259,6 +286,17 @@ export default async function PlatformTenantsPage({
             tenant.status === "archived"
               ? null
               : await listPlatformTenantUsers(tenant.id),
+        })),
+      )
+    : [];
+  const tenantSuperadminByTenantId = tenantsResult.ok
+    ? await Promise.all(
+        tenantsResult.data.map(async (tenant) => ({
+          tenantId: tenant.id,
+          result:
+            tenant.status === "archived"
+              ? null
+              : await getPlatformTenantSuperadmin(tenant.id),
         })),
       )
     : [];
@@ -279,6 +317,11 @@ export default async function PlatformTenantsPage({
       user.roleCodes.includes("company_admin"),
     );
     const metrics = tenant.metrics ?? EMPTY_TENANT_METRICS;
+    const superadminResult = tenantSuperadminByTenantId.find(
+      (entry) => entry.tenantId === tenant.id,
+    )?.result;
+    const superadminSummary: TenantSuperadminSummary | null =
+      superadminResult?.ok ? superadminResult.data : null;
 
     return (
       <details
@@ -308,17 +351,29 @@ export default async function PlatformTenantsPage({
                 <dd>{formatShortDate(tenant.createdAt)}</dd>
               </div>
               <div>
+                <dt>Timezone</dt>
+                <dd>{tenant.timezone}</dd>
+              </div>
+              <div>
                 <dt>Admins</dt>
                 <dd className="tenant-admin-metric-value">
-                  <span>{metrics.companyAdminCount}</span>
+                  <span>
+                    {metrics.companyAdminCount} / {tenant.adminLimit}
+                  </span>
                   <TenantAdminControls
+                    activeSuperadmin={
+                      superadminSummary?.activeSuperadmin ?? null
+                    }
                     admins={companyAdmins}
-                    inviteAction={inviteTenantUserAction}
+                    inviteAction={inviteSuperadminAction}
                     isArchived={isArchived}
+                    pendingSuperadminInvite={Boolean(
+                      superadminSummary?.pendingInvite,
+                    )}
+                    promoteAction={promoteSuperadminAction}
                     tenantId={tenant.id}
                     tenantName={tenant.name}
                     tenantSlug={tenant.slug}
-                    updateStatusAction={updateTenantAdminStatusAction}
                     usersAvailable={Boolean(usersResult?.ok)}
                   />
                 </dd>
@@ -368,6 +423,16 @@ export default async function PlatformTenantsPage({
                 tenantId={tenant.id}
                 tenantName={tenant.name}
                 updateAction={updateStatusAction}
+              />
+              <TimezoneForm
+                action={updateTimezoneAction}
+                currentTimezone={tenant.timezone}
+                tenantId={tenant.id}
+              />
+              <AdminLimitForm
+                action={updateAdminLimitAction}
+                currentLimit={tenant.adminLimit}
+                tenantId={tenant.id}
               />
               <ArchiveTenantForm
                 action={archiveAction}
@@ -425,7 +490,7 @@ export default async function PlatformTenantsPage({
         <section className="notice-panel success" aria-label="Invite status">
           <div>
             <p className="eyebrow">Invite created</p>
-            <h2>Company Admin invite is ready</h2>
+            <h2>Tenant superadmin invite is ready</h2>
             <p>
               The invite was created
               {inviteFlash?.email ? ` for ${inviteFlash.email}` : ""}. Share

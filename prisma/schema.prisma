@@ -66,6 +66,7 @@ enum InviteStatus {
 }
 
 enum RoleCode {
+  tenant_superadmin
   company_admin
   team_manager
   field_representative
@@ -196,6 +197,7 @@ model PlatformTenant {
   databasePlacement DatabasePlacement @default(shared)
   databaseKey       String
   primaryDomain     String?
+  adminLimit        Int               @default(2)
   archivedAt        DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt

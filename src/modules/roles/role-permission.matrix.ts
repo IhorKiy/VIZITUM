@@ -2,11 +2,31 @@ import type { RoleCode } from "@prisma/client";
 
 import { PERMISSIONS, type PermissionCode } from "./permissions";
 
-export const ROLE_PERMISSION_MATRIX_VERSION = "2026-06-29-mvp-team-v1";
+export const ROLE_PERMISSION_MATRIX_VERSION = "2026-07-07-tenant-superadmin-v1";
 
 export type PlatformRoleCode = "platform_owner";
 export type TenantRoleCode = RoleCode;
 export type AppRoleCode = PlatformRoleCode | TenantRoleCode;
+
+const COMPANY_ADMIN_PERMISSIONS = [
+  PERMISSIONS.TENANT_SETTINGS_READ,
+  PERMISSIONS.TENANT_SETTINGS_MANAGE,
+  PERMISSIONS.USERS_READ,
+  PERMISSIONS.USERS_INVITE,
+  PERMISSIONS.USERS_MANAGE,
+  PERMISSIONS.ROLES_ASSIGN,
+  PERMISSIONS.LOCATIONS_READ,
+  PERMISSIONS.LOCATIONS_MANAGE,
+  PERMISSIONS.LOCATIONS_ASSIGN,
+  PERMISSIONS.CONTACTS_READ,
+  PERMISSIONS.CONTACTS_MANAGE,
+  PERMISSIONS.PRODUCTS_READ,
+  PERMISSIONS.PRODUCTS_MANAGE,
+  PERMISSIONS.IMPORTS_READ,
+  PERMISSIONS.IMPORTS_UPLOAD,
+  PERMISSIONS.IMPORTS_CONFIRM,
+  PERMISSIONS.AUDIT_READ,
+] as const satisfies readonly PermissionCode[];
 
 export const ROLE_PERMISSION_MATRIX = {
   platform_owner: [
@@ -15,25 +35,17 @@ export const ROLE_PERMISSION_MATRIX = {
     PERMISSIONS.PLATFORM_OPERATIONS_READ,
   ],
 
-  company_admin: [
-    PERMISSIONS.TENANT_SETTINGS_READ,
-    PERMISSIONS.TENANT_SETTINGS_MANAGE,
-    PERMISSIONS.USERS_READ,
-    PERMISSIONS.USERS_INVITE,
-    PERMISSIONS.USERS_MANAGE,
-    PERMISSIONS.ROLES_ASSIGN,
-    PERMISSIONS.LOCATIONS_READ,
-    PERMISSIONS.LOCATIONS_MANAGE,
-    PERMISSIONS.LOCATIONS_ASSIGN,
-    PERMISSIONS.CONTACTS_READ,
-    PERMISSIONS.CONTACTS_MANAGE,
-    PERMISSIONS.PRODUCTS_READ,
-    PERMISSIONS.PRODUCTS_MANAGE,
-    PERMISSIONS.IMPORTS_READ,
-    PERMISSIONS.IMPORTS_UPLOAD,
-    PERMISSIONS.IMPORTS_CONFIRM,
-    PERMISSIONS.AUDIT_READ,
+  // The tenant superadmin holds everything a company_admin holds plus
+  // admin-management permissions — it is a strict superset, not a separate
+  // role a user also needs company_admin for. See
+  // docs/plans/tenant-superadmin-plan-prompt.md.
+  tenant_superadmin: [
+    ...COMPANY_ADMIN_PERMISSIONS,
+    PERMISSIONS.ADMINS_INVITE,
+    PERMISSIONS.ADMINS_MANAGE,
   ],
+
+  company_admin: COMPANY_ADMIN_PERMISSIONS,
 
   team_manager: [
     PERMISSIONS.LOCATIONS_READ,
