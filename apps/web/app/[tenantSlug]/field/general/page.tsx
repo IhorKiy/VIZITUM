@@ -15,7 +15,11 @@ import {
   type Task,
   type TaskStatus,
 } from "../../../../lib/api-client";
-import { formatDateTime, formatLabel, statusTone } from "../../../../lib/format";
+import {
+  formatDateTime,
+  formatLabel,
+  statusTone,
+} from "../../../../lib/format";
 
 type GeneralPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -79,14 +83,19 @@ export default async function GeneralPage({
     );
   }
 
-  const [routesResult, visitsResult, locationsResult, tasksResult, productsResult] =
-    await Promise.all([
-      listTodayRoutes(),
-      listVisits("pageSize=50"),
-      listLocations(),
-      listTasks("pageSize=50"),
-      listProducts(),
-    ]);
+  const [
+    routesResult,
+    visitsResult,
+    locationsResult,
+    tasksResult,
+    productsResult,
+  ] = await Promise.all([
+    listTodayRoutes(),
+    listVisits("pageSize=50"),
+    listLocations(),
+    listTasks("pageSize=50"),
+    listProducts(),
+  ]);
 
   const routes = routesResult.ok ? routesResult.data : [];
   const visits = visitsResult.ok ? visitsResult.data.items : [];
@@ -200,7 +209,9 @@ export default async function GeneralPage({
                           .join(", ")}
                       </p>
                     </div>
-                    <span className={`status-pill ${statusTone(location.status)}`}>
+                    <span
+                      className={`status-pill ${statusTone(location.status)}`}
+                    >
                       {formatLabel(location.status)}
                     </span>
                   </header>
@@ -239,7 +250,9 @@ export default async function GeneralPage({
                           .join(" · ") || "No catalogue details"}
                       </p>
                     </div>
-                    <span className={`status-pill ${statusTone(product.status)}`}>
+                    <span
+                      className={`status-pill ${statusTone(product.status)}`}
+                    >
                       {formatLabel(product.status)}
                     </span>
                   </header>
@@ -268,7 +281,9 @@ export default async function GeneralPage({
                           : "No location"}
                       </p>
                     </div>
-                    <span className={`status-pill ${taskStatusTone(item.status)}`}>
+                    <span
+                      className={`status-pill ${taskStatusTone(item.status)}`}
+                    >
                       {formatLabel(item.status)}
                     </span>
                   </header>
@@ -345,8 +360,8 @@ export default async function GeneralPage({
             </details>
             <details className="faq-item">
               <summary className="faq-question">
-                What does &quot;AI processing can use visit notes&quot; mean
-                on a visit card?
+                What does &quot;AI processing can use visit notes&quot; mean on
+                a visit card?
               </summary>
               <p className="faq-answer">
                 Add a voice or text note. If transcription or extraction is

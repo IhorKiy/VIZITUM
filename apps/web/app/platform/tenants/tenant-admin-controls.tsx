@@ -146,9 +146,7 @@ export function TenantAdminControls({
                   <input
                     name="status"
                     type="hidden"
-                    value={
-                      user.status === "suspended" ? "active" : "suspended"
-                    }
+                    value={user.status === "suspended" ? "active" : "suspended"}
                   />
                   <PendingSubmitButton
                     className="secondary-button"

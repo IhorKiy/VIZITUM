@@ -114,7 +114,9 @@ export default async function VisitDetailPage({
 
   const demoFallbackEnabled = isDemoFallbackEnabled();
   const isDemoVisit =
-    !sessionResult.ok && demoFallbackEnabled && visitId.startsWith("demo-visit-");
+    !sessionResult.ok &&
+    demoFallbackEnabled &&
+    visitId.startsWith("demo-visit-");
 
   if (!sessionResult.ok && !isDemoVisit) {
     return (

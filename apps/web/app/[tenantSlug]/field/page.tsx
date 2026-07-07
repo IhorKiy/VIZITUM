@@ -109,7 +109,8 @@ export default async function FieldPage({
   const visitedStops = routeStops.filter((stop) => stop.visited).length;
   const isDemoMode = !todayRoutesResult.ok && demoFallbackEnabled;
   const firstName = sessionResult.ok
-    ? (sessionResult.data.user.name.split(" ")[0] ?? sessionResult.data.user.name)
+    ? (sessionResult.data.user.name.split(" ")[0] ??
+      sessionResult.data.user.name)
     : "Гість";
 
   return (
@@ -220,10 +221,7 @@ export default async function FieldPage({
                           <h3>{stop.name}</h3>
                           <p className="route-stop-address">{stop.address}</p>
                         </span>
-                        <span
-                          className="route-stop-chevron"
-                          aria-hidden="true"
-                        >
+                        <span className="route-stop-chevron" aria-hidden="true">
                           ›
                         </span>
                       </span>

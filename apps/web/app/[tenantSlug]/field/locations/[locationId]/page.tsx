@@ -173,13 +173,18 @@ export default async function LocationDetailPage({
     : "Demo representative";
 
   const [visitsResult, tasksResult] = isDemoLocation
-    ? [{ ok: false as const, status: 0, message: "Demo mode" }, { ok: false as const, status: 0, message: "Demo mode" }]
+    ? [
+        { ok: false as const, status: 0, message: "Demo mode" },
+        { ok: false as const, status: 0, message: "Demo mode" },
+      ]
     : await Promise.all([
         listVisits(`locationId=${locationId}&pageSize=50`),
         listTasks(`locationId=${locationId}&pageSize=50`),
       ]);
 
-  const representativeUserId = sessionResult.ok ? sessionResult.data.user.id : null;
+  const representativeUserId = sessionResult.ok
+    ? sessionResult.data.user.id
+    : null;
   const repVisits = (visitsResult.ok ? visitsResult.data.items : []).filter(
     (item) => item.representativeUserId === representativeUserId,
   );
@@ -187,10 +192,14 @@ export default async function LocationDetailPage({
     (item) => item.status === "draft" || item.status === "in_progress",
   );
   const visitHistory = repVisits
-    .filter((item) => item.status === "completed" || item.status === "cancelled")
-    .sort((a, b) => (b.completedAt ?? b.createdAt).localeCompare(
-      a.completedAt ?? a.createdAt,
-    ));
+    .filter(
+      (item) => item.status === "completed" || item.status === "cancelled",
+    )
+    .sort((a, b) =>
+      (b.completedAt ?? b.createdAt).localeCompare(
+        a.completedAt ?? a.createdAt,
+      ),
+    );
 
   const openTasks = (tasksResult.ok ? tasksResult.data.items : []).filter(
     (item) => item.status === "open" || item.status === "in_progress",
@@ -286,7 +295,9 @@ export default async function LocationDetailPage({
             </button>
           </span>
         </summary>
-        <p className="empty-state">Product group potential is not tracked yet.</p>
+        <p className="empty-state">
+          Product group potential is not tracked yet.
+        </p>
       </details>
 
       <details className="panel location-feature">
@@ -337,7 +348,9 @@ export default async function LocationDetailPage({
           <span aria-hidden="true">▶</span> Продовжити візит
         </a>
       ) : stopAlreadyVisited ? (
-        <p className="empty-state">This stop is already marked visited today.</p>
+        <p className="empty-state">
+          This stop is already marked visited today.
+        </p>
       ) : (
         <form action={startVisitAction}>
           <input name="routeItemId" type="hidden" value={routeItemId ?? ""} />
@@ -396,7 +409,9 @@ export default async function LocationDetailPage({
                     <h3>{item.title}</h3>
                     <p>{item.description ?? "No additional details"}</p>
                   </div>
-                  <span className={`status-pill ${statusPillTone(item.status)}`}>
+                  <span
+                    className={`status-pill ${statusPillTone(item.status)}`}
+                  >
                     {formatLabel(item.status)}
                   </span>
                 </header>
@@ -446,10 +461,14 @@ export default async function LocationDetailPage({
               >
                 <header>
                   <div>
-                    <h3>{formatDateTime(item.completedAt ?? item.createdAt)}</h3>
+                    <h3>
+                      {formatDateTime(item.completedAt ?? item.createdAt)}
+                    </h3>
                     <p>{formatLabel(item.visitType)}</p>
                   </div>
-                  <span className={`status-pill ${statusPillTone(item.status)}`}>
+                  <span
+                    className={`status-pill ${statusPillTone(item.status)}`}
+                  >
                     {formatLabel(item.status)}
                   </span>
                 </header>
