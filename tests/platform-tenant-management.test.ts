@@ -50,6 +50,24 @@ describe("platform tenant management", () => {
     assert.deepEqual(store.events[0]?.metadata, { fields: ["timezone"] });
   });
 
+  it("canonicalizes timezone casing instead of storing the caller's literal string", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      timezone: "Europe/Kiev",
+    });
+    const service = createPlatformService(store);
+    const canonicalKyiv = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Kyiv",
+    }).resolvedOptions().timeZone;
+
+    const updated = await service.updateTenant("tenant-1", {
+      timezone: "europe/kyiv",
+    });
+
+    assert.equal(updated.timezone, canonicalKyiv);
+  });
+
   it("rejects a timezone that is not a real IANA time zone", async () => {
     const store = createStore({
       id: "tenant-1",
@@ -505,6 +523,33 @@ describe("platform tenant management", () => {
 
     assert.equal(summary.activeSuperadmin?.email, "super@example.com");
     assert.equal(summary.pendingInvite?.email, "next@example.com");
+  });
+
+  it("does not report a superadmin invite as pending once it has expired", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      slug: "pilot-a",
+      status: "ready",
+    });
+    store.pendingSuperadminInvite = {
+      id: "invite-1",
+      email: "next@example.com",
+      roleCodes: ["tenant_superadmin"],
+      // Still "pending" in the DB — nothing transitions the row on expiry —
+      // but expiresAt is in the past, so the console must not surface it as
+      // an actionable pending invite.
+      status: "pending",
+      expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      acceptedAt: null,
+      createdAt: new Date("2019-12-25T00:00:00.000Z"),
+      createdBy: null,
+      acceptedBy: null,
+    };
+    const service = createPlatformService(store);
+
+    const summary = await service.getTenantSuperadmin("tenant-1");
+
+    assert.equal(summary.pendingInvite, null);
   });
 });
 

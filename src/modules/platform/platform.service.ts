@@ -11,7 +11,7 @@ import { normalizeTimezone } from "../../common/normalize";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
-import { UsersService } from "../users/users.service";
+import { resolveInviteStatus, UsersService } from "../users/users.service";
 import type { InviteHistoryItem, UserResponse } from "../users/users.types";
 import { TEAM_MODE_CAPABILITIES } from "./product-capabilities";
 import type {
@@ -23,7 +23,12 @@ import type {
 
 const DEFAULT_COUNTRY = "UA";
 const DEFAULT_LANGUAGE = "uk";
-const DEFAULT_TIMEZONE = "Europe/Kiev";
+// Resolved through the same canonicalization as any explicit input (see
+// normalizeTimezone) so a tenant created without a timezone ends up with
+// exactly the same stored value as one explicitly given "Europe/Kyiv" or its
+// legacy "Europe/Kiev" alias — whichever this runtime's zone database
+// canonicalizes to.
+const DEFAULT_TIMEZONE = normalizeTimezone("Europe/Kyiv") ?? "Europe/Kiev";
 const DEFAULT_DATABASE_KEY = "shared-primary";
 const SEGMENT_TEMPLATES = Object.values(SegmentTemplate);
 // Statuses a platform owner may set directly via update. `archived` is reserved
@@ -323,6 +328,15 @@ export class PlatformService {
       }),
     ]);
 
+    // A row can still carry DB status "pending" past its expiresAt — nothing
+    // transitions it until it's revoked or replaced — so without this check
+    // the console would show an unusable, timed-out invite as an active
+    // pending one.
+    const isPendingInviteLive =
+      pendingInvite &&
+      resolveInviteStatus(pendingInvite.status, pendingInvite.expiresAt) ===
+        "pending";
+
     return {
       activeSuperadmin: activeSuperadmin
         ? {
@@ -337,19 +351,20 @@ export class PlatformService {
             updatedAt: activeSuperadmin.updatedAt.toISOString(),
           }
         : null,
-      pendingInvite: pendingInvite
-        ? {
-            id: pendingInvite.id,
-            email: pendingInvite.email,
-            roleCodes: pendingInvite.roleCodes,
-            status: pendingInvite.status,
-            expiresAt: pendingInvite.expiresAt.toISOString(),
-            acceptedAt: pendingInvite.acceptedAt?.toISOString() ?? null,
-            createdAt: pendingInvite.createdAt.toISOString(),
-            createdBy: pendingInvite.createdBy,
-            acceptedBy: pendingInvite.acceptedBy,
-          }
-        : null,
+      pendingInvite:
+        isPendingInviteLive && pendingInvite
+          ? {
+              id: pendingInvite.id,
+              email: pendingInvite.email,
+              roleCodes: pendingInvite.roleCodes,
+              status: pendingInvite.status,
+              expiresAt: pendingInvite.expiresAt.toISOString(),
+              acceptedAt: pendingInvite.acceptedAt?.toISOString() ?? null,
+              createdAt: pendingInvite.createdAt.toISOString(),
+              createdBy: pendingInvite.createdBy,
+              acceptedBy: pendingInvite.acceptedBy,
+            }
+          : null,
     };
   }
 

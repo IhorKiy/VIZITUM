@@ -273,26 +273,30 @@ export class UsersService {
           const isStatusChanging = Boolean(status) && status !== user.status;
           let statusChangeAudit: { previousStatus: UserStatus } | null = null;
 
-          if (isStatusChanging) {
-            this.assertTargetNotSuperadmin(user);
+          // Directional protection covers the whole record, not just status:
+          // a plain company_admin must not be able to edit a superadmin's or
+          // another admin's name/phone either, so these run unconditionally
+          // rather than only when isStatusChanging.
+          this.assertTargetNotSuperadmin(user);
 
-            if (isCompanyAdminTarget) {
-              this.assertActorCanManageAdmins(context);
+          if (isCompanyAdminTarget) {
+            this.assertActorCanManageAdmins(context);
+          }
 
-              if (user.status === "active" && status !== "active") {
-                await this.assertLeadershipNotLocked(
-                  tx,
-                  context.tenantId,
-                  user.id,
-                );
-              }
-
-              if (status === "active" && user.status !== "active") {
-                await this.assertAdminLimitNotExceeded(tx, context.tenantId);
-              }
-
-              statusChangeAudit = { previousStatus: user.status };
+          if (isStatusChanging && isCompanyAdminTarget) {
+            if (user.status === "active" && status !== "active") {
+              await this.assertLeadershipNotLocked(
+                tx,
+                context.tenantId,
+                user.id,
+              );
             }
+
+            if (status === "active" && user.status !== "active") {
+              await this.assertAdminLimitNotExceeded(tx, context.tenantId);
+            }
+
+            statusChangeAudit = { previousStatus: user.status };
           }
 
           const updated = await tx.user.update({
@@ -916,7 +920,7 @@ function normalizeUserStatus(value: unknown): UserStatus | null {
   return null;
 }
 
-function resolveInviteStatus(status: string, expiresAt: Date): string {
+export function resolveInviteStatus(status: string, expiresAt: Date): string {
   if (status === "pending" && expiresAt <= new Date()) {
     return "expired";
   }

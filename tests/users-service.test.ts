@@ -367,6 +367,61 @@ describe("users service", () => {
     );
   });
 
+  it("rejects a plain company_admin actor editing another company_admin's profile fields (no status change involved)", async () => {
+    const nonAdminActorContext = {
+      ...context,
+      roleCodes: ["company_admin"],
+      permissions: [],
+    };
+    const service = createService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-b",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "company_admin" }],
+          }),
+        },
+      }),
+    );
+
+    await assert.rejects(
+      () =>
+        service.updateUser(nonAdminActorContext as never, "user-b", {
+          name: "New Name",
+        }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "ADMIN_MANAGEMENT_FORBIDDEN",
+    );
+  });
+
+  it("rejects editing the tenant superadmin's profile fields even when no status change is requested", async () => {
+    const service = createService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "super-1",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "tenant_superadmin" }],
+          }),
+        },
+      }),
+    );
+
+    await assert.rejects(
+      () =>
+        service.updateUser(context as never, "super-1", {
+          phone: "+15551234567",
+        }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "SUPERADMIN_PROTECTED",
+    );
+  });
+
   it("runs the last-admin lockout check under a serializable transaction to close the check-then-act race", async () => {
     const transactionCalls: unknown[] = [];
     const client = {

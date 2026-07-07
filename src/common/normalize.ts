@@ -22,9 +22,12 @@ export function normalizeTimezone(value: unknown): string | null {
   }
 
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: trimmed });
-
-    return trimmed;
+    // resolvedOptions().timeZone canonicalizes casing and legacy aliases
+    // (e.g. "europe/kyiv" or "Europe/Kiev") to one consistent stored form,
+    // instead of persisting whatever string variant the caller typed.
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: trimmed,
+    }).resolvedOptions().timeZone;
   } catch {
     return null;
   }
