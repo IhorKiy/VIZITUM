@@ -181,6 +181,11 @@ export type PilotReviewSummary = {
 
 export type DashboardViewPage = "manager" | "admin_review";
 
+export type InviteUserInput = {
+  email: string;
+  roleCodes: TenantRoleCode[];
+};
+
 export type InviteUserResult = {
   id: string;
   email: string;
@@ -541,10 +546,9 @@ export async function listAdminUsers(): Promise<
   return apiGet<PaginatedResponse<TenantUser>>("/admin/users?pageSize=100");
 }
 
-export async function inviteAdminUser(input: {
-  email: string;
-  roleCodes: TenantRoleCode[];
-}): Promise<ApiResult<InviteUserResult>> {
+export async function inviteAdminUser(
+  input: InviteUserInput,
+): Promise<ApiResult<InviteUserResult>> {
   return apiPost<InviteUserResult>("/admin/users/invite", input);
 }
 
@@ -659,6 +663,15 @@ export async function getOperationsSummary(): Promise<
 export type PlatformSegmentTemplate =
   "distribution" | "service" | "partner_account";
 
+export type PlatformTenantMetrics = {
+  companyAdminCount: number;
+  teamManagerCount: number;
+  fieldRepresentativeCount: number;
+  visitCount: number;
+  productCount: number;
+  locationCount: number;
+};
+
 export type PlatformTenant = {
   id: string;
   name: string;
@@ -672,6 +685,7 @@ export type PlatformTenant = {
   segmentTemplate: PlatformSegmentTemplate;
   primaryDomain: string | null;
   createdAt: string;
+  metrics?: PlatformTenantMetrics;
 };
 
 export type PlatformProvisioningJob = {
@@ -759,6 +773,35 @@ export async function archivePlatformTenant(
   tenantId: string,
 ): Promise<ApiResult<PlatformTenant>> {
   return apiPost<PlatformTenant>(`/platform/tenants/${tenantId}/archive`, {});
+}
+
+export async function listPlatformTenantUsers(
+  tenantId: string,
+): Promise<ApiResult<PaginatedResponse<TenantUser>>> {
+  return apiGet<PaginatedResponse<TenantUser>>(
+    `/platform/tenants/${tenantId}/users`,
+  );
+}
+
+export async function invitePlatformTenantUser(
+  tenantId: string,
+  input: { email: string },
+): Promise<ApiResult<InviteUserResult>> {
+  return apiPost<InviteUserResult>(
+    `/platform/tenants/${tenantId}/users/invite`,
+    { email: input.email, roleCodes: ["company_admin"] },
+  );
+}
+
+export async function updatePlatformTenantAdminStatus(
+  tenantId: string,
+  userId: string,
+  status: Extract<TenantUserStatus, "active" | "suspended">,
+): Promise<ApiResult<TenantUser>> {
+  return apiPatch<TenantUser>(
+    `/platform/tenants/${tenantId}/users/${userId}/status`,
+    { status },
+  );
 }
 
 export async function confirmManualReport(

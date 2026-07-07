@@ -50,8 +50,7 @@ export function applyCsrfProtection(
     return;
   }
 
-  const sessionToken =
-    readSessionToken(request) ?? readPlatformSessionToken(request);
+  const sessionToken = resolveCsrfSessionToken(request);
 
   if (!sessionToken) {
     next();
@@ -76,6 +75,23 @@ export function applyCsrfProtection(
   }
 
   next();
+}
+
+function resolveCsrfSessionToken(request: Request): string | null {
+  const tenantSessionToken = readSessionToken(request);
+  const platformSessionToken = readPlatformSessionToken(request);
+  const requestPath = request.originalUrl ?? request.url ?? "";
+
+  if (
+    requestPath.startsWith("/api/platform/") ||
+    requestPath === "/api/platform" ||
+    requestPath.startsWith("/platform/") ||
+    requestPath === "/platform"
+  ) {
+    return platformSessionToken ?? tenantSessionToken;
+  }
+
+  return tenantSessionToken ?? platformSessionToken;
 }
 
 @Injectable()

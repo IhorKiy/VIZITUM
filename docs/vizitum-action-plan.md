@@ -110,6 +110,7 @@ Status legend:
 - [x] Add a session-based `platform_owner` identity (`PlatformUser`/`PlatformSession`, `POST /platform/auth/login`, console login/logout) and narrow the platform bearer token back to `platform.operations.read`.
 - [x] Advance provisioning jobs beyond `queued`/`tenant_created` (`provision` worker task moves tenant `draft`→`ready`, job `queued`→`succeeded`).
 - [x] Add tenant update/archive endpoints (`PATCH /api/platform/tenants/:tenantId`, `POST /api/platform/tenants/:tenantId/archive`) with console edit/archive actions.
+- [x] Add platform-owner tenant user listing and invite creation from `/platform/tenants`, including first Company Admin invite flow and Company Admin suspend/reactivate actions with session revocation on suspend.
 
 ## 8. Field Operations Backlog
 
