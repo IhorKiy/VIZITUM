@@ -21,6 +21,7 @@ import {
   type PaginationInput,
   resolvePagination,
 } from "../../common/pagination";
+import { withSerializationRetry } from "../../common/prisma-retry";
 import { MILLISECONDS_PER_DAY } from "../../common/time";
 import { AuditService } from "../audit/audit.service";
 import { hashValue } from "../auth/auth-crypto";
@@ -264,58 +265,64 @@ export class UsersService {
     const status = normalizeUserStatus(body.status);
 
     const { user: updatedUser, statusChangeAudit } =
-      await this.prisma.$transaction(
-        async (tx) => {
-          const user = await this.findTenantUser(tx, context.tenantId, userId);
-          const isCompanyAdminTarget = user.roles.some(
-            (role) => role.roleCode === "company_admin",
-          );
-          const isStatusChanging = Boolean(status) && status !== user.status;
-          let statusChangeAudit: { previousStatus: UserStatus } | null = null;
+      await withSerializationRetry(() =>
+        this.prisma.$transaction(
+          async (tx) => {
+            const user = await this.findTenantUser(
+              tx,
+              context.tenantId,
+              userId,
+            );
+            const isCompanyAdminTarget = user.roles.some(
+              (role) => role.roleCode === "company_admin",
+            );
+            const isStatusChanging = Boolean(status) && status !== user.status;
+            let statusChangeAudit: { previousStatus: UserStatus } | null = null;
 
-          // Directional protection covers the whole record, not just status:
-          // a plain company_admin must not be able to edit a superadmin's or
-          // another admin's name/phone either, so these run unconditionally
-          // rather than only when isStatusChanging.
-          this.assertTargetNotSuperadmin(user);
+            // Directional protection covers the whole record, not just status:
+            // a plain company_admin must not be able to edit a superadmin's or
+            // another admin's name/phone either, so these run unconditionally
+            // rather than only when isStatusChanging.
+            this.assertTargetNotSuperadmin(user);
 
-          if (isCompanyAdminTarget) {
-            this.assertActorCanManageAdmins(context);
-          }
-
-          if (isStatusChanging && isCompanyAdminTarget) {
-            if (user.status === "active" && status !== "active") {
-              await this.assertLeadershipNotLocked(
-                tx,
-                context.tenantId,
-                user.id,
-              );
+            if (isCompanyAdminTarget) {
+              this.assertActorCanManageAdmins(context);
             }
 
-            if (status === "active" && user.status !== "active") {
-              await this.assertAdminLimitNotExceeded(tx, context.tenantId);
+            if (isStatusChanging && isCompanyAdminTarget) {
+              if (user.status === "active" && status !== "active") {
+                await this.assertLeadershipNotLocked(
+                  tx,
+                  context.tenantId,
+                  user.id,
+                );
+              }
+
+              if (status === "active" && user.status !== "active") {
+                await this.assertAdminLimitNotExceeded(tx, context.tenantId);
+              }
+
+              statusChangeAudit = { previousStatus: user.status };
             }
 
-            statusChangeAudit = { previousStatus: user.status };
-          }
+            const updated = await tx.user.update({
+              where: { id: user.id },
+              data: {
+                ...(typeof body.name === "string" && body.name.trim()
+                  ? { name: body.name.trim() }
+                  : {}),
+                ...(body.phone === null || typeof body.phone === "string"
+                  ? { phone: normalizeOptionalString(body.phone) }
+                  : {}),
+                ...(status ? { status } : {}),
+              },
+              include: { roles: true },
+            });
 
-          const updated = await tx.user.update({
-            where: { id: user.id },
-            data: {
-              ...(typeof body.name === "string" && body.name.trim()
-                ? { name: body.name.trim() }
-                : {}),
-              ...(body.phone === null || typeof body.phone === "string"
-                ? { phone: normalizeOptionalString(body.phone) }
-                : {}),
-              ...(status ? { status } : {}),
-            },
-            include: { roles: true },
-          });
-
-          return { user: updated, statusChangeAudit };
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+            return { user: updated, statusChangeAudit };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        ),
       );
 
     if (statusChangeAudit) {
@@ -365,34 +372,36 @@ export class UsersService {
     // concurrent grants can each read the count as under the limit before
     // either commits, both proceed, and the tenant ends up over its
     // adminLimit.
-    await this.prisma.$transaction(
-      async (tx) => {
-        const user = await this.findTenantUser(tx, context.tenantId, userId);
+    await withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          const user = await this.findTenantUser(tx, context.tenantId, userId);
 
-        this.assertTargetNotSuperadmin(user);
+          this.assertTargetNotSuperadmin(user);
 
-        if (grantsAdmin) {
-          await this.assertAdminLimitNotExceeded(tx, context.tenantId);
-        }
+          if (grantsAdmin) {
+            await this.assertAdminLimitNotExceeded(tx, context.tenantId);
+          }
 
-        await tx.userRole.upsert({
-          where: {
-            tenantId_userId_roleCode: {
+          await tx.userRole.upsert({
+            where: {
+              tenantId_userId_roleCode: {
+                tenantId: context.tenantId,
+                userId: user.id,
+                roleCode,
+              },
+            },
+            create: {
               tenantId: context.tenantId,
               userId: user.id,
               roleCode,
+              assignedByUserId: context.userId,
             },
-          },
-          create: {
-            tenantId: context.tenantId,
-            userId: user.id,
-            roleCode,
-            assignedByUserId: context.userId,
-          },
-          update: {},
-        });
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+            update: {},
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      ),
     );
 
     if (grantsAdmin) {
@@ -419,43 +428,49 @@ export class UsersService {
 
     let revokesAdmin = false;
 
-    await this.prisma.$transaction(
-      async (tx) => {
-        const user = await this.findTenantUser(tx, context.tenantId, userId);
+    await withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          const user = await this.findTenantUser(tx, context.tenantId, userId);
 
-        this.assertTargetNotSuperadmin(user);
+          this.assertTargetNotSuperadmin(user);
 
-        revokesAdmin =
-          roleCode === "company_admin" &&
-          user.roles.some((role) => role.roleCode === "company_admin");
+          revokesAdmin =
+            roleCode === "company_admin" &&
+            user.roles.some((role) => role.roleCode === "company_admin");
 
-        if (revokesAdmin) {
-          this.assertActorCanManageAdmins(context);
+          if (revokesAdmin) {
+            this.assertActorCanManageAdmins(context);
 
-          if (user.status === "active") {
-            await this.assertLeadershipNotLocked(tx, context.tenantId, user.id);
+            if (user.status === "active") {
+              await this.assertLeadershipNotLocked(
+                tx,
+                context.tenantId,
+                user.id,
+              );
+            }
           }
-        }
 
-        if (
-          user.roles.length <= 1 &&
-          user.roles.some((role) => role.roleCode === roleCode)
-        ) {
-          throw new ConflictException({
-            code: "USER_LAST_ROLE",
-            message: "A user must keep at least one role.",
+          if (
+            user.roles.length <= 1 &&
+            user.roles.some((role) => role.roleCode === roleCode)
+          ) {
+            throw new ConflictException({
+              code: "USER_LAST_ROLE",
+              message: "A user must keep at least one role.",
+            });
+          }
+
+          await tx.userRole.deleteMany({
+            where: {
+              tenantId: context.tenantId,
+              userId: user.id,
+              roleCode,
+            },
           });
-        }
-
-        await tx.userRole.deleteMany({
-          where: {
-            tenantId: context.tenantId,
-            userId: user.id,
-            roleCode,
-          },
-        });
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      ),
     );
 
     if (revokesAdmin) {
@@ -473,31 +488,33 @@ export class UsersService {
     context: RequestContext,
     userId: string,
   ): Promise<DeleteUserResponse> {
-    await this.prisma.$transaction(
-      async (tx) => {
-        const user = await this.findTenantUser(tx, context.tenantId, userId);
+    await withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          const user = await this.findTenantUser(tx, context.tenantId, userId);
 
-        this.assertTargetNotSuperadmin(user);
+          this.assertTargetNotSuperadmin(user);
 
-        if (!user.roles.some((role) => role.roleCode === "company_admin")) {
-          throw new BadRequestException({
-            code: "ADMIN_ROLE_REQUIRED",
-            message: "Only Company Admin users can be deleted here.",
+          if (!user.roles.some((role) => role.roleCode === "company_admin")) {
+            throw new BadRequestException({
+              code: "ADMIN_ROLE_REQUIRED",
+              message: "Only Company Admin users can be deleted here.",
+            });
+          }
+
+          this.assertActorCanManageAdmins(context);
+
+          if (user.status === "active") {
+            await this.assertLeadershipNotLocked(tx, context.tenantId, user.id);
+          }
+
+          await tx.user.update({
+            where: { id: user.id },
+            data: { status: "deleted", deletedAt: new Date() },
           });
-        }
-
-        this.assertActorCanManageAdmins(context);
-
-        if (user.status === "active") {
-          await this.assertLeadershipNotLocked(tx, context.tenantId, user.id);
-        }
-
-        await tx.user.update({
-          where: { id: user.id },
-          data: { status: "deleted", deletedAt: new Date() },
-        });
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      ),
     );
 
     await this.sessionService.revokeUserSessions(context.tenantId, userId);
@@ -557,131 +574,138 @@ export class UsersService {
     context: RequestContext,
     userId: string,
   ): Promise<UserResponse> {
-    const { promoted, demotedSuperadminIds } = await this.prisma.$transaction(
-      async (tx) => {
-        const user = await this.findTenantUser(tx, context.tenantId, userId);
+    const { promoted, demotedSuperadminIds } = await withSerializationRetry(
+      () =>
+        this.prisma.$transaction(
+          async (tx) => {
+            const user = await this.findTenantUser(
+              tx,
+              context.tenantId,
+              userId,
+            );
 
-        if (
-          user.status !== "active" ||
-          !user.roles.some((role) => role.roleCode === "company_admin")
-        ) {
-          throw new BadRequestException({
-            code: "ADMIN_ROLE_REQUIRED",
-            message:
-              "Only an active Company Admin can be promoted to tenant superadmin.",
-          });
-        }
+            if (
+              user.status !== "active" ||
+              !user.roles.some((role) => role.roleCode === "company_admin")
+            ) {
+              throw new BadRequestException({
+                code: "ADMIN_ROLE_REQUIRED",
+                message:
+                  "Only an active Company Admin can be promoted to tenant superadmin.",
+              });
+            }
 
-        const previousSuperadmins = await tx.user.findMany({
-          where: {
-            tenantId: context.tenantId,
-            id: { not: user.id },
-            status: "active",
-            deletedAt: null,
-            roles: {
-              some: {
+            const previousSuperadmins = await tx.user.findMany({
+              where: {
                 tenantId: context.tenantId,
-                roleCode: "tenant_superadmin",
+                id: { not: user.id },
+                status: "active",
+                deletedAt: null,
+                roles: {
+                  some: {
+                    tenantId: context.tenantId,
+                    roleCode: "tenant_superadmin",
+                  },
+                },
               },
-            },
-          },
-          select: { id: true },
-        });
+              select: { id: true },
+            });
 
-        // Demote to a suspended company_admin rather than leaving them
-        // holding tenant_superadmin while suspended — that role is
-        // otherwise unreachable by anyone (assertTargetNotSuperadmin blocks
-        // every tenant-side action against it, and there is no platform
-        // endpoint for an inactive superadmin), which would make the
-        // account a permanent dead end. See the matching note in
-        // AuthService.acceptInvite. Audited the same way as that path
-        // (superadmin.replaced) via `tx` directly, since AuditService isn't
-        // transaction-aware.
-        const demotedSuperadminIds: string[] = [];
+            // Demote to a suspended company_admin rather than leaving them
+            // holding tenant_superadmin while suspended — that role is
+            // otherwise unreachable by anyone (assertTargetNotSuperadmin blocks
+            // every tenant-side action against it, and there is no platform
+            // endpoint for an inactive superadmin), which would make the
+            // account a permanent dead end. See the matching note in
+            // AuthService.acceptInvite. Audited the same way as that path
+            // (superadmin.replaced) via `tx` directly, since AuditService isn't
+            // transaction-aware.
+            const demotedSuperadminIds: string[] = [];
 
-        for (const previousSuperadmin of previousSuperadmins) {
-          demotedSuperadminIds.push(previousSuperadmin.id);
+            for (const previousSuperadmin of previousSuperadmins) {
+              demotedSuperadminIds.push(previousSuperadmin.id);
 
-          await tx.user.update({
-            where: { id: previousSuperadmin.id },
-            data: {
-              status: "suspended",
-              lastSelectedRoleCode: "company_admin",
-            },
-          });
+              await tx.user.update({
+                where: { id: previousSuperadmin.id },
+                data: {
+                  status: "suspended",
+                  lastSelectedRoleCode: "company_admin",
+                },
+              });
 
-          await tx.userRole.deleteMany({
-            where: {
-              tenantId: context.tenantId,
-              userId: previousSuperadmin.id,
-              roleCode: "tenant_superadmin",
-            },
-          });
+              await tx.userRole.deleteMany({
+                where: {
+                  tenantId: context.tenantId,
+                  userId: previousSuperadmin.id,
+                  roleCode: "tenant_superadmin",
+                },
+              });
 
-          await tx.userRole.upsert({
-            where: {
-              tenantId_userId_roleCode: {
+              await tx.userRole.upsert({
+                where: {
+                  tenantId_userId_roleCode: {
+                    tenantId: context.tenantId,
+                    userId: previousSuperadmin.id,
+                    roleCode: "company_admin",
+                  },
+                },
+                create: {
+                  tenantId: context.tenantId,
+                  userId: previousSuperadmin.id,
+                  roleCode: "company_admin",
+                  assignedByUserId: context.userId,
+                },
+                update: {},
+              });
+
+              await tx.auditEvent.create({
+                data: {
+                  tenantId: context.tenantId,
+                  actorUserId: context.userId ?? null,
+                  entityType: "user",
+                  entityId: previousSuperadmin.id,
+                  eventType: "superadmin.replaced",
+                  metadata: { newSuperadminUserId: user.id },
+                  requestId: context.requestId,
+                },
+              });
+            }
+
+            await tx.userRole.deleteMany({
+              where: {
                 tenantId: context.tenantId,
-                userId: previousSuperadmin.id,
+                userId: user.id,
                 roleCode: "company_admin",
               },
-            },
-            create: {
-              tenantId: context.tenantId,
-              userId: previousSuperadmin.id,
-              roleCode: "company_admin",
-              assignedByUserId: context.userId,
-            },
-            update: {},
-          });
+            });
 
-          await tx.auditEvent.create({
-            data: {
-              tenantId: context.tenantId,
-              actorUserId: context.userId ?? null,
-              entityType: "user",
-              entityId: previousSuperadmin.id,
-              eventType: "superadmin.replaced",
-              metadata: { newSuperadminUserId: user.id },
-              requestId: context.requestId,
-            },
-          });
-        }
+            await tx.userRole.upsert({
+              where: {
+                tenantId_userId_roleCode: {
+                  tenantId: context.tenantId,
+                  userId: user.id,
+                  roleCode: "tenant_superadmin",
+                },
+              },
+              create: {
+                tenantId: context.tenantId,
+                userId: user.id,
+                roleCode: "tenant_superadmin",
+                assignedByUserId: context.userId,
+              },
+              update: {},
+            });
 
-        await tx.userRole.deleteMany({
-          where: {
-            tenantId: context.tenantId,
-            userId: user.id,
-            roleCode: "company_admin",
+            const promoted = await tx.user.update({
+              where: { id: user.id },
+              data: { lastSelectedRoleCode: "tenant_superadmin" },
+              include: { roles: true },
+            });
+
+            return { promoted, demotedSuperadminIds };
           },
-        });
-
-        await tx.userRole.upsert({
-          where: {
-            tenantId_userId_roleCode: {
-              tenantId: context.tenantId,
-              userId: user.id,
-              roleCode: "tenant_superadmin",
-            },
-          },
-          create: {
-            tenantId: context.tenantId,
-            userId: user.id,
-            roleCode: "tenant_superadmin",
-            assignedByUserId: context.userId,
-          },
-          update: {},
-        });
-
-        const promoted = await tx.user.update({
-          where: { id: user.id },
-          data: { lastSelectedRoleCode: "tenant_superadmin" },
-          include: { roles: true },
-        });
-
-        return { promoted, demotedSuperadminIds };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        ),
     );
 
     // Revoked after commit, not inside the transaction: SessionService
