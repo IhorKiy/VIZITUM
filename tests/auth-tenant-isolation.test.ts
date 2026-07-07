@@ -29,6 +29,9 @@ describe("auth tenant isolation", () => {
       tenantSetting: {
         findUnique: async () => null,
       },
+      platformTenant: {
+        findUnique: async () => null,
+      },
     };
     const authService = new AuthService(
       prisma as never,

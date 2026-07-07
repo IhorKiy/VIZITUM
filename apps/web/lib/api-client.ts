@@ -11,6 +11,7 @@ export type AuthSession = {
   roleCodes: string[];
   permissions: string[];
   productsEnabled: boolean;
+  tenantTimezone: string;
 };
 
 export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";
@@ -412,11 +413,13 @@ export async function createVisit(
   locationId: string,
   representativeUserId: string,
   visitType: string,
+  routeItemId?: string,
 ): Promise<ApiResult<Visit>> {
   return apiPost<Visit>("/visits", {
     locationId,
     representativeUserId,
     visitType,
+    ...(routeItemId ? { routeItemId } : {}),
   });
 }
 
@@ -426,6 +429,12 @@ export async function listLocations(): Promise<
   return apiGet<PaginatedResponse<Location>>(
     "/locations?pageSize=100&status=active",
   );
+}
+
+export async function getLocation(
+  locationId: string,
+): Promise<ApiResult<Location>> {
+  return apiGet<Location>(`/locations/${locationId}`);
 }
 
 export async function listProducts(): Promise<

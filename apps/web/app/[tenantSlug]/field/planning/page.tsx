@@ -181,14 +181,14 @@ export default async function PlanningPage({
 
   const selectedPlan = plans.find((plan) => plan.planDate === selectedDate);
   const selectedStops = selectedPlan ? activeStops(selectedPlan) : [];
-  const usedLocationIds = new Set(
-    selectedStops.map((stop) => stop.locationId),
-  );
+  const usedLocationIds = new Set(selectedStops.map((stop) => stop.locationId));
   const availableLocations = locations.filter(
     (location) => !usedLocationIds.has(location.id),
   );
   const plannedDates = new Set(
-    plans.filter((plan) => activeStops(plan).length > 0).map((plan) => plan.planDate),
+    plans
+      .filter((plan) => activeStops(plan).length > 0)
+      .map((plan) => plan.planDate),
   );
 
   const grid = buildMonthGrid(currentMonth);
@@ -213,7 +213,10 @@ export default async function PlanningPage({
       </header>
 
       {planning === "added" ? (
-        <NoticePanel title="Stop added" body="The location was added to this day." />
+        <NoticePanel
+          title="Stop added"
+          body="The location was added to this day."
+        />
       ) : null}
       {planning === "removed" ? (
         <NoticePanel
@@ -222,7 +225,10 @@ export default async function PlanningPage({
         />
       ) : null}
       {planning === "reordered" ? (
-        <NoticePanel title="Route reordered" body="The stop order was updated." />
+        <NoticePanel
+          title="Route reordered"
+          body="The stop order was updated."
+        />
       ) : null}
       {error ? (
         <NoticePanel
@@ -304,10 +310,21 @@ export default async function PlanningPage({
                     </p>
                   </div>
                   <div className="route-stop-actions">
-                    <form action={moveStopAction} className="inline-control-form">
-                      <input name="routePlanId" type="hidden" value={stop.routePlanId} />
+                    <form
+                      action={moveStopAction}
+                      className="inline-control-form"
+                    >
+                      <input
+                        name="routePlanId"
+                        type="hidden"
+                        value={stop.routePlanId}
+                      />
                       <input name="routeItemId" type="hidden" value={stop.id} />
-                      <input name="planDate" type="hidden" value={selectedDate} />
+                      <input
+                        name="planDate"
+                        type="hidden"
+                        value={selectedDate}
+                      />
                       <input name="direction" type="hidden" value="up" />
                       <button
                         className="secondary-button"
@@ -318,10 +335,21 @@ export default async function PlanningPage({
                         ↑
                       </button>
                     </form>
-                    <form action={moveStopAction} className="inline-control-form">
-                      <input name="routePlanId" type="hidden" value={stop.routePlanId} />
+                    <form
+                      action={moveStopAction}
+                      className="inline-control-form"
+                    >
+                      <input
+                        name="routePlanId"
+                        type="hidden"
+                        value={stop.routePlanId}
+                      />
                       <input name="routeItemId" type="hidden" value={stop.id} />
-                      <input name="planDate" type="hidden" value={selectedDate} />
+                      <input
+                        name="planDate"
+                        type="hidden"
+                        value={selectedDate}
+                      />
                       <input name="direction" type="hidden" value="down" />
                       <button
                         className="secondary-button"
@@ -332,10 +360,21 @@ export default async function PlanningPage({
                         ↓
                       </button>
                     </form>
-                    <form action={removeStopAction} className="inline-control-form">
-                      <input name="routePlanId" type="hidden" value={stop.routePlanId} />
+                    <form
+                      action={removeStopAction}
+                      className="inline-control-form"
+                    >
+                      <input
+                        name="routePlanId"
+                        type="hidden"
+                        value={stop.routePlanId}
+                      />
                       <input name="routeItemId" type="hidden" value={stop.id} />
-                      <input name="planDate" type="hidden" value={selectedDate} />
+                      <input
+                        name="planDate"
+                        type="hidden"
+                        value={selectedDate}
+                      />
                       <PendingSubmitButton
                         className="secondary-button"
                         pendingLabel="Removing..."

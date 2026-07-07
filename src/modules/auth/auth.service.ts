@@ -243,7 +243,9 @@ export class AuthService {
 
   async getCurrentUser(
     request: Request,
-  ): Promise<LoginResponse & { productsEnabled: boolean }> {
+  ): Promise<
+    LoginResponse & { productsEnabled: boolean; tenantTimezone: string }
+  > {
     const token = readSessionToken(request);
 
     if (!token) {
@@ -256,7 +258,7 @@ export class AuthService {
       throwAuthenticationRequired();
     }
 
-    const [user, productsEnabledSetting] = await Promise.all([
+    const [user, productsEnabledSetting, tenant] = await Promise.all([
       this.prisma.user.findFirst({
         where: {
           id: session.userId,
@@ -271,6 +273,10 @@ export class AuthService {
             key: PRODUCTS_ENABLED_SETTING_KEY,
           },
         },
+      }),
+      this.prisma.platformTenant.findUnique({
+        where: { id: session.tenantId },
+        select: { timezone: true },
       }),
     ]);
 
@@ -293,6 +299,7 @@ export class AuthService {
       productsEnabled: productsEnabledSetting
         ? productsEnabledSetting.value === true
         : true,
+      tenantTimezone: tenant?.timezone ?? "UTC",
     };
   }
 

@@ -40,3 +40,15 @@ export function statusTone(
 
   return status === "archived" ? "warning" : "info";
 }
+
+export function statusPillTone(status: string): "active" | "info" | "warning" {
+  if (status === "done" || status === "completed") {
+    return "active";
+  }
+
+  if (status === "cancelled") {
+    return "warning";
+  }
+
+  return "info";
+}

@@ -75,8 +75,8 @@ export function NameChangeForm({
             />
           </label>
           <p className="tenant-status-confirmation">
-            Slug stays unchanged because it is used in workspace URLs and
-            invite links.
+            Slug stays unchanged because it is used in workspace URLs and invite
+            links.
           </p>
           <div className="modal-actions">
             <button
