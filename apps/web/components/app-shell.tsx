@@ -27,6 +27,18 @@ export async function AppShell({
 
   return (
     <div className="app-shell">
+      <header className="mobile-topbar" aria-label="Vizitum">
+        <div className="brand-block">
+          <div className="brand-mark">V</div>
+          <div>
+            <p className="topbar-company-name">
+              {normalizeTenantName(tenantSlug)}
+            </p>
+            <p className="topbar-app-name">Vizitum</p>
+          </div>
+        </div>
+      </header>
+
       <aside className="sidebar" aria-label="Primary">
         <div className="brand-block">
           <div className="brand-mark">V</div>

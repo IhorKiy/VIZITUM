@@ -64,6 +64,33 @@ textarea {
   padding: 24px 18px;
 }
 
+.mobile-topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  display: none;
+  padding: 14px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.mobile-topbar .brand-mark {
+  height: 32px;
+  width: 32px;
+}
+
+.topbar-company-name {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.topbar-app-name {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 2px 0 0;
+}
+
 .brand-block {
   align-items: center;
   display: flex;
@@ -284,6 +311,40 @@ textarea {
 .panel h2 {
   font-size: 18px;
   margin: 0 0 14px;
+}
+
+.panel-collapsible > .panel-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  margin: 0 0 14px;
+}
+
+.panel-collapsible:not([open]) > .panel-summary {
+  margin: 0;
+}
+
+.panel-collapsible > .panel-summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel-collapsible > .panel-summary h2 {
+  margin: 0;
+}
+
+.panel-collapsible > .panel-summary::after {
+  color: var(--muted);
+  content: "›";
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.panel-collapsible[open] > .panel-summary::after {
+  transform: rotate(90deg);
 }
 
 .panel-title-stack {
@@ -1646,6 +1707,10 @@ textarea {
     display: none;
   }
 
+  .mobile-topbar {
+    display: block;
+  }
+
   .main-surface {
     padding: 18px 14px 84px;
   }
@@ -1852,12 +1917,15 @@ textarea {
   padding: 0;
 }
 
-/* Collapsible stop card (native <details>) */
+/* Clickable stop card (link to location detail) */
 .route-stop {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
+  color: inherit;
+  display: block;
   overflow: hidden;
+  text-decoration: none;
 }
 
 .route-stop.visited {
@@ -1871,10 +1939,6 @@ textarea {
   gap: 12px;
   list-style: none;
   padding: 12px 14px;
-}
-
-.route-stop-summary::-webkit-details-marker {
-  display: none;
 }
 
 .route-stop-index {
@@ -1929,10 +1993,6 @@ textarea {
   transition: transform 0.2s ease;
 }
 
-.route-stop[open] .route-stop-chevron {
-  transform: rotate(90deg);
-}
-
 .route-stop-detail {
   border-top: 1px solid var(--line);
   display: grid;
@@ -1942,6 +2002,194 @@ textarea {
 
 .route-stop-detail .status-pill {
   justify-self: start;
+}
+
+.location-header {
+  display: grid;
+  gap: 8px;
+}
+
+.location-header-top {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.location-header-back {
+  align-items: center;
+  background: var(--surface-muted);
+  border-radius: 999px;
+  color: var(--fg);
+  display: flex;
+  flex-shrink: 0;
+  font-size: 18px;
+  height: 32px;
+  justify-content: center;
+  text-decoration: none;
+  width: 32px;
+}
+
+.location-header-title {
+  font-size: 19px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-header-address {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.location-header-rep {
+  background: var(--surface-muted);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  justify-self: start;
+  padding: 4px 10px;
+}
+
+.location-feature-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+}
+
+.location-feature-summary::-webkit-details-marker {
+  display: none;
+}
+
+.location-feature-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.location-feature-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+}
+
+.location-feature-titles {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.location-feature-name {
+  align-items: center;
+  display: flex;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.location-feature-help {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  height: 16px;
+  justify-content: center;
+  width: 16px;
+}
+
+.location-feature-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.location-feature-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.location-feature-chevron {
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.location-feature[open] .location-feature-chevron {
+  transform: rotate(90deg);
+}
+
+.location-feature-add {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--accent);
+  display: flex;
+  font-size: 18px;
+  font-weight: 700;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.location-feature-add:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.location-feature .empty-state,
+.location-feature .field-card-list {
+  margin-top: 12px;
+}
+
+.location-start-visit {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.location-history-row {
+  color: inherit;
+  display: block;
+  text-decoration: none;
+}
+
+.faq-list {
+  display: grid;
+  gap: 8px;
+}
+
+.faq-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.faq-question {
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+  padding: 12px 14px;
+}
+
+.faq-question::-webkit-details-marker {
+  display: none;
+}
+
+.faq-answer {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  margin: 0;
+  padding: 12px 14px;
 }
 
 .route-stop-actions {

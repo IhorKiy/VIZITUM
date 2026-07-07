@@ -145,8 +145,10 @@ export default async function GeneralPage({
       ) : null}
 
       <div className="general-stack">
-        <section className="panel" aria-labelledby="general-summary-title">
-          <h2 id="general-summary-title">Summary</h2>
+        <details className="panel panel-collapsible">
+          <summary className="panel-summary">
+            <h2>Summary</h2>
+          </summary>
           <table className="table">
             <tbody>
               <tr>
@@ -179,10 +181,12 @@ export default async function GeneralPage({
               </tr>
             </tbody>
           </table>
-        </section>
+        </details>
 
-        <section className="panel" aria-labelledby="general-locations-title">
-          <h2 id="general-locations-title">Locations</h2>
+        <details className="panel panel-collapsible">
+          <summary className="panel-summary">
+            <h2>Locations</h2>
+          </summary>
           {locations.length > 0 ? (
             <div className="field-card-list">
               {locations.map((location: Location) => (
@@ -215,10 +219,12 @@ export default async function GeneralPage({
           ) : (
             <p className="empty-state">No locations are available yet.</p>
           )}
-        </section>
+        </details>
 
-        <section className="panel" aria-labelledby="general-products-title">
-          <h2 id="general-products-title">Products</h2>
+        <details className="panel panel-collapsible">
+          <summary className="panel-summary">
+            <h2>Products</h2>
+          </summary>
           {products.length > 0 ? (
             <div className="field-card-list">
               {products.map((product: Product) => (
@@ -243,10 +249,12 @@ export default async function GeneralPage({
           ) : (
             <p className="empty-state">No products are available yet.</p>
           )}
-        </section>
+        </details>
 
-        <section className="panel" aria-labelledby="general-tasks-title">
-          <h2 id="general-tasks-title">My tasks</h2>
+        <details className="panel panel-collapsible">
+          <summary className="panel-summary">
+            <h2>My tasks</h2>
+          </summary>
           {openTasks.length > 0 ? (
             <div className="field-card-list">
               {openTasks.map((item: Task) => (
@@ -299,28 +307,63 @@ export default async function GeneralPage({
           ) : (
             <p className="empty-state">No tasks assigned right now.</p>
           )}
-        </section>
+        </details>
 
-        <section className="panel" aria-labelledby="general-ai-title">
-          <h2 id="general-ai-title">AI draft guidance</h2>
-          <div className="field-card-list">
-            <article className="location-mini-card">
-              <h3>When AI is weak</h3>
-              <p className="visit-meta">
+        <details className="panel panel-collapsible">
+          <summary className="panel-summary">
+            <h2>FAQ</h2>
+          </summary>
+          <div className="faq-list">
+            <details className="faq-item">
+              <summary className="faq-question">
+                What happens to voice notes before I record one?
+              </summary>
+              <p className="faq-answer">
+                Voice notes may be transcribed and processed by AI for visit
+                reports. Audio and transcripts are temporary processing data;
+                the confirmed report is reviewed before it becomes official.
+              </p>
+            </details>
+            <details className="faq-item">
+              <summary className="faq-question">
+                What should I do when the AI draft is weak?
+              </summary>
+              <p className="faq-answer">
                 Treat the draft as a suggestion. Edit the facts before
                 confirmation or use the manual fallback when the output misses
                 important context.
               </p>
-            </article>
-            <article className="location-mini-card">
-              <h3>When AI is unavailable</h3>
-              <p className="visit-meta">
+            </details>
+            <details className="faq-item">
+              <summary className="faq-question">
+                What should I do when AI is unavailable?
+              </summary>
+              <p className="faq-answer">
                 Save a text note and confirm the manual report. Failed
                 transcription or extraction should not block the visit.
               </p>
-            </article>
+            </details>
+            <details className="faq-item">
+              <summary className="faq-question">
+                What does &quot;AI processing can use visit notes&quot; mean
+                on a visit card?
+              </summary>
+              <p className="faq-answer">
+                Add a voice or text note. If transcription or extraction is
+                delayed, use the manual fallback below the note fields.
+              </p>
+            </details>
+            <details className="faq-item">
+              <summary className="faq-question">
+                What does &quot;Draft requires review&quot; mean?
+              </summary>
+              <p className="faq-answer">
+                Review the AI draft carefully before confirmation. Missing or
+                uncertain fields should be corrected manually.
+              </p>
+            </details>
           </div>
-        </section>
+        </details>
       </div>
     </AppShell>
   );
