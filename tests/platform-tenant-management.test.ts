@@ -145,6 +145,22 @@ describe("platform tenant management", () => {
     );
   });
 
+  it("closes the archive race: does not duplicate the event when a concurrent request already archived the tenant", async () => {
+    const store = createStore({ id: "tenant-1", status: "active" });
+    // The outer check reads "active" and proceeds past the no-op fast path,
+    // but by the time the transaction's conditional update runs, another
+    // request has already archived the row.
+    store.raceState.status = "archived";
+    const service = createPlatformService(store);
+
+    const result = await service.archiveTenant("tenant-1", {
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(result.status, "archived");
+    assert.equal(store.events.length, 0);
+  });
+
   it("unarchives a tenant to suspended and records a tenant.unarchived event", async () => {
     const store = createStore({
       id: "tenant-1",
@@ -184,6 +200,22 @@ describe("platform tenant management", () => {
       () => service.unarchiveTenant("missing"),
       NotFoundException,
     );
+  });
+
+  it("closes the unarchive race: does not duplicate the event when a concurrent request already restored the tenant", async () => {
+    const store = createStore({ id: "tenant-1", status: "archived" });
+    // The outer check reads "archived" and proceeds past the no-op fast
+    // path, but by the time the transaction's conditional update runs,
+    // another request has already restored the row.
+    store.raceState.status = "suspended";
+    const service = createPlatformService(store);
+
+    const result = await service.unarchiveTenant("tenant-1", {
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(result.status, "suspended");
+    assert.equal(store.events.length, 0);
   });
 
   it("invites a tenant user from the platform context and records an event", async () => {
@@ -433,6 +465,11 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
     status: string;
     roles: Array<{ roleCode: string }>;
   }> = [];
+  // When `status` is set, the next updateMany call applies it to the tenant
+  // before checking its where clause, simulating a concurrent writer that
+  // changed the row between the outer idempotency check and the
+  // transactional conditional update.
+  const raceState: { status?: string } = {};
 
   const client = {
     platformTenant: {
@@ -447,6 +484,32 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
       update: async ({ data }: { data: Record<string, unknown> }) => {
         Object.assign(tenant, data);
         return { ...tenant };
+      },
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { id: string; status?: string | { not: string } };
+        data: Record<string, unknown>;
+      }) => {
+        if (raceState.status !== undefined) {
+          tenant.status = raceState.status;
+          raceState.status = undefined;
+        }
+
+        const statusMatches =
+          where.status === undefined
+            ? true
+            : typeof where.status === "string"
+              ? tenant.status === where.status
+              : tenant.status !== where.status.not;
+
+        if (where.id !== tenant.id || !statusMatches) {
+          return { count: 0 };
+        }
+
+        Object.assign(tenant, data);
+        return { count: 1 };
       },
     },
     platformOperationEvent: {
@@ -485,6 +548,7 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
     // succeeding, letting tests exercise how the platform service reacts to a
     // rejected update (e.g. the last-admin guard) without booting Nest DI.
     updateUserError: undefined as unknown,
+    raceState,
   };
 }
 

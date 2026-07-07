@@ -14,7 +14,7 @@ Deploy these services from the same repository and release SHA.
 
 The cleanup worker is intentionally a one-shot task. Schedule it at least hourly for the pilot unless provider limits or storage policy require a shorter interval.
 
-There is no longer a provision worker: platform tenants are created directly with `status: "pilot_active"` (no `draft`/`provisioning` hold), so nothing needs to advance them. If a `worker:provision` cron is still scheduled with your provider from a previous deploy, disable it — the `worker:provision`/`worker:provision:prod` npm scripts and the underlying `ProvisioningService` were removed.
+There is no longer a provision worker: platform tenants are created directly with `status: "pilot"` (no `draft`/`provisioning` hold), so nothing needs to advance them. If a `worker:provision` cron is still scheduled with your provider from a previous deploy, disable it — the `worker:provision`/`worker:provision:prod` npm scripts and the underlying `ProvisioningService` were removed.
 
 ## Required Environment
 
@@ -71,7 +71,7 @@ If the release includes database changes, apply Prisma migrations through the ap
 6. Deploy web with the same release SHA.
 7. Trigger or wait for one cleanup worker run.
 8. Verify logs contain `worker_cleanup_completed`.
-9. On first deploy, seed the platform owner (`npm run seed:platform-owner` with `PLATFORM_OWNER_EMAIL`/`PLATFORM_OWNER_PASSWORD`) and confirm `/platform/login` grants access to the tenant console. Confirm a newly created tenant is immediately `pilot_active` — no provision worker to schedule.
+9. On first deploy, seed the platform owner (`npm run seed:platform-owner` with `PLATFORM_OWNER_EMAIL`/`PLATFORM_OWNER_PASSWORD`) and confirm `/platform/login` grants access to the tenant console. Confirm a newly created tenant is immediately `pilot` — no provision worker to schedule.
 10. Verify Sentry release/environment tags appear for API, worker and web.
 11. Record deployment timestamp, release SHA, operator and verification notes.
 

@@ -62,7 +62,7 @@ Create production-specific resources. They must not reuse staging state.
 | Sentry | API, web and worker production events with release tag |
 | Uptime | External monitor for `/api/health/readiness` |
 
-There is no provision worker: tenants are created directly `pilot_active`, so nothing needs to advance them. Disable any `worker:provision` cron left over from a previous deploy.
+There is no provision worker: tenants are created directly `pilot`, so nothing needs to advance them. Disable any `worker:provision` cron left over from a previous deploy.
 
 Use `docs/runbooks/production-env-checklist.md` before copying any setting. Generate new production-only secrets for session, platform operations token, database, Redis and R2 credentials.
 
@@ -108,7 +108,7 @@ Store only command output or provider/CI evidence. Keep the raw operations token
 Repeat the accepted staging smoke path against production:
 
 - platform owner login and tenant console load;
-- tenant creation lands immediately on `pilot_active` (no provision worker to wait on);
+- tenant creation lands immediately on `pilot` (no provision worker to wait on);
 - tenant admin login and tenant slug lookup;
 - Field visit creation;
 - browser voice recording or audio upload fallback;

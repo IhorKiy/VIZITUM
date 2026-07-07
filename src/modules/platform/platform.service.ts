@@ -433,7 +433,6 @@ export class PlatformService {
   ) {
     const tenant = await this.prisma.platformTenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, status: true, archivedAt: true },
     });
 
     if (!tenant) {
@@ -446,16 +445,27 @@ export class PlatformService {
     // Idempotent: archiving an already-archived tenant is a no-op, not an error,
     // and must not emit a duplicate audit event.
     if (tenant.status === "archived") {
-      return this.prisma.platformTenant.findUniqueOrThrow({
-        where: { id: tenantId },
-      });
+      return tenant;
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const archived = await tx.platformTenant.update({
-        where: { id: tenantId },
+      // Conditional on status still not being "archived": closes the race
+      // between the check above and this write. If another request archived
+      // the tenant concurrently, this matches zero rows and we fall through
+      // to the idempotent no-op below instead of overwriting archivedAt or
+      // emitting a duplicate tenant.archived event.
+      const { count } = await tx.platformTenant.updateMany({
+        where: { id: tenantId, status: { not: "archived" } },
         data: { status: "archived", archivedAt: new Date() },
       });
+
+      const current = await tx.platformTenant.findUniqueOrThrow({
+        where: { id: tenantId },
+      });
+
+      if (count === 0) {
+        return current;
+      }
 
       await tx.platformOperationEvent.create({
         data: {
@@ -467,7 +477,7 @@ export class PlatformService {
         },
       });
 
-      return archived;
+      return current;
     });
   }
 
@@ -477,7 +487,6 @@ export class PlatformService {
   ) {
     const tenant = await this.prisma.platformTenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, status: true },
     });
 
     if (!tenant) {
@@ -490,21 +499,31 @@ export class PlatformService {
     // Idempotent, symmetric to archiveTenant: unarchiving a tenant that isn't
     // archived is a no-op, not an error, and must not emit a duplicate event.
     if (tenant.status !== "archived") {
-      return this.prisma.platformTenant.findUniqueOrThrow({
-        where: { id: tenantId },
-      });
+      return tenant;
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Conditional on status still being "archived": closes the race between
+      // the check above and this write. If another request already restored
+      // the tenant concurrently, this matches zero rows and we fall through
+      // to the idempotent no-op below instead of emitting a duplicate event.
       // Restored tenants land on `suspended` rather than their pre-archive
       // status: it keeps the tenant blocked from serving requests (see
       // tenancy.service.ts) until the platform owner deliberately reactivates
       // it, instead of silently resuming traffic to a tenant that was pulled
       // out of active management.
-      const restored = await tx.platformTenant.update({
-        where: { id: tenantId },
+      const { count } = await tx.platformTenant.updateMany({
+        where: { id: tenantId, status: "archived" },
         data: { status: "suspended", archivedAt: null },
       });
+
+      const current = await tx.platformTenant.findUniqueOrThrow({
+        where: { id: tenantId },
+      });
+
+      if (count === 0) {
+        return current;
+      }
 
       await tx.platformOperationEvent.create({
         data: {
@@ -516,7 +535,7 @@ export class PlatformService {
         },
       });
 
-      return restored;
+      return current;
     });
   }
 

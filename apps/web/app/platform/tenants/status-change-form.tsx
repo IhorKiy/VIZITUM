@@ -24,6 +24,13 @@ export function StatusChangeForm({
   const updateFormRef = useRef<HTMLFormElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
+  // A tenant can in principle sit on a status that's no longer assignable
+  // (e.g. a retired one from before a migration). Fall back to including it
+  // so the select always has a matching, visible option instead of
+  // rendering blank.
+  const selectableStatuses = statuses.includes(currentStatus)
+    ? statuses
+    : [currentStatus, ...statuses];
 
   function openDialog() {
     setSelectedStatus(currentStatus);
@@ -100,7 +107,7 @@ export function StatusChangeForm({
               onChange={(event) => setSelectedStatus(event.target.value)}
               value={selectedStatus}
             >
-              {statuses.map((status) => (
+              {selectableStatuses.map((status) => (
                 <option key={status} value={status}>
                   {formatLabel(status)}
                 </option>
