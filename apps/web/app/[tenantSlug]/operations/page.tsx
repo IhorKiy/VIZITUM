@@ -22,8 +22,8 @@ const demoSummary: OperationsSummary = {
   tenants: {
     total: 3,
     byStatus: {
-      pilot_active: 1,
-      active: 2,
+      pilot: 1,
+      team: 2,
     },
   },
   provisioning: {

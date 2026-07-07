@@ -25,7 +25,7 @@ Same env as the API (it boots the same Nest application context: `DATABASE_URL`,
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `WORKER_TASK` | no | Task selector: `cleanup` (default) or `provision` (advances queued platform provisioning jobs). |
+| `WORKER_TASK` | no | Task selector: `cleanup` (default, and the only supported value). |
 
 ## Web service (`apps/web`)
 

@@ -1,4 +1,4 @@
-import type { PlanCode, SegmentTemplate, TenantStatus } from "@prisma/client";
+import type { SegmentTemplate, TenantStatus } from "@prisma/client";
 import type { UserStatus } from "@prisma/client";
 import type { InviteUserRequestBody } from "../users/users.types";
 
@@ -19,7 +19,6 @@ export type UpdateTenantInput = {
   timezone?: string;
   language?: string;
   primaryDomain?: string | null;
-  planCode?: PlanCode;
   status?: TenantStatus;
   actorUserId?: string;
   requestId?: string;

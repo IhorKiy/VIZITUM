@@ -2,8 +2,9 @@
 
 import { useRef, useState } from "react";
 
+import { formatLabel } from "../../../lib/format";
+
 type StatusChangeFormProps = {
-  archiveAction: (formData: FormData) => void | Promise<void>;
   currentStatus: string;
   statuses: string[];
   tenantId: string;
@@ -12,22 +13,17 @@ type StatusChangeFormProps = {
 };
 
 export function StatusChangeForm({
-  archiveAction,
   currentStatus,
   statuses,
   tenantId,
   tenantName,
   updateAction,
 }: StatusChangeFormProps) {
-  const archiveFormRef = useRef<HTMLFormElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const statusInputRef = useRef<HTMLInputElement>(null);
   const updateFormRef = useRef<HTMLFormElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState(currentStatus);
-
-  const selectedStatusLabel =
-    selectedStatus === "archived" ? "Archive" : selectedStatus;
 
   function openDialog() {
     setSelectedStatus(currentStatus);
@@ -48,12 +44,6 @@ export function StatusChangeForm({
       return;
     }
 
-    if (selectedStatus === "archived") {
-      setIsSaving(true);
-      archiveFormRef.current?.requestSubmit();
-      return;
-    }
-
     setIsSaving(true);
     if (statusInputRef.current) {
       statusInputRef.current.value = selectedStatus;
@@ -71,9 +61,6 @@ export function StatusChangeForm({
           ref={statusInputRef}
           type="hidden"
         />
-      </form>
-      <form action={archiveAction} ref={archiveFormRef}>
-        <input name="tenantId" type="hidden" value={tenantId} />
       </form>
       <button
         className="secondary-button"
@@ -115,17 +102,15 @@ export function StatusChangeForm({
             >
               {statuses.map((status) => (
                 <option key={status} value={status}>
-                  {status === "archived" ? "Archive" : status}
+                  {formatLabel(status)}
                 </option>
               ))}
             </select>
           </label>
           <p className="tenant-status-confirmation">
-            {selectedStatus === "archived"
-              ? `Archive ${tenantName}? This will move the tenant out of active management.`
-              : selectedStatus === currentStatus
-                ? `Current status is ${currentStatus}.`
-                : `Change ${tenantName} status from ${currentStatus} to ${selectedStatus}?`}
+            {selectedStatus === currentStatus
+              ? `Current status is ${formatLabel(currentStatus)}.`
+              : `Change ${tenantName} status from ${formatLabel(currentStatus)} to ${formatLabel(selectedStatus)}?`}
           </p>
           <div className="modal-actions">
             <button
@@ -137,16 +122,14 @@ export function StatusChangeForm({
               Cancel
             </button>
             <button
-              className={
-                selectedStatus === "archived"
-                  ? "secondary-button"
-                  : "primary-button"
-              }
+              className="primary-button"
               disabled={isSaving || selectedStatus === currentStatus}
               onClick={confirmStatusChange}
               type="button"
             >
-              {isSaving ? "Saving..." : `Confirm ${selectedStatusLabel}`}
+              {isSaving
+                ? "Saving..."
+                : `Confirm ${formatLabel(selectedStatus)}`}
             </button>
           </div>
         </div>

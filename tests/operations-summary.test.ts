@@ -19,7 +19,7 @@ describe("operations summary", () => {
       total: 3,
       byStatus: {
         active: 2,
-        pilot_active: 1,
+        pilot: 1,
       },
     });
     assert.deepEqual(summary.provisioning, {
@@ -64,7 +64,7 @@ function createPrismaStub(
     platformTenant: {
       groupBy: async () => [
         { status: "active", _count: { _all: 2 } },
-        { status: "pilot_active", _count: { _all: 1 } },
+        { status: "pilot", _count: { _all: 1 } },
       ],
     },
     platformProvisioningJob: {

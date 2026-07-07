@@ -42,7 +42,7 @@ describe("platform tenant creation", () => {
     );
   });
 
-  it("creates a draft tenant with a queued provisioning job", async () => {
+  it("creates a tenant that is immediately on the pilot plan", async () => {
     const prisma = createPrismaStub();
     const service = new PlatformService(prisma as unknown as PrismaService);
 
@@ -55,9 +55,7 @@ describe("platform tenant creation", () => {
     });
 
     assert.equal(result.tenant.slug, "acme");
-    assert.equal(result.tenant.status, "draft");
-    assert.equal(result.provisioningJob.status, "queued");
-    assert.equal(result.provisioningJob.tenantId, result.tenant.id);
+    assert.equal(result.tenant.status, "pilot");
   });
 
   it("lists and fetches tenants", async () => {
@@ -76,13 +74,13 @@ describe("platform tenant creation", () => {
 
     const fetched = await service.getTenant(created.tenant.id);
     assert.equal(fetched.tenant.id, created.tenant.id);
-    assert.equal(fetched.provisioningJob?.id, created.provisioningJob.id);
+    // No provisioning job is created anymore, so there's nothing to find.
+    assert.equal(fetched.provisioningJob, null);
   });
 });
 
 function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
   const tenants: Array<Record<string, unknown>> = [];
-  const provisioningJobs: Array<Record<string, unknown>> = [];
   let idCounter = 0;
 
   return {
@@ -99,10 +97,7 @@ function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
       findMany: async () => [...tenants].reverse(),
     },
     platformProvisioningJob: {
-      findFirst: async ({ where }: { where: { tenantId: string } }) =>
-        provisioningJobs
-          .filter((job) => job.tenantId === where.tenantId)
-          .slice(-1)[0] ?? null,
+      findFirst: async () => null,
     },
     userRole: {
       groupBy: async () => [],
@@ -119,7 +114,6 @@ function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
     $transaction: async (
       callback: (tx: {
         platformTenant: { create: (args: { data: Record<string, unknown> }) => Promise<Record<string, unknown>> };
-        platformProvisioningJob: { create: (args: { data: Record<string, unknown> }) => Promise<Record<string, unknown>> };
         productCapability: { createMany: (args: unknown) => Promise<void> };
         platformOperationEvent: { create: (args: unknown) => Promise<void> };
       }) => Promise<unknown>,
@@ -131,14 +125,6 @@ function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
             const tenant = { id: `tenant-${idCounter}`, createdAt: new Date(), ...data };
             tenants.push(tenant);
             return tenant;
-          },
-        },
-        platformProvisioningJob: {
-          create: async ({ data }: { data: Record<string, unknown> }) => {
-            idCounter += 1;
-            const job = { id: `job-${idCounter}`, createdAt: new Date(), ...data };
-            provisioningJobs.push(job);
-            return job;
           },
         },
         productCapability: {

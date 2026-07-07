@@ -15,20 +15,19 @@ describe("platform tenant management", () => {
   it("updates editable fields and records a tenant.updated event", async () => {
     const store = createStore({
       id: "tenant-1",
-      status: "ready",
+      status: "pilot",
       name: "Old Name",
-      planCode: "pilot",
     });
     const service = createPlatformService(store);
 
     const updated = await service.updateTenant("tenant-1", {
       name: "  New Name  ",
-      status: "active",
+      status: "team",
       actorUserId: "owner-1",
     });
 
     assert.equal(updated.name, "New Name");
-    assert.equal(updated.status, "active");
+    assert.equal(updated.status, "team");
     assert.equal(store.events.length, 1);
     assert.equal(store.events[0]?.eventType, "tenant.updated");
     assert.deepEqual(store.events[0]?.metadata, { fields: ["name", "status"] });
@@ -40,6 +39,26 @@ describe("platform tenant management", () => {
 
     await assert.rejects(
       () => service.updateTenant("tenant-1", { status: "archived" as never }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          code: string;
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.equal(response.code, "TENANT_UPDATE_INVALID");
+        assert.ok(response.fieldErrors.status);
+        return true;
+      },
+    );
+    assert.equal(store.events.length, 0);
+  });
+
+  it("rejects setting status to the retired active status through update", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { status: "active" as never }),
       (error: unknown) => {
         assert.ok(error instanceof BadRequestException);
         const response = error.getResponse() as {
@@ -122,6 +141,47 @@ describe("platform tenant management", () => {
 
     await assert.rejects(
       () => service.archiveTenant("missing"),
+      NotFoundException,
+    );
+  });
+
+  it("unarchives a tenant to suspended and records a tenant.unarchived event", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "archived",
+      archivedAt: new Date("2026-07-01T00:00:00.000Z"),
+    });
+    const service = createPlatformService(store);
+
+    const restored = await service.unarchiveTenant("tenant-1", {
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(restored.status, "suspended");
+    assert.equal(restored.archivedAt, null);
+    assert.equal(store.events.length, 1);
+    assert.equal(store.events[0]?.eventType, "tenant.unarchived");
+    assert.deepEqual(store.events[0]?.metadata, {
+      restoredStatus: "suspended",
+    });
+  });
+
+  it("is idempotent when unarchiving a tenant that isn't archived", async () => {
+    const store = createStore({ id: "tenant-1", status: "active" });
+    const service = createPlatformService(store);
+
+    const result = await service.unarchiveTenant("tenant-1");
+
+    assert.equal(result.status, "active");
+    assert.equal(store.events.length, 0);
+  });
+
+  it("rejects unarchiving an unknown tenant", async () => {
+    const store = createStore({ id: "tenant-1", status: "active" });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.unarchiveTenant("missing"),
       NotFoundException,
     );
   });

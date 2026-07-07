@@ -689,19 +689,11 @@ export type PlatformTenant = {
   timezone: string;
   language: string;
   status: string;
-  planCode: string;
   productMode: string;
   segmentTemplate: PlatformSegmentTemplate;
   primaryDomain: string | null;
   createdAt: string;
   metrics?: PlatformTenantMetrics;
-};
-
-export type PlatformProvisioningJob = {
-  id: string;
-  tenantId: string;
-  status: string;
-  step: string | null;
 };
 
 export type CreatePlatformTenantInput = {
@@ -750,16 +742,8 @@ export async function listPlatformTenants(): Promise<
 
 export async function createPlatformTenant(
   input: CreatePlatformTenantInput,
-): Promise<
-  ApiResult<{
-    tenant: PlatformTenant;
-    provisioningJob: PlatformProvisioningJob;
-  }>
-> {
-  return apiPost<{
-    tenant: PlatformTenant;
-    provisioningJob: PlatformProvisioningJob;
-  }>("/platform/tenants", input);
+): Promise<ApiResult<{ tenant: PlatformTenant }>> {
+  return apiPost<{ tenant: PlatformTenant }>("/platform/tenants", input);
 }
 
 export type UpdatePlatformTenantInput = {
@@ -767,7 +751,6 @@ export type UpdatePlatformTenantInput = {
   timezone?: string;
   language?: string;
   primaryDomain?: string | null;
-  planCode?: string;
   status?: string;
 };
 
@@ -782,6 +765,12 @@ export async function archivePlatformTenant(
   tenantId: string,
 ): Promise<ApiResult<PlatformTenant>> {
   return apiPost<PlatformTenant>(`/platform/tenants/${tenantId}/archive`, {});
+}
+
+export async function unarchivePlatformTenant(
+  tenantId: string,
+): Promise<ApiResult<PlatformTenant>> {
+  return apiPost<PlatformTenant>(`/platform/tenants/${tenantId}/unarchive`, {});
 }
 
 export async function listPlatformTenantUsers(
