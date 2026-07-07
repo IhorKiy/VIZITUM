@@ -168,22 +168,23 @@ export default async function LocationDetailPage({
     ? sessionResult.data.user.name
     : "Demo representative";
 
+  const representativeUserId = sessionResult.ok
+    ? sessionResult.data.user.id
+    : null;
+
   const [visitsResult, tasksResult] = isDemoLocation
     ? [
         { ok: false as const, status: 0, message: "Demo mode" },
         { ok: false as const, status: 0, message: "Demo mode" },
       ]
     : await Promise.all([
-        listVisits(`locationId=${locationId}&pageSize=50`),
+        listVisits(
+          `locationId=${locationId}&representativeUserId=${representativeUserId}&pageSize=50`,
+        ),
         listTasks(`locationId=${locationId}&pageSize=50`),
       ]);
 
-  const representativeUserId = sessionResult.ok
-    ? sessionResult.data.user.id
-    : null;
-  const repVisits = (visitsResult.ok ? visitsResult.data.items : []).filter(
-    (item) => item.representativeUserId === representativeUserId,
-  );
+  const repVisits = visitsResult.ok ? visitsResult.data.items : [];
   const activeVisit = repVisits.find(
     (item) => item.status === "draft" || item.status === "in_progress",
   );
