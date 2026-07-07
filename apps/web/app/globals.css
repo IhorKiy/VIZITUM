@@ -2052,6 +2052,10 @@ textarea {
   padding: 4px 10px;
 }
 
+.location-feature-wrap {
+  position: relative;
+}
+
 .location-feature-summary {
   align-items: center;
   cursor: pointer;
@@ -2059,6 +2063,7 @@ textarea {
   gap: 12px;
   justify-content: space-between;
   list-style: none;
+  padding-right: 46px;
 }
 
 .location-feature-summary::-webkit-details-marker {
@@ -2136,6 +2141,9 @@ textarea {
   font-weight: 700;
   height: 32px;
   justify-content: center;
+  position: absolute;
+  right: 18px;
+  top: 18px;
   width: 32px;
 }
 

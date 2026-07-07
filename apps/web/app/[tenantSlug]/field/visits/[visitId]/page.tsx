@@ -22,6 +22,7 @@ type VisitDetailPageProps = {
     error?: string;
     demoName?: string;
     demoAddress?: string;
+    demoLocationId?: string;
   }>;
 };
 
@@ -47,7 +48,8 @@ export default async function VisitDetailPage({
   searchParams,
 }: VisitDetailPageProps) {
   const { tenantSlug, visitId } = await params;
-  const { audio, note, error, demoName, demoAddress } = await searchParams;
+  const { audio, note, error, demoName, demoAddress, demoLocationId } =
+    await searchParams;
 
   async function addTextNoteAction(formData: FormData) {
     "use server";
@@ -164,7 +166,7 @@ export default async function VisitDetailPage({
 
   const visit = visitResult.ok
     ? toFieldVisit(visitResult.data)
-    : toDemoFieldVisit(visitId, demoName, demoAddress);
+    : toDemoFieldVisit(visitId, demoLocationId, demoName, demoAddress);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -362,12 +364,13 @@ function toFieldVisit(visit: Visit): FieldVisit {
 
 function toDemoFieldVisit(
   visitId: string,
+  demoLocationId: string | undefined,
   demoName: string | undefined,
   demoAddress: string | undefined,
 ): FieldVisit {
   return {
     id: visitId,
-    locationId: visitId.replace(/^demo-visit-/, ""),
+    locationId: demoLocationId ?? "",
     name: demoName ?? "Demo location",
     address: demoAddress ?? "",
     status: "Demo",

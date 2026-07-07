@@ -262,78 +262,84 @@ export default async function LocationDetailPage({
         <span className="location-header-rep">{representativeName}</span>
       </div>
 
-      <details className="panel location-feature">
-        <summary className="location-feature-summary">
-          <span className="location-feature-heading">
-            <span className="location-feature-icon" aria-hidden="true">
-              💰
-            </span>
-            <span className="location-feature-titles">
-              <span className="location-feature-name">
-                Потенціал
-                <span className="location-feature-help" aria-hidden="true">
-                  ?
-                </span>
+      <div className="location-feature-wrap">
+        <details className="panel location-feature">
+          <summary className="location-feature-summary">
+            <span className="location-feature-heading">
+              <span className="location-feature-icon" aria-hidden="true">
+                💰
               </span>
-              <span className="location-feature-meta">0 товарних груп</span>
+              <span className="location-feature-titles">
+                <span className="location-feature-name">
+                  Потенціал
+                  <span className="location-feature-help" aria-hidden="true">
+                    ?
+                  </span>
+                </span>
+                <span className="location-feature-meta">0 товарних груп</span>
+              </span>
             </span>
-          </span>
-          <span className="location-feature-actions">
-            <span className="location-feature-chevron" aria-hidden="true">
-              ›
+            <span className="location-feature-actions">
+              <span className="location-feature-chevron" aria-hidden="true">
+                ›
+              </span>
             </span>
-            <button
-              aria-label="Add product group (coming soon)"
-              className="location-feature-add"
-              disabled
-              type="button"
-            >
-              +
-            </button>
-          </span>
-        </summary>
-        <p className="empty-state">
-          Product group potential is not tracked yet.
-        </p>
-      </details>
+          </summary>
+          <p className="empty-state">
+            Product group potential is not tracked yet.
+          </p>
+        </details>
+        <button
+          aria-label="Add product group (coming soon)"
+          className="location-feature-add"
+          disabled
+          type="button"
+        >
+          +
+        </button>
+      </div>
 
-      <details className="panel location-feature">
-        <summary className="location-feature-summary">
-          <span className="location-feature-heading">
-            <span className="location-feature-icon" aria-hidden="true">
-              📦
-            </span>
-            <span className="location-feature-titles">
-              <span className="location-feature-name">
-                Асортимент
-                <span className="location-feature-help" aria-hidden="true">
-                  ?
-                </span>
+      <div className="location-feature-wrap">
+        <details className="panel location-feature">
+          <summary className="location-feature-summary">
+            <span className="location-feature-heading">
+              <span className="location-feature-icon" aria-hidden="true">
+                📦
               </span>
-              <span className="location-feature-meta">0 позицій</span>
+              <span className="location-feature-titles">
+                <span className="location-feature-name">
+                  Асортимент
+                  <span className="location-feature-help" aria-hidden="true">
+                    ?
+                  </span>
+                </span>
+                <span className="location-feature-meta">0 позицій</span>
+              </span>
             </span>
-          </span>
-          <span className="location-feature-actions">
-            <span className="location-feature-chevron" aria-hidden="true">
-              ›
+            <span className="location-feature-actions">
+              <span className="location-feature-chevron" aria-hidden="true">
+                ›
+              </span>
             </span>
-            <button
-              aria-label="Add assortment item (coming soon)"
-              className="location-feature-add"
-              disabled
-              type="button"
-            >
-              +
-            </button>
-          </span>
-        </summary>
-        <p className="empty-state">Assortment tracking is not available yet.</p>
-      </details>
+          </summary>
+          <p className="empty-state">
+            Assortment tracking is not available yet.
+          </p>
+        </details>
+        <button
+          aria-label="Add assortment item (coming soon)"
+          className="location-feature-add"
+          disabled
+          type="button"
+        >
+          +
+        </button>
+      </div>
 
       {isDemoLocation ? (
         <a
           className="primary-button location-start-visit"
-          href={`/${tenantSlug}/field/visits/demo-visit-${locationId}?demoName=${encodeURIComponent(locationName)}&demoAddress=${encodeURIComponent(locationAddress)}`}
+          href={`/${tenantSlug}/field/visits/demo-visit-${locationId}?demoLocationId=${encodeURIComponent(locationId)}&demoName=${encodeURIComponent(locationName)}&demoAddress=${encodeURIComponent(locationAddress)}`}
         >
           <span aria-hidden="true">▶</span> Почати візит (demo)
         </a>

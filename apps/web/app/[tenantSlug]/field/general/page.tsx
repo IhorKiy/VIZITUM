@@ -18,6 +18,7 @@ import {
 import {
   formatDateTime,
   formatLabel,
+  statusPillTone,
   statusTone,
 } from "../../../../lib/format";
 
@@ -282,7 +283,7 @@ export default async function GeneralPage({
                       </p>
                     </div>
                     <span
-                      className={`status-pill ${taskStatusTone(item.status)}`}
+                      className={`status-pill ${statusPillTone(item.status)}`}
                     >
                       {formatLabel(item.status)}
                     </span>
@@ -397,16 +398,4 @@ function normalizeTaskStatus(
   }
 
   return null;
-}
-
-function taskStatusTone(status: TaskStatus): string {
-  if (status === "done") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
 }
