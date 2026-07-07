@@ -18,12 +18,14 @@ export type RoleArea =
   | "operations";
 
 export type NavItem = {
-  label: string;
   href: string;
   area: RoleArea;
   icon: string;
   requiredPermissions: string[];
 };
+
+// Nav labels are translated in the UI via `common.nav.<area>`; this module
+// stays a pure permission-filtered structure.
 
 export function buildTenantNav(
   tenantSlug: string,
@@ -32,35 +34,30 @@ export function buildTenantNav(
 ): NavItem[] {
   const navItems: NavItem[] = [
     {
-      label: "Field",
       href: `/${tenantSlug}/field`,
       area: "field",
       icon: "V",
       requiredPermissions: ["visits.read_own", "visits.read_team"],
     },
     {
-      label: "Planning",
       href: `/${tenantSlug}/field/planning`,
       area: "field-planning",
       icon: "N",
       requiredPermissions: ["routes.read"],
     },
     {
-      label: "General",
       href: `/${tenantSlug}/field/general`,
       area: "field-general",
       icon: "G",
       requiredPermissions: ["routes.manage_own"],
     },
     {
-      label: "History",
       href: `/${tenantSlug}/field/history`,
       area: "field-history",
       icon: "H",
       requiredPermissions: ["visits.read_own"],
     },
     {
-      label: "Setup",
       href: `/${tenantSlug}/admin/setup`,
       area: "admin-setup",
       icon: "S",
@@ -71,84 +68,72 @@ export function buildTenantNav(
       ],
     },
     {
-      label: "Users",
       href: `/${tenantSlug}/admin/users`,
       area: "admin-users",
       icon: "U",
       requiredPermissions: ["users.read"],
     },
     {
-      label: "Imports",
       href: `/${tenantSlug}/admin/imports`,
       area: "admin-imports",
       icon: "I",
       requiredPermissions: ["imports.read"],
     },
     {
-      label: "Locations",
       href: `/${tenantSlug}/admin/locations`,
       area: "admin-locations",
       icon: "L",
       requiredPermissions: ["locations.manage"],
     },
     {
-      label: "Products",
       href: `/${tenantSlug}/admin/products`,
       area: "admin-products",
       icon: "K",
       requiredPermissions: ["products.manage"],
     },
     {
-      label: "Review",
       href: `/${tenantSlug}/admin/review`,
       area: "admin-review",
       icon: "P",
       requiredPermissions: ["pilot_review.read"],
     },
     {
-      label: "Settings",
       href: `/${tenantSlug}/admin/settings`,
       area: "admin-settings",
       icon: "G",
       requiredPermissions: ["tenant.settings.read"],
     },
     {
-      label: "Manager",
       href: `/${tenantSlug}/manager`,
       area: "manager-overview",
       icon: "M",
       requiredPermissions: ["dashboard.manager.read"],
     },
     {
-      label: "Visits",
       href: `/${tenantSlug}/manager/visits`,
       area: "manager-visits",
       icon: "R",
       requiredPermissions: ["visits.read_team"],
     },
     {
-      label: "Tasks",
       href: `/${tenantSlug}/manager/tasks`,
       area: "manager-tasks",
       icon: "T",
       requiredPermissions: ["tasks.read_team"],
     },
     {
-      label: "Coverage",
       href: `/${tenantSlug}/manager/locations`,
       area: "manager-locations",
       icon: "C",
       requiredPermissions: ["dashboard.manager.read"],
     },
     {
-      label: "Reps",
       href: `/${tenantSlug}/manager/representatives`,
       area: "manager-representatives",
       icon: "E",
       requiredPermissions: ["dashboard.manager.read"],
     },
     {
-      label: "Ops",
       href: `/${tenantSlug}/operations`,
       area: "operations",
       icon: "O",

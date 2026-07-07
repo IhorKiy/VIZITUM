@@ -38,6 +38,34 @@
       "info": "інфо",
       "warning": "увага"
     },
+    "nav": {
+      "ariaBrand": "Vizitum",
+      "ariaPrimary": "Основна навігація",
+      "ariaPrimaryMobile": "Основна мобільна навігація",
+      "field": "Поле",
+      "field-planning": "Планування",
+      "field-general": "Загальне",
+      "field-history": "Історія",
+      "admin-setup": "Запуск",
+      "admin-users": "Користувачі",
+      "admin-imports": "Імпорт",
+      "admin-locations": "Точки",
+      "admin-products": "Товари",
+      "admin-review": "Огляд",
+      "admin-settings": "Налаштування",
+      "manager-overview": "Менеджер",
+      "manager-visits": "Візити",
+      "manager-tasks": "Задачі",
+      "manager-locations": "Покриття",
+      "manager-representatives": "Команда",
+      "operations": "Операції"
+    },
+    "recorder": {
+      "record": "Записати",
+      "stop": "Зупинити",
+      "unsupported": "Запис у браузері тут недоступний. Оберіть аудіофайл із цього пристрою та завантажте його.",
+      "error": "Немає доступу до мікрофона. Надайте доступ, запишіть ще раз або оберіть наявний аудіофайл."
+    },
     "notice": {
       "connectionRequired": "Потрібне з'єднання",
       "backendNotConnected": "Сесія з бекендом не підключена",

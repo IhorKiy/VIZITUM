@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 
 import { getCurrentSession } from "../lib/api-client";
 import {
@@ -18,7 +19,11 @@ export async function AppShell({
   activeArea,
   children,
 }: AppShellProps) {
-  const sessionResult = await getCurrentSession();
+  const [sessionResult, tNav, tCommon] = await Promise.all([
+    getCurrentSession(),
+    getTranslations("common.nav"),
+    getTranslations("common"),
+  ]);
   const navItems = buildTenantNav(
     tenantSlug,
     sessionResult.ok ? sessionResult.data.permissions : undefined,
@@ -27,23 +32,23 @@ export async function AppShell({
 
   return (
     <div className="app-shell">
-      <header className="mobile-topbar" aria-label="Vizitum">
+      <header className="mobile-topbar" aria-label={tNav("ariaBrand")}>
         <div className="brand-block">
           <div className="brand-mark">V</div>
           <div>
             <p className="topbar-company-name">
               {normalizeTenantName(tenantSlug)}
             </p>
-            <p className="topbar-app-name">Vizitum</p>
+            <p className="topbar-app-name">{tCommon("appName")}</p>
           </div>
         </div>
       </header>
 
-      <aside className="sidebar" aria-label="Primary">
+      <aside className="sidebar" aria-label={tNav("ariaPrimary")}>
         <div className="brand-block">
           <div className="brand-mark">V</div>
           <div>
-            <p className="brand-name">Vizitum</p>
+            <p className="brand-name">{tCommon("appName")}</p>
             <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>
           </div>
         </div>
@@ -59,7 +64,7 @@ export async function AppShell({
               <span aria-hidden="true" className="nav-icon">
                 {item.icon}
               </span>
-              <span>{item.label}</span>
+              <span>{tNav(item.area)}</span>
             </Link>
           ))}
         </nav>
@@ -67,7 +72,7 @@ export async function AppShell({
 
       <main className="main-surface">{children}</main>
 
-      <nav className="mobile-nav" aria-label="Primary mobile">
+      <nav className="mobile-nav" aria-label={tNav("ariaPrimaryMobile")}>
         {navItems.map((item) => (
           <Link
             aria-current={item.area === activeArea ? "page" : undefined}
@@ -76,7 +81,7 @@ export async function AppShell({
             key={item.href}
           >
             <span aria-hidden="true">{item.icon}</span>
-            <span>{item.label}</span>
+            <span>{tNav(item.area)}</span>
           </Link>
         ))}
       </nav>

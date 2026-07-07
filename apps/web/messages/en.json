@@ -38,6 +38,34 @@
       "info": "info",
       "warning": "warning"
     },
+    "nav": {
+      "ariaBrand": "Vizitum",
+      "ariaPrimary": "Primary",
+      "ariaPrimaryMobile": "Primary mobile",
+      "field": "Field",
+      "field-planning": "Planning",
+      "field-general": "General",
+      "field-history": "History",
+      "admin-setup": "Setup",
+      "admin-users": "Users",
+      "admin-imports": "Imports",
+      "admin-locations": "Locations",
+      "admin-products": "Products",
+      "admin-review": "Review",
+      "admin-settings": "Settings",
+      "manager-overview": "Manager",
+      "manager-visits": "Visits",
+      "manager-tasks": "Tasks",
+      "manager-locations": "Coverage",
+      "manager-representatives": "Reps",
+      "operations": "Ops"
+    },
+    "recorder": {
+      "record": "Record",
+      "stop": "Stop",
+      "unsupported": "Browser recording is unavailable here. Choose an audio file from this device and upload it instead.",
+      "error": "Microphone access was not available. Allow microphone access, record again or choose an existing audio file."
+    },
     "notice": {
       "connectionRequired": "Connection required",
       "backendNotConnected": "Backend session is not connected",
