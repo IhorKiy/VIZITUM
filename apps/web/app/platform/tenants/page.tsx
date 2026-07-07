@@ -298,10 +298,7 @@ export default async function PlatformTenantsPage({
         </AutoDismissNotice>
       ) : null}
 
-      <section
-        className="platform-tenants-section"
-        aria-label="Tenants"
-      >
+      <section className="platform-tenants-section" aria-label="Tenants">
         <h2>Tenants</h2>
         {tenantsResult.ok ? (
           <div className="tenant-collapse-list">
@@ -364,9 +361,7 @@ export default async function PlatformTenantsPage({
                               tenantId={tenant.id}
                               tenantName={tenant.name}
                               tenantSlug={tenant.slug}
-                              updateStatusAction={
-                                updateTenantAdminStatusAction
-                              }
+                              updateStatusAction={updateTenantAdminStatusAction}
                               usersAvailable={Boolean(usersResult?.ok)}
                             />
                           </dd>
@@ -413,7 +408,6 @@ export default async function PlatformTenantsPage({
                         />
                       </div>
                     )}
-
                   </div>
                 </details>
               );
