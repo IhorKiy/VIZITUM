@@ -11,6 +11,8 @@ import {
   uploadAudioVisitNote,
   type Visit,
 } from "../../../../../lib/api-client";
+import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
+import { formatLabel, statusPillTone } from "../../../../../lib/format";
 
 type VisitDetailPageProps = {
   params: Promise<{ tenantSlug: string; visitId: string }>;
@@ -18,6 +20,8 @@ type VisitDetailPageProps = {
     audio?: string;
     note?: string;
     error?: string;
+    demoName?: string;
+    demoAddress?: string;
   }>;
 };
 
@@ -27,6 +31,7 @@ type FieldVisit = {
   name: string;
   address: string;
   status: string;
+  statusTone: "active" | "info" | "warning";
   next: string;
   canConfirm: boolean;
   aiQualityState:
@@ -42,7 +47,7 @@ export default async function VisitDetailPage({
   searchParams,
 }: VisitDetailPageProps) {
   const { tenantSlug, visitId } = await params;
-  const { audio, note, error } = await searchParams;
+  const { audio, note, error, demoName, demoAddress } = await searchParams;
 
   async function addTextNoteAction(formData: FormData) {
     "use server";
@@ -102,9 +107,16 @@ export default async function VisitDetailPage({
     redirect(`/${tenantSlug}/field?report=confirmed`);
   }
 
-  const sessionResult = await getCurrentSession();
+  const [sessionResult, visitResult] = await Promise.all([
+    getCurrentSession(),
+    getVisit(visitId),
+  ]);
 
-  if (!sessionResult.ok) {
+  const demoFallbackEnabled = isDemoFallbackEnabled();
+  const isDemoVisit =
+    !sessionResult.ok && demoFallbackEnabled && visitId.startsWith("demo-visit-");
+
+  if (!sessionResult.ok && !isDemoVisit) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
@@ -123,9 +135,7 @@ export default async function VisitDetailPage({
     );
   }
 
-  const visitResult = await getVisit(visitId);
-
-  if (!visitResult.ok) {
+  if (!isDemoVisit && !visitResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
@@ -150,7 +160,11 @@ export default async function VisitDetailPage({
     );
   }
 
-  const visit = toFieldVisit(visitResult.data);
+  const visit = isDemoVisit
+    ? toDemoFieldVisit(visitId, demoName, demoAddress)
+    : visitResult.ok
+      ? toFieldVisit(visitResult.data)
+      : toDemoFieldVisit(visitId, demoName, demoAddress);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -163,12 +177,29 @@ export default async function VisitDetailPage({
         <div className="toolbar" aria-label="Visit actions">
           <a
             className="secondary-button"
-            href={`/${tenantSlug}/field/locations/${visit.locationId}`}
+            href={`/${tenantSlug}/field/locations/${visit.locationId}${
+              isDemoVisit
+                ? `?demoName=${encodeURIComponent(visit.name)}&demoAddress=${encodeURIComponent(visit.address)}`
+                : ""
+            }`}
           >
             Back to location
           </a>
         </div>
       </header>
+
+      {isDemoVisit ? (
+        <section className="notice-panel" aria-label="API status">
+          <div>
+            <p className="eyebrow">Demo mode</p>
+            <h2>Backend session is not connected</h2>
+            <p>
+              This is a sample visit. Notes, audio and report confirmation
+              require a live backend session and are disabled here.
+            </p>
+          </div>
+        </section>
+      ) : null}
 
       {audio === "uploaded" ? (
         <section className="notice-panel success" aria-label="Audio status">
@@ -232,7 +263,7 @@ export default async function VisitDetailPage({
             <h2>{visit.name}</h2>
             <p className="visit-meta">{visit.address}</p>
           </div>
-          <span className={`status-pill ${resolveStatusTone(visit.status)}`}>
+          <span className={`status-pill ${visit.statusTone}`}>
             {visit.status}
           </span>
         </header>
@@ -311,7 +342,8 @@ function toFieldVisit(visit: Visit): FieldVisit {
     address: [visit.location.addressLine, visit.location.city]
       .filter(Boolean)
       .join(", "),
-    status: formatVisitStatus(visit.status),
+    status: formatLabel(visit.status),
+    statusTone: statusPillTone(visit.status),
     next:
       visit.status === "completed"
         ? "Review confirmed report"
@@ -325,6 +357,24 @@ function toFieldVisit(visit: Visit): FieldVisit {
         : visit.status === "in_progress"
           ? "processing"
           : "ready_to_confirm",
+  };
+}
+
+function toDemoFieldVisit(
+  visitId: string,
+  demoName: string | undefined,
+  demoAddress: string | undefined,
+): FieldVisit {
+  return {
+    id: visitId,
+    locationId: visitId.replace(/^demo-visit-/, ""),
+    name: demoName ?? "Demo location",
+    address: demoAddress ?? "",
+    status: "Demo",
+    statusTone: "info",
+    next: "Sign in to record notes and confirm a report.",
+    canConfirm: false,
+    aiQualityState: "ready_to_confirm",
   };
 }
 
@@ -397,23 +447,4 @@ function resolveAiQualityState(state: FieldVisit["aiQualityState"]): {
         tone: "ready",
       };
   }
-}
-
-function formatVisitStatus(status: Visit["status"]): string {
-  return status
-    .split("_")
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-}
-
-function resolveStatusTone(status: string): string {
-  if (status === "Completed") {
-    return "active";
-  }
-
-  if (status === "Cancelled") {
-    return "warning";
-  }
-
-  return "info";
 }

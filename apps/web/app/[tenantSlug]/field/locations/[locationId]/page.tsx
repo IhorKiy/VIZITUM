@@ -12,15 +12,23 @@ import {
   type Task,
   type Visit,
 } from "../../../../../lib/api-client";
-import { formatDateTime, formatLabel } from "../../../../../lib/format";
+import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
+import {
+  formatDateTime,
+  formatLabel,
+  statusPillTone,
+} from "../../../../../lib/format";
 
 type LocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
   searchParams: Promise<{
     routePlanId?: string;
     routeItemId?: string;
+    visited?: string;
     route?: string;
     error?: string;
+    demoName?: string;
+    demoAddress?: string;
   }>;
 };
 
@@ -29,7 +37,16 @@ export default async function LocationDetailPage({
   searchParams,
 }: LocationDetailPageProps) {
   const { tenantSlug, locationId } = await params;
-  const { routePlanId, routeItemId, route, error } = await searchParams;
+  const {
+    routePlanId,
+    routeItemId,
+    visited,
+    route,
+    error,
+    demoName,
+    demoAddress,
+  } = await searchParams;
+  const stopAlreadyVisited = visited === "1";
 
   async function startVisitAction(formData: FormData) {
     "use server";
@@ -81,12 +98,21 @@ export default async function LocationDetailPage({
       redirect(`/${tenantSlug}/field/locations/${locationId}?error=route`);
     }
 
-    redirect(`/${tenantSlug}/field/locations/${locationId}?route=visited`);
+    redirect(
+      `/${tenantSlug}/field/locations/${locationId}?route=visited&routePlanId=${formRoutePlanId}&routeItemId=${formRouteItemId}&visited=1`,
+    );
   }
 
-  const sessionResult = await getCurrentSession();
+  const [sessionResult, locationResult] = await Promise.all([
+    getCurrentSession(),
+    getLocation(locationId),
+  ]);
 
-  if (!sessionResult.ok) {
+  const demoFallbackEnabled = isDemoFallbackEnabled();
+  const isDemoLocation =
+    !sessionResult.ok && demoFallbackEnabled && Boolean(demoName);
+
+  if (!sessionResult.ok && !isDemoLocation) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
@@ -105,9 +131,7 @@ export default async function LocationDetailPage({
     );
   }
 
-  const locationResult = await getLocation(locationId);
-
-  if (!locationResult.ok) {
+  if (!isDemoLocation && !locationResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
@@ -132,13 +156,30 @@ export default async function LocationDetailPage({
     );
   }
 
-  const location = locationResult.data;
-  const [visitsResult, tasksResult] = await Promise.all([
-    listVisits(`locationId=${locationId}&pageSize=50`),
-    listTasks(`locationId=${locationId}&pageSize=50`),
-  ]);
+  const locationName = isDemoLocation
+    ? (demoName ?? "Demo location")
+    : locationResult.ok
+      ? locationResult.data.name
+      : "";
+  const locationAddress = isDemoLocation
+    ? (demoAddress ?? "")
+    : locationResult.ok
+      ? [locationResult.data.addressLine, locationResult.data.city]
+          .filter(Boolean)
+          .join(", ")
+      : "";
+  const representativeName = sessionResult.ok
+    ? sessionResult.data.user.name
+    : "Demo representative";
 
-  const representativeUserId = sessionResult.data.user.id;
+  const [visitsResult, tasksResult] = isDemoLocation
+    ? [{ ok: false as const, status: 0, message: "Demo mode" }, { ok: false as const, status: 0, message: "Demo mode" }]
+    : await Promise.all([
+        listVisits(`locationId=${locationId}&pageSize=50`),
+        listTasks(`locationId=${locationId}&pageSize=50`),
+      ]);
+
+  const representativeUserId = sessionResult.ok ? sessionResult.data.user.id : null;
   const repVisits = (visitsResult.ok ? visitsResult.data.items : []).filter(
     (item) => item.representativeUserId === representativeUserId,
   );
@@ -187,6 +228,19 @@ export default async function LocationDetailPage({
         </section>
       ) : null}
 
+      {isDemoLocation ? (
+        <section className="notice-panel" aria-label="API status">
+          <div>
+            <p className="eyebrow">Demo mode</p>
+            <h2>Backend session is not connected</h2>
+            <p>
+              Showing sample location details until the Nest API returns an
+              authenticated session. Reason: {sessionResult.message}
+            </p>
+          </div>
+        </section>
+      ) : null}
+
       <div className="location-header panel">
         <div className="location-header-top">
           <a
@@ -196,14 +250,10 @@ export default async function LocationDetailPage({
           >
             ‹
           </a>
-          <h1 className="location-header-title">{location.name}</h1>
+          <h1 className="location-header-title">{locationName}</h1>
         </div>
-        <p className="location-header-address">
-          {[location.addressLine, location.city].filter(Boolean).join(", ")}
-        </p>
-        <span className="location-header-rep">
-          {sessionResult.data.user.name}
-        </span>
+        <p className="location-header-address">{locationAddress}</p>
+        <span className="location-header-rep">{representativeName}</span>
       </div>
 
       <details className="panel location-feature">
@@ -272,13 +322,22 @@ export default async function LocationDetailPage({
         <p className="empty-state">Assortment tracking is not available yet.</p>
       </details>
 
-      {activeVisit ? (
+      {isDemoLocation ? (
+        <a
+          className="primary-button location-start-visit"
+          href={`/${tenantSlug}/field/visits/demo-visit-${locationId}?demoName=${encodeURIComponent(locationName)}&demoAddress=${encodeURIComponent(locationAddress)}`}
+        >
+          <span aria-hidden="true">▶</span> Почати візит (demo)
+        </a>
+      ) : activeVisit ? (
         <a
           className="primary-button location-start-visit"
           href={`/${tenantSlug}/field/visits/${activeVisit.id}`}
         >
           <span aria-hidden="true">▶</span> Продовжити візит
         </a>
+      ) : stopAlreadyVisited ? (
+        <p className="empty-state">This stop is already marked visited today.</p>
       ) : (
         <form action={startVisitAction}>
           <input name="routeItemId" type="hidden" value={routeItemId ?? ""} />
@@ -291,7 +350,7 @@ export default async function LocationDetailPage({
         </form>
       )}
 
-      {routePlanId && routeItemId ? (
+      {!isDemoLocation && routePlanId && routeItemId && !stopAlreadyVisited ? (
         <form action={markVisitedAction}>
           <input name="routePlanId" type="hidden" value={routePlanId} />
           <input name="routeItemId" type="hidden" value={routeItemId} />
@@ -337,7 +396,7 @@ export default async function LocationDetailPage({
                     <h3>{item.title}</h3>
                     <p>{item.description ?? "No additional details"}</p>
                   </div>
-                  <span className={`status-pill ${taskStatusTone(item.status)}`}>
+                  <span className={`status-pill ${statusPillTone(item.status)}`}>
                     {formatLabel(item.status)}
                   </span>
                 </header>
@@ -390,7 +449,7 @@ export default async function LocationDetailPage({
                     <h3>{formatDateTime(item.completedAt ?? item.createdAt)}</h3>
                     <p>{formatLabel(item.visitType)}</p>
                   </div>
-                  <span className={`status-pill ${visitStatusTone(item.status)}`}>
+                  <span className={`status-pill ${statusPillTone(item.status)}`}>
                     {formatLabel(item.status)}
                   </span>
                 </header>
@@ -403,28 +462,4 @@ export default async function LocationDetailPage({
       </details>
     </AppShell>
   );
-}
-
-function taskStatusTone(status: Task["status"]): string {
-  if (status === "done") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
-}
-
-function visitStatusTone(status: Visit["status"]): string {
-  if (status === "completed") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
 }

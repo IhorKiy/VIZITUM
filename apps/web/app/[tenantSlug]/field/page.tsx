@@ -60,9 +60,12 @@ export default async function FieldPage({
   const { tenantSlug } = await params;
   const { report } = await searchParams;
 
-  const sessionResult = await getCurrentSession();
+  const [sessionResult, routesResult] = await Promise.all([
+    getCurrentSession(),
+    listTodayRoutes(),
+  ]);
   const todayRoutesResult = sessionResult.ok
-    ? await listTodayRoutes()
+    ? routesResult
     : {
         ok: false as const,
         status: sessionResult.status,
@@ -115,6 +118,11 @@ export default async function FieldPage({
         <div>
           <h1>Привіт, {firstName}!</h1>
           <p className="greeting-date">{formatGreetingDate(new Date())}</p>
+        </div>
+        <div className="toolbar" aria-label="Visit actions">
+          <a className="secondary-button" href={`/${tenantSlug}/field/history`}>
+            History
+          </a>
         </div>
       </header>
 
@@ -198,7 +206,11 @@ export default async function FieldPage({
                   <li key={stop.id}>
                     <a
                       className={`route-stop${stop.visited ? " visited" : ""}`}
-                      href={`/${tenantSlug}/field/locations/${stop.locationId}?routePlanId=${stop.routePlanId}&routeItemId=${stop.id}`}
+                      href={`/${tenantSlug}/field/locations/${stop.locationId}?routePlanId=${stop.routePlanId}&routeItemId=${stop.id}${stop.visited ? "&visited=1" : ""}${
+                        isDemoMode
+                          ? `&demoName=${encodeURIComponent(stop.name)}&demoAddress=${encodeURIComponent(stop.address)}`
+                          : ""
+                      }`}
                     >
                       <span className="route-stop-summary">
                         <span className="route-stop-index" aria-hidden="true">
