@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 import { forwardSetCookies } from "../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../lib/api-client";
@@ -15,6 +16,10 @@ export default async function LoginPage({
 }: LoginPageProps) {
   const { tenantSlug } = await params;
   const { error } = await searchParams;
+  const [t, tCommon] = await Promise.all([
+    getTranslations("auth"),
+    getTranslations("common"),
+  ]);
 
   async function loginAction(formData: FormData) {
     "use server";
@@ -60,28 +65,24 @@ export default async function LoginPage({
         </div>
 
         <div>
-          <p className="eyebrow">Workspace access</p>
-          <h1 id="login-title">Sign in</h1>
-          <p className="login-copy">
-            Use your team account to open the tenant workspace.
-          </p>
+          <p className="eyebrow">{t("eyebrow")}</p>
+          <h1 id="login-title">{t("title")}</h1>
+          <p className="login-copy">{t("copy")}</p>
         </div>
 
         {error ? (
           <div className="form-error" role="alert">
-            {error === "network"
-              ? "Could not reach the API. Check the staging API URL."
-              : "Invalid email or password."}
+            {error === "network" ? t("errorNetwork") : t("errorInvalid")}
           </div>
         ) : null}
 
         <form action={loginAction} className="form-stack">
           <label>
-            Email
+            {t("email")}
             <input autoComplete="email" name="email" required type="email" />
           </label>
           <label>
-            Password
+            {t("password")}
             <input
               autoComplete="current-password"
               name="password"
@@ -90,7 +91,7 @@ export default async function LoginPage({
             />
           </label>
           <button className="primary-button" type="submit">
-            Sign in
+            {tCommon("signIn")}
           </button>
         </form>
       </section>

@@ -48,6 +48,26 @@
       "error": "Error"
     }
   },
+  "auth": {
+    "eyebrow": "Workspace access",
+    "title": "Sign in",
+    "copy": "Use your team account to open the tenant workspace.",
+    "errorNetwork": "Could not reach the API. Check the staging API URL.",
+    "errorInvalid": "Invalid email or password.",
+    "email": "Email",
+    "password": "Password"
+  },
+  "invites": {
+    "eyebrow": "Team invite",
+    "title": "Create your account",
+    "copy": "Accept the invite and set your password for this workspace.",
+    "errorInvalid": "Invite link is invalid, expired or incomplete.",
+    "token": "Invite token",
+    "fullName": "Full name",
+    "phone": "Phone",
+    "password": "Password",
+    "accept": "Accept invite"
+  },
   "field": {
     "flowEyebrow": "Field flow",
     "backToRoute": "Back to route",
