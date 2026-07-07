@@ -156,18 +156,14 @@ export default async function LocationDetailPage({
     );
   }
 
-  const locationName = isDemoLocation
-    ? (demoName ?? "Demo location")
-    : locationResult.ok
-      ? locationResult.data.name
-      : "";
-  const locationAddress = isDemoLocation
-    ? (demoAddress ?? "")
-    : locationResult.ok
-      ? [locationResult.data.addressLine, locationResult.data.city]
-          .filter(Boolean)
-          .join(", ")
-      : "";
+  const locationName = locationResult.ok
+    ? locationResult.data.name
+    : (demoName ?? "Demo location");
+  const locationAddress = locationResult.ok
+    ? [locationResult.data.addressLine, locationResult.data.city]
+        .filter(Boolean)
+        .join(", ")
+    : (demoAddress ?? "");
   const representativeName = sessionResult.ok
     ? sessionResult.data.user.name
     : "Demo representative";

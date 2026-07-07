@@ -162,11 +162,9 @@ export default async function VisitDetailPage({
     );
   }
 
-  const visit = isDemoVisit
-    ? toDemoFieldVisit(visitId, demoName, demoAddress)
-    : visitResult.ok
-      ? toFieldVisit(visitResult.data)
-      : toDemoFieldVisit(visitId, demoName, demoAddress);
+  const visit = visitResult.ok
+    ? toFieldVisit(visitResult.data)
+    : toDemoFieldVisit(visitId, demoName, demoAddress);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
