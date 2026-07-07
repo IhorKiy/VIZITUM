@@ -1,3 +1,6 @@
+import { useFormatter, useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
+
 import { AppShell } from "../../../../components/app-shell";
 import {
   listAdminLocations,
@@ -10,6 +13,7 @@ import {
   type Visit,
   type VisitStatus,
 } from "../../../../lib/api-client";
+import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
 
 type ManagerVisitsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -41,6 +45,11 @@ export default async function ManagerVisitsPage({
 }: ManagerVisitsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
+  const [t, tManager, tCommon] = await Promise.all([
+    getTranslations("manager.visits"),
+    getTranslations("manager"),
+    getTranslations("common"),
+  ]);
   const selectedStatus = normalizeVisitStatus(pageState.status);
   const selectedRepresentativeId = normalizeFilterValue(
     pageState.representativeUserId,
@@ -95,23 +104,24 @@ export default async function ManagerVisitsPage({
       <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Team manager</p>
-            <h1>Visits</h1>
-            <p>
-              Live visit data is required before manager review can continue.
-            </p>
+            <p className="eyebrow">{tManager("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Visits are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{visitsResult.message}</p>
           </div>
         </section>
@@ -120,7 +130,7 @@ export default async function ManagerVisitsPage({
   }
 
   const visits = visitsResult.data.items;
-  const counters = buildVisitCounters(visitsResult);
+  const counters = buildVisitCounters(visitsResult, t);
   const representativeOptions = allVisitsResult.ok
     ? buildRepresentativeOptions(allVisitsResult.data.items)
     : [];
@@ -141,44 +151,45 @@ export default async function ManagerVisitsPage({
     locationOptions.find((option) => option.id === selectedLocationId)?.label ??
     null;
   const filterSummary = selectedStatus
-    ? `${formatVisitStatus(selectedStatus)} visits`
-    : "All visits";
+    ? t("summaryStatusVisits", {
+        status: formatEnumLabel(tCommon, selectedStatus),
+      })
+    : t("summaryAllVisits");
   const detailSummary = [
     selectedRepresentativeLabel,
     selectedLocationLabel,
     selectedRouteLabel,
-    startedFrom ? `from ${startedFrom}` : null,
-    startedTo ? `to ${startedTo}` : null,
+    startedFrom ? t("summaryFrom", { date: startedFrom }) : null,
+    startedTo ? t("summaryTo", { date: startedTo }) : null,
   ].filter(Boolean);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Team manager</p>
-          <h1>Visits</h1>
-          <p>
-            Review tenant visits by status, representative, location and report
-            readiness.
-          </p>
+          <p className="eyebrow">{tManager("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/manager`}>
-            Overview
+            {t("overview")}
           </a>
           <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
-            Tasks
+            {t("tasks")}
           </a>
         </div>
       </header>
 
-      <section className="manager-grid" aria-label="Visit metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         {counters.map((counter) => (
           <article className="metric-card" key={counter.label}>
             <header>
               <p className="metric-label">{counter.label}</p>
               <span className={`status-pill ${counter.tone}`}>
-                {counter.tone === "active" ? "OK" : counter.tone}
+                {counter.tone === "active"
+                  ? tCommon("tone.ok")
+                  : tCommon(`tone.${counter.tone}`)}
               </span>
             </header>
             <p className="metric-value">{counter.value}</p>
@@ -190,13 +201,17 @@ export default async function ManagerVisitsPage({
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
-            <h2>Visit list</h2>
+            <h2>{t("visitList")}</h2>
             <p>
-              Showing {filterSummary.toLowerCase()} across this tenant workspace
-              {detailSummary.length ? `, ${detailSummary.join(", ")}` : ""}.
+              {t("showingSummary", {
+                summary: filterSummary,
+                details: detailSummary.length
+                  ? `, ${detailSummary.join(", ")}`
+                  : "",
+              })}
             </p>
           </div>
-          <div className="filter-pills" aria-label="Visit status filters">
+          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
             <a
               aria-current={!selectedStatus ? "page" : undefined}
               href={buildVisitFilterHref(tenantSlug, null, {
@@ -207,7 +222,7 @@ export default async function ManagerVisitsPage({
                 startedTo,
               })}
             >
-              All
+              {tCommon("all")}
             </a>
             {visitStatuses.map((visitStatus) => (
               <a
@@ -223,7 +238,7 @@ export default async function ManagerVisitsPage({
                 })}
                 key={visitStatus}
               >
-                {formatVisitStatus(visitStatus)}
+                {formatEnumLabel(tCommon, visitStatus)}
               </a>
             ))}
           </div>
@@ -234,9 +249,9 @@ export default async function ManagerVisitsPage({
             <input name="status" type="hidden" value={selectedStatus} />
           ) : null}
           <label>
-            Route
+            {t("route")}
             <select defaultValue={selectedRoutePlanId ?? ""} name="routePlanId">
-              <option value="">Any route</option>
+              <option value="">{t("anyRoute")}</option>
               {routeOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -245,9 +260,9 @@ export default async function ManagerVisitsPage({
             </select>
           </label>
           <label>
-            Location
+            {t("location")}
             <select defaultValue={selectedLocationId ?? ""} name="locationId">
-              <option value="">Any location</option>
+              <option value="">{t("anyLocation")}</option>
               {locationOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -256,12 +271,12 @@ export default async function ManagerVisitsPage({
             </select>
           </label>
           <label>
-            Representative
+            {t("representative")}
             <select
               defaultValue={selectedRepresentativeId ?? ""}
               name="representativeUserId"
             >
-              <option value="">Any representative</option>
+              <option value="">{t("anyRepresentative")}</option>
               {representativeOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -270,7 +285,7 @@ export default async function ManagerVisitsPage({
             </select>
           </label>
           <label>
-            Started from
+            {t("startedFrom")}
             <input
               defaultValue={startedFrom ?? ""}
               name="startedFrom"
@@ -278,7 +293,7 @@ export default async function ManagerVisitsPage({
             />
           </label>
           <label>
-            Started to
+            {t("startedTo")}
             <input
               defaultValue={startedTo ?? ""}
               name="startedTo"
@@ -287,14 +302,14 @@ export default async function ManagerVisitsPage({
           </label>
           <div className="filter-actions">
             <button className="secondary-button" type="submit">
-              Apply filters
+              {tCommon("applyFilters")}
             </button>
             {hasFilters ? (
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/manager/visits`}
               >
-                Reset
+                {tCommon("reset")}
               </a>
             ) : null}
           </div>
@@ -304,22 +319,19 @@ export default async function ManagerVisitsPage({
           <VisitsTable tenantSlug={tenantSlug} visits={visits} />
         ) : (
           <div className="empty-state-panel">
-            <h2>No visits match this filter</h2>
-            <p>
-              Use another status filter or start a field visit before reviewing
-              visit progress here.
-            </p>
+            <h2>{t("emptyTitle")}</h2>
+            <p>{t("emptyBody")}</p>
             <div className="toolbar">
               {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/visits`}
                 >
-                  Show all visits
+                  {t("showAllVisits")}
                 </a>
               ) : null}
               <a className="primary-button" href={`/${tenantSlug}/field`}>
-                Open field workspace
+                {t("openFieldWorkspace")}
               </a>
             </div>
           </div>
@@ -367,17 +379,21 @@ function VisitsTable({
   tenantSlug: string;
   visits: Visit[];
 }) {
+  const t = useTranslations("manager.visits");
+  const tCommon = useTranslations("common");
+  const format = useFormatter();
+
   return (
     <table className="table drilldown-table">
       <thead>
         <tr>
-          <th>Location</th>
-          <th>Representative</th>
-          <th>Status</th>
-          <th>Type</th>
-          <th>Started</th>
-          <th>Completed</th>
-          <th>Report</th>
+          <th>{t("tableLocation")}</th>
+          <th>{t("tableRepresentative")}</th>
+          <th>{t("tableStatus")}</th>
+          <th>{t("tableType")}</th>
+          <th>{t("tableStarted")}</th>
+          <th>{t("tableCompleted")}</th>
+          <th>{t("tableReport")}</th>
         </tr>
       </thead>
       <tbody>
@@ -392,18 +408,18 @@ function VisitsTable({
             <td>{visit.representative.name}</td>
             <td>
               <span className={`status-pill ${visitStatusTone(visit.status)}`}>
-                {formatVisitStatus(visit.status)}
+                {formatEnumLabel(tCommon, visit.status)}
               </span>
             </td>
-            <td>{formatLabel(visit.visitType)}</td>
-            <td>{formatDateTime(visit.startedAt)}</td>
-            <td>{formatDateTime(visit.completedAt)}</td>
+            <td>{formatEnumLabel(tCommon, visit.visitType)}</td>
+            <td>{formatDateTime(format, visit.startedAt)}</td>
+            <td>{formatDateTime(format, visit.completedAt)}</td>
             <td>
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/manager/visits/${visit.id}`}
               >
-                Open
+                {t("open")}
               </a>
             </td>
           </tr>
@@ -415,6 +431,7 @@ function VisitsTable({
 
 function buildVisitCounters(
   visitsResult: ApiResult<PaginatedResponse<Visit>>,
+  t: Awaited<ReturnType<typeof getTranslations<"manager.visits">>>,
 ): Array<{
   label: string;
   value: string;
@@ -434,21 +451,21 @@ function buildVisitCounters(
 
   return [
     {
-      label: "Visible visits",
+      label: t("visibleVisits"),
       value: String(visitsResult.data.total),
-      detail: `${visits.length} loaded on this page`,
+      detail: t("loadedOnPage", { count: visits.length }),
       tone: "active",
     },
     {
-      label: "Reports confirmed",
+      label: t("reportsConfirmed"),
       value: String(completed.length),
-      detail: `${waiting.length} waiting or in progress`,
+      detail: t("waitingDetail", { count: waiting.length }),
       tone: completed.length > 0 ? "active" : "info",
     },
     {
-      label: "In progress",
+      label: t("inProgress"),
       value: String(inProgress.length),
-      detail: "Needs field completion or report confirmation",
+      detail: t("inProgressDetail"),
       tone: inProgress.length > 0 ? "warning" : "active",
     },
   ];
@@ -524,9 +541,6 @@ function normalizeDateFilter(value: string | undefined): string | null {
   return normalizedValue;
 }
 
-function formatVisitStatus(status: VisitStatus): string {
-  return formatLabel(status);
-}
 
 function visitStatusTone(status: VisitStatus): "active" | "info" | "warning" {
   if (status === "completed") {
@@ -538,23 +552,4 @@ function visitStatusTone(status: VisitStatus): "active" | "info" | "warning" {
   }
 
   return "info";
-}
-
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

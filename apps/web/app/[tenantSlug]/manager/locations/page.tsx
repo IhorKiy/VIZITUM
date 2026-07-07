@@ -9,13 +9,15 @@ import {
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
-import { useFormatter } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 import {
   formatDateTime,
-  formatLabel,
+  formatEnumLabel,
   normalizeFilterValue,
   statusTone,
+  type CommonTranslator,
 } from "../../../../lib/format";
 
 type ManagerLocationsPageProps = {
@@ -47,6 +49,11 @@ export default async function ManagerLocationsPage({
   searchParams,
 }: ManagerLocationsPageProps) {
   const { tenantSlug } = await params;
+  const [t, tManager, tCommon] = await Promise.all([
+    getTranslations("manager.locations"),
+    getTranslations("manager"),
+    getTranslations("common"),
+  ]);
   const sessionResult = await getCurrentSession();
 
   if (
@@ -57,25 +64,25 @@ export default async function ManagerLocationsPage({
       <AppShell tenantSlug={tenantSlug} activeArea="manager-locations">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Team manager</p>
-            <h1>Coverage</h1>
-            <p>
-              Team Manager access is required before coverage review can
-              continue.
-            </p>
+            <p className="eyebrow">{tManager("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("permissionBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="Permission status">
+        <section
+          className="notice-panel"
+          aria-label={t("permissionStatusAria")}
+        >
           <div>
-            <p className="eyebrow">Permission required</p>
-            <h2>Coverage is not available</h2>
-            <p>Ask a Company Admin to assign the Team Manager role.</p>
+            <p className="eyebrow">{t("permissionRequiredEyebrow")}</p>
+            <h2>{t("permissionRequiredTitle")}</h2>
+            <p>{t("permissionRequiredBody")}</p>
           </div>
         </section>
       </AppShell>
@@ -130,24 +137,24 @@ export default async function ManagerLocationsPage({
       <AppShell tenantSlug={tenantSlug} activeArea="manager-locations">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Team manager</p>
-            <h1>Coverage</h1>
-            <p>
-              Live tenant locations are required before coverage review can
-              continue.
-            </p>
+            <p className="eyebrow">{tManager("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Locations are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{locationsResult.message}</p>
           </div>
         </section>
@@ -165,6 +172,7 @@ export default async function ManagerLocationsPage({
     locations,
     locationsResult.data.total,
     activityByLocation,
+    t,
   );
   const cityOptions = buildLocationOptions(locationOptionsSource, "city");
   const regionOptions = buildLocationOptions(locationOptionsSource, "region");
@@ -172,48 +180,51 @@ export default async function ManagerLocationsPage({
     locationOptionsSource,
     "territory",
   );
-  const filterSummary = buildLocationFilterSummary({
-    city: selectedCity,
-    region: selectedRegion,
-    search,
-    status: selectedStatus,
-    territory: selectedTerritory,
-  });
+  const filterSummary = buildLocationFilterSummary(
+    {
+      city: selectedCity,
+      region: selectedRegion,
+      search,
+      status: selectedStatus,
+      territory: selectedTerritory,
+    },
+    t,
+    tCommon,
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-locations">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Team manager</p>
-          <h1>Coverage</h1>
-          <p>
-            Review tenant locations, recent visit coverage and open follow-up
-            work without admin edit rights.
-          </p>
+          <p className="eyebrow">{tManager("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/manager`}>
-            Overview
+            {t("overview")}
           </a>
           <a
             className="secondary-button"
             href={`/${tenantSlug}/manager/visits`}
           >
-            Visits
+            {t("visits")}
           </a>
           <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
-            Tasks
+            {t("tasks")}
           </a>
         </div>
       </header>
 
-      <section className="manager-grid" aria-label="Location metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         {counters.map((counter) => (
           <article className="metric-card" key={counter.label}>
             <header>
               <p className="metric-label">{counter.label}</p>
               <span className={`status-pill ${counter.tone}`}>
-                {counter.tone === "active" ? "OK" : counter.tone}
+                {counter.tone === "active"
+                  ? tCommon("tone.ok")
+                  : tCommon(`tone.${counter.tone}`)}
               </span>
             </header>
             <p className="metric-value">{counter.value}</p>
@@ -225,10 +236,10 @@ export default async function ManagerLocationsPage({
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
-            <h2>Location coverage</h2>
-            <p>Showing {filterSummary.toLowerCase()} for this tenant.</p>
+            <h2>{t("locationCoverage")}</h2>
+            <p>{t("showingSummary", { summary: filterSummary })}</p>
           </div>
-          <div className="filter-pills" aria-label="Location status filters">
+          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
             <a
               aria-current={!selectedStatus ? "page" : undefined}
               href={buildLocationFilterHref(tenantSlug, {
@@ -239,7 +250,7 @@ export default async function ManagerLocationsPage({
                 territory: selectedTerritory,
               })}
             >
-              All
+              {tCommon("all")}
             </a>
             {locationStatuses.map((status) => (
               <a
@@ -253,7 +264,7 @@ export default async function ManagerLocationsPage({
                 })}
                 key={status}
               >
-                {formatLabel(status)}
+                {formatEnumLabel(tCommon, status)}
               </a>
             ))}
           </div>
@@ -267,18 +278,18 @@ export default async function ManagerLocationsPage({
             <input name="status" type="hidden" value={selectedStatus} />
           ) : null}
           <label>
-            Search
+            {t("search")}
             <input
               defaultValue={search ?? ""}
               name="search"
-              placeholder="Name or code"
+              placeholder={t("searchPlaceholder")}
               type="search"
             />
           </label>
           <label>
-            City
+            {t("city")}
             <select defaultValue={selectedCity ?? ""} name="city">
-              <option value="">Any city</option>
+              <option value="">{t("anyCity")}</option>
               {cityOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -287,9 +298,9 @@ export default async function ManagerLocationsPage({
             </select>
           </label>
           <label>
-            Region
+            {t("region")}
             <select defaultValue={selectedRegion ?? ""} name="region">
-              <option value="">Any region</option>
+              <option value="">{t("anyRegion")}</option>
               {regionOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -298,9 +309,9 @@ export default async function ManagerLocationsPage({
             </select>
           </label>
           <label>
-            Territory
+            {t("territory")}
             <select defaultValue={selectedTerritory ?? ""} name="territory">
-              <option value="">Any territory</option>
+              <option value="">{t("anyTerritory")}</option>
               {territoryOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -310,14 +321,14 @@ export default async function ManagerLocationsPage({
           </label>
           <div className="filter-actions">
             <button className="secondary-button" type="submit">
-              Apply filters
+              {tCommon("applyFilters")}
             </button>
             {hasFilters ? (
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/manager/locations`}
               >
-                Reset
+                {tCommon("reset")}
               </a>
             ) : null}
           </div>
@@ -331,22 +342,19 @@ export default async function ManagerLocationsPage({
           />
         ) : (
           <div className="empty-state-panel">
-            <h2>No locations match this filter</h2>
-            <p>
-              Use another coverage filter or import active locations before
-              reviewing territory activity here.
-            </p>
+            <h2>{t("emptyTitle")}</h2>
+            <p>{t("emptyBody")}</p>
             <div className="toolbar">
               {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/locations`}
                 >
-                  Show all locations
+                  {t("showAllLocations")}
                 </a>
               ) : null}
               <a className="primary-button" href={`/${tenantSlug}/manager`}>
-                Open overview
+                {t("openOverview")}
               </a>
             </div>
           </div>
@@ -365,18 +373,20 @@ function LocationsTable({
   locations: Location[];
   tenantSlug: string;
 }) {
+  const t = useTranslations("manager.locations");
+  const tCommon = useTranslations("common");
   const format = useFormatter();
 
   return (
     <table className="table drilldown-table">
       <thead>
         <tr>
-          <th>Location</th>
-          <th>Area</th>
-          <th>Status</th>
-          <th>Visits</th>
-          <th>Open tasks</th>
-          <th>Actions</th>
+          <th>{t("tableLocation")}</th>
+          <th>{t("tableArea")}</th>
+          <th>{t("tableStatus")}</th>
+          <th>{t("tableVisits")}</th>
+          <th>{t("tableOpenTasks")}</th>
+          <th>{t("tableActions")}</th>
         </tr>
       </thead>
       <tbody>
@@ -392,12 +402,12 @@ function LocationsTable({
                 </span>
               </td>
               <td>
-                <strong>{location.territory ?? "Unassigned"}</strong>
-                <span>{location.region ?? location.type ?? "No region"}</span>
+                <strong>{location.territory ?? t("unassignedTerritory")}</strong>
+                <span>{location.region ?? location.type ?? t("noRegion")}</span>
               </td>
               <td>
                 <span className={`status-pill ${statusTone(location.status)}`}>
-                  {formatLabel(location.status)}
+                  {formatEnumLabel(tCommon, location.status)}
                 </span>
               </td>
               <td>
@@ -406,7 +416,7 @@ function LocationsTable({
                   {formatDateTime(
                     format,
                     activity?.lastVisitAt ?? null,
-                    "No visits yet",
+                    t("noVisitsYet"),
                   )}
                 </span>
               </td>
@@ -417,13 +427,13 @@ function LocationsTable({
                     className="secondary-button"
                     href={`/${tenantSlug}/manager/visits?locationId=${location.id}`}
                   >
-                    Visits
+                    {t("visits")}
                   </a>
                   <a
                     className="secondary-button"
                     href={`/${tenantSlug}/manager/tasks?locationId=${location.id}`}
                   >
-                    Tasks
+                    {t("tasks")}
                   </a>
                 </div>
               </td>
@@ -492,10 +502,15 @@ function getLocationActivity(
   return activity;
 }
 
+type LocationsTranslator = Awaited<
+  ReturnType<typeof getTranslations<"manager.locations">>
+>;
+
 function buildLocationCounters(
   locations: Location[],
   total: number,
   activityByLocation: Map<string, LocationActivity>,
+  t: LocationsTranslator,
 ): Array<{
   label: string;
   value: string;
@@ -512,21 +527,21 @@ function buildLocationCounters(
 
   return [
     {
-      label: "Visible locations",
+      label: t("visibleLocations"),
       value: String(total),
-      detail: `${locations.length} loaded on this page`,
+      detail: t("loadedOnPage", { count: locations.length }),
       tone: "active",
     },
     {
-      label: "Active coverage",
+      label: t("activeCoverage"),
       value: String(active.length),
-      detail: `${withVisits.length} location(s) with visit activity`,
+      detail: t("activeCoverageDetail", { count: withVisits.length }),
       tone: active.length > 0 ? "active" : "info",
     },
     {
-      label: "Open follow-ups",
+      label: t("openFollowUps"),
       value: String(withOpenTasks.length),
-      detail: "Locations with open team tasks",
+      detail: t("openFollowUpsDetail"),
       tone: withOpenTasks.length > 0 ? "warning" : "active",
     },
   ];
@@ -618,21 +633,29 @@ function buildLocationFilterHref(
   return `/${tenantSlug}/manager/locations${suffix ? `?${suffix}` : ""}`;
 }
 
-function buildLocationFilterSummary(filters: {
-  city: string | null;
-  region: string | null;
-  search: string | null;
-  status: LocationStatus | null;
-  territory: string | null;
-}): string {
+function buildLocationFilterSummary(
+  filters: {
+    city: string | null;
+    region: string | null;
+    search: string | null;
+    status: LocationStatus | null;
+    territory: string | null;
+  },
+  t: LocationsTranslator,
+  tCommon: CommonTranslator,
+): string {
   const parts = [
     filters.status
-      ? `${formatLabel(filters.status)} locations`
-      : "All locations",
-    filters.search ? `matching "${filters.search}"` : null,
-    filters.city ? `in ${filters.city}` : null,
-    filters.region ? `region ${filters.region}` : null,
-    filters.territory ? `territory ${filters.territory}` : null,
+      ? t("summaryStatusLocations", {
+          status: formatEnumLabel(tCommon, filters.status),
+        })
+      : t("summaryAllLocations"),
+    filters.search ? t("summaryMatching", { search: filters.search }) : null,
+    filters.city ? t("summaryInCity", { city: filters.city }) : null,
+    filters.region ? t("summaryRegion", { region: filters.region }) : null,
+    filters.territory
+      ? t("summaryTerritory", { territory: filters.territory })
+      : null,
   ].filter(Boolean);
 
   return parts.join(", ");
