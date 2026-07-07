@@ -17,11 +17,7 @@ export function CreateTenantModal({
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   return (
-    <section className="panel platform-create-panel" aria-label="Create tenant">
-      <div>
-        <h2>Create tenant</h2>
-        <p>Provision a new workspace.</p>
-      </div>
+    <>
       <button
         aria-haspopup="dialog"
         className="primary-button"
@@ -104,6 +100,6 @@ export function CreateTenantModal({
           </div>
         </form>
       </dialog>
-    </section>
+    </>
   );
 }
