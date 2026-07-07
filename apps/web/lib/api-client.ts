@@ -709,6 +709,7 @@ export type PlatformTenant = {
   adminLimit: number;
   createdAt: string;
   metrics?: PlatformTenantMetrics;
+  superadmin?: TenantSuperadminSummary | null;
 };
 
 export type CreatePlatformTenantInput = {
