@@ -359,7 +359,11 @@ export default async function LocationDetailPage({
         </form>
       )}
 
-      {!isDemoLocation && routePlanId && routeItemId && !stopAlreadyVisited ? (
+      {!isDemoLocation &&
+      routePlanId &&
+      routeItemId &&
+      !stopAlreadyVisited &&
+      !activeVisit ? (
         <form action={markVisitedAction}>
           <input name="routePlanId" type="hidden" value={routePlanId} />
           <input name="routeItemId" type="hidden" value={routeItemId} />
