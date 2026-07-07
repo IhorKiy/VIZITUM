@@ -226,7 +226,8 @@ textarea {
 .manager-grid,
 .import-grid,
 .admin-users-grid,
-.setup-grid {
+.setup-grid,
+.general-stack {
   display: grid;
   gap: 16px;
   margin: 0 auto;
@@ -1523,4 +1524,283 @@ textarea {
   .mobile-nav {
     display: flex;
   }
+}
+
+.route-section {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.route-progress-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.route-progress-head {
+  align-items: center;
+  display: flex;
+  font-weight: 800;
+  justify-content: space-between;
+}
+
+.route-progress-count {
+  color: var(--accent);
+}
+
+.route-progress-track {
+  background: var(--surface-muted);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.route-progress-fill {
+  background: var(--accent);
+  border-radius: 999px;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.route-progress-legend {
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  justify-content: space-between;
+}
+
+/* Grouped route card (mobile-first, light) */
+.route-plan-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.route-plan-head {
+  align-items: center;
+  background: var(--surface-muted);
+  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.route-plan-icon {
+  color: var(--accent);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.route-plan-heading {
+  display: grid;
+  gap: 2px;
+}
+
+.route-plan-name {
+  font-weight: 800;
+  margin: 0;
+}
+
+.route-plan-link {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.route-stop-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Collapsible stop card (native <details>) */
+.route-stop {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.route-stop.visited {
+  background: var(--surface-muted);
+}
+
+.route-stop-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  list-style: none;
+  padding: 12px 14px;
+}
+
+.route-stop-summary::-webkit-details-marker {
+  display: none;
+}
+
+.route-stop-index {
+  align-items: center;
+  background: rgba(23, 107, 95, 0.12);
+  border-radius: 999px;
+  color: var(--accent);
+  display: flex;
+  flex-shrink: 0;
+  font-weight: 800;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.route-stop.visited .route-stop-index {
+  background: var(--accent);
+  color: #f7fbf8;
+}
+
+.route-stop-body {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.route-stop-body h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.route-stop.visited .route-stop-body h3 {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.route-stop-address {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.route-stop-chevron {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.route-stop[open] .route-stop-chevron {
+  transform: rotate(90deg);
+}
+
+.route-stop-detail {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.route-stop-detail .status-pill {
+  justify-self: start;
+}
+
+.route-stop-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.route-empty {
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.route-empty-title {
+  font-weight: 800;
+  margin: 0;
+}
+
+.route-empty-text {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.calendar-grid {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-weekday {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.calendar-cell {
+  align-items: center;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  padding: 4px;
+}
+
+.calendar-cell.empty {
+  background: var(--surface-muted);
+  border-color: transparent;
+}
+
+.calendar-cell.today .calendar-day-number {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.calendar-cell.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #f7fbf8;
+}
+
+.calendar-cell.selected .calendar-day-number {
+  color: #f7fbf8;
+}
+
+.calendar-day-number {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.calendar-dot {
+  background: var(--accent);
+  border-radius: 999px;
+  height: 5px;
+  width: 5px;
+}
+
+.calendar-cell.selected .calendar-dot {
+  background: #f7fbf8;
 }

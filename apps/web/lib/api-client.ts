@@ -478,6 +478,31 @@ export async function listRoutes(
   return apiGet<PaginatedResponse<RoutePlan>>(`/routes?${query}`);
 }
 
+export async function createRoutePlan(input: {
+  representativeUserId: string;
+  planDate: string;
+}): Promise<ApiResult<RoutePlan>> {
+  return apiPost<RoutePlan>("/routes", input);
+}
+
+export async function addRouteItem(
+  routePlanId: string,
+  input: { locationId: string; sequence: number },
+): Promise<ApiResult<RoutePlan>> {
+  return apiPost<RoutePlan>(`/routes/${routePlanId}/items`, input);
+}
+
+export async function updateRouteItem(
+  routePlanId: string,
+  routeItemId: string,
+  input: { status?: RouteItemStatus; sequence?: number },
+): Promise<ApiResult<RoutePlan>> {
+  return apiPatch<RoutePlan>(
+    `/routes/${routePlanId}/items/${routeItemId}`,
+    input,
+  );
+}
+
 export async function listTasks(
   query = "pageSize=50",
 ): Promise<ApiResult<PaginatedResponse<Task>>> {

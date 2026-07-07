@@ -1,5 +1,7 @@
 export type RoleArea =
   | "field"
+  | "field-planning"
+  | "field-general"
   | "field-history"
   | "admin-setup"
   | "admin-users"
@@ -35,6 +37,20 @@ export function buildTenantNav(
       area: "field",
       icon: "V",
       requiredPermissions: ["visits.read_own", "visits.read_team"],
+    },
+    {
+      label: "Planning",
+      href: `/${tenantSlug}/field/planning`,
+      area: "field-planning",
+      icon: "N",
+      requiredPermissions: ["routes.read"],
+    },
+    {
+      label: "General",
+      href: `/${tenantSlug}/field/general`,
+      area: "field-general",
+      icon: "G",
+      requiredPermissions: ["routes.manage_own"],
     },
     {
       label: "History",
@@ -73,14 +89,14 @@ export function buildTenantNav(
       href: `/${tenantSlug}/admin/locations`,
       area: "admin-locations",
       icon: "L",
-      requiredPermissions: ["locations.read"],
+      requiredPermissions: ["locations.manage"],
     },
     {
       label: "Products",
       href: `/${tenantSlug}/admin/products`,
       area: "admin-products",
       icon: "K",
-      requiredPermissions: ["products.read"],
+      requiredPermissions: ["products.manage"],
     },
     {
       label: "Review",

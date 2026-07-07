@@ -9,13 +9,10 @@ import {
   confirmManualReport,
   createVisit,
   getCurrentSession,
-  listLocations,
-  listTasks,
+  listTodayRoutes,
   listVisits,
-  updateTask,
-  type Location,
-  type Task,
-  type TaskStatus,
+  updateRouteItem,
+  type RoutePlan,
   type Visit,
   uploadAudioVisitNote,
 } from "../../../lib/api-client";
@@ -27,10 +24,20 @@ type FieldPageProps = {
     audio?: string;
     note?: string;
     report?: string;
-    task?: string;
+    route?: string;
     visit?: string;
     error?: string;
   }>;
+};
+
+type FieldRouteStop = {
+  id: string;
+  routePlanId: string;
+  locationId: string;
+  name: string;
+  address: string;
+  sequence: number;
+  visited: boolean;
 };
 
 type FieldVisit = {
@@ -46,25 +53,6 @@ type FieldVisit = {
     | "needs_review"
     | "manual_fallback_available"
     | "confirmed";
-};
-
-type FieldLocation = {
-  id: string;
-  name: string;
-  address: string;
-  detail: string;
-  notes: string | null;
-  status: string;
-};
-
-type FieldTask = {
-  id: string;
-  title: string;
-  detail: string;
-  status: TaskStatus;
-  priority: string;
-  dueDate: string;
-  locationName: string;
 };
 
 const demoVisits: FieldVisit[] = [
@@ -97,51 +85,33 @@ const demoVisits: FieldVisit[] = [
   },
 ];
 
-const demoLocations: FieldLocation[] = [
+const demoRouteStops: FieldRouteStop[] = [
   {
-    id: "demo-location-1",
+    id: "demo-stop-1",
+    routePlanId: "demo-plan-1",
+    locationId: "demo-location-1",
     name: "Silpo Obolon",
     address: "Heroiv Dnipra Ave, Kyiv",
-    detail: "Trade · Kyiv North",
-    notes: "Check shelf share and competitor pricing.",
-    status: "Active",
+    sequence: 1,
+    visited: true,
   },
   {
-    id: "demo-location-2",
+    id: "demo-stop-2",
+    routePlanId: "demo-plan-1",
+    locationId: "demo-location-2",
     name: "Pharmacy 24",
     address: "Lvivska St, Kyiv",
-    detail: "Pharmacy · Kyiv Center",
-    notes: "Service agreement renewal due this month.",
-    status: "Active",
+    sequence: 2,
+    visited: false,
   },
   {
-    id: "demo-location-3",
+    id: "demo-stop-3",
+    routePlanId: "demo-plan-1",
+    locationId: "demo-location-3",
     name: "Partner Hub",
     address: "Volodymyrska St, Kyiv",
-    detail: "Partner · Kyiv West",
-    notes: null,
-    status: "Active",
-  },
-];
-
-const demoTasks: FieldTask[] = [
-  {
-    id: "demo-task-1",
-    title: "Confirm promo display",
-    detail: "Take a quick note after checking shelf visibility.",
-    status: "open",
-    priority: "High",
-    dueDate: "Today",
-    locationName: "Silpo Obolon",
-  },
-  {
-    id: "demo-task-2",
-    title: "Ask about next order",
-    detail: "Capture the partner's expected reorder date.",
-    status: "in_progress",
-    priority: "Normal",
-    dueDate: "Tomorrow",
-    locationName: "Partner Hub",
+    sequence: 3,
+    visited: false,
   },
 ];
 
@@ -150,7 +120,7 @@ export default async function FieldPage({
   searchParams,
 }: FieldPageProps) {
   const { tenantSlug } = await params;
-  const { audio, note, report, task, visit, error } = await searchParams;
+  const { audio, note, report, route, visit, error } = await searchParams;
 
   async function createVisitAction(formData: FormData) {
     "use server";
@@ -237,23 +207,25 @@ export default async function FieldPage({
     redirect(`/${tenantSlug}/field?report=confirmed`);
   }
 
-  async function updateTaskStatusAction(formData: FormData) {
+  async function markStopVisitedAction(formData: FormData) {
     "use server";
 
-    const taskId = String(formData.get("taskId") ?? "").trim();
-    const status = normalizeTaskStatus(formData.get("status"));
+    const routePlanId = String(formData.get("routePlanId") ?? "").trim();
+    const routeItemId = String(formData.get("routeItemId") ?? "").trim();
 
-    if (!taskId || !status) {
-      redirect(`/${tenantSlug}/field?error=task`);
+    if (!routePlanId || !routeItemId) {
+      redirect(`/${tenantSlug}/field?error=route`);
     }
 
-    const result = await updateTask(taskId, { status });
+    const result = await updateRouteItem(routePlanId, routeItemId, {
+      status: "visited",
+    });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/field?error=task`);
+      redirect(`/${tenantSlug}/field?error=route`);
     }
 
-    redirect(`/${tenantSlug}/field?task=updated`);
+    redirect(`/${tenantSlug}/field?route=visited`);
   }
 
   const sessionResult = await getCurrentSession();
@@ -264,15 +236,8 @@ export default async function FieldPage({
         status: sessionResult.status,
         message: sessionResult.message,
       };
-  const locationsResult = sessionResult.ok
-    ? await listLocations()
-    : {
-        ok: false as const,
-        status: sessionResult.status,
-        message: sessionResult.message,
-      };
-  const tasksResult = sessionResult.ok
-    ? await listTasks("pageSize=50")
+  const todayRoutesResult = sessionResult.ok
+    ? await listTodayRoutes()
     : {
         ok: false as const,
         status: sessionResult.status,
@@ -313,20 +278,14 @@ export default async function FieldPage({
   const visits = visitsResult.ok
     ? visitsResult.data.items.map(toFieldVisit)
     : demoVisits;
-  const locations = locationsResult.ok
-    ? locationsResult.data.items.map(toFieldLocation)
-    : demoLocations;
-  const tasks = tasksResult.ok
-    ? tasksResult.data.items.map(toFieldTask)
-    : demoTasks;
+  const routeStops = todayRoutesResult.ok
+    ? toRouteStops(todayRoutesResult.data)
+    : demoRouteStops;
+  const visitedStops = routeStops.filter((stop) => stop.visited).length;
   const isDemoMode = !visitsResult.ok && demoFallbackEnabled;
-  const canCreateLiveVisit = locationsResult.ok && locations.length > 0;
   const representativeName = sessionResult.ok
     ? sessionResult.data.user.name
     : "Demo representative";
-  const openTasks = tasks.filter(
-    (item) => item.status === "open" || item.status === "in_progress",
-  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -334,10 +293,6 @@ export default async function FieldPage({
         <div>
           <p className="eyebrow">Field flow</p>
           <h1>Today&apos;s visits</h1>
-          <p>
-            {representativeName} has a mobile-first workspace for route
-            execution, voice notes and manual report confirmation.
-          </p>
         </div>
         <div className="toolbar" aria-label="Visit actions">
           <button
@@ -350,9 +305,6 @@ export default async function FieldPage({
           </button>
           <a className="secondary-button" href={`/${tenantSlug}/field/history`}>
             History
-          </a>
-          <a className="primary-button" href="#new-visit">
-            New visit
           </a>
         </div>
       </header>
@@ -410,12 +362,12 @@ export default async function FieldPage({
         </section>
       ) : null}
 
-      {task === "updated" ? (
-        <section className="notice-panel success" aria-label="Task status">
+      {route === "visited" ? (
+        <section className="notice-panel success" aria-label="Route status">
           <div>
-            <p className="eyebrow">Task updated</p>
-            <h2>Follow-up saved</h2>
-            <p>The task status was updated for your field queue.</p>
+            <p className="eyebrow">Route updated</p>
+            <h2>Stop marked as visited</h2>
+            <p>Your route progress for today was updated.</p>
           </div>
         </section>
       ) : null}
@@ -471,11 +423,11 @@ export default async function FieldPage({
         </section>
       ) : null}
 
-      {error === "task" ? (
-        <section className="notice-panel danger" aria-label="Task error">
+      {error === "route" ? (
+        <section className="notice-panel danger" aria-label="Route error">
           <div>
-            <p className="eyebrow">Task not updated</p>
-            <h2>Follow-up update failed</h2>
+            <p className="eyebrow">Route not updated</p>
+            <h2>Could not update the stop</h2>
             <p>Refresh your field workspace and try again.</p>
           </div>
         </section>
@@ -494,7 +446,151 @@ export default async function FieldPage({
         </section>
       ) : null}
 
-      <section className="dashboard-grid" aria-label="Field workspace">
+      <section className="route-section" aria-label="Today's route">
+        {routeStops.length > 0 ? (
+          <>
+            <article className="route-progress-card">
+              <div className="route-progress-head">
+                <span>Progress today</span>
+                <span className="route-progress-count">
+                  {visitedStops}/{routeStops.length}
+                </span>
+              </div>
+              <div
+                className="route-progress-track"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={routeStops.length}
+                aria-valuenow={visitedStops}
+              >
+                <div
+                  className="route-progress-fill"
+                  style={{
+                    width: `${Math.round(
+                      (visitedStops / routeStops.length) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+              <div className="route-progress-legend">
+                <span>{visitedStops} visited</span>
+                {routeStops.length - visitedStops > 0 ? (
+                  <span>{routeStops.length - visitedStops} remaining</span>
+                ) : (
+                  <span>All visited</span>
+                )}
+              </div>
+            </article>
+
+            <div className="route-plan-card">
+              <div className="route-plan-head">
+                <span className="route-plan-icon" aria-hidden="true">
+                  ⇄
+                </span>
+                <div className="route-plan-heading">
+                  <p className="route-plan-name">Today&apos;s route</p>
+                  <a
+                    className="route-plan-link"
+                    href={`/${tenantSlug}/field/planning`}
+                  >
+                    Edit plan →
+                  </a>
+                </div>
+              </div>
+
+              <ol className="route-stop-list">
+                {routeStops.map((stop, index) => (
+                  <li key={stop.id}>
+                    <details
+                      className={`route-stop${stop.visited ? " visited" : ""}`}
+                    >
+                      <summary className="route-stop-summary">
+                        <span className="route-stop-index" aria-hidden="true">
+                          {stop.visited ? "✓" : index + 1}
+                        </span>
+                        <div className="route-stop-body">
+                          <h3>{stop.name}</h3>
+                          <p className="route-stop-address">{stop.address}</p>
+                        </div>
+                        <span
+                          className="route-stop-chevron"
+                          aria-hidden="true"
+                        >
+                          ›
+                        </span>
+                      </summary>
+                      <div className="route-stop-detail">
+                        <span
+                          className={`status-pill ${
+                            stop.visited ? "active" : "info"
+                          }`}
+                        >
+                          {stop.visited ? "Visited" : "Planned"}
+                        </span>
+                        {stop.visited ? null : (
+                          <div className="route-stop-actions">
+                            <form action={createVisitAction}>
+                              <input
+                                name="locationId"
+                                type="hidden"
+                                value={stop.locationId}
+                              />
+                              <input
+                                name="visitType"
+                                type="hidden"
+                                value="field_visit"
+                              />
+                              <PendingSubmitButton
+                                className="primary-button"
+                                pendingLabel="Starting..."
+                              >
+                                Start visit
+                              </PendingSubmitButton>
+                            </form>
+                            <form action={markStopVisitedAction}>
+                              <input
+                                name="routePlanId"
+                                type="hidden"
+                                value={stop.routePlanId}
+                              />
+                              <input
+                                name="routeItemId"
+                                type="hidden"
+                                value={stop.id}
+                              />
+                              <PendingSubmitButton
+                                className="secondary-button"
+                                pendingLabel="Saving..."
+                              >
+                                Mark visited
+                              </PendingSubmitButton>
+                            </form>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </>
+        ) : (
+          <div className="route-empty">
+            <p className="route-empty-title">No route planned for today</p>
+            <p className="route-empty-text">
+              Build a route in planning to line up today&apos;s stops in order.
+            </p>
+            <a
+              className="route-plan-link"
+              href={`/${tenantSlug}/field/planning`}
+            >
+              Go to planning →
+            </a>
+          </div>
+        )}
+      </section>
+
+      <section className="field-visits" aria-label="Visits in progress">
         <div className="field-stack" id="voice-notes">
           {visits.length > 0 ? (
             visits.map((visit, index) => (
@@ -584,189 +680,36 @@ export default async function FieldPage({
             <section className="empty-state-panel">
               <h2>No visits yet</h2>
               <p>
-                Start a visit from an active location to begin capturing notes
-                and report confirmation.
+                Open a stop on today&apos;s route and start a visit to begin
+                capturing notes and report confirmation.
               </p>
-              <a className="primary-button" href="#new-visit">
-                New visit
-              </a>
             </section>
           )}
         </div>
 
-        <aside className="panel" aria-labelledby="field-summary-title">
-          <section id="new-visit" className="field-panel-section">
-            <h2>New visit</h2>
-            {canCreateLiveVisit ? (
-              <form action={createVisitAction} className="visit-form compact">
-                <label>
-                  Location
-                  <select name="locationId" required>
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.name} · {location.address}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Visit type
-                  <select name="visitType" required>
-                    <option value="field_visit">Field visit</option>
-                    <option value="service_visit">Service visit</option>
-                    <option value="partner_check_in">Partner check-in</option>
-                  </select>
-                </label>
-                <PendingSubmitButton
-                  className="primary-button"
-                  pendingLabel="Starting..."
-                >
-                  Start visit
-                </PendingSubmitButton>
-              </form>
-            ) : (
-              <p className="empty-state">
-                Active locations are required before starting a live visit.
-              </p>
-            )}
-          </section>
-
-          <h2 id="field-summary-title">Route summary</h2>
-          <table className="table">
-            <tbody>
-              <tr>
-                <th scope="row">Completed</th>
-                <td>
-                  {
-                    visits.filter((visit) => visit.status === "Completed")
-                      .length
-                  }
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">Remaining</th>
-                <td>
-                  {
-                    visits.filter((visit) => visit.status !== "Completed")
-                      .length
-                  }
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">Open tasks</th>
-                <td>{openTasks.length}</td>
-              </tr>
-              <tr>
-                <th scope="row">Locations</th>
-                <td>{locations.length}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <section className="field-panel-section">
-            <h2>Location cards</h2>
-            {locations.length > 0 ? (
-              <div className="field-card-list">
-                {locations.slice(0, 4).map((location) => (
-                  <article className="location-mini-card" key={location.id}>
-                    <header>
-                      <div>
-                        <h3>{location.name}</h3>
-                        <p>{location.address}</p>
-                      </div>
-                      <span className="status-pill active">
-                        {location.status}
-                      </span>
-                    </header>
-                    <p className="visit-meta">{location.detail}</p>
-                    {location.notes ? (
-                      <p className="form-hint">{location.notes}</p>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="empty-state">
-                No active locations are available for field work yet.
-              </p>
-            )}
-          </section>
-
-          <section>
-            <h2>My tasks</h2>
-            {openTasks.length > 0 ? (
-              <div className="field-card-list">
-                {openTasks.map((item) => (
-                  <article className="location-mini-card" key={item.id}>
-                    <header>
-                      <div>
-                        <h3>{item.title}</h3>
-                        <p>{item.locationName}</p>
-                      </div>
-                      <span
-                        className={`status-pill ${taskStatusTone(item.status)}`}
-                      >
-                        {formatTaskStatus(item.status)}
-                      </span>
-                    </header>
-                    <p className="visit-meta">{item.detail}</p>
-                    <p className="form-hint">
-                      {item.priority} priority · Due {item.dueDate}
-                    </p>
-                    <form
-                      action={updateTaskStatusAction}
-                      className="inline-control-form"
-                    >
-                      <input name="taskId" type="hidden" value={item.id} />
-                      <select
-                        aria-label={`Update ${item.title} status`}
-                        defaultValue={item.status}
-                        name="status"
-                      >
-                        <option value="open">Open</option>
-                        <option value="in_progress">In progress</option>
-                        <option value="done">Done</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                      <PendingSubmitButton
-                        className="secondary-button"
-                        pendingLabel="Saving..."
-                      >
-                        Save
-                      </PendingSubmitButton>
-                    </form>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="empty-state">No tasks assigned right now.</p>
-            )}
-          </section>
-
-          <section className="field-ai-guidance">
-            <h2>AI draft guidance</h2>
-            <div className="field-card-list">
-              <article className="location-mini-card">
-                <h3>When AI is weak</h3>
-                <p className="visit-meta">
-                  Treat the draft as a suggestion. Edit the facts before
-                  confirmation or use the manual fallback when the output misses
-                  important context.
-                </p>
-              </article>
-              <article className="location-mini-card">
-                <h3>When AI is unavailable</h3>
-                <p className="visit-meta">
-                  Save a text note and confirm the manual report. Failed
-                  transcription or extraction should not block the visit.
-                </p>
-              </article>
-            </div>
-          </section>
-        </aside>
       </section>
     </AppShell>
   );
+}
+
+function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
+  return plans
+    .flatMap((plan) =>
+      plan.items
+        .filter((item) => item.status !== "skipped")
+        .map((item) => ({
+          id: item.id,
+          routePlanId: plan.id,
+          locationId: item.locationId,
+          name: item.location.name,
+          address: [item.location.addressLine, item.location.city]
+            .filter(Boolean)
+            .join(", "),
+          sequence: item.sequence,
+          visited: item.status === "visited",
+        })),
+    )
+    .sort((a, b) => a.sequence - b.sequence);
 }
 
 function toFieldVisit(visit: Visit): FieldVisit {
@@ -864,33 +807,6 @@ function resolveAiQualityState(state: FieldVisit["aiQualityState"]): {
   }
 }
 
-function toFieldLocation(location: Location): FieldLocation {
-  return {
-    id: location.id,
-    name: location.name,
-    address: [location.addressLine, location.city].filter(Boolean).join(", "),
-    detail: [location.type, location.region, location.territory]
-      .filter(Boolean)
-      .join(" · "),
-    notes: location.notes,
-    status: formatLabel(location.status),
-  };
-}
-
-function toFieldTask(task: Task): FieldTask {
-  return {
-    id: task.id,
-    title: task.title,
-    detail: task.description ?? "No additional details",
-    status: task.status,
-    priority: formatLabel(task.priority),
-    dueDate: formatDate(task.dueDate),
-    locationName: task.location
-      ? `${task.location.name} · ${task.location.city}`
-      : "No location",
-  };
-}
-
 function formatVisitStatus(status: Visit["status"]): string {
   return status
     .split("_")
@@ -908,52 +824,4 @@ function resolveStatusTone(status: string, index: number): string {
   }
 
   return index === 1 ? "info" : "warning";
-}
-
-function normalizeTaskStatus(
-  value: FormDataEntryValue | null,
-): TaskStatus | null {
-  if (
-    value === "open" ||
-    value === "in_progress" ||
-    value === "done" ||
-    value === "cancelled"
-  ) {
-    return value;
-  }
-
-  return null;
-}
-
-function formatTaskStatus(status: TaskStatus): string {
-  return formatLabel(status);
-}
-
-function taskStatusTone(status: TaskStatus): string {
-  if (status === "done") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
-}
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "not set";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-  }).format(new Date(value));
-}
-
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
 }

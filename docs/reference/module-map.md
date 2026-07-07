@@ -52,7 +52,9 @@ Next.js App Router. All product screens live under the tenant slug: `apps/web/ap
 | `/[tenantSlug]` | `[tenantSlug]/page.tsx` | — | Tenant home / role dispatch. |
 | `/[tenantSlug]/login` | `login/page.tsx` | Public | `POST /auth/login` |
 | `/[tenantSlug]/invites/accept` | `invites/accept/page.tsx` | Public | `POST /auth/invites/accept` |
-| `/[tenantSlug]/field` | `field/page.tsx` | Field | `/routes/today`, `/visits`, `/tasks`, visit notes/audio/AI/report endpoints |
+| `/[tenantSlug]/field` | `field/page.tsx` | Field | Focused home: today's route from `/routes/today` (collapsible ordered stops + progress, start visit, mark-visited via `PATCH /routes/:id/items/:itemId`) plus the in-progress visit/notes/AI/report flow over `/visits` |
+| `/[tenantSlug]/field/planning` | `field/planning/page.tsx` | Field | Month calendar over `/routes` (`pageSize=200`); build a day's route via `POST /routes` (upsert plan) + `POST /routes/:id/items`; reorder/remove via `PATCH /routes/:id/items/:itemId` (skip = soft remove) |
+| `/[tenantSlug]/field/general` | `field/general/page.tsx` | Field | Consolidated reference tab (moved off the home): daily summary stats, read-only Locations (`/locations`) and Products (`/products`), My tasks with status update (`PATCH /tasks/:id`), AI draft guidance. Nav item gated on `routes.manage_own` (field reps only) |
 | `/[tenantSlug]/field/history` | `field/history/page.tsx` | Field | Own-scope `/visits` history with status/date filters |
 | `/[tenantSlug]/admin` | `admin/page.tsx` | Admin | Admin home |
 | `/[tenantSlug]/admin/setup` | `admin/setup/page.tsx` | Admin | Onboarding checklist (settings, users, imports reads) |
