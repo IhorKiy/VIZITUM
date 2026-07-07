@@ -124,10 +124,70 @@ describe("platform tenant creation", () => {
     // No provisioning job is created anymore, so there's nothing to find.
     assert.equal(fetched.provisioningJob, null);
   });
+
+  it("batches each tenant's superadmin summary into listTenants instead of requiring a separate call per tenant", async () => {
+    const prisma = createPrismaStub();
+    const service = new PlatformService(prisma as unknown as PrismaService);
+
+    const active = await service.createTenant({
+      name: "Acme Co",
+      slug: "acme",
+      segmentTemplate: "distribution",
+    });
+    const archived = await service.createTenant({
+      name: "Retired Co",
+      slug: "retired",
+      segmentTemplate: "distribution",
+    });
+    await prisma.platformTenant.update({
+      where: { id: archived.tenant.id },
+      data: { status: "archived" },
+    });
+
+    prisma.seedSuperadmin(active.tenant.id, {
+      id: "super-1",
+      tenantId: active.tenant.id,
+      email: "super@example.com",
+      name: "Super One",
+      phone: null,
+      status: "active",
+      lastSelectedRoleCode: "tenant_superadmin",
+      roles: [{ roleCode: "tenant_superadmin" }],
+      createdAt: new Date("2026-07-01T00:00:00.000Z"),
+      updatedAt: new Date("2026-07-01T00:00:00.000Z"),
+    });
+    prisma.seedPendingInvite(archived.tenant.id, {
+      id: "invite-1",
+      tenantId: archived.tenant.id,
+      email: "next@example.com",
+      roleCodes: ["tenant_superadmin"],
+      status: "pending",
+      expiresAt: new Date("2026-07-14T00:00:00.000Z"),
+      acceptedAt: null,
+      createdAt: new Date("2026-07-07T00:00:00.000Z"),
+      createdBy: null,
+      acceptedBy: null,
+    });
+
+    const listed = await service.listTenants();
+    const activeEntry = listed.find((tenant) => tenant.id === active.tenant.id);
+    const archivedEntry = listed.find(
+      (tenant) => tenant.id === archived.tenant.id,
+    );
+
+    assert.equal(activeEntry?.superadmin?.activeSuperadmin?.email, "super@example.com");
+    assert.equal(activeEntry?.superadmin?.pendingInvite, null);
+    // Archived tenants can't be managed, so their summary is always empty —
+    // even though a pending invite row was seeded for one above, to prove it
+    // isn't surfaced once the tenant is archived.
+    assert.deepEqual(archivedEntry?.superadmin, null);
+  });
 });
 
 function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
   const tenants: Array<Record<string, unknown>> = [];
+  const superadminsByTenantId = new Map<string, Record<string, unknown>>();
+  const pendingInvitesByTenantId = new Map<string, Record<string, unknown>>();
   let idCounter = 0;
 
   return {
@@ -142,6 +202,19 @@ function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
         return tenants.find((tenant) => tenant.id === where.id) ?? null;
       },
       findMany: async () => [...tenants].reverse(),
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const tenant = tenants.find((entry) => entry.id === where.id);
+        if (tenant) {
+          Object.assign(tenant, data);
+        }
+        return tenant;
+      },
     },
     platformProvisioningJob: {
       findFirst: async () => null,
@@ -157,6 +230,34 @@ function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
     },
     location: {
       groupBy: async () => [],
+    },
+    user: {
+      findMany: async ({
+        where,
+      }: {
+        where: { tenantId: { in: string[] } };
+      }) =>
+        where.tenantId.in
+          .map((tenantId) => superadminsByTenantId.get(tenantId))
+          .filter((user): user is Record<string, unknown> => Boolean(user)),
+    },
+    invite: {
+      findMany: async ({
+        where,
+      }: {
+        where: { tenantId: { in: string[] } };
+      }) =>
+        where.tenantId.in
+          .map((tenantId) => pendingInvitesByTenantId.get(tenantId))
+          .filter(
+            (invite): invite is Record<string, unknown> => Boolean(invite),
+          ),
+    },
+    seedSuperadmin: (tenantId: string, user: Record<string, unknown>) => {
+      superadminsByTenantId.set(tenantId, user);
+    },
+    seedPendingInvite: (tenantId: string, invite: Record<string, unknown>) => {
+      pendingInvitesByTenantId.set(tenantId, invite);
     },
     $transaction: async (
       callback: (tx: {
