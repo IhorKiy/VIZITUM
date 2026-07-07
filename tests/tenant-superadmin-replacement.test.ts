@@ -18,8 +18,10 @@ function createResponse() {
 }
 
 describe("tenant superadmin replacement", () => {
-  it("auto-suspends the previously active superadmin when a new superadmin invite is accepted", async () => {
+  it("demotes the previously active superadmin to a suspended company_admin when a new superadmin invite is accepted", async () => {
     const userUpdates: unknown[] = [];
+    const roleDeletes: unknown[] = [];
+    const roleUpserts: unknown[] = [];
     const auditEvents: unknown[] = [];
     const client = {
       invite: {
@@ -56,7 +58,13 @@ describe("tenant superadmin replacement", () => {
         },
       },
       userRole: {
-        upsert: async () => ({}),
+        deleteMany: async (query: unknown) => {
+          roleDeletes.push(query);
+        },
+        upsert: async (query: unknown) => {
+          roleUpserts.push(query);
+          return {};
+        },
       },
       auditEvent: {
         create: async (query: { data: Record<string, unknown> }) => {
@@ -89,8 +97,35 @@ describe("tenant superadmin replacement", () => {
     assert.equal(userUpdates.length, 1);
     assert.deepEqual(userUpdates[0], {
       where: { id: "super1-user" },
-      data: { status: "suspended" },
+      data: { status: "suspended", lastSelectedRoleCode: "company_admin" },
     });
+
+    // The previous superadmin's role is swapped to company_admin, not just
+    // deactivated — otherwise assertTargetNotSuperadmin would make that
+    // account permanently unreachable by anyone.
+    const demotedRoleDelete = roleDeletes.find(
+      (query) =>
+        (query as { where: { userId: string } }).where.userId ===
+        "super1-user",
+    );
+    assert.deepEqual(demotedRoleDelete, {
+      where: {
+        tenantId: "tenant-a",
+        userId: "super1-user",
+        roleCode: "tenant_superadmin",
+      },
+    });
+
+    const demotedRoleUpsert = roleUpserts.find(
+      (query) =>
+        (query as { create: { userId: string } }).create.userId ===
+        "super1-user",
+    );
+    assert.equal(
+      (demotedRoleUpsert as { create: { roleCode: string } }).create.roleCode,
+      "company_admin",
+    );
+
     assert.equal(auditEvents.length, 1);
     assert.equal(auditEvents[0]?.eventType, "superadmin.replaced");
     assert.equal(auditEvents[0]?.entityId, "super1-user");
@@ -234,6 +269,8 @@ describe("tenant superadmin replacement", () => {
 
   it("demotes any other active superadmin when promoting a company_admin in place", async () => {
     const demoteUpdates: unknown[] = [];
+    const roleDeletes: unknown[] = [];
+    const roleUpserts: unknown[] = [];
     const client = {
       user: {
         findFirst: async () => ({
@@ -264,8 +301,13 @@ describe("tenant superadmin replacement", () => {
         },
       },
       userRole: {
-        deleteMany: async () => {},
-        upsert: async () => ({}),
+        deleteMany: async (query: unknown) => {
+          roleDeletes.push(query);
+        },
+        upsert: async (query: unknown) => {
+          roleUpserts.push(query);
+          return {};
+        },
       },
     };
     const usersService = new UsersService(
@@ -292,8 +334,31 @@ describe("tenant superadmin replacement", () => {
     assert.equal(demoteUpdates.length, 1);
     assert.deepEqual(demoteUpdates[0], {
       where: { id: "old-super" },
-      data: { status: "suspended" },
+      data: { status: "suspended", lastSelectedRoleCode: "company_admin" },
     });
+
+    const demotedRoleDelete = roleDeletes.find(
+      (query) =>
+        (query as { where: { userId: string } }).where.userId ===
+        "old-super",
+    );
+    assert.deepEqual(demotedRoleDelete, {
+      where: {
+        tenantId: "tenant-a",
+        userId: "old-super",
+        roleCode: "tenant_superadmin",
+      },
+    });
+
+    const demotedRoleUpsert = roleUpserts.find(
+      (query) =>
+        (query as { create: { userId: string } }).create.userId ===
+        "old-super",
+    );
+    assert.equal(
+      (demotedRoleUpsert as { create: { roleCode: string } }).create.roleCode,
+      "company_admin",
+    );
   });
 
   it("rejects promoting a user who isn't an active company_admin", async () => {

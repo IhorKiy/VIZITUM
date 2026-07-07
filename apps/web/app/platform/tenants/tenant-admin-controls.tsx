@@ -95,7 +95,7 @@ export function TenantAdminControls({
           </label>
           <p className="tenant-status-confirmation">
             {activeSuperadmin
-              ? `${activeSuperadmin.email} stays active until this invite is accepted, then is automatically deactivated.`
+              ? `${activeSuperadmin.email} stays active until this invite is accepted, then becomes a suspended Company Admin.`
               : pendingSuperadminInvite
                 ? "This replaces the currently pending superadmin invite."
                 : "The superadmin invites and manages this tenant's Company Admins."}

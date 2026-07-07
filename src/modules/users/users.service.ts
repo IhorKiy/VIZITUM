@@ -343,47 +343,56 @@ export class UsersService {
       throwInvalidRole();
     }
 
-    const user = await this.findTenantUser(
-      this.prisma,
-      context.tenantId,
-      userId,
-    );
-
-    this.assertTargetNotSuperadmin(user);
-
     const grantsAdmin = roleCode === "company_admin";
 
     if (grantsAdmin) {
       this.assertActorCanInviteAdmins(context);
-      await this.assertAdminLimitNotExceeded(this.prisma, context.tenantId);
     }
 
-    await this.prisma.userRole.upsert({
-      where: {
-        tenantId_userId_roleCode: {
-          tenantId: context.tenantId,
-          userId: user.id,
-          roleCode,
-        },
+    // The limit check and the role upsert must be atomic under Serializable
+    // isolation (matching updateUser/removeRole/deleteUser): otherwise two
+    // concurrent grants can each read the count as under the limit before
+    // either commits, both proceed, and the tenant ends up over its
+    // adminLimit.
+    await this.prisma.$transaction(
+      async (tx) => {
+        const user = await this.findTenantUser(tx, context.tenantId, userId);
+
+        this.assertTargetNotSuperadmin(user);
+
+        if (grantsAdmin) {
+          await this.assertAdminLimitNotExceeded(tx, context.tenantId);
+        }
+
+        await tx.userRole.upsert({
+          where: {
+            tenantId_userId_roleCode: {
+              tenantId: context.tenantId,
+              userId: user.id,
+              roleCode,
+            },
+          },
+          create: {
+            tenantId: context.tenantId,
+            userId: user.id,
+            roleCode,
+            assignedByUserId: context.userId,
+          },
+          update: {},
+        });
       },
-      create: {
-        tenantId: context.tenantId,
-        userId: user.id,
-        roleCode,
-        assignedByUserId: context.userId,
-      },
-      update: {},
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     if (grantsAdmin) {
       await this.auditService.recordEvent(context, {
         entityType: "user",
-        entityId: user.id,
+        entityId: userId,
         eventType: "admin.role_granted",
       });
     }
 
-    return this.getUserResponse(context.tenantId, user.id);
+    return this.getUserResponse(context.tenantId, userId);
   }
 
   async removeRole(
@@ -568,10 +577,45 @@ export class UsersService {
           select: { id: true },
         });
 
+        // Demote to a suspended company_admin rather than leaving them
+        // holding tenant_superadmin while suspended — that role is
+        // otherwise unreachable by anyone (assertTargetNotSuperadmin blocks
+        // every tenant-side action against it, and there is no platform
+        // endpoint for an inactive superadmin), which would make the
+        // account a permanent dead end. See the matching note in
+        // AuthService.acceptInvite.
         for (const previousSuperadmin of previousSuperadmins) {
           await tx.user.update({
             where: { id: previousSuperadmin.id },
-            data: { status: "suspended" },
+            data: {
+              status: "suspended",
+              lastSelectedRoleCode: "company_admin",
+            },
+          });
+
+          await tx.userRole.deleteMany({
+            where: {
+              tenantId: context.tenantId,
+              userId: previousSuperadmin.id,
+              roleCode: "tenant_superadmin",
+            },
+          });
+
+          await tx.userRole.upsert({
+            where: {
+              tenantId_userId_roleCode: {
+                tenantId: context.tenantId,
+                userId: previousSuperadmin.id,
+                roleCode: "company_admin",
+              },
+            },
+            create: {
+              tenantId: context.tenantId,
+              userId: previousSuperadmin.id,
+              roleCode: "company_admin",
+              assignedByUserId: context.userId,
+            },
+            update: {},
           });
         }
 

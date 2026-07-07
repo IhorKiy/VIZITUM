@@ -96,21 +96,23 @@ describe("tenant superadmin admin limit", () => {
   });
 
   it("blocks granting the company_admin role once the tenant is at its admin limit", async () => {
-    const service = createService({
-      user: {
-        findFirst: async () => ({
-          id: "user-b",
-          tenantId: "tenant-a",
-          status: "active",
-          deletedAt: null,
-          roles: [{ roleCode: "team_manager" }],
-        }),
-        count: async () => 2,
-      },
-      platformTenant: {
-        findUnique: async () => ({ adminLimit: 2 }),
-      },
-    });
+    const service = createService(
+      withTransaction({
+        user: {
+          findFirst: async () => ({
+            id: "user-b",
+            tenantId: "tenant-a",
+            status: "active",
+            deletedAt: null,
+            roles: [{ roleCode: "team_manager" }],
+          }),
+          count: async () => 2,
+        },
+        platformTenant: {
+          findUnique: async () => ({ adminLimit: 2 }),
+        },
+      }),
+    );
 
     await assert.rejects(
       () =>
