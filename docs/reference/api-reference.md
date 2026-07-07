@@ -46,6 +46,12 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | `POST /auth/invites/accept` | `{ token, tenantSlug?, name, password, phone? }` | Activates invited user, sets session + CSRF cookies; when `tenantSlug` is supplied it must match the invite tenant; accepting a `company_admin` invite re-checks 409 `TENANT_ADMIN_LIMIT` (closes the gap where several pending admin invites could collectively exceed the limit); accepting a `tenant_superadmin` invite demotes any other currently active superadmin in the tenant to a suspended `company_admin` (audited as `superadmin.replaced`) — a role swap, not just deactivation, so the demoted account stays reachable through the ordinary admin lifecycle instead of being permanently stuck behind `SUPERADMIN_PROTECTED` |
 | `POST /auth/logout`         | —                                                | `{ ok: true }`; revokes session, clears cookies                                                                    |
 
+### Tenancy — `/tenants` (public, `tenancy.controller.ts`)
+
+| Method & path               | Body | Returns                                                                                                                                                                                       |
+| --------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /tenants/:slug/locale` | —    | `{ slug, language, timezone }` — pre-auth lookup used by the web frontend to resolve the UI locale (next-intl) for a tenant workspace, including the login and invite-accept pages; works regardless of tenant status (a suspended tenant's login page still renders in its language); 404 `TENANT_NOT_FOUND` |
+
 ### Health — `/health` (public, `health.controller.ts`)
 
 | Method & path           | Returns                                            |
@@ -205,4 +211,4 @@ Admin-management actions — inviting, suspending/reactivating, deleting or role
 
 ## Endpoint count
 
-77 endpoints across 17 controllers (auth 5, health 2, operations 1, platform auth 3, platform 6, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 3, locations 11, products 4, routes 6, imports 6, admin users 8, admin settings 2, storage 3).
+78 endpoints across 18 controllers (auth 5, tenancy 1, health 2, operations 1, platform auth 3, platform 6, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 3, locations 11, products 4, routes 6, imports 6, admin users 8, admin settings 2, storage 3).
