@@ -15,20 +15,19 @@ describe("platform tenant management", () => {
   it("updates editable fields and records a tenant.updated event", async () => {
     const store = createStore({
       id: "tenant-1",
-      status: "ready",
+      status: "pilot",
       name: "Old Name",
-      planCode: "pilot",
     });
     const service = createPlatformService(store);
 
     const updated = await service.updateTenant("tenant-1", {
       name: "  New Name  ",
-      status: "active",
+      status: "team",
       actorUserId: "owner-1",
     });
 
     assert.equal(updated.name, "New Name");
-    assert.equal(updated.status, "active");
+    assert.equal(updated.status, "team");
     assert.equal(store.events.length, 1);
     assert.equal(store.events[0]?.eventType, "tenant.updated");
     assert.deepEqual(store.events[0]?.metadata, { fields: ["name", "status"] });
@@ -40,6 +39,26 @@ describe("platform tenant management", () => {
 
     await assert.rejects(
       () => service.updateTenant("tenant-1", { status: "archived" as never }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          code: string;
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.equal(response.code, "TENANT_UPDATE_INVALID");
+        assert.ok(response.fieldErrors.status);
+        return true;
+      },
+    );
+    assert.equal(store.events.length, 0);
+  });
+
+  it("rejects setting status to the retired active status through update", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { status: "active" as never }),
       (error: unknown) => {
         assert.ok(error instanceof BadRequestException);
         const response = error.getResponse() as {
@@ -124,6 +143,79 @@ describe("platform tenant management", () => {
       () => service.archiveTenant("missing"),
       NotFoundException,
     );
+  });
+
+  it("closes the archive race: does not duplicate the event when a concurrent request already archived the tenant", async () => {
+    const store = createStore({ id: "tenant-1", status: "active" });
+    // The outer check reads "active" and proceeds past the no-op fast path,
+    // but by the time the transaction's conditional update runs, another
+    // request has already archived the row.
+    store.raceState.status = "archived";
+    const service = createPlatformService(store);
+
+    const result = await service.archiveTenant("tenant-1", {
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(result.status, "archived");
+    assert.equal(store.events.length, 0);
+  });
+
+  it("unarchives a tenant to suspended and records a tenant.unarchived event", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "archived",
+      archivedAt: new Date("2026-07-01T00:00:00.000Z"),
+    });
+    const service = createPlatformService(store);
+
+    const restored = await service.unarchiveTenant("tenant-1", {
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(restored.status, "suspended");
+    assert.equal(restored.archivedAt, null);
+    assert.equal(store.events.length, 1);
+    assert.equal(store.events[0]?.eventType, "tenant.unarchived");
+    assert.deepEqual(store.events[0]?.metadata, {
+      restoredStatus: "suspended",
+    });
+  });
+
+  it("is idempotent when unarchiving a tenant that isn't archived", async () => {
+    const store = createStore({ id: "tenant-1", status: "active" });
+    const service = createPlatformService(store);
+
+    const result = await service.unarchiveTenant("tenant-1");
+
+    assert.equal(result.status, "active");
+    assert.equal(store.events.length, 0);
+  });
+
+  it("rejects unarchiving an unknown tenant", async () => {
+    const store = createStore({ id: "tenant-1", status: "active" });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.unarchiveTenant("missing"),
+      NotFoundException,
+    );
+  });
+
+  it("closes the unarchive race: does not duplicate the event when a concurrent request already restored the tenant", async () => {
+    const store = createStore({ id: "tenant-1", status: "archived" });
+    // The outer check reads "archived" and proceeds past the no-op fast
+    // path, but by the time the transaction's conditional update runs,
+    // another request has already restored the row.
+    store.raceState.status = "suspended";
+    const service = createPlatformService(store);
+
+    const result = await service.unarchiveTenant("tenant-1", {
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(result.status, "suspended");
+    assert.equal(store.events.length, 0);
   });
 
   it("invites a tenant user from the platform context and records an event", async () => {
@@ -373,6 +465,11 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
     status: string;
     roles: Array<{ roleCode: string }>;
   }> = [];
+  // When `status` is set, the next updateMany call applies it to the tenant
+  // before checking its where clause, simulating a concurrent writer that
+  // changed the row between the outer idempotency check and the
+  // transactional conditional update.
+  const raceState: { status?: string } = {};
 
   const client = {
     platformTenant: {
@@ -387,6 +484,32 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
       update: async ({ data }: { data: Record<string, unknown> }) => {
         Object.assign(tenant, data);
         return { ...tenant };
+      },
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { id: string; status?: string | { not: string } };
+        data: Record<string, unknown>;
+      }) => {
+        if (raceState.status !== undefined) {
+          tenant.status = raceState.status;
+          raceState.status = undefined;
+        }
+
+        const statusMatches =
+          where.status === undefined
+            ? true
+            : typeof where.status === "string"
+              ? tenant.status === where.status
+              : tenant.status !== where.status.not;
+
+        if (where.id !== tenant.id || !statusMatches) {
+          return { count: 0 };
+        }
+
+        Object.assign(tenant, data);
+        return { count: 1 };
       },
     },
     platformOperationEvent: {
@@ -425,6 +548,7 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
     // succeeding, letting tests exercise how the platform service reacts to a
     // rejected update (e.g. the last-admin guard) without booting Nest DI.
     updateUserError: undefined as unknown,
+    raceState,
   };
 }
 

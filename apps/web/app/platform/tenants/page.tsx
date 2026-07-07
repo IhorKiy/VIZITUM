@@ -11,11 +11,16 @@ import {
   invitePlatformTenantUser,
   listPlatformTenantUsers,
   listPlatformTenants,
+  unarchivePlatformTenant,
   updatePlatformTenantAdminStatus,
   updatePlatformTenant,
   type PlatformSegmentTemplate,
+  type PlatformTenant,
+  type TenantUser,
 } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
+import { formatLabel, formatShortDate } from "../../../lib/format";
+import { ArchiveTenantForm } from "./archive-tenant-form";
 import { AutoDismissNotice } from "./auto-dismiss-notice";
 import { CreateTenantModal } from "./create-tenant-modal";
 import { NameChangeForm } from "./name-change-form";
@@ -28,16 +33,13 @@ const SEGMENT_TEMPLATES: PlatformSegmentTemplate[] = [
   "partner_account",
 ];
 
-// Statuses a platform owner can assign directly; `archived` is handled by the
-// dedicated archive action so it always stamps `archivedAt` server-side.
-const ASSIGNABLE_STATUSES = [
-  "draft",
-  "provisioning",
-  "ready",
-  "pilot_active",
-  "active",
-  "suspended",
-];
+// Status doubles as the plan tier — there is no separate plan field. Statuses
+// a platform owner can assign directly: `pilot`/`team`/`business` (the plan)
+// and `suspended` (paused). `archived` is handled by the dedicated archive
+// action so it always stamps `archivedAt` server-side; `draft`/`provisioning`/
+// `ready`/`active` are retired — tenants are created straight into `pilot` and
+// nothing advances them through those legacy states anymore.
+const ASSIGNABLE_STATUSES = ["pilot", "team", "business", "suspended"];
 const EMPTY_TENANT_METRICS = {
   companyAdminCount: 0,
   teamManagerCount: 0,
@@ -174,6 +176,20 @@ export default async function PlatformTenantsPage({
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
 
+  async function unarchiveAction(formData: FormData) {
+    "use server";
+
+    const tenantId = String(formData.get("tenantId") ?? "").trim();
+
+    if (!tenantId) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    const result = await unarchivePlatformTenant(tenantId);
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
   async function inviteTenantUserAction(formData: FormData) {
     "use server";
 
@@ -253,6 +269,126 @@ export default async function PlatformTenantsPage({
       )}`
     : null;
 
+  function renderTenantCard(tenant: PlatformTenant) {
+    const isArchived = tenant.status === "archived";
+    const usersResult = tenantUsersByTenantId.find(
+      (entry) => entry.tenantId === tenant.id,
+    )?.result;
+    const users: TenantUser[] = usersResult?.ok ? usersResult.data.items : [];
+    const companyAdmins = users.filter((user) =>
+      user.roleCodes.includes("company_admin"),
+    );
+    const metrics = tenant.metrics ?? EMPTY_TENANT_METRICS;
+
+    return (
+      <details
+        className="tenant-collapse"
+        key={tenant.id}
+        name="platform-tenant"
+      >
+        <summary>
+          <span className="tenant-collapse-name">{tenant.name}</span>
+          <span className="tenant-status-chip">
+            {formatLabel(tenant.status)}
+          </span>
+        </summary>
+        <div className="tenant-collapse-body">
+          <section
+            className="tenant-metrics-block"
+            aria-label={`${tenant.name} tenant information`}
+          >
+            <h3>Tenant information</h3>
+            <dl className="tenant-metrics-grid">
+              <div>
+                <dt>Slug</dt>
+                <dd>{tenant.slug}</dd>
+              </div>
+              <div>
+                <dt>Created</dt>
+                <dd>{formatShortDate(tenant.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Admins</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span>{metrics.companyAdminCount}</span>
+                  <TenantAdminControls
+                    admins={companyAdmins}
+                    inviteAction={inviteTenantUserAction}
+                    isArchived={isArchived}
+                    tenantId={tenant.id}
+                    tenantName={tenant.name}
+                    tenantSlug={tenant.slug}
+                    updateStatusAction={updateTenantAdminStatusAction}
+                    usersAvailable={Boolean(usersResult?.ok)}
+                  />
+                </dd>
+              </div>
+              <div>
+                <dt>Managers</dt>
+                <dd>{metrics.teamManagerCount}</dd>
+              </div>
+              <div>
+                <dt>Representatives</dt>
+                <dd>{metrics.fieldRepresentativeCount}</dd>
+              </div>
+              <div>
+                <dt>Visits</dt>
+                <dd>{metrics.visitCount}</dd>
+              </div>
+              <div>
+                <dt>Products</dt>
+                <dd>{metrics.productCount}</dd>
+              </div>
+              <div>
+                <dt>Locations</dt>
+                <dd>{metrics.locationCount}</dd>
+              </div>
+            </dl>
+          </section>
+
+          {isArchived ? (
+            <div className="toolbar">
+              <ArchiveTenantForm
+                action={unarchiveAction}
+                mode="unarchive"
+                tenantId={tenant.id}
+                tenantName={tenant.name}
+              />
+            </div>
+          ) : (
+            <div className="toolbar">
+              <NameChangeForm
+                action={updateNameAction}
+                currentName={tenant.name}
+                tenantId={tenant.id}
+              />
+              <StatusChangeForm
+                currentStatus={tenant.status}
+                statuses={ASSIGNABLE_STATUSES}
+                tenantId={tenant.id}
+                tenantName={tenant.name}
+                updateAction={updateStatusAction}
+              />
+              <ArchiveTenantForm
+                action={archiveAction}
+                mode="archive"
+                tenantId={tenant.id}
+                tenantName={tenant.name}
+              />
+            </div>
+          )}
+        </div>
+      </details>
+    );
+  }
+
+  const activeTenants = tenantsResult.ok
+    ? tenantsResult.data.filter((tenant) => tenant.status !== "archived")
+    : [];
+  const archivedTenants = tenantsResult.ok
+    ? tenantsResult.data.filter((tenant) => tenant.status === "archived")
+    : [];
+
   return (
     <main className="page platform-page">
       <header className="page-header">
@@ -282,7 +418,7 @@ export default async function PlatformTenantsPage({
           className="notice-panel success"
           clearParams={SAVED_NOTICE_PARAMS}
         >
-          <p>Tenant created and queued for provisioning.</p>
+          <p>Tenant created and ready to use.</p>
         </AutoDismissNotice>
       ) : null}
       {pageState.invited ? (
@@ -317,118 +453,20 @@ export default async function PlatformTenantsPage({
       <section className="platform-tenants-section" aria-label="Tenants">
         <h2>Tenants</h2>
         {tenantsResult.ok ? (
-          <div className="tenant-collapse-list">
-            {tenantsResult.data.map((tenant) => {
-              const isArchived = tenant.status === "archived";
-              const usersResult = tenantUsersByTenantId.find(
-                (entry) => entry.tenantId === tenant.id,
-              )?.result;
-              const users = usersResult?.ok ? usersResult.data.items : [];
-              const companyAdmins = users.filter((user) =>
-                user.roleCodes.includes("company_admin"),
-              );
-              const metrics = tenant.metrics ?? EMPTY_TENANT_METRICS;
+          <>
+            <div className="tenant-collapse-list">
+              {activeTenants.map((tenant) => renderTenantCard(tenant))}
+            </div>
 
-              return (
-                <details
-                  className="tenant-collapse"
-                  key={tenant.id}
-                  name="platform-tenant"
-                >
-                  <summary>{tenant.name}</summary>
-                  <div className="tenant-collapse-body">
-                    <dl className="tenant-detail-grid">
-                      <div>
-                        <dt>Slug</dt>
-                        <dd>{tenant.slug}</dd>
-                      </div>
-                      <div>
-                        <dt>Status</dt>
-                        <dd>
-                          <span className="tenant-status-chip">
-                            {tenant.status}
-                          </span>
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>Plan</dt>
-                        <dd>{tenant.planCode}</dd>
-                      </div>
-                      <div>
-                        <dt>Created</dt>
-                        <dd>{new Date(tenant.createdAt).toLocaleString()}</dd>
-                      </div>
-                    </dl>
-
-                    <section
-                      className="tenant-metrics-block"
-                      aria-label={`${tenant.name} tenant information`}
-                    >
-                      <h3>Tenant information</h3>
-                      <dl className="tenant-metrics-grid">
-                        <div>
-                          <dt>Admins</dt>
-                          <dd className="tenant-admin-metric-value">
-                            <span>{metrics.companyAdminCount}</span>
-                            <TenantAdminControls
-                              admins={companyAdmins}
-                              inviteAction={inviteTenantUserAction}
-                              isArchived={isArchived}
-                              tenantId={tenant.id}
-                              tenantName={tenant.name}
-                              tenantSlug={tenant.slug}
-                              updateStatusAction={updateTenantAdminStatusAction}
-                              usersAvailable={Boolean(usersResult?.ok)}
-                            />
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>Managers</dt>
-                          <dd>{metrics.teamManagerCount}</dd>
-                        </div>
-                        <div>
-                          <dt>Representatives</dt>
-                          <dd>{metrics.fieldRepresentativeCount}</dd>
-                        </div>
-                        <div>
-                          <dt>Visits</dt>
-                          <dd>{metrics.visitCount}</dd>
-                        </div>
-                        <div>
-                          <dt>Products</dt>
-                          <dd>{metrics.productCount}</dd>
-                        </div>
-                        <div>
-                          <dt>Locations</dt>
-                          <dd>{metrics.locationCount}</dd>
-                        </div>
-                      </dl>
-                    </section>
-
-                    {isArchived ? (
-                      <p className="tenant-archived-note">Archived</p>
-                    ) : (
-                      <div className="toolbar">
-                        <NameChangeForm
-                          action={updateNameAction}
-                          currentName={tenant.name}
-                          tenantId={tenant.id}
-                        />
-                        <StatusChangeForm
-                          archiveAction={archiveAction}
-                          currentStatus={tenant.status}
-                          statuses={[...ASSIGNABLE_STATUSES, "archived"]}
-                          tenantId={tenant.id}
-                          tenantName={tenant.name}
-                          updateAction={updateStatusAction}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </details>
-              );
-            })}
-          </div>
+            {archivedTenants.length ? (
+              <details className="tenant-archive-section">
+                <summary>Archived ({archivedTenants.length})</summary>
+                <div className="tenant-collapse-list">
+                  {archivedTenants.map((tenant) => renderTenantCard(tenant))}
+                </div>
+              </details>
+            ) : null}
+          </>
         ) : (
           <p>{tenantsResult.message}</p>
         )}

@@ -68,4 +68,16 @@ export class PlatformController {
       requestId: request.requestId,
     });
   }
+
+  @Post(":tenantId/unarchive")
+  @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
+  unarchiveTenant(
+    @Req() request: Request,
+    @Param("tenantId") tenantId: string,
+  ) {
+    return this.platformService.unarchiveTenant(tenantId, {
+      actorUserId: request.context?.userId,
+      requestId: request.requestId,
+    });
+  }
 }

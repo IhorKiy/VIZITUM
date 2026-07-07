@@ -14,10 +14,10 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 
 | Model | Table | Purpose |
 | --- | --- | --- |
-| `PlatformTenant` | `platform_tenants` | Tenant registry: `slug` (unique, used in URLs), `status` (TenantStatus), `planCode`, `productMode`, `segmentTemplate`, `databasePlacement` (shared/dedicated), `timezone`, `language`. |
+| `PlatformTenant` | `platform_tenants` | Tenant registry: `slug` (unique, used in URLs), `status` (TenantStatus — doubles as the plan tier for a live tenant: `pilot`/`team`/`business`, or `suspended`/`archived`; there is no separate plan field), `productMode`, `segmentTemplate`, `databasePlacement` (shared/dedicated), `timezone`, `language`. |
 | `PlatformUser` | `platform_users` | Platform-owner identity, separate from tenant `users`: `email` (globally unique), `passwordHash`, `status` (PlatformUserStatus: active/suspended). Holds the `platform_owner` role. |
 | `PlatformSession` | `platform_sessions` | Platform-owner session (token hash, expiry, revoke) for `vizitum_platform_session`; mirrors `sessions` but keyed by `platformUserId`, no `tenantId`. |
-| `PlatformProvisioningJob` | `platform_provisioning_jobs` | Tenant provisioning job state (JobStatus, step, error). |
+| `PlatformProvisioningJob` | `platform_provisioning_jobs` | Tenant provisioning job state (JobStatus, step, error). Legacy: tenants are created straight into `pilot` and no longer get a job row; existing rows are kept for history and still readable via `GET /platform/tenants/:tenantId`. |
 | `PlatformOperationEvent` | `platform_operation_events` | Platform-level event log (`eventType`, `metadata`, optional tenant). |
 
 ## Identity & config group
@@ -79,4 +79,4 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 
 Defined in `prisma/schema.prisma` and mirrored in TypeScript where needed:
 
-`TenantStatus`, `PlanCode` (pilot/team/business), `ProductMode` (team/business), `DatabasePlacement` (shared/dedicated), `SegmentTemplate` (distribution/service/partner_account), `JobStatus`, `PlatformUserStatus` (active/suspended), `UserStatus`, `InviteStatus`, `RoleCode`, `LocationStatus`, `AssignmentStatus`, `ProductStatus`, `RouteStatus`, `RouteItemStatus`, `VisitStatus`, `VisitNoteInputType` (text/audio), `ReportStatus` (draft/confirmed/discarded), `TaskStatus`, `TaskPriority`, `ImportType`, `ImportStatus`, `ImportIssueSeverity`, `AiJobType`, `AiJobStatus`, `StorageObjectStatus`, `StorageObjectPurpose`.
+`TenantStatus` (draft/provisioning/ready/active retired — see `PlatformTenant` above; `pilot`/`team`/`business` double as the plan tier, plus `suspended`/`archived`), `ProductMode` (team/business), `DatabasePlacement` (shared/dedicated), `SegmentTemplate` (distribution/service/partner_account), `JobStatus`, `PlatformUserStatus` (active/suspended), `UserStatus`, `InviteStatus`, `RoleCode`, `LocationStatus`, `AssignmentStatus`, `ProductStatus`, `RouteStatus`, `RouteItemStatus`, `VisitStatus`, `VisitNoteInputType` (text/audio), `ReportStatus` (draft/confirmed/discarded), `TaskStatus`, `TaskPriority`, `ImportType`, `ImportStatus`, `ImportIssueSeverity`, `AiJobType`, `AiJobStatus`, `StorageObjectStatus`, `StorageObjectPurpose`.

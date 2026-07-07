@@ -6,20 +6,20 @@ datasource db {
   provider = "postgresql"
 }
 
+// `pilot`/`team`/`business` double as both the tenant's lifecycle state and its
+// plan tier (see PlatformTenant.status) — there is no separate plan field.
+// `draft`/`provisioning`/`ready`/`active` are retired (kept only so historical
+// rows/events referencing them remain valid); nothing assigns them anymore.
 enum TenantStatus {
   draft
   provisioning
   ready
-  pilot_active
-  active
-  suspended
-  archived
-}
-
-enum PlanCode {
   pilot
   team
   business
+  active
+  suspended
+  archived
 }
 
 enum ProductMode {
@@ -190,8 +190,7 @@ model PlatformTenant {
   country           String
   timezone          String
   language          String
-  status            TenantStatus      @default(draft)
-  planCode          PlanCode          @default(pilot)
+  status            TenantStatus      @default(pilot)
   productMode       ProductMode       @default(team)
   segmentTemplate   SegmentTemplate
   databasePlacement DatabasePlacement @default(shared)

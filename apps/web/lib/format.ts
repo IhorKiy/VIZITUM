@@ -31,6 +31,21 @@ export function formatDateTime(value: string | null, emptyLabel = "-"): string {
   }).format(new Date(value));
 }
 
+export function formatShortDate(
+  value: string | null,
+  emptyLabel = "-",
+): string {
+  if (!value) {
+    return emptyLabel;
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    year: "2-digit",
+    month: "numeric",
+    day: "numeric",
+  }).format(new Date(value));
+}
+
 export function statusTone(
   status: "active" | "inactive" | "archived",
 ): "active" | "info" | "warning" {

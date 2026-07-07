@@ -33,8 +33,6 @@
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "worker:cleanup": "WORKER_TASK=cleanup node --require ts-node/register src/worker.ts",
     "worker:cleanup:prod": "WORKER_TASK=cleanup node dist/worker.js",
-    "worker:provision": "WORKER_TASK=provision node --require ts-node/register src/worker.ts",
-    "worker:provision:prod": "WORKER_TASK=provision node dist/worker.js",
     "web:build": "npm run build --workspace @vizitum/web",
     "web:dev": "npm run dev --workspace @vizitum/web",
     "web:start": "npm run start --workspace @vizitum/web",

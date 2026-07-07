@@ -8,7 +8,6 @@ import { PlatformSessionService } from "./platform-session.service";
 import { PlatformTenantUsersController } from "./platform-tenant-users.controller";
 import { PlatformController } from "./platform.controller";
 import { PlatformService } from "./platform.service";
-import { ProvisioningService } from "./provisioning.service";
 
 @Module({
   imports: [AuthModule, UsersModule],
@@ -17,12 +16,7 @@ import { ProvisioningService } from "./provisioning.service";
     PlatformAuthController,
     PlatformTenantUsersController,
   ],
-  providers: [
-    PlatformService,
-    ProvisioningService,
-    PlatformAuthService,
-    PlatformSessionService,
-  ],
-  exports: [PlatformService, ProvisioningService],
+  providers: [PlatformService, PlatformAuthService, PlatformSessionService],
+  exports: [PlatformService],
 })
 export class PlatformModule {}

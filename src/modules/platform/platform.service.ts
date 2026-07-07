@@ -4,12 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import {
-  PlanCode,
-  RoleCode,
-  SegmentTemplate,
-  TenantStatus,
-} from "@prisma/client";
+import { RoleCode, SegmentTemplate, TenantStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
 import { SessionService } from "../auth/session.service";
@@ -29,11 +24,21 @@ const DEFAULT_LANGUAGE = "uk";
 const DEFAULT_TIMEZONE = "Europe/Kiev";
 const DEFAULT_DATABASE_KEY = "shared-primary";
 const SEGMENT_TEMPLATES = Object.values(SegmentTemplate);
-const PLAN_CODES = Object.values(PlanCode);
 // Statuses a platform owner may set directly via update. `archived` is reserved
 // for the dedicated archive endpoint so archiving always stamps `archivedAt`.
+// `draft`/`provisioning`/`ready`/`active` are excluded too: tenants are created
+// straight into `pilot` (see createTenant), status doubles as the plan tier
+// (`pilot`/`team`/`business`) instead of a separate planCode field, and
+// nothing advances a tenant through those four legacy states anymore.
+const NON_ASSIGNABLE_STATUSES = new Set<TenantStatus>([
+  "draft",
+  "provisioning",
+  "ready",
+  "active",
+  "archived",
+]);
 const ASSIGNABLE_STATUSES: TenantStatus[] = Object.values(TenantStatus).filter(
-  (status) => status !== "archived",
+  (status) => !NON_ASSIGNABLE_STATUSES.has(status),
 );
 const PLATFORM_INVITE_ROLE_CODES = ["company_admin"];
 
@@ -354,18 +359,10 @@ export class PlatformService {
       data.primaryDomain = input.primaryDomain?.trim() || null;
     }
 
-    if (input.planCode !== undefined) {
-      if (!PLAN_CODES.includes(input.planCode)) {
-        fieldErrors.planCode = ["A valid plan code is required."];
-      } else {
-        data.planCode = input.planCode;
-      }
-    }
-
     if (input.status !== undefined) {
       if (!ASSIGNABLE_STATUSES.includes(input.status)) {
         fieldErrors.status = [
-          "A valid status is required. Use the archive action to archive a tenant.",
+          "A valid status is required. Use the archive action to archive a tenant; draft, provisioning, ready and active cannot be assigned — status is the plan (pilot/team/business) or suspended.",
         ];
       } else {
         data.status = input.status;
@@ -436,7 +433,6 @@ export class PlatformService {
   ) {
     const tenant = await this.prisma.platformTenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, status: true, archivedAt: true },
     });
 
     if (!tenant) {
@@ -449,16 +445,27 @@ export class PlatformService {
     // Idempotent: archiving an already-archived tenant is a no-op, not an error,
     // and must not emit a duplicate audit event.
     if (tenant.status === "archived") {
-      return this.prisma.platformTenant.findUniqueOrThrow({
-        where: { id: tenantId },
-      });
+      return tenant;
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const archived = await tx.platformTenant.update({
-        where: { id: tenantId },
+      // Conditional on status still not being "archived": closes the race
+      // between the check above and this write. If another request archived
+      // the tenant concurrently, this matches zero rows and we fall through
+      // to the idempotent no-op below instead of overwriting archivedAt or
+      // emitting a duplicate tenant.archived event.
+      const { count } = await tx.platformTenant.updateMany({
+        where: { id: tenantId, status: { not: "archived" } },
         data: { status: "archived", archivedAt: new Date() },
       });
+
+      const current = await tx.platformTenant.findUniqueOrThrow({
+        where: { id: tenantId },
+      });
+
+      if (count === 0) {
+        return current;
+      }
 
       await tx.platformOperationEvent.create({
         data: {
@@ -470,7 +477,65 @@ export class PlatformService {
         },
       });
 
-      return archived;
+      return current;
+    });
+  }
+
+  async unarchiveTenant(
+    tenantId: string,
+    context: { actorUserId?: string; requestId?: string } = {},
+  ) {
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException({
+        code: "TENANT_NOT_FOUND",
+        message: "Tenant was not found.",
+      });
+    }
+
+    // Idempotent, symmetric to archiveTenant: unarchiving a tenant that isn't
+    // archived is a no-op, not an error, and must not emit a duplicate event.
+    if (tenant.status !== "archived") {
+      return tenant;
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // Conditional on status still being "archived": closes the race between
+      // the check above and this write. If another request already restored
+      // the tenant concurrently, this matches zero rows and we fall through
+      // to the idempotent no-op below instead of emitting a duplicate event.
+      // Restored tenants land on `suspended` rather than their pre-archive
+      // status: it keeps the tenant blocked from serving requests (see
+      // tenancy.service.ts) until the platform owner deliberately reactivates
+      // it, instead of silently resuming traffic to a tenant that was pulled
+      // out of active management.
+      const { count } = await tx.platformTenant.updateMany({
+        where: { id: tenantId, status: "archived" },
+        data: { status: "suspended", archivedAt: null },
+      });
+
+      const current = await tx.platformTenant.findUniqueOrThrow({
+        where: { id: tenantId },
+      });
+
+      if (count === 0) {
+        return current;
+      }
+
+      await tx.platformOperationEvent.create({
+        data: {
+          tenantId,
+          actorUserId: context.actorUserId,
+          eventType: "tenant.unarchived",
+          metadata: { restoredStatus: "suspended" },
+          requestId: context.requestId,
+        },
+      });
+
+      return current;
     });
   }
 
@@ -528,18 +593,15 @@ export class PlatformService {
           segmentTemplate: input.segmentTemplate,
           databaseKey: DEFAULT_DATABASE_KEY,
           primaryDomain: input.primaryDomain?.trim() || null,
-          status: "draft",
-          planCode: "pilot",
+          // Tenants go live immediately: there is no per-tenant infrastructure
+          // step behind draft/provisioning today, so parking new tenants there
+          // just added a state a platform owner had to manually push through.
+          // `pilot` also doubles as the starting plan tier (see NON_ASSIGNABLE_
+          // STATUSES above) — the owner moves a tenant to `team`/`business` via
+          // the same status update once it graduates off the pilot plan.
+          status: "pilot",
           productMode: "team",
           databasePlacement: "shared",
-        },
-      });
-
-      const provisioningJob = await tx.platformProvisioningJob.create({
-        data: {
-          tenantId: tenant.id,
-          status: "queued",
-          step: "tenant_created",
         },
       });
 
@@ -557,16 +619,14 @@ export class PlatformService {
           actorUserId: input.actorUserId,
           eventType: "tenant.created",
           metadata: {
-            provisioningJobId: provisioningJob.id,
             productMode: tenant.productMode,
-            planCode: tenant.planCode,
             segmentTemplate: tenant.segmentTemplate,
           },
           requestId: input.requestId,
         },
       });
 
-      return { tenant, provisioningJob };
+      return { tenant };
     });
   }
 }

@@ -45,9 +45,9 @@ export class TenancyService {
 
   private assertTenantCanServeRequests(tenant: PlatformTenant): void {
     if (
-      tenant.status === "ready" ||
-      tenant.status === "pilot_active" ||
-      tenant.status === "active"
+      tenant.status === "pilot" ||
+      tenant.status === "team" ||
+      tenant.status === "business"
     ) {
       return;
     }

@@ -671,7 +671,8 @@ textarea {
   display: flex;
 }
 
-.tenant-name-form {
+.tenant-name-form,
+.tenant-archive-form {
   display: flex;
 }
 
@@ -1122,6 +1123,14 @@ textarea {
   display: none;
 }
 
+.tenant-collapse-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tenant-collapse > summary:hover {
   background: var(--surface-muted);
 }
@@ -1131,46 +1140,6 @@ textarea {
   display: grid;
   gap: 16px;
   padding: 16px;
-}
-
-.tenant-detail-grid {
-  display: grid;
-  border-bottom: 1px solid var(--line);
-  gap: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 0;
-  padding-bottom: 14px;
-}
-
-.tenant-detail-grid div {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  padding: 0 14px;
-}
-
-.tenant-detail-grid div:first-child {
-  padding-left: 0;
-}
-
-.tenant-detail-grid div + div {
-  border-left: 1px solid var(--line);
-}
-
-.tenant-detail-grid dt {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 850;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.tenant-detail-grid dd {
-  font-size: 15px;
-  font-weight: 750;
-  line-height: 1.25;
-  margin: 0;
-  overflow-wrap: anywhere;
 }
 
 .tenant-status-chip {
@@ -1198,7 +1167,7 @@ textarea {
 .tenant-metrics-grid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
 }
 
@@ -1223,6 +1192,7 @@ textarea {
   font-weight: 850;
   line-height: 1.1;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .tenant-admin-metric-value {
@@ -1270,10 +1240,25 @@ textarea {
   gap: 12px;
 }
 
-.tenant-archived-note {
+.tenant-archive-section {
+  margin-top: 16px;
+}
+
+.tenant-archive-section > summary {
   color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
   font-weight: 700;
-  margin: 0;
+  list-style: none;
+  padding: 8px 4px;
+}
+
+.tenant-archive-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tenant-archive-section > .tenant-collapse-list {
+  margin-top: 10px;
 }
 
 .modal-dialog {
@@ -1768,24 +1753,6 @@ textarea {
 
   .locations-filter-form {
     grid-template-columns: 1fr;
-  }
-
-  .tenant-detail-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    row-gap: 12px;
-  }
-
-  .tenant-detail-grid div {
-    padding: 0 10px;
-  }
-
-  .tenant-detail-grid div:nth-child(odd) {
-    border-left: 0;
-    padding-left: 0;
-  }
-
-  .tenant-detail-grid div:nth-child(even) {
-    border-left: 1px solid var(--line);
   }
 
   .tenant-metrics-grid {
