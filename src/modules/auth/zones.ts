@@ -12,10 +12,12 @@ export const ZONE_VALUES: NavZone[] = [
 // Mirrors the zone tags on nav items in apps/web/lib/navigation.ts: a zone is
 // available when the user holds at least one permission gating a nav item
 // tagged with that zone. Keep both lists in sync when a nav item moves zones
-// or its requiredPermissions change. This is not a new authorization layer —
-// every controller still enforces its own @RequirePermissions/@RequireAnyPermissions;
-// this only validates a stored UI preference against the user's real permissions.
-const ZONE_PERMISSIONS: Record<NavZone, PermissionCode[]> = {
+// or its requiredPermissions change — tests/zone-permission-mirror.test.ts
+// fails on any drift (exported for that test). This is not a new authorization
+// layer — every controller still enforces its own
+// @RequirePermissions/@RequireAnyPermissions; this only validates a stored UI
+// preference against the user's real permissions.
+export const ZONE_PERMISSIONS: Record<NavZone, PermissionCode[]> = {
   field: [
     PERMISSIONS.VISITS_READ_OWN,
     PERMISSIONS.VISITS_READ_TEAM,

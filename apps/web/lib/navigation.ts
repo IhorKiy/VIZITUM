@@ -57,7 +57,8 @@ type NavItemDef = {
 // stays a pure permission-filtered structure. Each item's `zone` groups it
 // for the role-zone shell/switcher (components/app-shell.tsx) and mirrors
 // the backend validation map in src/modules/auth/zones.ts — keep both in
-// sync when an item's zone or requiredPermissions change.
+// sync when an item's zone or requiredPermissions change
+// (tests/zone-permission-mirror.test.ts fails on any drift).
 const NAV_ITEM_DEFS: NavItemDef[] = [
   {
     path: "/field",

@@ -15,13 +15,20 @@ export type ResolvedTenantLocale = {
 const NON_TENANT_SEGMENTS = new Set(["platform", "api"]);
 const TENANT_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
+// Shared slug-shape check: also guards redirect paths built from
+// client-supplied slugs (see lib/zone-actions.ts) against values like
+// "\evil.com" that browsers would normalize into a cross-origin URL.
+export function isTenantSlug(value: string): boolean {
+  return TENANT_SLUG_PATTERN.test(value);
+}
+
 export function extractTenantSlugFromPathname(pathname: string): string | null {
   const firstSegment = pathname.split("/").filter(Boolean)[0]?.toLowerCase();
 
   if (
     !firstSegment ||
     NON_TENANT_SEGMENTS.has(firstSegment) ||
-    !TENANT_SLUG_PATTERN.test(firstSegment)
+    !isTenantSlug(firstSegment)
   ) {
     return null;
   }
