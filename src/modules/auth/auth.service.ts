@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { normalizeEmail } from "../../common/normalize";
+import { withSerializationRetry } from "../../common/prisma-retry";
 import { PrismaService } from "../prisma/prisma.service";
 import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
@@ -161,178 +162,183 @@ export class AuthService {
 
     const passwordHash = await this.passwordService.hashPassword(password);
 
-    const result = await this.prisma.$transaction(
-      async (tx) => {
-        // Invite-time already checked the admin limit against the count of
-        // *active* admins, which doesn't account for other pending invites
-        // sent before any of them were accepted. Re-check here so a burst of
-        // invites can't collectively push the tenant past its admin limit
-        // once they're all accepted.
-        if (invite.roleCodes.includes("company_admin")) {
-          const tenant = await tx.platformTenant.findUnique({
-            where: { id: invite.tenantId },
-            select: { adminLimit: true },
-          });
-          const adminLimit = tenant?.adminLimit ?? DEFAULT_ADMIN_LIMIT;
-          const activeAdminCount = await tx.user.count({
-            where: {
-              tenantId: invite.tenantId,
-              status: "active",
-              deletedAt: null,
-              roles: {
-                some: { tenantId: invite.tenantId, roleCode: "company_admin" },
-              },
-            },
-          });
-
-          if (activeAdminCount >= adminLimit) {
-            throw new ConflictException({
-              code: "TENANT_ADMIN_LIMIT",
-              message: `This tenant is limited to ${adminLimit} active Company Admin(s).`,
+    const result = await withSerializationRetry(() =>
+      this.prisma.$transaction(
+        async (tx) => {
+          // Invite-time already checked the admin limit against the count of
+          // *active* admins, which doesn't account for other pending invites
+          // sent before any of them were accepted. Re-check here so a burst of
+          // invites can't collectively push the tenant past its admin limit
+          // once they're all accepted.
+          if (invite.roleCodes.includes("company_admin")) {
+            const tenant = await tx.platformTenant.findUnique({
+              where: { id: invite.tenantId },
+              select: { adminLimit: true },
             });
-          }
-        }
-
-        const acceptedUser = await tx.user.upsert({
-          where: {
-            tenantId_email: {
-              tenantId: invite.tenantId,
-              email: invite.email,
-            },
-          },
-          create: {
-            tenantId: invite.tenantId,
-            email: invite.email,
-            name,
-            phone,
-            passwordHash,
-            status: "active",
-            lastSelectedRoleCode: invite.roleCodes[0] ?? null,
-          },
-          update: {
-            name,
-            phone,
-            passwordHash,
-            status: "active",
-            lastSelectedRoleCode: invite.roleCodes[0] ?? null,
-            deletedAt: null,
-          },
-        });
-
-        for (const roleCode of invite.roleCodes) {
-          await tx.userRole.upsert({
-            where: {
-              tenantId_userId_roleCode: {
+            const adminLimit = tenant?.adminLimit ?? DEFAULT_ADMIN_LIMIT;
+            const activeAdminCount = await tx.user.count({
+              where: {
                 tenantId: invite.tenantId,
-                userId: acceptedUser.id,
-                roleCode,
+                status: "active",
+                deletedAt: null,
+                roles: {
+                  some: {
+                    tenantId: invite.tenantId,
+                    roleCode: "company_admin",
+                  },
+                },
+              },
+            });
+
+            if (activeAdminCount >= adminLimit) {
+              throw new ConflictException({
+                code: "TENANT_ADMIN_LIMIT",
+                message: `This tenant is limited to ${adminLimit} active Company Admin(s).`,
+              });
+            }
+          }
+
+          const acceptedUser = await tx.user.upsert({
+            where: {
+              tenantId_email: {
+                tenantId: invite.tenantId,
+                email: invite.email,
               },
             },
             create: {
               tenantId: invite.tenantId,
-              userId: acceptedUser.id,
-              roleCode,
-              assignedByUserId: invite.createdByUserId,
-            },
-            update: {},
-          });
-        }
-
-        // Superadmin replacement: at most one active superadmin at a time.
-        // The previously active superadmin (if any) stays active right up
-        // until this moment — see PlatformService.inviteOrReplaceTenantSuperadmin
-        // — and is demoted here, atomically with the new one taking over.
-        // Demotion swaps their role to company_admin (suspended) rather than
-        // leaving them stuck holding tenant_superadmin: assertTargetNotSuperadmin
-        // blocks every tenant-side action against a superadmin-role user
-        // unconditionally, and the platform owner has no endpoint to touch an
-        // inactive superadmin either, so leaving the role in place would make
-        // that account permanently unreachable — no way to reactivate or
-        // delete a "temporarily replaced" superadmin. As a suspended
-        // company_admin, the new superadmin can manage them through the
-        // ordinary admin lifecycle. Written via `tx` directly (not
-        // AuditService, which isn't transaction-aware) so it commits or rolls
-        // back with the acceptance.
-        const demotedSuperadminIds: string[] = [];
-
-        if (invite.roleCodes.includes("tenant_superadmin")) {
-          const previousSuperadmins = await tx.user.findMany({
-            where: {
-              tenantId: invite.tenantId,
-              id: { not: acceptedUser.id },
+              email: invite.email,
+              name,
+              phone,
+              passwordHash,
               status: "active",
-              deletedAt: null,
-              roles: {
-                some: {
-                  tenantId: invite.tenantId,
-                  roleCode: "tenant_superadmin",
-                },
-              },
+              lastSelectedRoleCode: invite.roleCodes[0] ?? null,
             },
-            select: { id: true },
+            update: {
+              name,
+              phone,
+              passwordHash,
+              status: "active",
+              lastSelectedRoleCode: invite.roleCodes[0] ?? null,
+              deletedAt: null,
+            },
           });
 
-          for (const previousSuperadmin of previousSuperadmins) {
-            demotedSuperadminIds.push(previousSuperadmin.id);
-
-            await tx.user.update({
-              where: { id: previousSuperadmin.id },
-              data: {
-                status: "suspended",
-                lastSelectedRoleCode: "company_admin",
-              },
-            });
-
-            await tx.userRole.deleteMany({
-              where: {
-                tenantId: invite.tenantId,
-                userId: previousSuperadmin.id,
-                roleCode: "tenant_superadmin",
-              },
-            });
-
+          for (const roleCode of invite.roleCodes) {
             await tx.userRole.upsert({
               where: {
                 tenantId_userId_roleCode: {
                   tenantId: invite.tenantId,
-                  userId: previousSuperadmin.id,
-                  roleCode: "company_admin",
+                  userId: acceptedUser.id,
+                  roleCode,
                 },
               },
               create: {
                 tenantId: invite.tenantId,
-                userId: previousSuperadmin.id,
-                roleCode: "company_admin",
-                assignedByUserId: null,
+                userId: acceptedUser.id,
+                roleCode,
+                assignedByUserId: invite.createdByUserId,
               },
               update: {},
             });
-
-            await tx.auditEvent.create({
-              data: {
-                tenantId: invite.tenantId,
-                actorUserId: null,
-                entityType: "user",
-                entityId: previousSuperadmin.id,
-                eventType: "superadmin.replaced",
-                metadata: { newSuperadminUserId: acceptedUser.id },
-              },
-            });
           }
-        }
 
-        await tx.invite.update({
-          where: { id: invite.id },
-          data: {
-            status: "accepted",
-            acceptedAt: new Date(),
-            acceptedByUserId: acceptedUser.id,
-          },
-        });
+          // Superadmin replacement: at most one active superadmin at a time.
+          // The previously active superadmin (if any) stays active right up
+          // until this moment — see PlatformService.inviteOrReplaceTenantSuperadmin
+          // — and is demoted here, atomically with the new one taking over.
+          // Demotion swaps their role to company_admin (suspended) rather than
+          // leaving them stuck holding tenant_superadmin: assertTargetNotSuperadmin
+          // blocks every tenant-side action against a superadmin-role user
+          // unconditionally, and the platform owner has no endpoint to touch an
+          // inactive superadmin either, so leaving the role in place would make
+          // that account permanently unreachable — no way to reactivate or
+          // delete a "temporarily replaced" superadmin. As a suspended
+          // company_admin, the new superadmin can manage them through the
+          // ordinary admin lifecycle. Written via `tx` directly (not
+          // AuditService, which isn't transaction-aware) so it commits or rolls
+          // back with the acceptance.
+          const demotedSuperadminIds: string[] = [];
 
-        return { acceptedUser, demotedSuperadminIds };
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+          if (invite.roleCodes.includes("tenant_superadmin")) {
+            const previousSuperadmins = await tx.user.findMany({
+              where: {
+                tenantId: invite.tenantId,
+                id: { not: acceptedUser.id },
+                status: "active",
+                deletedAt: null,
+                roles: {
+                  some: {
+                    tenantId: invite.tenantId,
+                    roleCode: "tenant_superadmin",
+                  },
+                },
+              },
+              select: { id: true },
+            });
+
+            for (const previousSuperadmin of previousSuperadmins) {
+              demotedSuperadminIds.push(previousSuperadmin.id);
+
+              await tx.user.update({
+                where: { id: previousSuperadmin.id },
+                data: {
+                  status: "suspended",
+                  lastSelectedRoleCode: "company_admin",
+                },
+              });
+
+              await tx.userRole.deleteMany({
+                where: {
+                  tenantId: invite.tenantId,
+                  userId: previousSuperadmin.id,
+                  roleCode: "tenant_superadmin",
+                },
+              });
+
+              await tx.userRole.upsert({
+                where: {
+                  tenantId_userId_roleCode: {
+                    tenantId: invite.tenantId,
+                    userId: previousSuperadmin.id,
+                    roleCode: "company_admin",
+                  },
+                },
+                create: {
+                  tenantId: invite.tenantId,
+                  userId: previousSuperadmin.id,
+                  roleCode: "company_admin",
+                  assignedByUserId: null,
+                },
+                update: {},
+              });
+
+              await tx.auditEvent.create({
+                data: {
+                  tenantId: invite.tenantId,
+                  actorUserId: null,
+                  entityType: "user",
+                  entityId: previousSuperadmin.id,
+                  eventType: "superadmin.replaced",
+                  metadata: { newSuperadminUserId: acceptedUser.id },
+                },
+              });
+            }
+          }
+
+          await tx.invite.update({
+            where: { id: invite.id },
+            data: {
+              status: "accepted",
+              acceptedAt: new Date(),
+              acceptedByUserId: acceptedUser.id,
+            },
+          });
+
+          return { acceptedUser, demotedSuperadminIds };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      ),
     );
     const { acceptedUser: user, demotedSuperadminIds } = result;
 

@@ -8,11 +8,11 @@ import {
   buildRequestHeaders,
   createPlatformTenant,
   getPlatformSession,
-  getPlatformTenantSuperadmin,
   invitePlatformTenantSuperadmin,
   listPlatformTenantUsers,
   listPlatformTenants,
   promotePlatformTenantSuperadmin,
+  requestPlatformTenantPurge,
   unarchivePlatformTenant,
   updatePlatformTenant,
   type PlatformSegmentTemplate,
@@ -27,6 +27,7 @@ import { ArchiveTenantForm } from "./archive-tenant-form";
 import { AutoDismissNotice } from "./auto-dismiss-notice";
 import { CreateTenantModal } from "./create-tenant-modal";
 import { NameChangeForm } from "./name-change-form";
+import { PurgeTenantForm } from "./purge-tenant-form";
 import { StatusChangeForm } from "./status-change-form";
 import { TenantAdminControls } from "./tenant-admin-controls";
 import { TimezoneForm } from "./timezone-form";
@@ -194,6 +195,23 @@ export default async function PlatformTenantsPage({
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
 
+  async function purgeAction(formData: FormData) {
+    "use server";
+
+    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const confirmSlug = String(formData.get("confirmSlug") ?? "").trim();
+
+    if (!tenantId || !confirmSlug) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    // The backend re-validates the slug echo against the tenant and refuses
+    // non-archived tenants; a mismatch is a 4xx and nothing changes.
+    const result = await requestPlatformTenantPurge(tenantId, { confirmSlug });
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
   async function inviteSuperadminAction(formData: FormData) {
     "use server";
 
@@ -289,17 +307,6 @@ export default async function PlatformTenantsPage({
         })),
       )
     : [];
-  const tenantSuperadminByTenantId = tenantsResult.ok
-    ? await Promise.all(
-        tenantsResult.data.map(async (tenant) => ({
-          tenantId: tenant.id,
-          result:
-            tenant.status === "archived"
-              ? null
-              : await getPlatformTenantSuperadmin(tenant.id),
-        })),
-      )
-    : [];
   const inviteFlash = pageState.invited ? await readInviteFlash() : null;
   const inviteLink = inviteFlash
     ? `/${inviteFlash.tenantSlug}/invites/accept?token=${encodeURIComponent(
@@ -317,11 +324,8 @@ export default async function PlatformTenantsPage({
       user.roleCodes.includes("company_admin"),
     );
     const metrics = tenant.metrics ?? EMPTY_TENANT_METRICS;
-    const superadminResult = tenantSuperadminByTenantId.find(
-      (entry) => entry.tenantId === tenant.id,
-    )?.result;
     const superadminSummary: TenantSuperadminSummary | null =
-      superadminResult?.ok ? superadminResult.data : null;
+      tenant.superadmin ?? null;
 
     return (
       <details
@@ -402,13 +406,30 @@ export default async function PlatformTenantsPage({
           </section>
 
           {isArchived ? (
-            <div className="toolbar">
-              <ArchiveTenantForm
-                action={unarchiveAction}
-                mode="unarchive"
-                tenantId={tenant.id}
-                tenantName={tenant.name}
-              />
+            <div className="tenant-purge-block">
+              <p className="tenant-status-confirmation">
+                {describePurgeState(tenant)}
+              </p>
+              <div className="toolbar">
+                {tenant.purgeStartedAt ? null : (
+                  <>
+                    <ArchiveTenantForm
+                      action={unarchiveAction}
+                      mode="unarchive"
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                    />
+                    {tenant.purgeRequestedAt ? null : (
+                      <PurgeTenantForm
+                        action={purgeAction}
+                        tenantId={tenant.id}
+                        tenantName={tenant.name}
+                        tenantSlug={tenant.slug}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           ) : (
             <div className="toolbar">
@@ -538,6 +559,42 @@ export default async function PlatformTenantsPage({
       </section>
     </main>
   );
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Purge state for an archived tenant, in escalating order: the worker has
+// started (irreversible), the owner marked it for early purge (cancellable
+// via unarchive), or it is riding out the retention window computed by the
+// backend (`purgeEligibleAt` = archivedAt + retention days).
+function describePurgeState(tenant: PlatformTenant): string {
+  if (tenant.purgeStartedAt) {
+    return "Purge in progress — this tenant's data is being permanently deleted and it can no longer be restored.";
+  }
+
+  if (tenant.purgeRequestedAt) {
+    return "Marked for purge — the background worker will permanently delete this tenant on its next run. Unarchive cancels the request.";
+  }
+
+  const eligibleAt = tenant.purgeEligibleAt
+    ? new Date(tenant.purgeEligibleAt)
+    : null;
+
+  if (!eligibleAt || Number.isNaN(eligibleAt.getTime())) {
+    return "Archived. This tenant is only purged after an explicit purge request.";
+  }
+
+  const daysRemaining = Math.ceil(
+    (eligibleAt.getTime() - Date.now()) / MS_PER_DAY,
+  );
+
+  if (daysRemaining > 0) {
+    return `Archived. Eligible for permanent deletion in ${daysRemaining} ${
+      daysRemaining === 1 ? "day" : "days"
+    } (${eligibleAt.toISOString().slice(0, 10)}). Unarchive to keep it.`;
+  }
+
+  return "Archived. The retention window has elapsed — the background worker will permanently delete this tenant on its next run. Unarchive to keep it.";
 }
 
 async function readInviteFlash(): Promise<InviteFlash | null> {

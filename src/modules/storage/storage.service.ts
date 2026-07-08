@@ -146,6 +146,65 @@ export class StorageService {
     };
   }
 
+  /**
+   * Deletes every remote object a tenant still owns, marking each row
+   * `deleted` only after its R2 delete succeeded — so a re-run (tenant
+   * purge is crash-safe and re-runnable) skips rows whose object is
+   * already gone and retries only real failures. Row deletion is the purge
+   * worker's job (`TenantPurgeService`), not this method's: it runs before
+   * any rows are removed because an orphaned R2 object is silent cost,
+   * while a dangling DB row is recoverable.
+   */
+  async deleteAllTenantObjects(
+    tenantId: string,
+    now = new Date(),
+  ): Promise<StorageCleanupResult> {
+    let scannedObjectCount = 0;
+    let deletedObjectCount = 0;
+    let failedObjectCount = 0;
+    // Manual id-cursor paging: each row is visited exactly once per run even
+    // when deletes fail (a failed row keeps its status and would otherwise be
+    // refetched forever by a status-filtered loop).
+    let lastId = "";
+
+    for (;;) {
+      const objects = await this.prisma.storageObject.findMany({
+        where: {
+          tenantId,
+          status: { not: "deleted" },
+          id: { gt: lastId },
+        },
+        orderBy: { id: "asc" },
+        take: CLEANUP_BATCH_SIZE,
+      });
+
+      if (!objects.length) {
+        break;
+      }
+
+      lastId = objects[objects.length - 1].id;
+      scannedObjectCount += objects.length;
+
+      for (const storageObject of objects) {
+        try {
+          await this.s3Storage.deleteObject(
+            storageObject.bucket,
+            storageObject.objectKey,
+          );
+          await this.prisma.storageObject.update({
+            where: { id: storageObject.id },
+            data: { status: "deleted", deletedAt: now },
+          });
+          deletedObjectCount += 1;
+        } catch {
+          failedObjectCount += 1;
+        }
+      }
+    }
+
+    return { scannedObjectCount, deletedObjectCount, failedObjectCount };
+  }
+
   private async findTenantStorageObject(
     tenantId: string,
     storageObjectId: string,

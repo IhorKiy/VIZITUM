@@ -23,6 +23,12 @@ export type UpdateTenantInput = {
   requestId?: string;
 };
 
+export type PlatformRequestPurgeInput = {
+  confirmSlug?: unknown;
+  actorUserId?: string;
+  requestId?: string;
+};
+
 export type PlatformInviteSuperadminInput = {
   email?: unknown;
   actorUserId?: string;

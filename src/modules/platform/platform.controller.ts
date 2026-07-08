@@ -14,7 +14,11 @@ import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import { PlatformService } from "./platform.service";
-import type { CreateTenantInput, UpdateTenantInput } from "./platform.types";
+import type {
+  CreateTenantInput,
+  PlatformRequestPurgeInput,
+  UpdateTenantInput,
+} from "./platform.types";
 
 @Controller("platform/tenants")
 @UseGuards(PermissionGuard)
@@ -76,6 +80,20 @@ export class PlatformController {
     @Param("tenantId") tenantId: string,
   ) {
     return this.platformService.unarchiveTenant(tenantId, {
+      actorUserId: request.context?.userId,
+      requestId: request.requestId,
+    });
+  }
+
+  @Post(":tenantId/purge")
+  @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
+  requestTenantPurge(
+    @Req() request: Request,
+    @Param("tenantId") tenantId: string,
+    @Body() body: Pick<PlatformRequestPurgeInput, "confirmSlug">,
+  ) {
+    return this.platformService.requestTenantPurge(tenantId, {
+      confirmSlug: body?.confirmSlug,
       actorUserId: request.context?.userId,
       requestId: request.requestId,
     });

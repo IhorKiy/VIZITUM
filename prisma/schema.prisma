@@ -199,6 +199,13 @@ model PlatformTenant {
   primaryDomain     String?
   adminLimit        Int               @default(2)
   archivedAt        DateTime?
+  // Two-stage deletion markers. `purgeRequestedAt` is the platform owner's
+  // explicit early-purge mark (set only on archived tenants; cleared by
+  // unarchive). `purgeStartedAt` is the point of no return: the purge worker
+  // stamps it before deleting anything, and unarchive refuses once it is set,
+  // so a partially-purged tenant can never come back half-visible.
+  purgeRequestedAt  DateTime?
+  purgeStartedAt    DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
