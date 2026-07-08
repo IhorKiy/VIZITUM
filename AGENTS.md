@@ -150,6 +150,8 @@ npm run dev
 npm run web:dev
 ```
 
+For a fresh checkout (or after `docker compose down`), `npm run dev:bootstrap` chains `db:up` + `prisma:migrate:deploy` + `seed:platform-owner` (seeds `owner@platform.local` / `Owner12345!` on a local database) in one command; still start `npm run dev` and `npm run web:dev` separately since those are long-running watchers.
+
 ## Agent Working Rules
 
 - Do not paste secrets into documentation or commits. `.env`, `.env.operations-staging` and provider tokens must stay local/ignored.

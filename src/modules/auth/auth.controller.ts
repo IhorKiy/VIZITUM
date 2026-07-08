@@ -15,6 +15,7 @@ import type {
   LoginRequestBody,
   SwitchRoleRequestBody,
 } from "./auth.types";
+import { CSRF_COOKIE_NAME } from "./auth.constants";
 import { clearCsrfCookie } from "./csrf";
 import { clearSessionCookie, readSessionToken } from "./session-cookie";
 import { SessionService } from "./session.service";
@@ -70,7 +71,7 @@ export class AuthController {
     }
 
     clearSessionCookie(response);
-    clearCsrfCookie(response);
+    clearCsrfCookie(response, CSRF_COOKIE_NAME);
 
     return { ok: true };
   }

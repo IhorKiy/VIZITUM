@@ -97,7 +97,7 @@ export default async function PlatformTenantsPage({
       const response = await fetch(buildApiUrl("/platform/auth/logout"), {
         method: "POST",
         cache: "no-store",
-        headers: await buildRequestHeaders(),
+        headers: await buildRequestHeaders("/platform/auth/logout"),
       });
       await forwardSetCookies(response.headers);
     } catch {

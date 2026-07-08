@@ -25,7 +25,7 @@ export default async function PlatformLoginPage({
         method: "POST",
         cache: "no-store",
         headers: {
-          ...(await buildRequestHeaders()),
+          ...(await buildRequestHeaders("/platform/auth/login")),
           "content-type": "application/json",
         },
         body: JSON.stringify({ email, password }),

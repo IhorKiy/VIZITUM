@@ -32,6 +32,7 @@ npm run db:up / db:down / db:logs
 npm run prisma:migrate:dev
 npm run prisma:migrate:deploy
 npm run prisma:studio
+npm run dev:bootstrap  # db:up + prisma:migrate:deploy + seed:platform-owner in one shot
 ```
 
 Frontend (Next.js app, `apps/web`, run from repo root):

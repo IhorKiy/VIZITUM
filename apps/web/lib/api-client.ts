@@ -919,7 +919,7 @@ async function apiGet<TData>(path: string): Promise<ApiResult<TData>> {
   try {
     response = await fetch(`${baseUrl}${path}`, {
       cache: "no-store",
-      headers: await buildRequestHeaders(),
+      headers: await buildRequestHeaders(path),
     });
   } catch (error: unknown) {
     return {
@@ -955,7 +955,7 @@ async function apiPost<TData>(
       method: "POST",
       cache: "no-store",
       headers: {
-        ...(await buildRequestHeaders()),
+        ...(await buildRequestHeaders(path)),
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
@@ -994,7 +994,7 @@ async function apiPatch<TData>(
       method: "PATCH",
       cache: "no-store",
       headers: {
-        ...(await buildRequestHeaders()),
+        ...(await buildRequestHeaders(path)),
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
@@ -1029,7 +1029,7 @@ async function apiDelete<TData>(path: string): Promise<ApiResult<TData>> {
     response = await fetch(`${baseUrl}${path}`, {
       method: "DELETE",
       cache: "no-store",
-      headers: await buildRequestHeaders(),
+      headers: await buildRequestHeaders(path),
     });
   } catch (error: unknown) {
     return {
@@ -1053,12 +1053,23 @@ async function apiDelete<TData>(path: string): Promise<ApiResult<TData>> {
   };
 }
 
-export async function buildRequestHeaders(): Promise<HeadersInit> {
+// Platform and tenant auth each have their own CSRF cookie (the backend
+// namespaces them the same way, see src/modules/auth/csrf.ts) so that
+// authenticating into one domain can't invalidate the other's still-valid
+// session. Pick the cookie that matches which domain `path` targets.
+function isPlatformApiPath(path: string): boolean {
+  return path === "/platform" || path.startsWith("/platform/");
+}
+
+export async function buildRequestHeaders(path: string): Promise<HeadersInit> {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const cookieHeader = cookieStore.toString();
   const requestId = headerStore.get("x-request-id");
-  const csrfToken = cookieStore.get("vizitum_csrf")?.value;
+  const csrfCookieName = isPlatformApiPath(path)
+    ? "vizitum_platform_csrf"
+    : "vizitum_csrf";
+  const csrfToken = cookieStore.get(csrfCookieName)?.value;
 
   return {
     ...(cookieHeader ? { cookie: cookieHeader } : {}),

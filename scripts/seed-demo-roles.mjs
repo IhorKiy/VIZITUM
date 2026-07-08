@@ -32,6 +32,11 @@ const capabilities = [
 
 const users = [
   {
+    email: "superadmin@demo-team.local",
+    name: "Demo Tenant Superadmin",
+    roles: ["tenant_superadmin"],
+  },
+  {
     email: "admin@demo-team.local",
     name: "Demo Company Admin",
     roles: ["company_admin"],
@@ -170,8 +175,7 @@ async function upsertTenant(tx) {
       country: "UA",
       timezone: "Europe/Kiev",
       language: "uk",
-      status: "ready",
-      planCode: "pilot",
+      status: "pilot",
       productMode: "team",
       segmentTemplate: "distribution",
       databasePlacement: "shared",
@@ -179,10 +183,9 @@ async function upsertTenant(tx) {
     },
     update: {
       name: tenantName,
-      status: "ready",
+      status: "pilot",
       timezone: "Europe/Kiev",
       language: "uk",
-      planCode: "pilot",
       productMode: "team",
       segmentTemplate: "distribution",
     },
