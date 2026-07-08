@@ -9,6 +9,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 import { readCookieToken } from "../../common/cookie-token";
 import { MILLISECONDS_PER_DAY } from "../../common/time";
+import { PLATFORM_CSRF_COOKIE_NAME } from "../platform/platform-auth.constants";
 import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import {
   CSRF_COOKIE_NAME,
@@ -29,15 +30,19 @@ export function createCsrfToken(sessionToken: string): string {
   return `${nonce}.${signature}`;
 }
 
-export function writeCsrfCookie(response: Response, csrfToken: string): void {
-  response.cookie(CSRF_COOKIE_NAME, csrfToken, {
+export function writeCsrfCookie(
+  response: Response,
+  csrfToken: string,
+  cookieName: string,
+): void {
+  response.cookie(cookieName, csrfToken, {
     ...CSRF_COOKIE_OPTIONS,
     maxAge: SESSION_TTL_DAYS * MILLISECONDS_PER_DAY,
   });
 }
 
-export function clearCsrfCookie(response: Response): void {
-  response.clearCookie(CSRF_COOKIE_NAME, CSRF_COOKIE_OPTIONS);
+export function clearCsrfCookie(response: Response, cookieName: string): void {
+  response.clearCookie(cookieName, CSRF_COOKIE_OPTIONS);
 }
 
 export function applyCsrfProtection(
@@ -50,15 +55,15 @@ export function applyCsrfProtection(
     return;
   }
 
-  const sessionToken = resolveCsrfSessionToken(request);
+  const resolved = resolveCsrfSession(request);
 
-  if (!sessionToken) {
+  if (!resolved) {
     next();
     return;
   }
 
   const headerToken = request.header(CSRF_HEADER_NAME);
-  const cookieToken = readCookieToken(request, CSRF_COOKIE_NAME);
+  const cookieToken = readCookieToken(request, resolved.cookieName);
 
   if (!headerToken || !cookieToken || headerToken !== cookieToken) {
     throw new ForbiddenException({
@@ -67,7 +72,7 @@ export function applyCsrfProtection(
     });
   }
 
-  if (!verifyCsrfToken(sessionToken, headerToken)) {
+  if (!verifyCsrfToken(resolved.sessionToken, headerToken)) {
     throw new ForbiddenException({
       code: "CSRF_TOKEN_INVALID",
       message: "A valid CSRF token is required.",
@@ -77,21 +82,51 @@ export function applyCsrfProtection(
   next();
 }
 
-function resolveCsrfSessionToken(request: Request): string | null {
+// Platform and tenant sessions each get their own CSRF cookie
+// (vizitum_platform_csrf / vizitum_csrf). They used to share one cookie
+// name, so authenticating into one domain regenerated the cookie the other
+// domain's still-valid session depended on, CSRF-locking it out with
+// correct credentials. Pairing the session token with its matching cookie
+// name here keeps the two domains from stepping on each other.
+function resolveCsrfSession(
+  request: Request,
+): { sessionToken: string; cookieName: string } | null {
   const tenantSessionToken = readSessionToken(request);
   const platformSessionToken = readPlatformSessionToken(request);
   const requestPath = request.originalUrl ?? request.url ?? "";
-
-  if (
+  const isPlatformPath =
     requestPath.startsWith("/api/platform/") ||
     requestPath === "/api/platform" ||
     requestPath.startsWith("/platform/") ||
-    requestPath === "/platform"
-  ) {
-    return platformSessionToken ?? tenantSessionToken;
+    requestPath === "/platform";
+
+  if (isPlatformPath) {
+    if (platformSessionToken) {
+      return {
+        sessionToken: platformSessionToken,
+        cookieName: PLATFORM_CSRF_COOKIE_NAME,
+      };
+    }
+
+    if (tenantSessionToken) {
+      return { sessionToken: tenantSessionToken, cookieName: CSRF_COOKIE_NAME };
+    }
+
+    return null;
   }
 
-  return tenantSessionToken ?? platformSessionToken;
+  if (tenantSessionToken) {
+    return { sessionToken: tenantSessionToken, cookieName: CSRF_COOKIE_NAME };
+  }
+
+  if (platformSessionToken) {
+    return {
+      sessionToken: platformSessionToken,
+      cookieName: PLATFORM_CSRF_COOKIE_NAME,
+    };
+  }
+
+  return null;
 }
 
 @Injectable()

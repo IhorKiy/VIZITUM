@@ -17,13 +17,11 @@ export async function GET(
   { params }: TemplateDownloadRouteProps,
 ) {
   const { templateFile } = await params;
-  const response = await fetch(
-    buildApiUrl(`/imports/templates/${templateFile}`),
-    {
-      cache: "no-store",
-      headers: await buildRequestHeaders(),
-    },
-  );
+  const templatePath = `/imports/templates/${templateFile}`;
+  const response = await fetch(buildApiUrl(templatePath), {
+    cache: "no-store",
+    headers: await buildRequestHeaders(templatePath),
+  });
   const body = await response.text();
   const headers = new Headers();
 

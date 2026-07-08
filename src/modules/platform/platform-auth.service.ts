@@ -6,6 +6,7 @@ import { createCsrfToken, writeCsrfCookie } from "../auth/csrf";
 import { PasswordService } from "../auth/password.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ROLE_PERMISSION_MATRIX } from "../roles/role-permission.matrix";
+import { PLATFORM_CSRF_COOKIE_NAME } from "./platform-auth.constants";
 import { PLATFORM_OWNER_ROLE_CODE } from "./platform-auth.types";
 import type {
   PlatformLoginRequestBody,
@@ -64,7 +65,11 @@ export class PlatformAuthService {
     });
 
     writePlatformSessionCookie(response, token);
-    writeCsrfCookie(response, createCsrfToken(token));
+    writeCsrfCookie(
+      response,
+      createCsrfToken(token),
+      PLATFORM_CSRF_COOKIE_NAME,
+    );
 
     return toSessionResponse(platformUser);
   }

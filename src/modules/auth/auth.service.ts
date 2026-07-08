@@ -14,6 +14,7 @@ import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
 import { hashValue } from "./auth-crypto";
 import { PasswordService } from "./password.service";
+import { CSRF_COOKIE_NAME } from "./auth.constants";
 import { createCsrfToken, writeCsrfCookie } from "./csrf";
 import { readSessionToken, writeSessionCookie } from "./session-cookie";
 import { SessionService } from "./session.service";
@@ -92,7 +93,7 @@ export class AuthService {
     });
 
     writeSessionCookie(response, token);
-    writeCsrfCookie(response, createCsrfToken(token));
+    writeCsrfCookie(response, createCsrfToken(token), CSRF_COOKIE_NAME);
 
     const roleCodes = user.roles.map((role) => role.roleCode);
     const permissions = this.rolesService.getPermissionsForRoles(roleCodes);
@@ -362,7 +363,7 @@ export class AuthService {
     });
 
     writeSessionCookie(response, sessionToken);
-    writeCsrfCookie(response, createCsrfToken(sessionToken));
+    writeCsrfCookie(response, createCsrfToken(sessionToken), CSRF_COOKIE_NAME);
 
     const roleCodes = invite.roleCodes;
 

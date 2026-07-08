@@ -14,6 +14,7 @@
     "db:up": "sh scripts/db-up.sh",
     "db:down": "sh scripts/db-down.sh",
     "db:logs": "sh scripts/db-logs.sh",
+    "dev:bootstrap": "npm run db:up && npm run prisma:migrate:deploy && npm run seed:platform-owner",
     "dev": "node --watch --require ts-node/register src/main.ts",
     "format": "prettier --write \"src/**/*.ts\" \"apps/web/**/*.{ts,tsx,css,json}\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
     "format:check": "prettier --check \"src/**/*.ts\" \"apps/web/**/*.{ts,tsx,css,json}\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",

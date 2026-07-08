@@ -10,6 +10,7 @@ import {
 import type { Request, Response } from "express";
 
 import { clearCsrfCookie } from "../auth/csrf";
+import { PLATFORM_CSRF_COOKIE_NAME } from "./platform-auth.constants";
 import { PlatformAuthService } from "./platform-auth.service";
 import type { PlatformLoginRequestBody } from "./platform-auth.types";
 import {
@@ -53,7 +54,7 @@ export class PlatformAuthController {
     }
 
     clearPlatformSessionCookie(response);
-    clearCsrfCookie(response);
+    clearCsrfCookie(response, PLATFORM_CSRF_COOKIE_NAME);
 
     return { ok: true };
   }

@@ -60,7 +60,7 @@ describe("platform auth", () => {
     assert.equal(sessionInputs.length, 1);
     assert.equal(updates.length, 1);
     assert.ok(cookies.some((cookie) => cookie.name === "vizitum_platform_session"));
-    assert.ok(cookies.some((cookie) => cookie.name === "vizitum_csrf"));
+    assert.ok(cookies.some((cookie) => cookie.name === "vizitum_platform_csrf"));
   });
 
   it("rejects an unknown platform user", async () => {
