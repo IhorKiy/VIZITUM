@@ -77,3 +77,9 @@ npm run seed:staging-admin
 **Imports**: `src/modules/imports` handles CSV/XLSX ingestion (users, locations, contacts, products, visit/task plans) with a validate-preview-then-confirm flow; see `tests/import-*.test.ts` for the expected parsing/validation behavior.
 
 **Tests**: plain Node test runner (`node --test`) with `tsx` for TS, files under `tests/*.test.ts`, one behavior per file (e.g. `tests/auth-tenant-isolation.test.ts`, `tests/ai-extraction-schemas.test.ts`). No separate test framework/config to reason about. Treat them as executable specification: [executable-spec.md](docs/reference/executable-spec.md) maps each test to the product/platform contract it pins — read the matching test before changing covered behavior.
+
+## Worktree slots
+
+Any worktree — the repo root or anything under `.claude/worktrees/` — may currently be sitting on a placeholder rather than a real task branch: either a generic reusable slot branch (currently `wt-1`..`wt-4` exist as such slots; check `git worktree list` for the live set) or plain `main` with nothing started yet. Don't assume the branch a session lands on is the right base for a new task just because it's checked out.
+
+Before writing any code for a new task, in whichever worktree the session is running in: confirm the current branch is actually free to build on (`git status --short` clean, and no commits beyond what's already merged into `main` — check `gh pr view` if unsure rather than assuming) or is plain `main`. If it's not free — real unmerged or uncommitted work sits there — stop and ask; another task may already be in progress in that worktree. If it is free, sync (`git checkout main && git pull --ff-only`) and create a properly named branch (`fix/...` / `feat/...`) off latest `main` for the task, instead of committing onto a `wt-N` placeholder or directly onto `main`. Once the task's PR merges, delete the branch — the worktree is then free again for reuse.
