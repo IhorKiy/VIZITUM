@@ -66,6 +66,29 @@
       "manager-representatives": "Reps",
       "operations": "Ops"
     },
+    "zone": {
+      "names": {
+        "field": "Field",
+        "manager": "Manager",
+        "admin": "Admin",
+        "operations": "Operations"
+      },
+      "switcher": {
+        "ariaLabel": "Switch workspace area",
+        "label": "Switch to"
+      },
+      "chooser": {
+        "eyebrow": "Choose an area",
+        "title": "Where would you like to start?",
+        "copy": "Your account has access to more than one area of this workspace. Pick one to continue — you can switch anytime.",
+        "listAriaLabel": "Available workspace areas"
+      },
+      "noAccess": {
+        "eyebrow": "No access",
+        "title": "No workspace area is available",
+        "body": "Your account doesn't currently have permission to any area of this workspace. Contact your administrator to request access."
+      }
+    },
     "recorder": {
       "record": "Record",
       "stop": "Stop",

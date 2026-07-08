@@ -1,4 +1,4 @@
-import type { RoleCode } from "@prisma/client";
+import type { NavZone, RoleCode } from "@prisma/client";
 
 import type { PermissionCode } from "../roles/permissions";
 
@@ -10,6 +10,10 @@ export type LoginRequestBody = {
 
 export type SwitchRoleRequestBody = {
   roleCode?: unknown;
+};
+
+export type SwitchZoneRequestBody = {
+  zone?: unknown;
 };
 
 export type AcceptInviteRequestBody = {
@@ -26,6 +30,7 @@ export type AuthUserResponse = {
   name: string;
   status: string;
   lastSelectedRoleCode: RoleCode | null;
+  lastSelectedZone: NavZone | null;
 };
 
 export type LoginResponse = {

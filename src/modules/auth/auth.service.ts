@@ -23,7 +23,9 @@ import type {
   LoginRequestBody,
   LoginResponse,
   SwitchRoleRequestBody,
+  SwitchZoneRequestBody,
 } from "./auth.types";
+import { isValidZone, isZoneAvailable } from "./zones";
 import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
 import { DEFAULT_ADMIN_LIMIT } from "../users/users.types";
 
@@ -105,6 +107,7 @@ export class AuthService {
         name: user.name,
         status: user.status,
         lastSelectedRoleCode: user.lastSelectedRoleCode,
+        lastSelectedZone: user.lastSelectedZone,
       },
       roleCodes,
       permissions,
@@ -374,6 +377,7 @@ export class AuthService {
         name: user.name,
         status: user.status,
         lastSelectedRoleCode: user.lastSelectedRoleCode,
+        lastSelectedZone: user.lastSelectedZone,
       },
       roleCodes,
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
@@ -432,6 +436,7 @@ export class AuthService {
         name: user.name,
         status: user.status,
         lastSelectedRoleCode: user.lastSelectedRoleCode,
+        lastSelectedZone: user.lastSelectedZone,
       },
       roleCodes,
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
@@ -500,9 +505,75 @@ export class AuthService {
         name: updatedUser.name,
         status: updatedUser.status,
         lastSelectedRoleCode: updatedUser.lastSelectedRoleCode,
+        lastSelectedZone: updatedUser.lastSelectedZone,
       },
       roleCodes,
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
+    };
+  }
+
+  async switchZone(
+    body: SwitchZoneRequestBody,
+    request: Request,
+  ): Promise<LoginResponse> {
+    if (!isValidZone(body.zone)) {
+      throw new BadRequestException({
+        code: "INVALID_ZONE",
+        message: "A valid zone is required.",
+      });
+    }
+
+    const selectedZone = body.zone;
+    const token = readSessionToken(request);
+
+    if (!token) {
+      throwAuthenticationRequired();
+    }
+
+    const session = await this.sessionService.findActiveSessionByToken(token);
+
+    if (!session) {
+      throwAuthenticationRequired();
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: session.userId,
+        tenantId: session.tenantId,
+      },
+      include: { roles: true },
+    });
+
+    if (!user || user.status !== "active") {
+      throwAuthenticationRequired();
+    }
+
+    const roleCodes = user.roles.map((role) => role.roleCode);
+    const permissions = this.rolesService.getPermissionsForRoles(roleCodes);
+
+    if (!isZoneAvailable(selectedZone, permissions)) {
+      throw new BadRequestException({
+        code: "ZONE_NOT_AVAILABLE",
+        message: "The selected zone is not available to this user.",
+      });
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastSelectedZone: selectedZone },
+    });
+
+    return {
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        status: updatedUser.status,
+        lastSelectedRoleCode: updatedUser.lastSelectedRoleCode,
+        lastSelectedZone: updatedUser.lastSelectedZone,
+      },
+      roleCodes,
+      permissions,
     };
   }
 }
