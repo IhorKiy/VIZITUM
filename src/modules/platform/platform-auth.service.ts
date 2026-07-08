@@ -65,7 +65,11 @@ export class PlatformAuthService {
     });
 
     writePlatformSessionCookie(response, token);
-    writeCsrfCookie(response, createCsrfToken(token), PLATFORM_CSRF_COOKIE_NAME);
+    writeCsrfCookie(
+      response,
+      createCsrfToken(token),
+      PLATFORM_CSRF_COOKIE_NAME,
+    );
 
     return toSessionResponse(platformUser);
   }
