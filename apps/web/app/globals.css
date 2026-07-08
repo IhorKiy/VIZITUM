@@ -1269,6 +1269,18 @@ textarea {
   margin-top: 10px;
 }
 
+.tenant-purge-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tenant-purge-block > .tenant-status-confirmation {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
 .modal-dialog {
   background: var(--surface);
   border: 1px solid var(--line);
