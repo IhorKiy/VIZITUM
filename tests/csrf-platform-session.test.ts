@@ -66,13 +66,15 @@ describe("csrf platform session selection", () => {
     );
   });
 
-  it("falls back to the tenant session and cookie on a platform path when no platform session exists", () => {
-    const tenantCsrfToken = createCsrfToken("tenant-token");
+  it("skips CSRF (no cross-domain fallback) on a platform path when only a tenant session exists", () => {
+    // No platform session, no CSRF token of any kind sent — if there were a
+    // fallback to the tenant pair, a missing token would throw
+    // CSRF_TOKEN_REQUIRED. Instead this path simply has no session to
+    // protect, so CSRF is skipped and PermissionGuard is left to reject the
+    // request for lacking a platform session.
     const request = createRequest({
       originalUrl: "/api/platform/tenants",
       sessionToken: "tenant-token",
-      tenantCsrfToken,
-      headerToken: tenantCsrfToken,
     });
     let nextCalled = false;
 
@@ -83,13 +85,10 @@ describe("csrf platform session selection", () => {
     assert.equal(nextCalled, true);
   });
 
-  it("falls back to the platform session and cookie on a tenant path when no tenant session exists", () => {
-    const platformCsrfToken = createCsrfToken("platform-token");
+  it("skips CSRF (no cross-domain fallback) on a tenant path when only a platform session exists", () => {
     const request = createRequest({
       originalUrl: "/api/visits",
       platformSessionToken: "platform-token",
-      platformCsrfToken,
-      headerToken: platformCsrfToken,
     });
     let nextCalled = false;
 

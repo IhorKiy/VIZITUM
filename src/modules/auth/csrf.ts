@@ -86,13 +86,17 @@ export function applyCsrfProtection(
 // (vizitum_platform_csrf / vizitum_csrf). They used to share one cookie
 // name, so authenticating into one domain regenerated the cookie the other
 // domain's still-valid session depended on, CSRF-locking it out with
-// correct credentials. Pairing the session token with its matching cookie
-// name here keeps the two domains from stepping on each other.
+// correct credentials.
+//
+// There is deliberately no cross-domain fallback: a platform path is only
+// ever checked against the platform session/cookie pair, a tenant path only
+// against the tenant pair. If the matching session is absent, CSRF is
+// skipped here (same as when no session at all is present) and the request
+// falls through to PermissionGuard, which requires that domain's session
+// and rejects it with 401/403 regardless of what CSRF decided.
 function resolveCsrfSession(
   request: Request,
 ): { sessionToken: string; cookieName: string } | null {
-  const tenantSessionToken = readSessionToken(request);
-  const platformSessionToken = readPlatformSessionToken(request);
   const requestPath = request.originalUrl ?? request.url ?? "";
   const isPlatformPath =
     requestPath.startsWith("/api/platform/") ||
@@ -101,32 +105,21 @@ function resolveCsrfSession(
     requestPath === "/platform";
 
   if (isPlatformPath) {
-    if (platformSessionToken) {
-      return {
-        sessionToken: platformSessionToken,
-        cookieName: PLATFORM_CSRF_COOKIE_NAME,
-      };
-    }
+    const platformSessionToken = readPlatformSessionToken(request);
 
-    if (tenantSessionToken) {
-      return { sessionToken: tenantSessionToken, cookieName: CSRF_COOKIE_NAME };
-    }
-
-    return null;
+    return platformSessionToken
+      ? {
+          sessionToken: platformSessionToken,
+          cookieName: PLATFORM_CSRF_COOKIE_NAME,
+        }
+      : null;
   }
 
-  if (tenantSessionToken) {
-    return { sessionToken: tenantSessionToken, cookieName: CSRF_COOKIE_NAME };
-  }
+  const tenantSessionToken = readSessionToken(request);
 
-  if (platformSessionToken) {
-    return {
-      sessionToken: platformSessionToken,
-      cookieName: PLATFORM_CSRF_COOKIE_NAME,
-    };
-  }
-
-  return null;
+  return tenantSessionToken
+    ? { sessionToken: tenantSessionToken, cookieName: CSRF_COOKIE_NAME }
+    : null;
 }
 
 @Injectable()
