@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -13,6 +15,7 @@ import {
   type ImportTemplateSummary,
   type ImportValidationIssue,
 } from "../../../../lib/api-client";
+import { formatDateTime } from "../../../../lib/format";
 import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
 
 type ImportsPageProps = {
@@ -72,6 +75,11 @@ export default async function ImportsPage({
 }: ImportsPageProps) {
   const { tenantSlug } = await params;
   const validationState = await searchParams;
+  const [t, tAdmin, tCommon] = await Promise.all([
+    getTranslations("admin.imports"),
+    getTranslations("admin"),
+    getTranslations("common"),
+  ]);
 
   async function validateImportAction(formData: FormData) {
     "use server";
@@ -136,24 +144,24 @@ export default async function ImportsPage({
       <AppShell tenantSlug={tenantSlug} activeArea="admin-imports">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Company admin</p>
-            <h1>Onboarding imports</h1>
-            <p>
-              Live import templates are required in production before import
-              setup can continue.
-            </p>
+            <p className="eyebrow">{tAdmin("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Import templates are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{templatesResult.message}</p>
           </div>
         </section>
@@ -181,85 +189,87 @@ export default async function ImportsPage({
     <AppShell tenantSlug={tenantSlug} activeArea="admin-imports">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Company admin</p>
-          <h1>Onboarding imports</h1>
-          <p>
-            Review approved templates, validate uploaded files and confirm
-            all-or-nothing application.
-          </p>
+          <p className="eyebrow">{tAdmin("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a
             className="secondary-button"
             href={buildApiUrl("/imports/templates")}
           >
-            Download templates
+            {t("downloadTemplates")}
           </a>
         </div>
       </header>
 
       {validationState.applied ? (
-        <section className="notice-panel success" aria-label="Import status">
+        <section
+          className="notice-panel success"
+          aria-label={t("appliedAria")}
+        >
           <div>
-            <p className="eyebrow">Import applied</p>
-            <h2>Rows imported</h2>
-            <p>{validationState.applied} rows were applied successfully.</p>
+            <p className="eyebrow">{t("appliedEyebrow")}</p>
+            <h2>{t("appliedTitle")}</h2>
+            <p>{t("appliedBody", { count: validationState.applied })}</p>
           </div>
         </section>
       ) : null}
 
       {validationState.error ? (
-        <section className="notice-panel danger" aria-label="Import error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("errorAria")}
+        >
           <div>
-            <p className="eyebrow">Import failed</p>
-            <h2>Check the file and try again</h2>
-            <p>
-              Upload a CSV from an approved template and confirm only validated
-              imports. If validation fails, fix the row issues and validate the
-              same template again before applying data.
-            </p>
+            <p className="eyebrow">{t("errorEyebrow")}</p>
+            <h2>{t("errorTitle")}</h2>
+            <p>{t("errorBody")}</p>
           </div>
           <div className="notice-actions">
             <a className="secondary-button" href="#templates">
-              Download template
+              {t("downloadTemplate")}
             </a>
             <a className="primary-button" href="#upload-import">
-              Upload CSV
+              {t("uploadCsv")}
             </a>
           </div>
         </section>
       ) : null}
 
       {!templatesResult.ok && demoFallbackEnabled ? (
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Demo mode</p>
-            <h2>Import templates are not connected</h2>
-            <p>
-              Showing sample templates until the Nest API returns an
-              authenticated imports response. Reason: {templatesResult.message}
-            </p>
+            <p className="eyebrow">{tCommon("notice.demoMode")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
+            <p>{t("demoBody", { reason: templatesResult.message })}</p>
           </div>
         </section>
       ) : null}
 
       <section className="import-grid">
         <div className="panel" id="templates">
-          <h2>Approved templates</h2>
+          <h2>{t("approvedTemplates")}</h2>
           <div className="field-stack">
             {templates.map((template) => (
               <article className="import-row" key={template.type}>
                 <div>
                   <h2>{template.label}</h2>
                   <p>
-                    {template.fileName} · {template.requiredColumns.length}{" "}
-                    required, {template.optionalColumns.length} optional columns
+                    {t("templateColumns", {
+                      fileName: template.fileName,
+                      required: template.requiredColumns.length,
+                      optional: template.optionalColumns.length,
+                    })}
                   </p>
                 </div>
                 <a
                   className="icon-button"
                   href={`/${tenantSlug}/admin/imports/templates/${template.type}.csv`}
-                  title={`Download ${template.label}`}
+                  title={t("downloadTemplateTitle", { label: template.label })}
                 >
                   D
                 </a>
@@ -269,10 +279,10 @@ export default async function ImportsPage({
         </div>
 
         <div className="panel" id="upload-import">
-          <h2>Upload and validate</h2>
+          <h2>{t("uploadValidate")}</h2>
           <form action={validateImportAction} className="visit-form">
             <label>
-              Template
+              {t("template")}
               <select
                 defaultValue={selectedTemplate?.type}
                 name="templateType"
@@ -286,47 +296,44 @@ export default async function ImportsPage({
               </select>
             </label>
             <label>
-              CSV file
+              {t("csvFile")}
               <input
                 accept=".csv,text/csv"
                 name="importFile"
                 required
                 type="file"
               />
-              <span className="form-hint">
-                Use one of the approved CSV templates. Validation stores a
-                reviewable import job before anything is applied.
-              </span>
+              <span className="form-hint">{t("csvHint")}</span>
             </label>
             <PendingSubmitButton
               className="primary-button"
-              pendingLabel="Validating..."
+              pendingLabel={t("validating")}
             >
-              Validate file
+              {t("validateFile")}
             </PendingSubmitButton>
           </form>
         </div>
 
         <div className="panel">
-          <h2>Validation result</h2>
+          <h2>{t("validationResult")}</h2>
           <table className="table">
             <tbody>
               <tr>
-                <th scope="row">Status</th>
+                <th scope="row">{t("rowStatus")}</th>
                 <td>
                   {validationPreview?.status ??
                     validationState.status ??
-                    "No file validated"}
+                    t("noFileValidated")}
                 </td>
               </tr>
               <tr>
-                <th scope="row">Rows</th>
+                <th scope="row">{t("rowRows")}</th>
                 <td>
                   {validationPreview?.rowCount ?? validationState.rows ?? "0"}
                 </td>
               </tr>
               <tr>
-                <th scope="row">Valid</th>
+                <th scope="row">{t("rowValid")}</th>
                 <td>
                   {validationPreview?.validRowCount ??
                     validationState.valid ??
@@ -334,7 +341,7 @@ export default async function ImportsPage({
                 </td>
               </tr>
               <tr>
-                <th scope="row">Errors</th>
+                <th scope="row">{t("rowErrors")}</th>
                 <td>
                   {validationPreview?.errorRowCount ??
                     validationState.errors ??
@@ -342,7 +349,7 @@ export default async function ImportsPage({
                 </td>
               </tr>
               <tr>
-                <th scope="row">Warnings</th>
+                <th scope="row">{t("rowWarnings")}</th>
                 <td>
                   {validationPreview?.warningRowCount ??
                     validationState.warnings ??
@@ -362,23 +369,23 @@ export default async function ImportsPage({
               />
               <PendingSubmitButton
                 className="primary-button"
-                pendingLabel="Applying..."
+                pendingLabel={t("applying")}
               >
-                Confirm import
+                {t("confirmImport")}
               </PendingSubmitButton>
             </form>
           ) : null}
         </div>
 
         <div className="panel import-issues-panel">
-          <h2>Row issues</h2>
+          <h2>{t("rowIssues")}</h2>
           {importIssues.length > 0 ? (
             <ImportIssuesTable issues={importIssues} />
           ) : (
             <p className="empty-state">
               {validationPreview || validationState.importJobId
-                ? "No row-level issues were found."
-                : "Validate a CSV file to review row-level errors and warnings."}
+                ? t("noRowIssues")
+                : t("validateToReview")}
             </p>
           )}
         </div>
@@ -386,25 +393,19 @@ export default async function ImportsPage({
         <div className="panel import-history-panel">
           <div className="panel-toolbar">
             <div>
-              <h2>Import history</h2>
-              <p className="empty-state">
-                Latest tenant import jobs, row counts and applied output.
-              </p>
+              <h2>{t("importHistory")}</h2>
+              <p className="empty-state">{t("importHistoryBody")}</p>
             </div>
           </div>
           {importJobsResult && !importJobsResult.ok ? (
             <p className="empty-state">
-              Import history is unavailable right now:{" "}
-              {importJobsResult.message}
+              {t("historyUnavailable", { message: importJobsResult.message })}
             </p>
           ) : null}
           {importJobs.length > 0 ? (
             <ImportHistoryTable jobs={importJobs} tenantSlug={tenantSlug} />
           ) : importJobsResult?.ok === false ? null : (
-            <p className="empty-state">
-              Validated and applied imports will appear here after the first
-              upload.
-            </p>
+            <p className="empty-state">{t("historyEmpty")}</p>
           )}
         </div>
       </section>
@@ -419,17 +420,20 @@ function ImportHistoryTable({
   jobs: ImportJobHistoryItem[];
   tenantSlug: string;
 }) {
+  const t = useTranslations("admin.imports");
+  const format = useFormatter();
+
   return (
     <table className="table import-history-table">
       <thead>
         <tr>
-          <th>Template</th>
-          <th>Status</th>
-          <th>Rows</th>
-          <th>Applied output</th>
-          <th>Owner</th>
-          <th>Updated</th>
-          <th>Review</th>
+          <th>{t("tableTemplate")}</th>
+          <th>{t("tableStatus")}</th>
+          <th>{t("tableRows")}</th>
+          <th>{t("tableAppliedOutput")}</th>
+          <th>{t("tableOwner")}</th>
+          <th>{t("tableUpdated")}</th>
+          <th>{t("tableReview")}</th>
         </tr>
       </thead>
       <tbody>
@@ -441,22 +445,25 @@ function ImportHistoryTable({
             </td>
             <td>
               <span className={`issue-badge ${resolveImportStatusTone(job)}`}>
-                {formatImportStatus(job.status)}
+                {formatImportStatus(job.status, t)}
               </span>
             </td>
             <td>
               <strong>{job.rowCount}</strong>
               <span>
-                {job.validRowCount} valid · {job.errorRowCount} errors ·{" "}
-                {job.warningRowCount} warnings
+                {t("rowCounts", {
+                  valid: job.validRowCount,
+                  errors: job.errorRowCount,
+                  warnings: job.warningRowCount,
+                })}
               </span>
             </td>
-            <td>{summarizeCreatedCounts(job.createdCounts)}</td>
+            <td>{summarizeCreatedCounts(job.createdCounts, t)}</td>
             <td>
               <strong>{job.uploadedBy.name}</strong>
               {job.confirmedBy ? <span>{job.confirmedBy.name}</span> : null}
             </td>
-            <td>{formatImportTimestamp(job)}</td>
+            <td>{formatImportTimestamp(job, format)}</td>
             <td>
               {job.status === "validated" ||
               job.status === "validation_failed" ? (
@@ -464,12 +471,12 @@ function ImportHistoryTable({
                   className="secondary-button"
                   href={`/${tenantSlug}/admin/imports?importJobId=${job.id}&template=${job.templateType}`}
                 >
-                  Review
+                  {t("review")}
                 </a>
               ) : job.status === "applied" ? (
-                <span className="empty-state">Applied</span>
+                <span className="empty-state">{t("applied")}</span>
               ) : (
-                <span className="empty-state">Closed</span>
+                <span className="empty-state">{t("closed")}</span>
               )}
             </td>
           </tr>
@@ -480,15 +487,17 @@ function ImportHistoryTable({
 }
 
 function ImportIssuesTable({ issues }: { issues: ImportValidationIssue[] }) {
+  const t = useTranslations("admin.imports");
+
   return (
     <table className="table import-issues-table">
       <thead>
         <tr>
-          <th>Row</th>
-          <th>Severity</th>
-          <th>Field</th>
-          <th>Issue</th>
-          <th>Value</th>
+          <th>{t("issueRow")}</th>
+          <th>{t("issueSeverity")}</th>
+          <th>{t("issueField")}</th>
+          <th>{t("issueIssue")}</th>
+          <th>{t("issueValue")}</th>
         </tr>
       </thead>
       <tbody>
@@ -497,15 +506,17 @@ function ImportIssuesTable({ issues }: { issues: ImportValidationIssue[] }) {
             <td>{issue.rowNumber}</td>
             <td>
               <span className={`issue-badge ${issue.severity}`}>
-                {issue.severity}
+                {issue.severity === "error"
+                  ? t("severityError")
+                  : t("severityWarning")}
               </span>
             </td>
-            <td>{issue.fieldName ?? "Row"}</td>
+            <td>{issue.fieldName ?? t("issueRowFallback")}</td>
             <td>
               <strong>{issue.code}</strong>
               <span>{issue.message}</span>
             </td>
-            <td>{issue.rawValue || "Empty"}</td>
+            <td>{issue.rawValue || t("emptyValue")}</td>
           </tr>
         ))}
       </tbody>
@@ -520,8 +531,28 @@ function formatImportTemplate(templateType: string): string {
     .join(" ");
 }
 
-function formatImportStatus(status: ImportJobHistoryItem["status"]): string {
-  return status.replaceAll("_", " ");
+type ImportsTranslator = ReturnType<typeof useTranslations<"admin.imports">>;
+
+function formatImportStatus(
+  status: ImportJobHistoryItem["status"],
+  t: ImportsTranslator,
+): string {
+  switch (status) {
+    case "uploaded":
+      return t("statusUploaded");
+    case "validated":
+      return t("statusValidated");
+    case "validation_failed":
+      return t("statusValidationFailed");
+    case "confirmed":
+      return t("statusConfirmed");
+    case "applied":
+      return t("statusApplied");
+    case "failed":
+      return t("statusFailed");
+    case "cancelled":
+      return t("statusCancelled");
+  }
 }
 
 function resolveImportStatusTone(
@@ -536,9 +567,10 @@ function resolveImportStatusTone(
 
 function summarizeCreatedCounts(
   counts: ImportJobHistoryItem["createdCounts"],
+  t: ImportsTranslator,
 ): string {
   if (!counts) {
-    return "Not applied";
+    return t("notApplied");
   }
 
   const summary = Object.entries(counts)
@@ -546,15 +578,15 @@ function summarizeCreatedCounts(
     .map(([key, value]) => `${value} ${key}`)
     .join(", ");
 
-  return summary || "0 records";
+  return summary || t("zeroRecords");
 }
 
-function formatImportTimestamp(job: ImportJobHistoryItem): string {
+function formatImportTimestamp(
+  job: ImportJobHistoryItem,
+  format: ReturnType<typeof useFormatter>,
+): string {
   const timestamp =
     job.appliedAt ?? job.confirmedAt ?? job.validatedAt ?? job.createdAt;
 
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(timestamp));
+  return formatDateTime(format, timestamp);
 }

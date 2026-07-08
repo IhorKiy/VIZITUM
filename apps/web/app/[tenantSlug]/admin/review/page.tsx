@@ -5,7 +5,7 @@ import {
   type PilotReviewSummary,
   type PilotReviewThreshold,
 } from "../../../../lib/api-client";
-import { getFormatter } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 
 import { formatDateTime } from "../../../../lib/format";
 
@@ -17,7 +17,12 @@ export default async function AdminReviewPage({
   params,
 }: AdminReviewPageProps) {
   const { tenantSlug } = await params;
-  const format = await getFormatter();
+  const [t, tAdmin, tCommon, format] = await Promise.all([
+    getTranslations("admin.review"),
+    getTranslations("admin"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
 
   await recordDashboardView("admin_review").catch(() => undefined);
 
@@ -28,24 +33,24 @@ export default async function AdminReviewPage({
       <AppShell tenantSlug={tenantSlug} activeArea="admin-review">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Company admin</p>
-            <h1>Pilot review</h1>
-            <p>
-              Live tenant usage data is required before pilot review can be
-              generated.
-            </p>
+            <p className="eyebrow">{tAdmin("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Pilot review data is not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{summaryResult.message}</p>
           </div>
         </section>
@@ -64,74 +69,77 @@ export default async function AdminReviewPage({
     applicableThresholds.length > 0
       ? Math.round((metThresholds.length / applicableThresholds.length) * 100)
       : 0;
-  const copySummary = buildReviewSummary(summary, readyPercent, format);
+  const copySummary = buildReviewSummary(summary, readyPercent, format, t);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-review">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Company admin</p>
-          <h1>Pilot review</h1>
-          <p>
-            Success thresholds are measured over the 7-day pilot window that
-            starts at the first field visit.
-          </p>
+          <p className="eyebrow">{tAdmin("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/admin/setup`}>
-            Setup
+            {t("setup")}
           </a>
           <a className="primary-button" href={`/${tenantSlug}/manager`}>
-            Manager view
+            {t("managerView")}
           </a>
         </div>
       </header>
 
-      <section className="manager-grid" aria-label="Pilot review metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Thresholds met</p>
+            <p className="metric-label">{t("thresholdsMet")}</p>
             <span
               className={`status-pill ${readyPercent >= 70 ? "active" : "warning"}`}
             >
-              Review
+              {t("review")}
             </span>
           </header>
           <p className="metric-value">{readyPercent}%</p>
           <p className="small-label">
-            {metThresholds.length} of {applicableThresholds.length} applicable
-            checks
+            {t("checksDetail", {
+              met: metThresholds.length,
+              total: applicableThresholds.length,
+            })}
           </p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Pilot window</p>
+            <p className="metric-label">{t("pilotWindow")}</p>
             <span className="status-pill info">
-              {summary.windowStart ? "Started" : "Not started"}
+              {summary.windowStart ? t("started") : t("notStarted")}
             </span>
           </header>
-          <p className="metric-value">{summary.windowStart ? "7 days" : "-"}</p>
+          <p className="metric-value">
+            {summary.windowStart ? t("sevenDays") : "-"}
+          </p>
           <p className="small-label">
             {summary.windowStart
-              ? `From ${formatDateTime(format, summary.windowStart)}`
-              : "Waiting for the first field visit"}
+              ? t("fromDate", {
+                  date: formatDateTime(format, summary.windowStart),
+                })
+              : t("waitingFirstVisit")}
           </p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Window ends</p>
-            <span className="status-pill info">Window</span>
+            <p className="metric-label">{t("windowEnds")}</p>
+            <span className="status-pill info">{t("window")}</span>
           </header>
           <p className="metric-value">
             {summary.windowEnd ? formatDateTime(format, summary.windowEnd) : "-"}
           </p>
-          <p className="small-label">Seven calendar days from first visit</p>
+          <p className="small-label">{t("windowEndsDetail")}</p>
         </article>
       </section>
 
       <section className="review-grid">
         <div className="panel">
-          <h2>Success thresholds</h2>
+          <h2>{t("successThresholds")}</h2>
           <div className="review-threshold-list">
             {summary.thresholds.map((threshold) => (
               <article className="review-threshold" key={threshold.key}>
@@ -139,7 +147,7 @@ export default async function AdminReviewPage({
                   <span
                     className={`setup-status ${thresholdStatusClass(threshold.status)}`}
                   >
-                    {formatThresholdStatus(threshold.status)}
+                    {formatThresholdStatus(threshold.status, t)}
                   </span>
                   <h3>{threshold.label}</h3>
                   <p>{threshold.target}</p>
@@ -151,57 +159,65 @@ export default async function AdminReviewPage({
         </div>
 
         <aside className="panel">
-          <h2>Copyable summary</h2>
+          <h2>{t("copyableSummary")}</h2>
           <textarea
             className="summary-copy-box"
             readOnly
             rows={18}
             value={copySummary}
           />
-          <p className="form-hint">
-            Select and copy this text into the pilot review note or customer
-            follow-up.
-          </p>
+          <p className="form-hint">{t("copyHint")}</p>
         </aside>
       </section>
     </AppShell>
   );
 }
 
+type ReviewTranslator = Awaited<
+  ReturnType<typeof getTranslations<"admin.review">>
+>;
+
 function buildReviewSummary(
   summary: PilotReviewSummary,
   readyPercent: number,
   format: Awaited<ReturnType<typeof getFormatter>>,
+  t: ReviewTranslator,
 ): string {
   const lines = [
-    "Vizitum pilot review summary",
+    t("summaryTitle"),
     "",
-    `Threshold readiness: ${readyPercent}%`,
+    t("summaryReadiness", { percent: readyPercent }),
     summary.windowStart
-      ? `Pilot window: ${formatDateTime(format, summary.windowStart)} - ${formatDateTime(format, summary.windowEnd)}`
-      : "Pilot window: not started (no visits recorded yet)",
+      ? t("summaryWindow", {
+          start: formatDateTime(format, summary.windowStart),
+          end: formatDateTime(format, summary.windowEnd),
+        })
+      : t("summaryWindowNotStarted"),
     "",
-    "Thresholds:",
+    t("summaryThresholds"),
     ...summary.thresholds.map(
       (threshold) =>
-        `- ${threshold.label}: ${formatThresholdStatus(threshold.status)} (${threshold.result})`,
+        `- ${threshold.label}: ${formatThresholdStatus(threshold.status, t)} (${threshold.result})`,
     ),
     "",
-    "Notes:",
-    "- Use this summary as a starting point for the 7-10 day pilot conversation.",
+    t("summaryNotes"),
+    t("summaryNotesLine"),
   ];
 
   return lines.join("\n");
 }
 
-function formatThresholdStatus(status: PilotReviewThreshold["status"]): string {
+function formatThresholdStatus(
+  status: PilotReviewThreshold["status"],
+  t: ReviewTranslator,
+): string {
   switch (status) {
     case "met":
-      return "Met";
+      return t("statusMet");
     case "not_met":
-      return "Not met";
+      return t("statusNotMet");
     case "na":
-      return "N/A";
+      return t("statusNa");
   }
 }
 
