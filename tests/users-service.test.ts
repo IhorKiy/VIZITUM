@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { Prisma } from "@prisma/client";
+
 import { UsersService } from "../src/modules/users/users.service";
 
 const context = {
@@ -462,5 +464,53 @@ describe("users service", () => {
     });
 
     assert.deepEqual(transactionCalls, [{ isolationLevel: "Serializable" }]);
+  });
+
+  it("retries updateUser's serializable transaction on a P2034 conflict and succeeds", async () => {
+    let transactionAttempts = 0;
+    const client = {
+      user: {
+        findFirst: async () => ({
+          id: "user-a",
+          tenantId: "tenant-a",
+          status: "active",
+          deletedAt: null,
+          roles: [{ roleCode: "field_representative" }],
+          createdAt: new Date("2026-07-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-07-04T00:00:00.000Z"),
+        }),
+        update: async () => ({
+          id: "user-a",
+          email: "rep@example.com",
+          name: "New Name",
+          phone: null,
+          status: "active",
+          lastSelectedRoleCode: null,
+          roles: [{ roleCode: "field_representative" }],
+          createdAt: new Date("2026-07-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-07-04T00:00:00.000Z"),
+        }),
+      },
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+        transactionAttempts += 1;
+
+        if (transactionAttempts === 1) {
+          throw new Prisma.PrismaClientKnownRequestError(
+            "Transaction failed due to a write conflict or a deadlock. Please retry your transaction.",
+            { code: "P2034", clientVersion: "7.8.0" },
+          );
+        }
+
+        return callback(client);
+      },
+    };
+    const service = createService(client);
+
+    const updated = await service.updateUser(context as never, "user-a", {
+      name: "New Name",
+    });
+
+    assert.equal(transactionAttempts, 2);
+    assert.equal(updated.name, "New Name");
   });
 });

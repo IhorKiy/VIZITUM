@@ -8,7 +8,6 @@ import {
   buildRequestHeaders,
   createPlatformTenant,
   getPlatformSession,
-  getPlatformTenantSuperadmin,
   invitePlatformTenantSuperadmin,
   listPlatformTenantUsers,
   listPlatformTenants,
@@ -308,17 +307,6 @@ export default async function PlatformTenantsPage({
         })),
       )
     : [];
-  const tenantSuperadminByTenantId = tenantsResult.ok
-    ? await Promise.all(
-        tenantsResult.data.map(async (tenant) => ({
-          tenantId: tenant.id,
-          result:
-            tenant.status === "archived"
-              ? null
-              : await getPlatformTenantSuperadmin(tenant.id),
-        })),
-      )
-    : [];
   const inviteFlash = pageState.invited ? await readInviteFlash() : null;
   const inviteLink = inviteFlash
     ? `/${inviteFlash.tenantSlug}/invites/accept?token=${encodeURIComponent(
@@ -336,11 +324,8 @@ export default async function PlatformTenantsPage({
       user.roleCodes.includes("company_admin"),
     );
     const metrics = tenant.metrics ?? EMPTY_TENANT_METRICS;
-    const superadminResult = tenantSuperadminByTenantId.find(
-      (entry) => entry.tenantId === tenant.id,
-    )?.result;
     const superadminSummary: TenantSuperadminSummary | null =
-      superadminResult?.ok ? superadminResult.data : null;
+      tenant.superadmin ?? null;
 
     return (
       <details

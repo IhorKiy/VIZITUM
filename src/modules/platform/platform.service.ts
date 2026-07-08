@@ -72,38 +72,74 @@ export class PlatformService {
     }
 
     const tenantIds = tenants.map((tenant) => tenant.id);
-    const [roleCounts, visitCounts, productCounts, locationCounts] =
-      await Promise.all([
-        this.prisma.userRole.groupBy({
-          by: ["tenantId", "roleCode"],
-          where: {
-            tenantId: { in: tenantIds },
-            user: { deletedAt: null },
-          },
-          _count: { _all: true },
-        }),
-        this.prisma.visit.groupBy({
-          by: ["tenantId"],
-          where: { tenantId: { in: tenantIds } },
-          _count: { _all: true },
-        }),
-        this.prisma.product.groupBy({
-          by: ["tenantId"],
-          where: {
-            tenantId: { in: tenantIds },
-            deletedAt: null,
-          },
-          _count: { _all: true },
-        }),
-        this.prisma.location.groupBy({
-          by: ["tenantId"],
-          where: {
-            tenantId: { in: tenantIds },
-            deletedAt: null,
-          },
-          _count: { _all: true },
-        }),
-      ]);
+    // Archived tenants can't be managed (see assertTenantCanManageUsers), so
+    // their superadmin summary is always empty — skip querying for them.
+    const manageableTenantIds = tenants
+      .filter((tenant) => tenant.status !== "archived")
+      .map((tenant) => tenant.id);
+    const [
+      roleCounts,
+      visitCounts,
+      productCounts,
+      locationCounts,
+      activeSuperadmins,
+      pendingSuperadminInvites,
+    ] = await Promise.all([
+      this.prisma.userRole.groupBy({
+        by: ["tenantId", "roleCode"],
+        where: {
+          tenantId: { in: tenantIds },
+          user: { deletedAt: null },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.visit.groupBy({
+        by: ["tenantId"],
+        where: { tenantId: { in: tenantIds } },
+        _count: { _all: true },
+      }),
+      this.prisma.product.groupBy({
+        by: ["tenantId"],
+        where: {
+          tenantId: { in: tenantIds },
+          deletedAt: null,
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.location.groupBy({
+        by: ["tenantId"],
+        where: {
+          tenantId: { in: tenantIds },
+          deletedAt: null,
+        },
+        _count: { _all: true },
+      }),
+      manageableTenantIds.length
+        ? this.prisma.user.findMany({
+            where: {
+              tenantId: { in: manageableTenantIds },
+              status: "active",
+              deletedAt: null,
+              roles: { some: { roleCode: "tenant_superadmin" } },
+            },
+            include: { roles: true },
+          })
+        : Promise.resolve([]),
+      manageableTenantIds.length
+        ? this.prisma.invite.findMany({
+            where: {
+              tenantId: { in: manageableTenantIds },
+              status: "pending",
+              roleCodes: { has: "tenant_superadmin" },
+            },
+            include: {
+              createdBy: { select: { id: true, email: true, name: true } },
+              acceptedBy: { select: { id: true, email: true, name: true } },
+            },
+            orderBy: { createdAt: "desc" },
+          })
+        : Promise.resolve([]),
+    ]);
 
     const metricsByTenantId = new Map<
       string,
@@ -172,6 +208,27 @@ export class PlatformService {
 
     const retentionDays = this.resolveRetentionDaysForDisplay();
 
+    const activeSuperadminByTenantId = new Map<
+      string,
+      (typeof activeSuperadmins)[number]
+    >();
+    for (const user of activeSuperadmins) {
+      // Invariant: at most one active tenant_superadmin per tenant.
+      activeSuperadminByTenantId.set(user.tenantId, user);
+    }
+
+    const pendingInviteByTenantId = new Map<
+      string,
+      (typeof pendingSuperadminInvites)[number]
+    >();
+    for (const invite of pendingSuperadminInvites) {
+      // Already ordered by createdAt desc, so the first hit per tenant is the
+      // most recent pending superadmin invite.
+      if (!pendingInviteByTenantId.has(invite.tenantId)) {
+        pendingInviteByTenantId.set(invite.tenantId, invite);
+      }
+    }
+
     return tenants.map((tenant) => ({
       ...tenant,
       metrics: metricsByTenantId.get(tenant.id),
@@ -185,6 +242,13 @@ export class PlatformService {
                 retentionDays * MILLISECONDS_PER_DAY,
             )
           : null,
+      superadmin:
+        tenant.status === "archived"
+          ? null
+          : formatSuperadminSummary(
+              activeSuperadminByTenantId.get(tenant.id) ?? null,
+              pendingInviteByTenantId.get(tenant.id) ?? null,
+            ),
     }));
   }
 
@@ -360,44 +424,7 @@ export class PlatformService {
       }),
     ]);
 
-    // A row can still carry DB status "pending" past its expiresAt — nothing
-    // transitions it until it's revoked or replaced — so without this check
-    // the console would show an unusable, timed-out invite as an active
-    // pending one.
-    const isPendingInviteLive =
-      pendingInvite &&
-      resolveInviteStatus(pendingInvite.status, pendingInvite.expiresAt) ===
-        "pending";
-
-    return {
-      activeSuperadmin: activeSuperadmin
-        ? {
-            id: activeSuperadmin.id,
-            email: activeSuperadmin.email,
-            name: activeSuperadmin.name,
-            phone: activeSuperadmin.phone,
-            status: activeSuperadmin.status,
-            lastSelectedRoleCode: activeSuperadmin.lastSelectedRoleCode,
-            roleCodes: activeSuperadmin.roles.map((role) => role.roleCode),
-            createdAt: activeSuperadmin.createdAt.toISOString(),
-            updatedAt: activeSuperadmin.updatedAt.toISOString(),
-          }
-        : null,
-      pendingInvite:
-        isPendingInviteLive && pendingInvite
-          ? {
-              id: pendingInvite.id,
-              email: pendingInvite.email,
-              roleCodes: pendingInvite.roleCodes,
-              status: pendingInvite.status,
-              expiresAt: pendingInvite.expiresAt.toISOString(),
-              acceptedAt: pendingInvite.acceptedAt?.toISOString() ?? null,
-              createdAt: pendingInvite.createdAt.toISOString(),
-              createdBy: pendingInvite.createdBy,
-              acceptedBy: pendingInvite.acceptedBy,
-            }
-          : null,
-    };
+    return formatSuperadminSummary(activeSuperadmin, pendingInvite);
   }
 
   async updateTenant(tenantId: string, input: UpdateTenantInput) {
@@ -877,4 +904,61 @@ function createPlatformTenantContext(
 
 function normalizeSlug(value: string): string {
   return value.trim().toLowerCase();
+}
+
+type SuperadminUserRecord = Prisma.UserGetPayload<{
+  include: { roles: true };
+}>;
+type PendingSuperadminInviteRecord = Prisma.InviteGetPayload<{
+  include: {
+    createdBy: { select: { id: true; email: true; name: true } };
+    acceptedBy: { select: { id: true; email: true; name: true } };
+  };
+}>;
+
+function formatSuperadminSummary(
+  activeSuperadmin: SuperadminUserRecord | null,
+  pendingInvite: PendingSuperadminInviteRecord | null,
+): {
+  activeSuperadmin: UserResponse | null;
+  pendingInvite: InviteHistoryItem | null;
+} {
+  // A row can still carry DB status "pending" past its expiresAt — nothing
+  // transitions it until it's revoked or replaced — so without this check
+  // the console would show an unusable, timed-out invite as an active
+  // pending one.
+  const isPendingInviteLive =
+    pendingInvite &&
+    resolveInviteStatus(pendingInvite.status, pendingInvite.expiresAt) ===
+      "pending";
+
+  return {
+    activeSuperadmin: activeSuperadmin
+      ? {
+          id: activeSuperadmin.id,
+          email: activeSuperadmin.email,
+          name: activeSuperadmin.name,
+          phone: activeSuperadmin.phone,
+          status: activeSuperadmin.status,
+          lastSelectedRoleCode: activeSuperadmin.lastSelectedRoleCode,
+          roleCodes: activeSuperadmin.roles.map((role) => role.roleCode),
+          createdAt: activeSuperadmin.createdAt.toISOString(),
+          updatedAt: activeSuperadmin.updatedAt.toISOString(),
+        }
+      : null,
+    pendingInvite:
+      isPendingInviteLive && pendingInvite
+        ? {
+            id: pendingInvite.id,
+            email: pendingInvite.email,
+            roleCodes: pendingInvite.roleCodes,
+            status: pendingInvite.status,
+            expiresAt: pendingInvite.expiresAt.toISOString(),
+            acceptedAt: pendingInvite.acceptedAt?.toISOString() ?? null,
+            createdAt: pendingInvite.createdAt.toISOString(),
+            createdBy: pendingInvite.createdBy,
+            acceptedBy: pendingInvite.acceptedBy,
+          }
+        : null,
+  };
 }

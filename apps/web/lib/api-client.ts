@@ -715,6 +715,7 @@ export type PlatformTenant = {
   purgeEligibleAt?: string | null;
   createdAt: string;
   metrics?: PlatformTenantMetrics;
+  superadmin?: TenantSuperadminSummary | null;
 };
 
 export type CreatePlatformTenantInput = {
