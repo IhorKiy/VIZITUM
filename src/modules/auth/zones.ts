@@ -39,9 +39,7 @@ const ZONE_PERMISSIONS: Record<NavZone, PermissionCode[]> = {
 };
 
 export function isValidZone(value: unknown): value is NavZone {
-  return (
-    typeof value === "string" && (ZONE_VALUES as string[]).includes(value)
-  );
+  return typeof value === "string" && (ZONE_VALUES as string[]).includes(value);
 }
 
 export function isZoneAvailable(

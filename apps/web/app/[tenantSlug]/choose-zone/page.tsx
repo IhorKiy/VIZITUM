@@ -13,9 +13,7 @@ type ChooseZonePageProps = {
   params: Promise<{ tenantSlug: string }>;
 };
 
-export default async function ChooseZonePage({
-  params,
-}: ChooseZonePageProps) {
+export default async function ChooseZonePage({ params }: ChooseZonePageProps) {
   const { tenantSlug } = await params;
   const sessionResult = await getCurrentSession();
 

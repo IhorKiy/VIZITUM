@@ -92,11 +92,7 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     area: "admin-setup",
     zone: "admin",
     icon: "S",
-    requiredPermissions: [
-      "tenant.settings.read",
-      "users.read",
-      "imports.read",
-    ],
+    requiredPermissions: ["tenant.settings.read", "users.read", "imports.read"],
   },
   {
     path: "/admin/users",
