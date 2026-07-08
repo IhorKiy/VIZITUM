@@ -209,8 +209,8 @@ Admin-management actions — inviting, suspending/reactivating, deleting or role
 
 | Method & path           | Permissions                   | Body                                                                                                                                 | Returns                                                                 |
 | ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `GET /admin/settings`   | all: `tenant.settings.read`   | —                                                                                                                                    | `{ tenantId, name, timezone, productMode, productsEnabled, updatedAt }` |
-| `PATCH /admin/settings` | all: `tenant.settings.manage` | `{ name?, timezone?, productsEnabled? }` — timezone must be a valid IANA zone; errors use code `SETTINGS_INVALID` with `fieldErrors` | updated settings                                                        |
+| `GET /admin/settings`   | all: `tenant.settings.read`   | —                                                                                                                                    | `{ tenantId, name, timezone, language, productMode, productsEnabled, updatedAt }` |
+| `PATCH /admin/settings` | all: `tenant.settings.manage` | `{ name?, timezone?, language?, productsEnabled? }` — timezone must be a valid IANA zone; language must be one of the supported UI languages (`en`, `uk` — drives the next-intl locale of the whole tenant workspace); errors use code `SETTINGS_INVALID` with `fieldErrors` | updated settings                                                        |
 
 ### Storage — `/storage/objects` (`storage.controller.ts`)
 

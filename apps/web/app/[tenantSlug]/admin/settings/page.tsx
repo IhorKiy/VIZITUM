@@ -33,15 +33,17 @@ export default async function AdminSettingsPage({
 
     const name = String(formData.get("name") ?? "").trim();
     const timezone = String(formData.get("timezone") ?? "").trim();
+    const language = String(formData.get("language") ?? "").trim();
     const productsEnabled = formData.get("productsEnabled") === "on";
 
-    if (!name || !timezone) {
+    if (!name || !timezone || !language) {
       redirect(`/${tenantSlug}/admin/settings?error=1`);
     }
 
     const result = await updateAdminSettings({
       name,
       timezone,
+      language,
       productsEnabled,
     });
 
@@ -161,6 +163,14 @@ export default async function AdminSettingsPage({
                 required
                 type="text"
               />
+            </label>
+            <label>
+              {t("language")}
+              <select defaultValue={settings.language} name="language" required>
+                <option value="en">{t("languageEnglish")}</option>
+                <option value="uk">{t("languageUkrainian")}</option>
+              </select>
+              <span className="form-hint">{t("languageHint")}</span>
             </label>
             <label className="checkbox-inline">
               <input

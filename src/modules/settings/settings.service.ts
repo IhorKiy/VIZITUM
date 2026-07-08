@@ -5,6 +5,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
   PRODUCTS_ENABLED_SETTING_KEY,
+  SUPPORTED_TENANT_LANGUAGES,
+  type TenantLanguage,
   type TenantSettingsResponse,
   type UpdateTenantSettingsRequestBody,
 } from "./settings.types";
@@ -32,6 +34,7 @@ export class SettingsService {
       tenantId: tenant.id,
       name: tenant.name,
       timezone: tenant.timezone,
+      language: tenant.language,
       productMode: tenant.productMode,
       productsEnabled: productsEnabledSetting
         ? productsEnabledSetting.value === true
@@ -46,6 +49,7 @@ export class SettingsService {
   ): Promise<TenantSettingsResponse> {
     const name = normalizeName(body.name);
     const timezone = normalizeTimezone(body.timezone);
+    const language = normalizeLanguage(body.language);
     const productsEnabled = normalizeProductsEnabled(body.productsEnabled);
 
     if (body.name !== undefined && name === null) {
@@ -64,6 +68,18 @@ export class SettingsService {
       });
     }
 
+    if (body.language !== undefined && language === null) {
+      throw new BadRequestException({
+        code: "SETTINGS_INVALID",
+        message: "Language is not a supported UI language.",
+        fieldErrors: {
+          language: [
+            `Choose one of: ${SUPPORTED_TENANT_LANGUAGES.join(", ")}.`,
+          ],
+        },
+      });
+    }
+
     if (body.productsEnabled !== undefined && productsEnabled === null) {
       throw new BadRequestException({
         code: "SETTINGS_INVALID",
@@ -78,6 +94,7 @@ export class SettingsService {
         data: {
           ...(name ? { name } : {}),
           ...(timezone ? { timezone } : {}),
+          ...(language ? { language } : {}),
         },
       });
 
@@ -115,6 +132,23 @@ function normalizeName(value: unknown): string | null {
   const trimmed = value.trim();
 
   return trimmed.length > 0 && trimmed.length <= 200 ? trimmed : null;
+}
+
+function normalizeLanguage(value: unknown): TenantLanguage | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  return (
+    SUPPORTED_TENANT_LANGUAGES.find((language) => language === normalized) ??
+    null
+  );
 }
 
 function normalizeProductsEnabled(value: unknown): boolean | null | undefined {

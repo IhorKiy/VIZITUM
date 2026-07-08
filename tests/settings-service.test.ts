@@ -18,6 +18,7 @@ const baseTenant = {
   id: "tenant-a",
   name: "Acme Distribution",
   timezone: "Europe/Kyiv",
+  language: "uk",
   productMode: "team",
   updatedAt: new Date("2026-07-01T00:00:00.000Z"),
 };
@@ -37,6 +38,7 @@ describe("settings service", () => {
 
     assert.equal(settings.name, "Acme Distribution");
     assert.equal(settings.timezone, "Europe/Kyiv");
+    assert.equal(settings.language, "uk");
     assert.equal(settings.productsEnabled, true);
   });
 
@@ -151,6 +153,56 @@ describe("settings service", () => {
     assert.equal(
       (tenantUpdates[0] as { data: { timezone: string } }).data.timezone,
       "Asia/Tokyo",
+    );
+  });
+
+  it("persists a supported language (normalized to lowercase)", async () => {
+    const tenantUpdates: unknown[] = [];
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+      tenantSetting: {
+        findUnique: async () => null,
+      },
+      $transaction: async (
+        callback: (tx: {
+          platformTenant: { update: (query: unknown) => Promise<void> };
+        }) => Promise<void>,
+      ) =>
+        callback({
+          platformTenant: {
+            update: async (query: unknown) => {
+              tenantUpdates.push(query);
+            },
+          },
+        }),
+    } as never);
+
+    await service.updateSettings(context as never, {
+      language: " EN ",
+    });
+
+    assert.equal(
+      (tenantUpdates[0] as { data: { language: string } }).data.language,
+      "en",
+    );
+  });
+
+  it("rejects an unsupported language", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+    } as never);
+
+    await assert.rejects(
+      () =>
+        service.updateSettings(context as never, {
+          language: "de",
+        }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "SETTINGS_INVALID",
     );
   });
 
