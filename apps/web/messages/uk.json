@@ -1019,5 +1019,37 @@
       "summaryFrom": "з {date}",
       "summaryTo": "до {date}"
     }
+  },
+  "operations": {
+    "eyebrow": "Операції платформи",
+    "title": "Готовність до продакшену",
+    "signedOutBody": "Для перевірки готовності пілота потрібні живі операційні лічильники.",
+    "notConnectedTitle": "Операційний підсумок не підключений",
+    "body": "Стежте за статусами просторів, чергами задач, збоями імпорту, AI-обробкою та очищенням тимчасового сховища за агрегованими лічильниками.",
+    "demoBody": "Показуємо приклади операційних лічильників, доки API не поверне автентифіковану відповідь операцій платформи. Причина: {reason}",
+    "metricsAria": "Операційні метрики",
+    "detailsAria": "Операційні деталі",
+    "tenants": "Простори",
+    "statusesTracked": "Відстежується статусів: {count}",
+    "importIssues": "Проблеми імпорту",
+    "pendingConfirmation": "Очікують підтвердження: {count}",
+    "aiBacklog": "Черга AI",
+    "failedInWindow": "Збоїв за {hours} год: {count}",
+    "cleanupBacklog": "Черга очищення",
+    "deletedRecently": "Нещодавно видалено тимчасових об'єктів: {count}",
+    "provisioningFailures": "Збої провіжинингу",
+    "activeProvisioningJobs": "Активних задач провіжинингу: {count}",
+    "window": "Вікно",
+    "requestLabel": "Запит {id}",
+    "latestSnapshot": "Останній знімок API",
+    "tenantStatus": "Статуси просторів",
+    "tableStatus": "Статус",
+    "tableTenants": "Простори",
+    "cleanupJobs": "Очищення та задачі",
+    "provisioningQueued": "Провіжининг у черзі",
+    "provisioningRunning": "Провіжининг виконується",
+    "aiQueue": "Черга AI",
+    "expiredTempObjects": "Прострочені тимчасові об'єкти",
+    "generated": "Згенеровано"
   }
 }

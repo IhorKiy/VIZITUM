@@ -1019,5 +1019,37 @@
       "summaryFrom": "from {date}",
       "summaryTo": "to {date}"
     }
+  },
+  "operations": {
+    "eyebrow": "Platform operations",
+    "title": "Production readiness",
+    "signedOutBody": "Live operational counters are required in production before pilot readiness can be reviewed.",
+    "notConnectedTitle": "Operations summary is not connected",
+    "body": "Monitor tenant status, job backlogs, import failures, AI processing and temporary storage cleanup from aggregate operational counters.",
+    "demoBody": "Showing sample operations counters until the API returns an authenticated platform operations response. Reason: {reason}",
+    "metricsAria": "Operations metrics",
+    "detailsAria": "Operations details",
+    "tenants": "Tenants",
+    "statusesTracked": "{count} statuses tracked",
+    "importIssues": "Import issues",
+    "pendingConfirmation": "{count} pending confirmation",
+    "aiBacklog": "AI backlog",
+    "failedInWindow": "{count} failed in {hours}h",
+    "cleanupBacklog": "Cleanup backlog",
+    "deletedRecently": "{count} temporary objects deleted recently",
+    "provisioningFailures": "Provisioning failures",
+    "activeProvisioningJobs": "{count} active provisioning jobs",
+    "window": "Window",
+    "requestLabel": "Request {id}",
+    "latestSnapshot": "Latest API snapshot",
+    "tenantStatus": "Tenant status",
+    "tableStatus": "Status",
+    "tableTenants": "Tenants",
+    "cleanupJobs": "Cleanup and jobs",
+    "provisioningQueued": "Provisioning queued",
+    "provisioningRunning": "Provisioning running",
+    "aiQueue": "AI queue",
+    "expiredTempObjects": "Expired temp objects",
+    "generated": "Generated"
   }
 }

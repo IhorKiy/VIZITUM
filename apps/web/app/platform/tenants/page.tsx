@@ -21,6 +21,8 @@ import {
   type TenantUser,
 } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
+import { getFormatter } from "next-intl/server";
+
 import { formatLabel, formatShortDate } from "../../../lib/format";
 import { AdminLimitForm } from "./admin-limit-form";
 import { ArchiveTenantForm } from "./archive-tenant-form";
@@ -79,6 +81,7 @@ export default async function PlatformTenantsPage({
   searchParams,
 }: PlatformTenantsPageProps) {
   const pageState = await searchParams;
+  const format = await getFormatter();
 
   const sessionResult = await getPlatformSession();
 
@@ -352,7 +355,7 @@ export default async function PlatformTenantsPage({
               </div>
               <div>
                 <dt>Created</dt>
-                <dd>{formatShortDate(tenant.createdAt)}</dd>
+                <dd>{formatShortDate(format, tenant.createdAt)}</dd>
               </div>
               <div>
                 <dt>Timezone</dt>
