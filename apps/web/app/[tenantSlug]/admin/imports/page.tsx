@@ -204,10 +204,7 @@ export default async function ImportsPage({
       </header>
 
       {validationState.applied ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("appliedAria")}
-        >
+        <section className="notice-panel success" aria-label={t("appliedAria")}>
           <div>
             <p className="eyebrow">{t("appliedEyebrow")}</p>
             <h2>{t("appliedTitle")}</h2>
@@ -217,10 +214,7 @@ export default async function ImportsPage({
       ) : null}
 
       {validationState.error ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("errorAria")}
-        >
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
             <p className="eyebrow">{t("errorEyebrow")}</p>
             <h2>{t("errorTitle")}</h2>

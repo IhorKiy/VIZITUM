@@ -205,10 +205,7 @@ export default async function ManagerRepresentativesPage({
             <h2>{t("workload")}</h2>
             <p>{t("showingSummary", { summary: filterSummary })}</p>
           </div>
-          <div
-            className="filter-pills"
-            aria-label={t("activityFiltersAria")}
-          >
+          <div className="filter-pills" aria-label={t("activityFiltersAria")}>
             <a
               aria-current={!selectedActivity ? "page" : undefined}
               href={buildRepresentativeFilterHref(tenantSlug, {
@@ -327,7 +324,11 @@ function RepresentativesTable({
             <td>{representative.routeCount}</td>
             <td>
               <strong>{representative.visitCount}</strong>
-              <span>{t("completedCount", { count: representative.completedVisitCount })}</span>
+              <span>
+                {t("completedCount", {
+                  count: representative.completedVisitCount,
+                })}
+              </span>
             </td>
             <td>
               <span

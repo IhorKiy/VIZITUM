@@ -133,10 +133,7 @@ export default async function AdminProductsPage({
       </header>
 
       {pageState.updated ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("updatedAria")}
-        >
+        <section className="notice-panel success" aria-label={t("updatedAria")}>
           <div>
             <p className="eyebrow">{t("updatedEyebrow")}</p>
             <h2>{t("updatedTitle")}</h2>
@@ -146,10 +143,7 @@ export default async function AdminProductsPage({
       ) : null}
 
       {pageState.error ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("errorAria")}
-        >
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
             <p className="eyebrow">{t("errorEyebrow")}</p>
             <h2>{t("errorTitle")}</h2>
@@ -162,9 +156,7 @@ export default async function AdminProductsPage({
         <article className="metric-card">
           <header>
             <p className="metric-label">{t("tenantProducts")}</p>
-            <span className="status-pill active">
-              {tCommon("labels.live")}
-            </span>
+            <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
           <p className="metric-value">{productsResult.data.total}</p>
           <p className="small-label">
@@ -295,7 +287,9 @@ function ProductRow({
       <header>
         <div>
           <h3>{product.name}</h3>
-          <p>{product.sku ? t("skuLabel", { sku: product.sku }) : t("noSku")}</p>
+          <p>
+            {product.sku ? t("skuLabel", { sku: product.sku }) : t("noSku")}
+          </p>
         </div>
         <span className={`status-pill ${statusTone(product.status)}`}>
           {formatEnumLabel(tCommon, product.status)}

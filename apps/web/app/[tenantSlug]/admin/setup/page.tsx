@@ -121,9 +121,7 @@ export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
         <article className="metric-card">
           <header>
             <p className="metric-label">{t("activeUsers")}</p>
-            <span className="status-pill active">
-              {tCommon("labels.live")}
-            </span>
+            <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
           <p className="metric-value">
             {usersResult.ok

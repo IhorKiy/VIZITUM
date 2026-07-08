@@ -206,10 +206,7 @@ export default async function ManagerTasksPage({
       </header>
 
       {pageState.updated ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("updateAria")}
-        >
+        <section className="notice-panel success" aria-label={t("updateAria")}>
           <div>
             <p className="eyebrow">{t("updatedEyebrow")}</p>
             <h2>{t("updatedTitle")}</h2>
@@ -219,10 +216,7 @@ export default async function ManagerTasksPage({
       ) : null}
 
       {pageState.error ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("errorAria")}
-        >
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
             <p className="eyebrow">{t("errorEyebrow")}</p>
             <h2>{t("errorTitle")}</h2>
@@ -662,7 +656,9 @@ function buildTaskFilterSummary(
     filters.locationLabel
       ? t("summaryAtLocation", { name: filters.locationLabel })
       : null,
-    filters.routeLabel ? t("summaryOnRoute", { name: filters.routeLabel }) : null,
+    filters.routeLabel
+      ? t("summaryOnRoute", { name: filters.routeLabel })
+      : null,
     filters.dueFrom ? t("summaryFrom", { date: filters.dueFrom }) : null,
     filters.dueTo ? t("summaryTo", { date: filters.dueTo }) : null,
   ].filter(Boolean);

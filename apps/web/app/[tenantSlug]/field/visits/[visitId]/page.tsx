@@ -362,7 +362,9 @@ export default async function VisitDetailPage({
   );
 }
 
-type VisitTranslator = Awaited<ReturnType<typeof getTranslations<"field.visit">>>;
+type VisitTranslator = Awaited<
+  ReturnType<typeof getTranslations<"field.visit">>
+>;
 
 function toFieldVisit(
   visit: Visit,

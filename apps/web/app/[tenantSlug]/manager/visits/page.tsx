@@ -541,7 +541,6 @@ function normalizeDateFilter(value: string | undefined): string | null {
   return normalizedValue;
 }
 
-
 function visitStatusTone(status: VisitStatus): "active" | "info" | "warning" {
   if (status === "completed") {
     return "active";

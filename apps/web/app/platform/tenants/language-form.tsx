@@ -27,10 +27,7 @@ export function LanguageForm({
     (option) => option.value === currentLanguage,
   )
     ? LANGUAGE_OPTIONS
-    : [
-        { value: currentLanguage, label: currentLanguage },
-        ...LANGUAGE_OPTIONS,
-      ];
+    : [{ value: currentLanguage, label: currentLanguage }, ...LANGUAGE_OPTIONS];
   const canSubmit = Boolean(language) && language !== currentLanguage;
 
   function openDialog() {
@@ -94,8 +91,8 @@ export function LanguageForm({
             </select>
           </label>
           <p className="tenant-status-confirmation">
-            Every screen of this tenant workspace, including sign-in, renders
-            in this language.
+            Every screen of this tenant workspace, including sign-in, renders in
+            this language.
           </p>
           <div className="modal-actions">
             <button

@@ -132,10 +132,7 @@ export default async function AdminLocationsPage({
       </header>
 
       {pageState.updated ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("updatedAria")}
-        >
+        <section className="notice-panel success" aria-label={t("updatedAria")}>
           <div>
             <p className="eyebrow">{t("updatedEyebrow")}</p>
             <h2>{t("updatedTitle")}</h2>
@@ -145,10 +142,7 @@ export default async function AdminLocationsPage({
       ) : null}
 
       {pageState.error ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("errorAria")}
-        >
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
             <p className="eyebrow">{t("errorEyebrow")}</p>
             <h2>{t("errorTitle")}</h2>
@@ -161,9 +155,7 @@ export default async function AdminLocationsPage({
         <article className="metric-card">
           <header>
             <p className="metric-label">{t("tenantLocations")}</p>
-            <span className="status-pill active">
-              {tCommon("labels.live")}
-            </span>
+            <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
           <p className="metric-value">{locationsResult.data.total}</p>
           <p className="small-label">
@@ -180,14 +172,10 @@ export default async function AdminLocationsPage({
               {selectedStatus
                 ? t("showingStatus", {
                     status: formatEnumLabel(tCommon, selectedStatus),
-                    search: search
-                      ? t("searchSuffix", { search })
-                      : "",
+                    search: search ? t("searchSuffix", { search }) : "",
                   })
                 : t("showingAll", {
-                    search: search
-                      ? t("searchSuffix", { search })
-                      : "",
+                    search: search ? t("searchSuffix", { search }) : "",
                   })}
             </p>
           </div>

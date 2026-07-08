@@ -316,9 +316,7 @@ export default async function AdminUsersPage({
         <article className="metric-card">
           <header>
             <p className="metric-label">{t("tenantUsers")}</p>
-            <span className="status-pill active">
-              {tCommon("labels.live")}
-            </span>
+            <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
           <p className="metric-value">{usersResult.data.total}</p>
           <p className="small-label">
@@ -475,7 +473,9 @@ function InviteHistoryList({
             <div>
               <h3>{invite.email}</h3>
               <p>
-                {t("expires", { date: formatDateTime(format, invite.expiresAt) })}
+                {t("expires", {
+                  date: formatDateTime(format, invite.expiresAt),
+                })}
                 {invite.acceptedAt
                   ? t("acceptedAt", {
                       date: formatDateTime(format, invite.acceptedAt),
@@ -687,7 +687,6 @@ function normalizeUserStatus(
 
   return null;
 }
-
 
 function inviteStatusTone(
   status: InviteHistoryItem["status"],

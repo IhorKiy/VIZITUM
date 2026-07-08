@@ -59,10 +59,7 @@ export default async function ManagerVisitDetailPage({
           </div>
         </header>
 
-        <section
-          className="notice-panel"
-          aria-label={t("visitStatusAria")}
-        >
+        <section className="notice-panel" aria-label={t("visitStatusAria")}>
           <div>
             <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
             <h2>{t("notAvailableTitle")}</h2>
@@ -374,7 +371,9 @@ function TasksToCreateSection({
               <span>
                 {formatEnumLabelOrDash(tCommon, task.priority)} ·{" "}
                 {formatEnumLabelOrDash(tCommon, task.assignee)} ·{" "}
-                {t("dueDate", { date: formatScalarValue(task.dueDate, labels) })}
+                {t("dueDate", {
+                  date: formatScalarValue(task.dueDate, labels),
+                })}
               </span>
               <p>{formatScalarValue(task.description, labels)}</p>
             </article>

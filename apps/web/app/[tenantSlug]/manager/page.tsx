@@ -433,9 +433,7 @@ export default async function ManagerPage({
                   <option value="high">
                     {formatEnumLabel(tCommon, "high")}
                   </option>
-                  <option value="low">
-                    {formatEnumLabel(tCommon, "low")}
-                  </option>
+                  <option value="low">{formatEnumLabel(tCommon, "low")}</option>
                 </select>
               </label>
               <label>
@@ -567,9 +565,7 @@ function buildAttentionItems(
       tone: "warning" as const,
       area: t("areaTask"),
       detail:
-        task.assignedTo?.name ??
-        task.description ??
-        t("taskAttentionFallback"),
+        task.assignedTo?.name ?? task.description ?? t("taskAttentionFallback"),
     })),
   ];
 

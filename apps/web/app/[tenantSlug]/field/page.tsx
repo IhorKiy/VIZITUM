@@ -158,9 +158,7 @@ export default async function FieldPage({
           <div>
             <p className="eyebrow">{tCommon("notice.demoMode")}</p>
             <h2>{tCommon("notice.backendNotConnected")}</h2>
-            <p>
-              {t("home.demoBody", { reason: todayRoutesResult.message })}
-            </p>
+            <p>{t("home.demoBody", { reason: todayRoutesResult.message })}</p>
           </div>
         </section>
       ) : null}

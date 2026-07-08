@@ -131,7 +131,9 @@ export default async function AdminReviewPage({
             <span className="status-pill info">{t("window")}</span>
           </header>
           <p className="metric-value">
-            {summary.windowEnd ? formatDateTime(format, summary.windowEnd) : "-"}
+            {summary.windowEnd
+              ? formatDateTime(format, summary.windowEnd)
+              : "-"}
           </p>
           <p className="small-label">{t("windowEndsDetail")}</p>
         </article>

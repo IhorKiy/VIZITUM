@@ -109,9 +109,7 @@ export default async function OperationsPage({ params }: OperationsPageProps) {
         </div>
         <div className="toolbar">
           <span className="status-pill info">
-            {summaryResult.ok
-              ? tCommon("labels.live")
-              : tCommon("labels.demo")}
+            {summaryResult.ok ? tCommon("labels.live") : tCommon("labels.demo")}
           </span>
         </div>
       </header>

@@ -15,9 +15,7 @@ export type ResolvedTenantLocale = {
 const NON_TENANT_SEGMENTS = new Set(["platform", "api"]);
 const TENANT_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
-export function extractTenantSlugFromPathname(
-  pathname: string,
-): string | null {
+export function extractTenantSlugFromPathname(pathname: string): string | null {
   const firstSegment = pathname.split("/").filter(Boolean)[0]?.toLowerCase();
 
   if (
@@ -32,8 +30,9 @@ export function extractTenantSlugFromPathname(
 }
 
 export function toSupportedLocale(language: unknown): AppLocale {
-  return SUPPORTED_LOCALES.find((locale) => locale === language) ??
-    DEFAULT_LOCALE;
+  return (
+    SUPPORTED_LOCALES.find((locale) => locale === language) ?? DEFAULT_LOCALE
+  );
 }
 
 // Resolves the UI locale and timezone for a request. Tenant pages (including

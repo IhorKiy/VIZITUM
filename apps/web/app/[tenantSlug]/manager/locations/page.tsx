@@ -402,7 +402,9 @@ function LocationsTable({
                 </span>
               </td>
               <td>
-                <strong>{location.territory ?? t("unassignedTerritory")}</strong>
+                <strong>
+                  {location.territory ?? t("unassignedTerritory")}
+                </strong>
                 <span>{location.region ?? location.type ?? t("noRegion")}</span>
               </td>
               <td>

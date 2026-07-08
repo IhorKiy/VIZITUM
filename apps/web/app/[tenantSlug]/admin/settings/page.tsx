@@ -99,10 +99,7 @@ export default async function AdminSettingsPage({
       </header>
 
       {pageState.saved ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("savedAria")}
-        >
+        <section className="notice-panel success" aria-label={t("savedAria")}>
           <div>
             <p className="eyebrow">{t("savedEyebrow")}</p>
             <h2>{t("savedTitle")}</h2>
@@ -112,10 +109,7 @@ export default async function AdminSettingsPage({
       ) : null}
 
       {pageState.error ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("errorAria")}
-        >
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
             <p className="eyebrow">{t("errorEyebrow")}</p>
             <h2>{t("errorTitle")}</h2>
