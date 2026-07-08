@@ -40,6 +40,7 @@ Frontend (Next.js app, `apps/web`, run from repo root):
 npm run web:dev
 npm run web:build
 npm run web:typecheck
+npm run web:i18n:check        # fails on Cyrillic literals outside apps/web/messages/
 ```
 
 Worker and ops:
@@ -63,6 +64,8 @@ npm run seed:staging-admin
 **Tenancy is the load-bearing concern.** `src/modules/tenancy/request-context.ts` carries the resolved tenant through a request; `tenancy.service.ts` resolves it. Every module that touches tenant-owned data must read tenant id from this request context, never from a request body/param supplied by the client. This is the single most important invariant in the backend — see the "Agent Working Rules" section of [AGENTS.md](AGENTS.md) for the reasoning.
 
 **Frontend routing mirrors tenancy**: `apps/web/app/[tenantSlug]/...` — every screen is nested under the tenant slug, then split by role area: `admin/`, `manager/`, `field/`, `operations/`, `invites/`, `login/`.
+
+**Frontend i18n (next-intl, tenant-driven)**: the UI locale comes from the tenant's `language` setting (resolved per request in `apps/web/i18n/request.ts` via the public `GET /tenants/:slug/locale` endpoint), never from the URL or browser. Every new user-visible string — including placeholders, `aria-label`s, `title`s and pending/toast texts — goes through the message dictionaries `apps/web/messages/{en,uk}.json` (`en` is canonical; `uk` must be a real translation, not a stub). Never hardcode UI literals in `apps/web/app/**`, `components/` or `lib/`; `npm run web:i18n:check` (also in CI) fails on Cyrillic literals outside `messages/`. Dates/numbers go through the next-intl formatters (`useFormatter`/`getFormatter` + `lib/format.ts`), which honor the tenant timezone. `platform/*` and root pages render in `en` by design.
 
 **AI processing** (`src/modules/ai`) drives transcription/extraction of visit notes into structured reports, but manual report confirmation must always remain a working fallback path when AI is slow, weak or unavailable — this is a hard product requirement, not an implementation detail.
 

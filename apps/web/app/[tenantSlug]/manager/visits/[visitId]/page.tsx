@@ -5,11 +5,21 @@ import {
   type Report,
   type Visit,
 } from "../../../../../lib/api-client";
+import { useFormatter, useTranslations } from "next-intl";
+import { getFormatter, getTranslations } from "next-intl/server";
+
 import {
   formatDateTime,
+  formatEnumLabel,
+  formatEnumLabelOrDash,
   formatLabel,
-  formatLabelOrDash,
+  type CommonTranslator,
+  type IntlFormatter,
 } from "../../../../../lib/format";
+
+type VisitDetailTranslator = Awaited<
+  ReturnType<typeof getTranslations<"manager.visitDetail">>
+>;
 
 type ManagerVisitDetailPageProps = {
   params: Promise<{ tenantSlug: string; visitId: string }>;
@@ -19,6 +29,12 @@ export default async function ManagerVisitDetailPage({
   params,
 }: ManagerVisitDetailPageProps) {
   const { tenantSlug, visitId } = await params;
+  const [t, tManager, tCommon, format] = await Promise.all([
+    getTranslations("manager.visitDetail"),
+    getTranslations("manager"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
   const [visitResult, reportResult] = await Promise.all([
     getVisit(visitId),
     getVisitReport(visitId),
@@ -29,26 +45,24 @@ export default async function ManagerVisitDetailPage({
       <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Team manager</p>
-            <h1>Visit report</h1>
-            <p>
-              Live visit data is required before report review can continue.
-            </p>
+            <p className="eyebrow">{tManager("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a
               className="primary-button"
               href={`/${tenantSlug}/manager/visits`}
             >
-              Back to visits
+              {t("backToVisits")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="Visit status">
+        <section className="notice-panel" aria-label={t("visitStatusAria")}>
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Visit is not available</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notAvailableTitle")}</h2>
             <p>{visitResult.message}</p>
           </div>
         </section>
@@ -62,33 +76,35 @@ export default async function ManagerVisitDetailPage({
     <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Team manager</p>
-          <h1>Visit report</h1>
-          <p>
-            Review confirmed report detail for {visit.location.name} and the
-            field representative who completed the visit.
-          </p>
+          <p className="eyebrow">{tManager("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body", { location: visit.location.name })}</p>
         </div>
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/manager/tasks`}>
-            Tasks
+            {t("tasks")}
           </a>
           <a className="primary-button" href={`/${tenantSlug}/manager/visits`}>
-            Back to visits
+            {t("backToVisits")}
           </a>
         </div>
       </header>
 
-      <section className="manager-grid" aria-label="Visit report metadata">
+      <section className="manager-grid" aria-label={t("metadataAria")}>
         {buildVisitMetrics(
           visit,
           reportResult.ok ? reportResult.data : null,
+          format,
+          t,
+          tCommon,
         ).map((metric) => (
           <article className="metric-card" key={metric.label}>
             <header>
               <p className="metric-label">{metric.label}</p>
               <span className={`status-pill ${metric.tone}`}>
-                {metric.tone === "active" ? "OK" : metric.tone}
+                {metric.tone === "active"
+                  ? tCommon("tone.ok")
+                  : tCommon(`tone.${metric.tone}`)}
               </span>
             </header>
             <p className="metric-value">{metric.value}</p>
@@ -97,39 +113,39 @@ export default async function ManagerVisitDetailPage({
         ))}
       </section>
 
-      <section className="dashboard-grid" aria-label="Visit report detail">
+      <section className="dashboard-grid" aria-label={t("detailAria")}>
         <article className="panel">
           <div className="panel-title-stack">
-            <h2>Visit</h2>
-            <p>Operational context for the confirmed report.</p>
+            <h2>{t("visitPanelTitle")}</h2>
+            <p>{t("visitPanelBody")}</p>
           </div>
           <table className="table">
             <tbody>
               <tr>
-                <th scope="row">Location</th>
+                <th scope="row">{t("rowLocation")}</th>
                 <td>
                   {visit.location.name}, {visit.location.city}
                 </td>
               </tr>
               <tr>
-                <th scope="row">Representative</th>
+                <th scope="row">{t("rowRepresentative")}</th>
                 <td>{visit.representative.name}</td>
               </tr>
               <tr>
-                <th scope="row">Visit type</th>
-                <td>{formatLabel(visit.visitType)}</td>
+                <th scope="row">{t("rowVisitType")}</th>
+                <td>{formatEnumLabel(tCommon, visit.visitType)}</td>
               </tr>
               <tr>
-                <th scope="row">Status</th>
-                <td>{formatLabel(visit.status)}</td>
+                <th scope="row">{t("rowStatus")}</th>
+                <td>{formatEnumLabel(tCommon, visit.status)}</td>
               </tr>
               <tr>
-                <th scope="row">Started</th>
-                <td>{formatDateTime(visit.startedAt)}</td>
+                <th scope="row">{t("rowStarted")}</th>
+                <td>{formatDateTime(format, visit.startedAt)}</td>
               </tr>
               <tr>
-                <th scope="row">Completed</th>
-                <td>{formatDateTime(visit.completedAt)}</td>
+                <th scope="row">{t("rowCompleted")}</th>
+                <td>{formatDateTime(format, visit.completedAt)}</td>
               </tr>
             </tbody>
           </table>
@@ -140,16 +156,13 @@ export default async function ManagerVisitDetailPage({
             <ReportDetail report={reportResult.data} />
           ) : (
             <div className="empty-state-panel">
-              <h2>No confirmed report yet</h2>
-              <p>
-                {reportResult.message}. The Field Representative can still
-                confirm a manual report from the field workspace.
-              </p>
+              <h2>{t("noReportTitle")}</h2>
+              <p>{t("noReportBody", { message: reportResult.message })}</p>
               <a
                 className="primary-button"
                 href={`/${tenantSlug}/manager/visits`}
               >
-                Back to visits
+                {t("backToVisits")}
               </a>
             </div>
           )}
@@ -160,41 +173,57 @@ export default async function ManagerVisitDetailPage({
 }
 
 function ReportDetail({ report }: { report: Report }) {
+  const t = useTranslations("manager.visitDetail");
+  const format = useFormatter();
   const data = normalizeReportData(report.confirmedData);
 
   return (
     <>
       <div className="panel-title-stack">
-        <h2>Confirmed report</h2>
+        <h2>{t("confirmedReport")}</h2>
         <p>
-          Template {formatLabel(report.templateCode)} · confirmed{" "}
-          {formatDateTime(report.confirmedAt)}
+          {t("templateConfirmed", {
+            template: formatLabel(report.templateCode),
+            date: formatDateTime(format, report.confirmedAt),
+          })}
         </p>
       </div>
       <div className="report-detail-list">
-        <TextReportSection title="Summary" value={data.summary} />
-        <TextReportSection title="Result status" value={data.resultStatus} />
-        <ListReportSection title="Agreements" value={data.agreements} />
-        <ListReportSection title="Objections" value={data.objections} />
+        <TextReportSection title={t("sectionSummary")} value={data.summary} />
+        <TextReportSection
+          title={t("sectionResultStatus")}
+          value={data.resultStatus}
+        />
+        <ListReportSection
+          title={t("sectionAgreements")}
+          value={data.agreements}
+        />
+        <ListReportSection
+          title={t("sectionObjections")}
+          value={data.objections}
+        />
         <MentionedProductsSection
-          title="Mentioned products"
+          title={t("sectionMentionedProducts")}
           value={data.mentionedProducts}
         />
-        <ListReportSection title="Next actions" value={data.nextActions} />
+        <ListReportSection
+          title={t("sectionNextActions")}
+          value={data.nextActions}
+        />
         <CreatedTasksSection
-          title="Created tasks"
+          title={t("sectionCreatedTasks")}
           tasks={report.createdTasks}
         />
         <TasksToCreateSection
-          title="Draft tasks (as confirmed)"
+          title={t("sectionDraftTasks")}
           value={data.tasksToCreate}
         />
         <LocationUpdatesSection
-          title="Location updates"
+          title={t("sectionLocationUpdates")}
           value={data.locationUpdates}
         />
         <KeyValueReportSection
-          title="Template-specific detail"
+          title={t("sectionTemplateSpecific")}
           value={data.templateSpecific}
         />
       </div>
@@ -209,12 +238,20 @@ function TextReportSection({
   title: string;
   value: unknown;
 }) {
+  const labels = useScalarLabels();
+
   return (
     <section className="report-detail-section">
       <h3>{title}</h3>
-      <p>{formatScalarValue(value)}</p>
+      <p>{formatScalarValue(value, labels)}</p>
     </section>
   );
+}
+
+function useScalarLabels(): ScalarLabels {
+  const t = useTranslations("manager.visitDetail");
+
+  return { yes: t("yes"), no: t("no") };
 }
 
 function ListReportSection({
@@ -224,6 +261,7 @@ function ListReportSection({
   title: string;
   value: unknown;
 }) {
+  const labels = useScalarLabels();
   const items = normalizeList(value);
 
   return (
@@ -232,7 +270,7 @@ function ListReportSection({
       {items.length > 0 ? (
         <ul className="report-detail-items">
           {items.map((item, index) => (
-            <li key={`${title}-${index}`}>{formatScalarValue(item)}</li>
+            <li key={`${title}-${index}`}>{formatScalarValue(item, labels)}</li>
           ))}
         </ul>
       ) : (
@@ -249,6 +287,8 @@ function MentionedProductsSection({
   title: string;
   value: unknown;
 }) {
+  const tCommon = useTranslations("common");
+  const labels = useScalarLabels();
   const products = normalizeObjectList(value);
 
   return (
@@ -258,9 +298,9 @@ function MentionedProductsSection({
         <div className="report-detail-cards">
           {products.map((product, index) => (
             <article className="report-detail-card" key={`${title}-${index}`}>
-              <strong>{formatScalarValue(product.name)}</strong>
-              <span>{formatLabelOrDash(product.status)}</span>
-              <p>{formatScalarValue(product.evidence)}</p>
+              <strong>{formatScalarValue(product.name, labels)}</strong>
+              <span>{formatEnumLabelOrDash(tCommon, product.status)}</span>
+              <p>{formatScalarValue(product.evidence, labels)}</p>
             </article>
           ))}
         </div>
@@ -278,6 +318,9 @@ function CreatedTasksSection({
   title: string;
   tasks: Report["createdTasks"];
 }) {
+  const t = useTranslations("manager.visitDetail");
+  const tCommon = useTranslations("common");
+
   return (
     <section className="report-detail-section">
       <h3>
@@ -289,14 +332,17 @@ function CreatedTasksSection({
             <article className="report-detail-card" key={task.id}>
               <strong>{task.title}</strong>
               <span>
-                {formatLabel(task.status)} · {formatLabel(task.priority)}
-                {task.dueDate ? ` · due ${task.dueDate}` : ""}
+                {formatEnumLabel(tCommon, task.status)} ·{" "}
+                {formatEnumLabel(tCommon, task.priority)}
+                {task.dueDate
+                  ? ` · ${t("dueDate", { date: task.dueDate })}`
+                  : ""}
               </span>
             </article>
           ))}
         </div>
       ) : (
-        <p>No tasks were created from this report.</p>
+        <p>{t("noCreatedTasks")}</p>
       )}
     </section>
   );
@@ -309,6 +355,9 @@ function TasksToCreateSection({
   title: string;
   value: unknown;
 }) {
+  const t = useTranslations("manager.visitDetail");
+  const tCommon = useTranslations("common");
+  const labels = useScalarLabels();
   const tasks = normalizeObjectList(value);
 
   return (
@@ -318,13 +367,15 @@ function TasksToCreateSection({
         <div className="report-detail-cards">
           {tasks.map((task, index) => (
             <article className="report-detail-card" key={`${title}-${index}`}>
-              <strong>{formatScalarValue(task.title)}</strong>
+              <strong>{formatScalarValue(task.title, labels)}</strong>
               <span>
-                {formatLabelOrDash(task.priority)} ·{" "}
-                {formatLabelOrDash(task.assignee)} · due{" "}
-                {formatScalarValue(task.dueDate)}
+                {formatEnumLabelOrDash(tCommon, task.priority)} ·{" "}
+                {formatEnumLabelOrDash(tCommon, task.assignee)} ·{" "}
+                {t("dueDate", {
+                  date: formatScalarValue(task.dueDate, labels),
+                })}
               </span>
-              <p>{formatScalarValue(task.description)}</p>
+              <p>{formatScalarValue(task.description, labels)}</p>
             </article>
           ))}
         </div>
@@ -342,6 +393,8 @@ function LocationUpdatesSection({
   title: string;
   value: unknown;
 }) {
+  const tCommon = useTranslations("common");
+  const labels = useScalarLabels();
   const updates = normalizeObjectList(value);
 
   return (
@@ -351,9 +404,9 @@ function LocationUpdatesSection({
         <div className="report-detail-cards">
           {updates.map((update, index) => (
             <article className="report-detail-card" key={`${title}-${index}`}>
-              <strong>{formatLabelOrDash(update.field)}</strong>
-              <span>{formatScalarValue(update.proposedValue)}</span>
-              <p>{formatScalarValue(update.reason)}</p>
+              <strong>{formatEnumLabelOrDash(tCommon, update.field)}</strong>
+              <span>{formatScalarValue(update.proposedValue, labels)}</span>
+              <p>{formatScalarValue(update.reason, labels)}</p>
             </article>
           ))}
         </div>
@@ -371,6 +424,7 @@ function KeyValueReportSection({
   title: string;
   value: unknown;
 }) {
+  const labels = useScalarLabels();
   const entries = Object.entries(normalizeReportData(value));
 
   return (
@@ -381,7 +435,7 @@ function KeyValueReportSection({
           {entries.map(([key, item]) => (
             <div key={key}>
               <dt>{formatLabel(key)}</dt>
-              <dd>{formatNestedValue(item)}</dd>
+              <dd>{formatNestedValue(item, labels)}</dd>
             </div>
           ))}
         </dl>
@@ -395,63 +449,73 @@ function KeyValueReportSection({
 function buildVisitMetrics(
   visit: Visit,
   report: Report | null,
+  format: IntlFormatter,
+  t: VisitDetailTranslator,
+  tCommon: CommonTranslator,
 ): Array<{
   label: string;
   value: string;
   detail: string;
   tone: "active" | "info" | "warning";
 }> {
-  const quality = resolveReportQuality(report);
+  const quality = resolveReportQuality(report, t);
 
   return [
     {
-      label: "Visit status",
-      value: formatLabel(visit.status),
+      label: t("metricVisitStatus"),
+      value: formatEnumLabel(tCommon, visit.status),
       detail: visit.location.name,
       tone: visit.status === "completed" ? "active" : "info",
     },
     {
-      label: "Report",
-      value: report ? formatLabel(report.status) : "Missing",
+      label: t("metricReport"),
+      value: report
+        ? formatEnumLabel(tCommon, report.status)
+        : t("metricReportMissing"),
       detail: report
-        ? `Confirmed ${formatDateTime(report.confirmedAt)}`
-        : "Manual confirmation is still available",
+        ? t("metricReportConfirmed", {
+            date: formatDateTime(format, report.confirmedAt),
+          })
+        : t("metricReportManualAvailable"),
       tone: report ? "active" : "warning",
     },
     {
-      label: "Template",
+      label: t("metricTemplate"),
       value: report ? formatLabel(report.templateCode) : "-",
-      detail: report?.schemaVersion ?? "No report schema yet",
+      detail: report?.schemaVersion ?? t("metricNoSchema"),
       tone: report ? "active" : "info",
     },
     {
-      label: "AI quality",
+      label: t("metricAiQuality"),
       value: quality.label,
       detail: quality.detail,
       tone: quality.tone,
     },
     {
-      label: "Created tasks",
+      label: t("metricCreatedTasks"),
       value: report ? String(report.createdTaskCount) : "-",
       detail: report
         ? report.createdTaskCount > 0
-          ? "Follow-up tasks created from this report"
-          : "No follow-up tasks created"
-        : "No confirmed report yet",
+          ? t("metricTasksCreated")
+          : t("metricNoTasksCreated")
+        : t("metricNoReportYet"),
       tone: report && report.createdTaskCount > 0 ? "active" : "info",
     },
   ];
 }
 
-function resolveReportQuality(report: Report | null): {
+function resolveReportQuality(
+  report: Report | null,
+  t: VisitDetailTranslator,
+): {
   label: string;
   detail: string;
   tone: "active" | "info" | "warning";
 } {
   if (!report) {
     return {
-      label: "Manual fallback",
-      detail: "No confirmed report is available yet",
+      label: t("qualityManualFallback"),
+      detail: t("qualityNoReport"),
       tone: "warning",
     };
   }
@@ -464,31 +528,35 @@ function resolveReportQuality(report: Report | null): {
 
   if (source === "manual_text") {
     return {
-      label: "Manual fallback",
-      detail: "Confirmed manually without relying on AI output",
+      label: t("qualityManualFallback"),
+      detail: t("qualityManualConfirmed"),
       tone: "active",
     };
   }
 
   if (confidence !== null && confidence < 0.6) {
     return {
-      label: "Needs review",
-      detail: `AI confidence ${Math.round(confidence * 100)}%`,
+      label: t("qualityNeedsReview"),
+      detail: t("qualityConfidence", {
+        percent: Math.round(confidence * 100),
+      }),
       tone: "warning",
     };
   }
 
   if (confidence !== null) {
     return {
-      label: "Confirmed",
-      detail: `AI confidence ${Math.round(confidence * 100)}%`,
+      label: t("qualityConfirmed"),
+      detail: t("qualityConfidence", {
+        percent: Math.round(confidence * 100),
+      }),
       tone: "active",
     };
   }
 
   return {
-    label: "Confirmed",
-    detail: "Confirmed report is available",
+    label: t("qualityConfirmed"),
+    detail: t("qualityReportAvailable"),
     tone: "active",
   };
 }
@@ -520,31 +588,36 @@ function normalizeObjectList(value: unknown): Array<Record<string, unknown>> {
   );
 }
 
-function formatNestedValue(value: unknown): string {
+type ScalarLabels = { yes: string; no: string };
+
+function formatNestedValue(value: unknown, labels: ScalarLabels): string {
   if (Array.isArray(value)) {
     if (value.length === 0) {
       return "-";
     }
 
-    return value.map(formatNestedValue).join("; ");
+    return value.map((item) => formatNestedValue(item, labels)).join("; ");
   }
 
   if (value && typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .map(([key, item]) => `${formatLabel(key)}: ${formatNestedValue(item)}`)
+      .map(
+        ([key, item]) =>
+          `${formatLabel(key)}: ${formatNestedValue(item, labels)}`,
+      )
       .join("; ");
   }
 
-  return formatScalarValue(value);
+  return formatScalarValue(value, labels);
 }
 
-function formatScalarValue(value: unknown): string {
+function formatScalarValue(value: unknown, labels: ScalarLabels): string {
   if (value === undefined || value === null || value === "") {
     return "-";
   }
 
   if (typeof value === "boolean") {
-    return value ? "Yes" : "No";
+    return value ? labels.yes : labels.no;
   }
 
   return String(value);

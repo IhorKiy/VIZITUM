@@ -38,7 +38,8 @@
     "web:build": "npm run build --workspace @vizitum/web",
     "web:dev": "npm run dev --workspace @vizitum/web",
     "web:start": "npm run start --workspace @vizitum/web",
-    "web:typecheck": "npm run typecheck --workspace @vizitum/web"
+    "web:typecheck": "npm run typecheck --workspace @vizitum/web",
+    "web:i18n:check": "node scripts/check-web-i18n-literals.mjs"
   },
   "repository": {
     "type": "git",

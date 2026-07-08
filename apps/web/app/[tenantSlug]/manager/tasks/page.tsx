@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -13,6 +15,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "../../../../lib/api-client";
+import { formatEnumLabel, type CommonTranslator } from "../../../../lib/format";
 
 type ManagerTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -43,6 +46,11 @@ export default async function ManagerTasksPage({
 }: ManagerTasksPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
+  const [t, tManager, tCommon] = await Promise.all([
+    getTranslations("manager.tasks"),
+    getTranslations("manager"),
+    getTranslations("common"),
+  ]);
   const selectedStatus = normalizeTaskStatus(pageState.status);
   const selectedPriority = normalizeTaskPriority(pageState.priority);
   const selectedAssigneeId = normalizeFilterValue(pageState.assignedToUserId);
@@ -120,24 +128,24 @@ export default async function ManagerTasksPage({
       <AppShell tenantSlug={tenantSlug} activeArea="manager-tasks">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Team manager</p>
-            <h1>Tasks</h1>
-            <p>
-              Live task data is required before manager follow-up review can
-              continue.
-            </p>
+            <p className="eyebrow">{tManager("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Tasks are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{tasksResult.message}</p>
           </div>
         </section>
@@ -146,7 +154,7 @@ export default async function ManagerTasksPage({
   }
 
   const tasks = tasksResult.data.items;
-  const counters = buildTaskCounters(tasks, tasksResult.data.total);
+  const counters = buildTaskCounters(tasks, tasksResult.data.total, t);
   const assigneeOptions = allTasksResult.ok
     ? buildAssigneeOptions(allTasksResult.data.items)
     : [];
@@ -165,64 +173,67 @@ export default async function ManagerTasksPage({
   const selectedLocationLabel =
     locationOptions.find((option) => option.id === selectedLocationId)?.label ??
     null;
-  const filterSummary = buildTaskFilterSummary({
-    assigneeLabel: selectedAssigneeLabel,
-    dueFrom,
-    dueTo,
-    locationLabel: selectedLocationLabel,
-    priority: selectedPriority,
-    routeLabel: selectedRouteLabel,
-    status: selectedStatus,
-  });
+  const filterSummary = buildTaskFilterSummary(
+    {
+      assigneeLabel: selectedAssigneeLabel,
+      dueFrom,
+      dueTo,
+      locationLabel: selectedLocationLabel,
+      priority: selectedPriority,
+      routeLabel: selectedRouteLabel,
+      status: selectedStatus,
+    },
+    t,
+    tCommon,
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-tasks">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Team manager</p>
-          <h1>Tasks</h1>
-          <p>
-            Review team follow-ups, update task state and focus on overdue or
-            high-priority work.
-          </p>
+          <p className="eyebrow">{tManager("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/manager`}>
-            Overview
+            {t("overview")}
           </a>
           <a className="primary-button" href={`/${tenantSlug}/manager/visits`}>
-            Visits
+            {t("visits")}
           </a>
         </div>
       </header>
 
       {pageState.updated ? (
-        <section className="notice-panel success" aria-label="Task update">
+        <section className="notice-panel success" aria-label={t("updateAria")}>
           <div>
-            <p className="eyebrow">Task updated</p>
-            <h2>Status saved</h2>
-            <p>The task list now reflects the latest status.</p>
+            <p className="eyebrow">{t("updatedEyebrow")}</p>
+            <h2>{t("updatedTitle")}</h2>
+            <p>{t("updatedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {pageState.error ? (
-        <section className="notice-panel danger" aria-label="Task error">
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
-            <p className="eyebrow">Update failed</p>
-            <h2>Task status was not saved</h2>
-            <p>Refresh the task list and try again.</p>
+            <p className="eyebrow">{t("errorEyebrow")}</p>
+            <h2>{t("errorTitle")}</h2>
+            <p>{t("errorBody")}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="manager-grid" aria-label="Task metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         {counters.map((counter) => (
           <article className="metric-card" key={counter.label}>
             <header>
               <p className="metric-label">{counter.label}</p>
               <span className={`status-pill ${counter.tone}`}>
-                {counter.tone === "active" ? "OK" : counter.tone}
+                {counter.tone === "active"
+                  ? tCommon("tone.ok")
+                  : tCommon(`tone.${counter.tone}`)}
               </span>
             </header>
             <p className="metric-value">{counter.value}</p>
@@ -234,11 +245,11 @@ export default async function ManagerTasksPage({
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
-            <h2>Task list</h2>
-            <p>Showing {filterSummary.toLowerCase()} for this tenant.</p>
+            <h2>{t("taskList")}</h2>
+            <p>{t("showingSummary", { summary: filterSummary })}</p>
           </div>
           <div className="filter-groups">
-            <div className="filter-pills" aria-label="Task status filters">
+            <div className="filter-pills" aria-label={t("statusFiltersAria")}>
               <a
                 aria-current={!selectedStatus ? "page" : undefined}
                 href={buildTaskFilterHref(tenantSlug, {
@@ -251,7 +262,7 @@ export default async function ManagerTasksPage({
                   status: null,
                 })}
               >
-                All
+                {tCommon("all")}
               </a>
               {taskStatuses.map((status) => (
                 <a
@@ -267,11 +278,11 @@ export default async function ManagerTasksPage({
                   })}
                   key={status}
                 >
-                  {formatLabel(status)}
+                  {formatEnumLabel(tCommon, status)}
                 </a>
               ))}
             </div>
-            <div className="filter-pills" aria-label="Task priority filters">
+            <div className="filter-pills" aria-label={t("priorityFiltersAria")}>
               <a
                 aria-current={!selectedPriority ? "page" : undefined}
                 href={buildTaskFilterHref(tenantSlug, {
@@ -284,7 +295,7 @@ export default async function ManagerTasksPage({
                   status: selectedStatus,
                 })}
               >
-                Any priority
+                {t("anyPriority")}
               </a>
               {taskPriorities.map((priority) => (
                 <a
@@ -302,7 +313,7 @@ export default async function ManagerTasksPage({
                   })}
                   key={priority}
                 >
-                  {formatLabel(priority)}
+                  {formatEnumLabel(tCommon, priority)}
                 </a>
               ))}
             </div>
@@ -317,9 +328,9 @@ export default async function ManagerTasksPage({
             <input name="priority" type="hidden" value={selectedPriority} />
           ) : null}
           <label>
-            Route
+            {t("route")}
             <select defaultValue={selectedRoutePlanId ?? ""} name="routePlanId">
-              <option value="">Any route</option>
+              <option value="">{t("anyRoute")}</option>
               {routeOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -328,9 +339,9 @@ export default async function ManagerTasksPage({
             </select>
           </label>
           <label>
-            Location
+            {t("location")}
             <select defaultValue={selectedLocationId ?? ""} name="locationId">
-              <option value="">Any location</option>
+              <option value="">{t("anyLocation")}</option>
               {locationOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -339,12 +350,12 @@ export default async function ManagerTasksPage({
             </select>
           </label>
           <label>
-            Assignee
+            {t("assignee")}
             <select
               defaultValue={selectedAssigneeId ?? ""}
               name="assignedToUserId"
             >
-              <option value="">Any assignee</option>
+              <option value="">{t("anyAssignee")}</option>
               {assigneeOptions.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.label}
@@ -353,23 +364,23 @@ export default async function ManagerTasksPage({
             </select>
           </label>
           <label>
-            Due from
+            {t("dueFrom")}
             <input defaultValue={dueFrom ?? ""} name="dueFrom" type="date" />
           </label>
           <label>
-            Due to
+            {t("dueTo")}
             <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
           </label>
           <div className="filter-actions">
             <button className="secondary-button" type="submit">
-              Apply filters
+              {tCommon("applyFilters")}
             </button>
             {hasFilters ? (
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/manager/tasks`}
               >
-                Reset
+                {tCommon("reset")}
               </a>
             ) : null}
           </div>
@@ -382,22 +393,19 @@ export default async function ManagerTasksPage({
           />
         ) : (
           <div className="empty-state-panel">
-            <h2>No tasks match this filter</h2>
-            <p>
-              Use another status or priority filter, or create a follow-up from
-              the manager overview.
-            </p>
+            <h2>{t("emptyTitle")}</h2>
+            <p>{t("emptyBody")}</p>
             <div className="toolbar">
               {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/tasks`}
                 >
-                  Show all tasks
+                  {t("showAllTasks")}
                 </a>
               ) : null}
               <a className="primary-button" href={`/${tenantSlug}/manager`}>
-                Assign task
+                {t("assignTask")}
               </a>
             </div>
           </div>
@@ -449,17 +457,21 @@ function TasksTable({
   tasks: Task[];
   updateTaskStatusAction: (formData: FormData) => Promise<void>;
 }) {
+  const t = useTranslations("manager.tasks");
+  const tCommon = useTranslations("common");
+  const format = useFormatter();
+
   return (
     <table className="table drilldown-table">
       <thead>
         <tr>
-          <th>Task</th>
-          <th>Location</th>
-          <th>Assignee</th>
-          <th>Status</th>
-          <th>Priority</th>
-          <th>Due</th>
-          <th>Update</th>
+          <th>{t("tableTask")}</th>
+          <th>{t("tableLocation")}</th>
+          <th>{t("tableAssignee")}</th>
+          <th>{t("tableStatus")}</th>
+          <th>{t("tablePriority")}</th>
+          <th>{t("tableDue")}</th>
+          <th>{t("tableUpdate")}</th>
         </tr>
       </thead>
       <tbody>
@@ -467,7 +479,7 @@ function TasksTable({
           <tr key={task.id}>
             <td>
               <strong>{task.title}</strong>
-              <span>{task.description ?? "No additional details"}</span>
+              <span>{task.description ?? t("noTaskDetails")}</span>
             </td>
             <td>
               {task.location ? (
@@ -476,17 +488,17 @@ function TasksTable({
                   <span>{task.location.city}</span>
                 </>
               ) : (
-                "No location"
+                t("noLocation")
               )}
             </td>
-            <td>{task.assignedTo?.name ?? "Unassigned"}</td>
+            <td>{task.assignedTo?.name ?? t("unassigned")}</td>
             <td>
               <span className={`status-pill ${taskStatusTone(task.status)}`}>
-                {formatLabel(task.status)}
+                {formatEnumLabel(tCommon, task.status)}
               </span>
             </td>
-            <td>{formatLabel(task.priority)}</td>
-            <td>{formatDate(task.dueDate)}</td>
+            <td>{formatEnumLabel(tCommon, task.priority)}</td>
+            <td>{formatDate(format, task.dueDate)}</td>
             <td>
               <form
                 action={updateTaskStatusAction}
@@ -494,21 +506,21 @@ function TasksTable({
               >
                 <input name="taskId" type="hidden" value={task.id} />
                 <select
-                  aria-label={`Update ${task.title} status`}
+                  aria-label={t("updateTaskStatusAria", { title: task.title })}
                   defaultValue={task.status}
                   name="status"
                 >
                   {taskStatuses.map((status) => (
                     <option key={status} value={status}>
-                      {formatLabel(status)}
+                      {formatEnumLabel(tCommon, status)}
                     </option>
                   ))}
                 </select>
                 <PendingSubmitButton
                   className="secondary-button"
-                  pendingLabel="Saving..."
+                  pendingLabel={tCommon("saving")}
                 >
-                  Save
+                  {tCommon("save")}
                 </PendingSubmitButton>
               </form>
             </td>
@@ -519,9 +531,14 @@ function TasksTable({
   );
 }
 
+type TasksTranslator = Awaited<
+  ReturnType<typeof getTranslations<"manager.tasks">>
+>;
+
 function buildTaskCounters(
   tasks: Task[],
   total: number,
+  t: TasksTranslator,
 ): Array<{
   label: string;
   value: string;
@@ -542,21 +559,21 @@ function buildTaskCounters(
 
   return [
     {
-      label: "Visible tasks",
+      label: t("visibleTasks"),
       value: String(total),
-      detail: `${tasks.length} loaded on this page`,
+      detail: t("loadedOnPage", { count: tasks.length }),
       tone: "active",
     },
     {
-      label: "Open work",
+      label: t("openWork"),
       value: String(open.length),
-      detail: `${highPriority.length} high-priority open task(s)`,
+      detail: t("openWorkDetail", { count: highPriority.length }),
       tone: highPriority.length > 0 ? "warning" : "active",
     },
     {
-      label: "Overdue",
+      label: t("overdue"),
       value: String(overdue.length),
-      detail: "Open tasks past due date",
+      detail: t("overdueDetail"),
       tone: overdue.length > 0 ? "warning" : "active",
     },
   ];
@@ -609,23 +626,41 @@ function buildTaskFilterHref(
   return `/${tenantSlug}/manager/tasks${suffix ? `?${suffix}` : ""}`;
 }
 
-function buildTaskFilterSummary(filters: {
-  assigneeLabel: string | null;
-  dueFrom: string | null;
-  dueTo: string | null;
-  locationLabel: string | null;
-  priority: TaskPriority | null;
-  routeLabel: string | null;
-  status: TaskStatus | null;
-}): string {
+function buildTaskFilterSummary(
+  filters: {
+    assigneeLabel: string | null;
+    dueFrom: string | null;
+    dueTo: string | null;
+    locationLabel: string | null;
+    priority: TaskPriority | null;
+    routeLabel: string | null;
+    status: TaskStatus | null;
+  },
+  t: TasksTranslator,
+  tCommon: CommonTranslator,
+): string {
   const parts = [
-    filters.status ? `${formatLabel(filters.status)} tasks` : "All tasks",
-    filters.priority ? `${formatLabel(filters.priority)} priority` : null,
-    filters.assigneeLabel ? `assigned to ${filters.assigneeLabel}` : null,
-    filters.locationLabel ? `at ${filters.locationLabel}` : null,
-    filters.routeLabel ? `on ${filters.routeLabel}` : null,
-    filters.dueFrom ? `from ${filters.dueFrom}` : null,
-    filters.dueTo ? `to ${filters.dueTo}` : null,
+    filters.status
+      ? t("summaryStatusTasks", {
+          status: formatEnumLabel(tCommon, filters.status),
+        })
+      : t("summaryAllTasks"),
+    filters.priority
+      ? t("summaryPriority", {
+          priority: formatEnumLabel(tCommon, filters.priority),
+        })
+      : null,
+    filters.assigneeLabel
+      ? t("summaryAssignedTo", { name: filters.assigneeLabel })
+      : null,
+    filters.locationLabel
+      ? t("summaryAtLocation", { name: filters.locationLabel })
+      : null,
+    filters.routeLabel
+      ? t("summaryOnRoute", { name: filters.routeLabel })
+      : null,
+    filters.dueFrom ? t("summaryFrom", { date: filters.dueFrom }) : null,
+    filters.dueTo ? t("summaryTo", { date: filters.dueTo }) : null,
   ].filter(Boolean);
 
   return parts.join(", ");
@@ -679,22 +714,15 @@ function taskStatusTone(status: TaskStatus): "active" | "info" | "warning" {
   return "info";
 }
 
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-}
-
-function formatDate(value: string | null): string {
+function formatDate(
+  format: ReturnType<typeof useFormatter>,
+  value: string | null,
+): string {
   if (!value) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-  }).format(new Date(value));
+  return format.dateTime(new Date(value), { dateStyle: "medium" });
 }
 
 function startOfToday(): Date {

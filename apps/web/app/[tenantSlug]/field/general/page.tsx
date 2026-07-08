@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -17,7 +18,7 @@ import {
 } from "../../../../lib/api-client";
 import {
   formatDateTime,
-  formatLabel,
+  formatEnumLabel,
   statusPillTone,
   statusTone,
 } from "../../../../lib/format";
@@ -36,6 +37,12 @@ export default async function GeneralPage({
 }: GeneralPageProps) {
   const { tenantSlug } = await params;
   const { task, error } = await searchParams;
+  const [t, tField, tCommon, format] = await Promise.all([
+    getTranslations("field.general"),
+    getTranslations("field"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
 
   async function updateTaskStatusAction(formData: FormData) {
     "use server";
@@ -63,20 +70,26 @@ export default async function GeneralPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field-general">
         <header className="page-header">
           <div>
-            <p className="eyebrow">General</p>
-            <h1>Reference &amp; summary</h1>
-            <p>Sign in to view your locations, products and daily summary.</p>
+            <p className="eyebrow">{t("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
-          <div className="toolbar" aria-label="Session actions">
+          <div
+            className="toolbar"
+            aria-label={tCommon("notice.sessionActions")}
+          >
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Backend session is not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{tCommon("notice.backendNotConnected")}</h2>
             <p>{sessionResult.message}</p>
           </div>
         </section>
@@ -121,35 +134,39 @@ export default async function GeneralPage({
     <AppShell tenantSlug={tenantSlug} activeArea="field-general">
       <header className="page-header">
         <div>
-          <p className="eyebrow">General</p>
-          <h1>Reference &amp; summary</h1>
-          <p>
-            Your daily summary, locations and product catalogue in one place.
-          </p>
+          <p className="eyebrow">{t("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
-        <div className="toolbar" aria-label="General actions">
+        <div className="toolbar" aria-label={t("generalActions")}>
           <a className="secondary-button" href={`/${tenantSlug}/field`}>
-            Back to route
+            {tField("backToRoute")}
           </a>
         </div>
       </header>
 
       {task === "updated" ? (
-        <section className="notice-panel success" aria-label="Task status">
+        <section
+          className="notice-panel success"
+          aria-label={t("taskStatusAria")}
+        >
           <div>
-            <p className="eyebrow">Task updated</p>
-            <h2>Follow-up saved</h2>
-            <p>The task status was updated for your field queue.</p>
+            <p className="eyebrow">{t("taskUpdatedEyebrow")}</p>
+            <h2>{t("taskUpdatedTitle")}</h2>
+            <p>{t("taskUpdatedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {error === "task" ? (
-        <section className="notice-panel danger" aria-label="Task error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("taskErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Task not updated</p>
-            <h2>Follow-up update failed</h2>
-            <p>Refresh and try again.</p>
+            <p className="eyebrow">{t("taskErrorEyebrow")}</p>
+            <h2>{t("taskErrorTitle")}</h2>
+            <p>{t("taskErrorBody")}</p>
           </div>
         </section>
       ) : null}
@@ -157,36 +174,36 @@ export default async function GeneralPage({
       <div className="general-stack">
         <details className="panel panel-collapsible">
           <summary className="panel-summary">
-            <h2>Summary</h2>
+            <h2>{t("summary")}</h2>
           </summary>
           <table className="table">
             <tbody>
               <tr>
-                <th scope="row">Route stops</th>
+                <th scope="row">{t("routeStops")}</th>
                 <td>{routeStops.length}</td>
               </tr>
               <tr>
-                <th scope="row">Visited</th>
+                <th scope="row">{t("visited")}</th>
                 <td>{visitedStops}</td>
               </tr>
               <tr>
-                <th scope="row">Remaining</th>
+                <th scope="row">{t("remaining")}</th>
                 <td>{routeStops.length - visitedStops}</td>
               </tr>
               <tr>
-                <th scope="row">Completed visits</th>
+                <th scope="row">{t("completedVisits")}</th>
                 <td>{completedVisits}</td>
               </tr>
               <tr>
-                <th scope="row">Open tasks</th>
+                <th scope="row">{t("openTasks")}</th>
                 <td>{openTasks.length}</td>
               </tr>
               <tr>
-                <th scope="row">Locations</th>
+                <th scope="row">{t("locations")}</th>
                 <td>{locations.length}</td>
               </tr>
               <tr>
-                <th scope="row">Products</th>
+                <th scope="row">{t("products")}</th>
                 <td>{products.length}</td>
               </tr>
             </tbody>
@@ -195,7 +212,7 @@ export default async function GeneralPage({
 
         <details className="panel panel-collapsible">
           <summary className="panel-summary">
-            <h2>Locations</h2>
+            <h2>{t("locations")}</h2>
           </summary>
           {locations.length > 0 ? (
             <div className="field-card-list">
@@ -213,14 +230,14 @@ export default async function GeneralPage({
                     <span
                       className={`status-pill ${statusTone(location.status)}`}
                     >
-                      {formatLabel(location.status)}
+                      {formatEnumLabel(tCommon, location.status)}
                     </span>
                   </header>
                   <p className="visit-meta">
                     {[location.type, location.region, location.territory]
                       .filter(Boolean)
-                      .map((value) => formatLabel(String(value)))
-                      .join(" · ") || "No segment details"}
+                      .map((value) => formatEnumLabel(tCommon, String(value)))
+                      .join(" · ") || t("noSegmentDetails")}
                   </p>
                   {location.notes ? (
                     <p className="form-hint">{location.notes}</p>
@@ -229,13 +246,13 @@ export default async function GeneralPage({
               ))}
             </div>
           ) : (
-            <p className="empty-state">No locations are available yet.</p>
+            <p className="empty-state">{t("noLocations")}</p>
           )}
         </details>
 
         <details className="panel panel-collapsible">
           <summary className="panel-summary">
-            <h2>Products</h2>
+            <h2>{t("products")}</h2>
           </summary>
           {products.length > 0 ? (
             <div className="field-card-list">
@@ -248,26 +265,26 @@ export default async function GeneralPage({
                         {[product.category, product.sku]
                           .filter(Boolean)
                           .map((value) => String(value))
-                          .join(" · ") || "No catalogue details"}
+                          .join(" · ") || t("noCatalogueDetails")}
                       </p>
                     </div>
                     <span
                       className={`status-pill ${statusTone(product.status)}`}
                     >
-                      {formatLabel(product.status)}
+                      {formatEnumLabel(tCommon, product.status)}
                     </span>
                   </header>
                 </article>
               ))}
             </div>
           ) : (
-            <p className="empty-state">No products are available yet.</p>
+            <p className="empty-state">{t("noProducts")}</p>
           )}
         </details>
 
         <details className="panel panel-collapsible">
           <summary className="panel-summary">
-            <h2>My tasks</h2>
+            <h2>{t("myTasks")}</h2>
           </summary>
           {openTasks.length > 0 ? (
             <div className="field-card-list">
@@ -279,21 +296,27 @@ export default async function GeneralPage({
                       <p>
                         {item.location
                           ? `${item.location.name} · ${item.location.city}`
-                          : "No location"}
+                          : t("noLocation")}
                       </p>
                     </div>
                     <span
                       className={`status-pill ${statusPillTone(item.status)}`}
                     >
-                      {formatLabel(item.status)}
+                      {formatEnumLabel(tCommon, item.status)}
                     </span>
                   </header>
                   <p className="visit-meta">
-                    {item.description ?? "No additional details"}
+                    {item.description ?? t("noTaskDetails")}
                   </p>
                   <p className="form-hint">
-                    {formatLabel(item.priority)} priority · Due{" "}
-                    {formatDateTime(item.dueDate, "not set")}
+                    {t("priorityDue", {
+                      priority: formatEnumLabel(tCommon, item.priority),
+                      due: formatDateTime(
+                        format,
+                        item.dueDate,
+                        tCommon("notSet"),
+                      ),
+                    })}
                   </p>
                   <form
                     action={updateTaskStatusAction}
@@ -301,82 +324,64 @@ export default async function GeneralPage({
                   >
                     <input name="taskId" type="hidden" value={item.id} />
                     <select
-                      aria-label={`Update ${item.title} status`}
+                      aria-label={t("updateTaskStatusAria", {
+                        title: item.title,
+                      })}
                       defaultValue={item.status}
                       name="status"
                     >
-                      <option value="open">Open</option>
-                      <option value="in_progress">In progress</option>
-                      <option value="done">Done</option>
-                      <option value="cancelled">Cancelled</option>
+                      <option value="open">
+                        {formatEnumLabel(tCommon, "open")}
+                      </option>
+                      <option value="in_progress">
+                        {formatEnumLabel(tCommon, "in_progress")}
+                      </option>
+                      <option value="done">
+                        {formatEnumLabel(tCommon, "done")}
+                      </option>
+                      <option value="cancelled">
+                        {formatEnumLabel(tCommon, "cancelled")}
+                      </option>
                     </select>
                     <PendingSubmitButton
                       className="secondary-button"
-                      pendingLabel="Saving..."
+                      pendingLabel={tCommon("saving")}
                     >
-                      Save
+                      {tCommon("save")}
                     </PendingSubmitButton>
                   </form>
                 </article>
               ))}
             </div>
           ) : (
-            <p className="empty-state">No tasks assigned right now.</p>
+            <p className="empty-state">{t("noTasks")}</p>
           )}
         </details>
 
         <details className="panel panel-collapsible">
           <summary className="panel-summary">
-            <h2>FAQ</h2>
+            <h2>{t("faq")}</h2>
           </summary>
           <div className="faq-list">
             <details className="faq-item">
-              <summary className="faq-question">
-                What happens to voice notes before I record one?
-              </summary>
-              <p className="faq-answer">
-                Voice notes may be transcribed and processed by AI for visit
-                reports. Audio and transcripts are temporary processing data;
-                the confirmed report is reviewed before it becomes official.
-              </p>
+              <summary className="faq-question">{t("faq1Question")}</summary>
+              <p className="faq-answer">{t("faq1Answer")}</p>
             </details>
             <details className="faq-item">
-              <summary className="faq-question">
-                What should I do when the AI draft is weak?
-              </summary>
-              <p className="faq-answer">
-                Treat the draft as a suggestion. Edit the facts before
-                confirmation or use the manual fallback when the output misses
-                important context.
-              </p>
+              <summary className="faq-question">{t("faq2Question")}</summary>
+              <p className="faq-answer">{t("faq2Answer")}</p>
             </details>
             <details className="faq-item">
-              <summary className="faq-question">
-                What should I do when AI is unavailable?
-              </summary>
-              <p className="faq-answer">
-                Save a text note and confirm the manual report. Failed
-                transcription or extraction should not block the visit.
-              </p>
+              <summary className="faq-question">{t("faq3Question")}</summary>
+              <p className="faq-answer">{t("faq3Answer")}</p>
             </details>
             <details className="faq-item">
-              <summary className="faq-question">
-                What does &quot;AI processing can use visit notes&quot; mean on
-                a visit card?
-              </summary>
-              <p className="faq-answer">
-                Add a voice or text note. If transcription or extraction is
-                delayed, use the manual fallback below the note fields.
-              </p>
+              <summary className="faq-question">{t("faq4Question")}</summary>
+              <p className="faq-answer">{t("faq4Answer")}</p>
             </details>
             <details className="faq-item">
-              <summary className="faq-question">
-                What does &quot;Draft requires review&quot; mean?
-              </summary>
-              <p className="faq-answer">
-                Review the AI draft carefully before confirmation. Missing or
-                uncertain fields should be corrected manually.
-              </p>
+              <summary className="faq-question">{t("faq5Question")}</summary>
+              <p className="faq-answer">{t("faq5Answer")}</p>
             </details>
           </div>
         </details>

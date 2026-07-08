@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../components/app-shell";
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
@@ -16,6 +17,7 @@ import {
   type Visit,
 } from "../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
+import { formatEnumLabel, type CommonTranslator } from "../../../lib/format";
 
 type ManagerPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -55,26 +57,32 @@ type TaskLocationOption = {
   label: string;
 };
 
-const demoMetrics: ManagerMetric[] = [
-  {
-    label: "Visits today",
-    value: "42",
-    detail: "7 remaining",
-    isLive: false,
-  },
-  {
-    label: "Reports confirmed",
-    value: "31",
-    detail: "4 AI drafts waiting",
-    isLive: false,
-  },
-  {
-    label: "Open tasks",
-    value: "18",
-    detail: "6 high priority",
-    isLive: false,
-  },
-];
+type OverviewTranslator = Awaited<
+  ReturnType<typeof getTranslations<"manager.overview">>
+>;
+
+function buildDemoMetrics(t: OverviewTranslator): ManagerMetric[] {
+  return [
+    {
+      label: t("visitsToday"),
+      value: "42",
+      detail: t("remainingDetail", { count: 7 }),
+      isLive: false,
+    },
+    {
+      label: t("reportsConfirmed"),
+      value: "31",
+      detail: t("demoDraftsWaiting"),
+      isLive: false,
+    },
+    {
+      label: t("openTasks"),
+      value: "18",
+      detail: t("highPriorityDetail", { count: 6 }),
+      isLive: false,
+    },
+  ];
+}
 
 const demoRepresentatives: RepresentativeSummary[] = [
   { name: "Olena K.", route: "Kyiv North", reports: "8 / 10" },
@@ -82,20 +90,22 @@ const demoRepresentatives: RepresentativeSummary[] = [
   { name: "Iryna S.", route: "Kyiv West", reports: "5 / 8" },
 ];
 
-const demoAttentionItems: AttentionItem[] = [
-  {
-    title: "Late route item",
-    tone: "warning",
-    area: "Route",
-    detail: "Pharmacy 24 has no confirmed report.",
-  },
-  {
-    title: "Import needs fix",
-    tone: "warning",
-    area: "Admin",
-    detail: "users-pilot.csv has 2 invalid rows.",
-  },
-];
+function buildDemoAttentionItems(t: OverviewTranslator): AttentionItem[] {
+  return [
+    {
+      title: t("demoAttention1Title"),
+      tone: "warning",
+      area: t("areaRoute"),
+      detail: t("demoAttention1Detail"),
+    },
+    {
+      title: t("demoAttention2Title"),
+      tone: "warning",
+      area: t("areaAdmin"),
+      detail: t("demoAttention2Detail"),
+    },
+  ];
+}
 
 export default async function ManagerPage({
   params,
@@ -103,6 +113,11 @@ export default async function ManagerPage({
 }: ManagerPageProps) {
   const { tenantSlug } = await params;
   const { task, error } = await searchParams;
+  const [t, tManager, tCommon] = await Promise.all([
+    getTranslations("manager.overview"),
+    getTranslations("manager"),
+    getTranslations("common"),
+  ]);
 
   await recordDashboardView("manager").catch(() => undefined);
 
@@ -169,24 +184,24 @@ export default async function ManagerPage({
       <AppShell tenantSlug={tenantSlug} activeArea="manager-overview">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Team manager</p>
-            <h1>Operations dashboard</h1>
-            <p>
-              Live route, visit and task metrics are required in production
-              before manager review can continue.
-            </p>
+            <p className="eyebrow">{tManager("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Manager metrics are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{apiFailureMessage}</p>
           </div>
         </section>
@@ -202,29 +217,31 @@ export default async function ManagerPage({
     : [];
   const locations = locationsResult.ok ? locationsResult.data.items : [];
   const metrics = hasLiveData
-    ? buildLiveMetrics(routes, visits, tasks, highPriorityTasks)
-    : demoMetrics;
+    ? buildLiveMetrics(routes, visits, tasks, highPriorityTasks, t)
+    : buildDemoMetrics(t);
   const representatives = hasLiveData
-    ? buildRepresentativeSummaries(routes, visits)
+    ? buildRepresentativeSummaries(routes, visits, tCommon)
     : demoRepresentatives;
   const attentionItems =
     hasLiveData && (routes.length > 0 || tasks.length > 0)
-      ? buildAttentionItems(routes, tasks)
-      : demoAttentionItems;
+      ? buildAttentionItems(routes, tasks, t)
+      : buildDemoAttentionItems(t);
   const assigneeOptions = buildTaskAssigneeOptions(routes, visits, tasks);
   const locationOptions = buildTaskLocationOptions(routes, visits, locations);
-  const managerCsv = buildManagerCsv(metrics, representatives, attentionItems);
+  const managerCsv = buildManagerCsv(
+    metrics,
+    representatives,
+    attentionItems,
+    t,
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-overview">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Team manager</p>
-          <h1>Operations dashboard</h1>
-          <p>
-            Track execution, review report readiness and focus the team on
-            blocked work.
-          </p>
+          <p className="eyebrow">{tManager("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a
@@ -234,70 +251,75 @@ export default async function ManagerPage({
               managerCsv,
             )}`}
           >
-            Export
+            {t("export")}
           </a>
           <a className="primary-button" href="#assign-task">
-            Assign task
+            {t("assignTask")}
           </a>
         </div>
       </header>
 
       {task === "created" ? (
-        <section className="notice-panel success" aria-label="Task status">
+        <section
+          className="notice-panel success"
+          aria-label={t("taskStatusAria")}
+        >
           <div>
-            <p className="eyebrow">Task assigned</p>
-            <h2>Task created</h2>
-            <p>The new task is now visible in the team task queue.</p>
+            <p className="eyebrow">{t("taskCreatedEyebrow")}</p>
+            <h2>{t("taskCreatedTitle")}</h2>
+            <p>{t("taskCreatedBody")}</p>
           </div>
           <div className="notice-actions">
             <a className="secondary-button" href="#assign-task">
-              Assign another
+              {t("assignAnother")}
             </a>
             <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
-              Open task list
+              {t("openTaskList")}
             </a>
           </div>
         </section>
       ) : null}
 
       {error === "task" ? (
-        <section className="notice-panel danger" aria-label="Task error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("taskErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Task not assigned</p>
-            <h2>Create task failed</h2>
-            <p>
-              Add a task title, keep optional assignee/location fields blank if
-              they are not ready and try again.
-            </p>
+            <p className="eyebrow">{t("taskErrorEyebrow")}</p>
+            <h2>{t("taskErrorTitle")}</h2>
+            <p>{t("taskErrorBody")}</p>
           </div>
           <div className="notice-actions">
             <a className="primary-button" href="#assign-task">
-              Return to task form
+              {t("returnToTaskForm")}
             </a>
           </div>
         </section>
       ) : null}
 
       {!hasLiveData && demoFallbackEnabled ? (
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Demo mode</p>
-            <h2>Manager metrics are not connected</h2>
-            <p>
-              Showing sample operations data until routes, visits and tasks API
-              calls return authenticated responses. Reason: {apiFailureMessage}
-            </p>
+            <p className="eyebrow">{tCommon("notice.demoMode")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
+            <p>{t("demoBody", { reason: apiFailureMessage ?? "" })}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="manager-grid" aria-label="Manager metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         {metrics.map((metric) => (
           <article className="metric-card" key={metric.label}>
             <header>
               <p className="metric-label">{metric.label}</p>
               <span className="status-pill info">
-                {metric.isLive ? "Live" : "Demo"}
+                {metric.isLive
+                  ? formatEnumLabel(tCommon, "live")
+                  : formatEnumLabel(tCommon, "demo")}
               </span>
             </header>
             <p className="metric-value">{metric.value}</p>
@@ -306,16 +328,16 @@ export default async function ManagerPage({
         ))}
       </section>
 
-      <section className="dashboard-grid" aria-label="Manager worklists">
+      <section className="dashboard-grid" aria-label={t("worklistsAria")}>
         <div className="panel">
-          <h2>Representatives</h2>
+          <h2>{t("representatives")}</h2>
           {representatives.length > 0 ? (
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Route</th>
-                  <th>Reports</th>
+                  <th>{t("tableName")}</th>
+                  <th>{t("tableRoute")}</th>
+                  <th>{t("tableReports")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -329,15 +351,12 @@ export default async function ManagerPage({
               </tbody>
             </table>
           ) : (
-            <p className="empty-state">
-              No active route plans are visible for today. Use the task form to
-              assign follow-up work or import an initial visit plan.
-            </p>
+            <p className="empty-state">{t("noRoutes")}</p>
           )}
         </div>
 
         <div className="panel">
-          <h2>Attention queue</h2>
+          <h2>{t("attentionQueue")}</h2>
           <div className="field-stack">
             {attentionItems.map((item, index) => (
               <article
@@ -357,29 +376,29 @@ export default async function ManagerPage({
         </div>
 
         <div className="panel" id="assign-task">
-          <h2>Assign task</h2>
+          <h2>{t("assignTask")}</h2>
           <form action={createManagerTaskAction} className="visit-form compact">
             <label>
-              Title
+              {t("formTitle")}
               <textarea
                 name="title"
-                placeholder="Follow up with location or representative"
+                placeholder={t("formTitlePlaceholder")}
                 required
                 rows={2}
               />
             </label>
             <label>
-              Details
+              {t("formDetails")}
               <textarea
                 name="description"
-                placeholder="Optional context for the assignee"
+                placeholder={t("formDetailsPlaceholder")}
                 rows={3}
               />
             </label>
             <label>
-              Assignee
+              {t("formAssignee")}
               <select name="assignedToUserId">
-                <option value="">Unassigned</option>
+                <option value="">{t("formUnassigned")}</option>
                 {assigneeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -387,15 +406,13 @@ export default async function ManagerPage({
                 ))}
               </select>
               {assigneeOptions.length === 0 ? (
-                <span className="form-hint">
-                  Add users or create field activity to populate assignees.
-                </span>
+                <span className="form-hint">{t("formAssigneeHint")}</span>
               ) : null}
             </label>
             <label>
-              Location
+              {t("formLocation")}
               <select name="locationId">
-                <option value="">No location</option>
+                <option value="">{t("formNoLocation")}</option>
                 {locationOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -403,30 +420,32 @@ export default async function ManagerPage({
                 ))}
               </select>
               {locationOptions.length === 0 ? (
-                <span className="form-hint">
-                  Import or create active locations to link tasks to places.
-                </span>
+                <span className="form-hint">{t("formLocationHint")}</span>
               ) : null}
             </label>
             <div className="form-row">
               <label>
-                Priority
+                {t("formPriority")}
                 <select name="priority" defaultValue="normal" required>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="low">Low</option>
+                  <option value="normal">
+                    {formatEnumLabel(tCommon, "normal")}
+                  </option>
+                  <option value="high">
+                    {formatEnumLabel(tCommon, "high")}
+                  </option>
+                  <option value="low">{formatEnumLabel(tCommon, "low")}</option>
                 </select>
               </label>
               <label>
-                Due date
+                {t("formDueDate")}
                 <input name="dueDate" type="date" />
               </label>
             </div>
             <PendingSubmitButton
               className="primary-button"
-              pendingLabel="Creating..."
+              pendingLabel={t("creating")}
             >
-              Create task
+              {t("createTask")}
             </PendingSubmitButton>
           </form>
         </div>
@@ -440,6 +459,7 @@ function buildLiveMetrics(
   visits: Visit[],
   tasks: Task[],
   highPriorityTasks: Task[],
+  t: OverviewTranslator,
 ): ManagerMetric[] {
   const totalRouteItems = routes.reduce(
     (sum, route) => sum + route.items.length,
@@ -462,21 +482,25 @@ function buildLiveMetrics(
 
   return [
     {
-      label: "Visits today",
+      label: t("visitsToday"),
       value: String(totalRouteItems),
-      detail: `${Math.max(totalRouteItems - completedRouteItems, 0)} remaining`,
+      detail: t("remainingDetail", {
+        count: Math.max(totalRouteItems - completedRouteItems, 0),
+      }),
       isLive: true,
     },
     {
-      label: "Reports confirmed",
+      label: t("reportsConfirmed"),
       value: String(confirmedVisits),
-      detail: `${Math.max(visits.length - confirmedVisits, 0)} waiting`,
+      detail: t("waitingDetail", {
+        count: Math.max(visits.length - confirmedVisits, 0),
+      }),
       isLive: true,
     },
     {
-      label: "Open tasks",
+      label: t("openTasks"),
       value: String(openTasks),
-      detail: `${openHighPriorityTasks} high priority`,
+      detail: t("highPriorityDetail", { count: openHighPriorityTasks }),
       isLive: true,
     },
   ];
@@ -485,6 +509,7 @@ function buildLiveMetrics(
 function buildRepresentativeSummaries(
   routes: RoutePlan[],
   visits: Visit[],
+  tCommon: CommonTranslator,
 ): RepresentativeSummary[] {
   return routes.map((route) => {
     const routeVisits = visits.filter(
@@ -496,7 +521,7 @@ function buildRepresentativeSummaries(
 
     return {
       name: route.representative.name,
-      route: `${route.planDate} · ${formatRouteStatus(route.status)}`,
+      route: `${route.planDate} · ${formatEnumLabel(tCommon, route.status)}`,
       reports: `${confirmedReports} / ${Math.max(route.items.length, routeVisits.length)}`,
     };
   });
@@ -505,6 +530,7 @@ function buildRepresentativeSummaries(
 function buildAttentionItems(
   routes: RoutePlan[],
   tasks: Task[],
+  t: OverviewTranslator,
 ): AttentionItem[] {
   const blockedRouteItems = routes
     .flatMap((route) =>
@@ -528,17 +554,18 @@ function buildAttentionItems(
     ...blockedRouteItems.map(({ route, item }) => ({
       title: item.location.name,
       tone: "warning" as const,
-      area: "Route",
-      detail: `${route.representative.name} still needs to complete item ${item.sequence}.`,
+      area: t("areaRoute"),
+      detail: t("routeAttentionDetail", {
+        name: route.representative.name,
+        sequence: item.sequence,
+      }),
     })),
     ...urgentTasks.map((task) => ({
       title: task.title,
       tone: "warning" as const,
-      area: "Task",
+      area: t("areaTask"),
       detail:
-        task.assignedTo?.name ??
-        task.description ??
-        "High-priority task is waiting for assignment.",
+        task.assignedTo?.name ?? task.description ?? t("taskAttentionFallback"),
     })),
   ];
 
@@ -546,10 +573,10 @@ function buildAttentionItems(
     ? items
     : [
         {
-          title: "No blockers",
+          title: t("noBlockersTitle"),
           tone: "info",
-          area: "Ops",
-          detail: "Routes and high-priority tasks are clear right now.",
+          area: t("areaOps"),
+          detail: t("noBlockersDetail"),
         },
       ];
 }
@@ -620,23 +647,24 @@ function buildManagerCsv(
   metrics: ManagerMetric[],
   representatives: RepresentativeSummary[],
   attentionItems: AttentionItem[],
+  t: OverviewTranslator,
 ): string {
   return [
-    ["Section", "Name", "Value", "Detail"],
+    [t("csvSection"), t("csvName"), t("csvValue"), t("csvDetail")],
     ...metrics.map((metric) => [
-      "Metric",
+      t("csvMetric"),
       metric.label,
       metric.value,
       metric.detail,
     ]),
     ...representatives.map((representative) => [
-      "Representative",
+      t("csvRepresentative"),
       representative.name,
       representative.route,
       representative.reports,
     ]),
     ...attentionItems.map((item) => [
-      "Attention",
+      t("csvAttention"),
       item.title,
       item.area,
       item.detail,
@@ -654,11 +682,4 @@ function parseTaskPriorityInput(value: FormDataEntryValue | null) {
   return value === "low" || value === "normal" || value === "high"
     ? value
     : "normal";
-}
-
-function formatRouteStatus(status: RoutePlan["status"]): string {
-  return status
-    .split("_")
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
 }

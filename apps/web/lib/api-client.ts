@@ -160,6 +160,7 @@ export type TenantSettings = {
   tenantId: string;
   name: string;
   timezone: string;
+  language: string;
   productMode: string;
   productsEnabled: boolean;
   updatedAt: string;
@@ -533,6 +534,7 @@ export async function getAdminSettings(): Promise<ApiResult<TenantSettings>> {
 export async function updateAdminSettings(input: {
   name?: string;
   timezone?: string;
+  language?: string;
   productsEnabled?: boolean;
 }): Promise<ApiResult<TenantSettings>> {
   return apiPatch<TenantSettings>("/admin/settings", input);

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 type RecorderState = "idle" | "recording" | "ready" | "unsupported" | "error";
@@ -11,6 +12,7 @@ type FieldVoiceNoteRecorderProps = {
 export function FieldVoiceNoteRecorder({
   inputName,
 }: FieldVoiceNoteRecorderProps) {
+  const t = useTranslations("common.recorder");
   const inputRef = useRef<HTMLInputElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -129,7 +131,7 @@ export function FieldVoiceNoteRecorder({
           onClick={startRecording}
           type="button"
         >
-          Record
+          {t("record")}
         </button>
         <button
           className="secondary-button"
@@ -137,7 +139,7 @@ export function FieldVoiceNoteRecorder({
           onClick={stopRecording}
           type="button"
         >
-          Stop
+          {t("stop")}
         </button>
       </div>
       {recordingUrl ? (
@@ -146,17 +148,9 @@ export function FieldVoiceNoteRecorder({
         </audio>
       ) : null}
       {state === "unsupported" ? (
-        <p className="form-hint">
-          Browser recording is unavailable here. Choose an audio file from this
-          device and upload it instead.
-        </p>
+        <p className="form-hint">{t("unsupported")}</p>
       ) : null}
-      {state === "error" ? (
-        <p className="form-hint">
-          Microphone access was not available. Allow microphone access, record
-          again or choose an existing audio file.
-        </p>
-      ) : null}
+      {state === "error" ? <p className="form-hint">{t("error")}</p> : null}
     </div>
   );
 }

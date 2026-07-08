@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
@@ -15,6 +16,7 @@ export default async function AcceptInvitePage({
 }: AcceptInvitePageProps) {
   const { tenantSlug } = await params;
   const { token = "", error } = await searchParams;
+  const t = await getTranslations("invites");
 
   async function acceptInviteAction(formData: FormData) {
     "use server";
@@ -54,16 +56,14 @@ export default async function AcceptInvitePage({
         </div>
 
         <div>
-          <p className="eyebrow">Team invite</p>
-          <h1 id="invite-title">Create your account</h1>
-          <p className="login-copy">
-            Accept the invite and set your password for this workspace.
-          </p>
+          <p className="eyebrow">{t("eyebrow")}</p>
+          <h1 id="invite-title">{t("title")}</h1>
+          <p className="login-copy">{t("copy")}</p>
         </div>
 
         {error ? (
           <div className="form-error" role="alert">
-            Invite link is invalid, expired or incomplete.
+            {t("errorInvalid")}
           </div>
         ) : null}
 
@@ -72,7 +72,7 @@ export default async function AcceptInvitePage({
             <input name="token" type="hidden" value={token} />
           ) : (
             <label>
-              Invite token
+              {t("token")}
               <input
                 autoComplete="one-time-code"
                 name="token"
@@ -82,15 +82,15 @@ export default async function AcceptInvitePage({
             </label>
           )}
           <label>
-            Full name
+            {t("fullName")}
             <input autoComplete="name" name="name" required type="text" />
           </label>
           <label>
-            Phone
+            {t("phone")}
             <input autoComplete="tel" name="phone" type="tel" />
           </label>
           <label>
-            Password
+            {t("password")}
             <input
               autoComplete="new-password"
               minLength={8}
@@ -100,7 +100,7 @@ export default async function AcceptInvitePage({
             />
           </label>
           <button className="primary-button" type="submit">
-            Accept invite
+            {t("accept")}
           </button>
         </form>
       </section>

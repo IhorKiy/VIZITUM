@@ -1,3 +1,5 @@
+import { getTranslations } from "next-intl/server";
+
 import { AppShell } from "../../../../components/app-shell";
 import {
   listAdminUsers,
@@ -24,8 +26,17 @@ type ChecklistItem = {
   href: string;
 };
 
+type SetupTranslator = Awaited<
+  ReturnType<typeof getTranslations<"admin.setup">>
+>;
+
 export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
   const { tenantSlug } = await params;
+  const [t, tAdmin, tCommon] = await Promise.all([
+    getTranslations("admin.setup"),
+    getTranslations("admin"),
+    getTranslations("common"),
+  ]);
   const [usersResult, locationsResult, productsResult, templatesResult] =
     await Promise.all([
       listAdminUsers(),
@@ -39,24 +50,24 @@ export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
       <AppShell tenantSlug={tenantSlug} activeArea="admin-setup">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Company admin</p>
-            <h1>Onboarding checklist</h1>
-            <p>
-              Live tenant setup data is required in production before pilot
-              readiness can be reviewed.
-            </p>
+            <p className="eyebrow">{tAdmin("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Setup data is not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{usersResult.message}</p>
           </div>
         </section>
@@ -64,13 +75,16 @@ export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
     );
   }
 
-  const checklist = buildChecklist({
-    tenantSlug,
-    usersResult,
-    locationsResult,
-    productsResult,
-    templatesResult,
-  });
+  const checklist = buildChecklist(
+    {
+      tenantSlug,
+      usersResult,
+      locationsResult,
+      productsResult,
+      templatesResult,
+    },
+    t,
+  );
   const readyCount = checklist.filter((item) => item.status === "ready").length;
   const blockedCount = checklist.filter(
     (item) => item.status === "blocked",
@@ -82,35 +96,32 @@ export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
     <AppShell tenantSlug={tenantSlug} activeArea="admin-setup">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Company admin</p>
-          <h1>Onboarding checklist</h1>
-          <p>
-            Review tenant setup progress before inviting the team into active
-            pilot work.
-          </p>
+          <p className="eyebrow">{tAdmin("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <span className={`status-pill ${pilotReady ? "active" : "warning"}`}>
-            {pilotReady ? "Pilot-ready" : "Setup needed"}
+            {pilotReady ? t("pilotReady") : t("setupNeeded")}
           </span>
         </div>
       </header>
 
-      <section className="manager-grid" aria-label="Setup metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Readiness</p>
-            <span className="status-pill info">Checklist</span>
+            <p className="metric-label">{t("readiness")}</p>
+            <span className="status-pill info">{t("checklist")}</span>
           </header>
           <p className="metric-value">{readinessPercent}%</p>
           <p className="small-label">
-            {readyCount} of {checklist.length} checks ready
+            {t("checksReady", { ready: readyCount, total: checklist.length })}
           </p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Active users</p>
-            <span className="status-pill active">Live</span>
+            <p className="metric-label">{t("activeUsers")}</p>
+            <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
           <p className="metric-value">
             {usersResult.ok
@@ -121,33 +132,33 @@ export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
           </p>
           <p className="small-label">
             {usersResult.ok
-              ? `${usersResult.data.total} total tenant users`
+              ? t("totalUsers", { count: usersResult.data.total })
               : usersResult.message}
           </p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Open setup items</p>
+            <p className="metric-label">{t("openSetupItems")}</p>
             <span
               className={`status-pill ${blockedCount > 0 ? "warning" : "active"}`}
             >
-              {blockedCount > 0 ? "Review" : "OK"}
+              {blockedCount > 0 ? tCommon("tone.warning") : tCommon("tone.ok")}
             </span>
           </header>
           <p className="metric-value">{checklist.length - readyCount}</p>
-          <p className="small-label">Items left before pilot review</p>
+          <p className="small-label">{t("itemsLeft")}</p>
         </article>
       </section>
 
       <section className="setup-grid">
         <div className="panel">
-          <h2>Setup progress</h2>
+          <h2>{t("setupProgress")}</h2>
           <div className="setup-checklist">
             {checklist.map((item) => (
               <article className="setup-check" key={item.title}>
                 <div>
                   <span className={`setup-status ${item.status}`}>
-                    {formatStatus(item.status)}
+                    {formatStatus(item.status, t)}
                   </span>
                   <h3>{item.title}</h3>
                   <p>{item.detail}</p>
@@ -161,30 +172,19 @@ export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
         </div>
 
         <aside className="panel">
-          <h2>Pilot handoff</h2>
+          <h2>{t("pilotHandoff")}</h2>
           <div className="field-stack">
             <div className="setup-summary-block">
-              <p className="eyebrow">Before activation</p>
-              <p>
-                Users, locations, product applicability and initial route/task
-                plan should be ready before switching the tenant into real pilot
-                operation.
-              </p>
+              <p className="eyebrow">{t("beforeActivationEyebrow")}</p>
+              <p>{t("beforeActivationBody")}</p>
             </div>
             <div className="setup-summary-block">
-              <p className="eyebrow">Recording notice</p>
-              <p>
-                Field users see the first-recording notice in the Field flow.
-                Keep the company-level AI processing addendum attached during
-                pilot onboarding.
-              </p>
+              <p className="eyebrow">{t("recordingNoticeEyebrow")}</p>
+              <p>{t("recordingNoticeBody")}</p>
             </div>
             <div className="setup-summary-block">
-              <p className="eyebrow">Next role screen</p>
-              <p>
-                After this checklist, the next P0 screen is Manager visits and
-                tasks drilldown.
-              </p>
+              <p className="eyebrow">{t("nextRoleScreenEyebrow")}</p>
+              <p>{t("nextRoleScreenBody")}</p>
             </div>
           </div>
         </aside>
@@ -193,19 +193,22 @@ export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
   );
 }
 
-function buildChecklist({
-  tenantSlug,
-  usersResult,
-  locationsResult,
-  productsResult,
-  templatesResult,
-}: {
-  tenantSlug: string;
-  usersResult: ApiResult<PaginatedResponse<TenantUser>>;
-  locationsResult: ApiResult<PaginatedResponse<Location>>;
-  productsResult: ApiResult<PaginatedResponse<Product>>;
-  templatesResult: ApiResult<ImportTemplateSummary[]>;
-}): ChecklistItem[] {
+function buildChecklist(
+  {
+    tenantSlug,
+    usersResult,
+    locationsResult,
+    productsResult,
+    templatesResult,
+  }: {
+    tenantSlug: string;
+    usersResult: ApiResult<PaginatedResponse<TenantUser>>;
+    locationsResult: ApiResult<PaginatedResponse<Location>>;
+    productsResult: ApiResult<PaginatedResponse<Product>>;
+    templatesResult: ApiResult<ImportTemplateSummary[]>;
+  },
+  t: SetupTranslator,
+): ChecklistItem[] {
   const users = usersResult.ok ? usersResult.data.items : [];
   const locations = locationsResult.ok ? locationsResult.data.items : [];
   const products = productsResult.ok ? productsResult.data.items : [];
@@ -234,69 +237,65 @@ function buildChecklist({
 
   return [
     {
-      title: "Company admin access",
-      detail: hasAdmin
-        ? "At least one Company Admin can manage tenant setup."
-        : "Invite or assign a Company Admin before pilot activation.",
+      title: t("adminAccessTitle"),
+      detail: hasAdmin ? t("adminAccessReady") : t("adminAccessNeedsWork"),
       status: usersResult.ok && hasAdmin ? "ready" : "needs-work",
-      actionLabel: "Manage users",
+      actionLabel: t("manageUsers"),
       href: `/${tenantSlug}/admin/users`,
     },
     {
-      title: "Manager and field roles",
+      title: t("rolesTitle"),
       detail:
         hasManager && fieldRepCount > 0
-          ? `${fieldRepCount} field representative role(s) and a Team Manager are configured.`
-          : "Add at least one Team Manager and one Field Representative.",
+          ? t("rolesReady", { count: fieldRepCount })
+          : t("rolesNeedsWork"),
       status:
         usersResult.ok && hasManager && fieldRepCount > 0
           ? "ready"
           : "needs-work",
-      actionLabel: "Assign roles",
+      actionLabel: t("assignRoles"),
       href: `/${tenantSlug}/admin/users`,
     },
     {
-      title: "Locations",
+      title: t("locationsTitle"),
       detail:
         activeLocationCount > 0
-          ? `${activeLocationCount} active location(s) are available for visits.`
-          : "Import or create active locations before field work starts.",
+          ? t("locationsReady", { count: activeLocationCount })
+          : t("locationsNeedsWork"),
       status:
         locationsResult.ok && activeLocationCount > 0 ? "ready" : "needs-work",
-      actionLabel: "Open imports",
+      actionLabel: t("openImports"),
       href: `/${tenantSlug}/admin/imports`,
     },
     {
-      title: "Products/SKUs",
+      title: t("productsTitle"),
       detail:
         activeProductCount > 0 || productNotApplicable
           ? activeProductCount > 0
-            ? `${activeProductCount} active product/SKU record(s) are available.`
-            : "Products/SKUs are marked not applicable for this tenant."
-          : "Import products/SKUs or mark them not applicable for the pilot.",
+            ? t("productsReady", { count: activeProductCount })
+            : t("productsNotApplicable")
+          : t("productsNeedsWork"),
       status:
         productsResult.ok && (activeProductCount > 0 || productNotApplicable)
           ? "ready"
           : "needs-work",
-      actionLabel: "Review imports",
+      actionLabel: t("reviewImports"),
       href: `/${tenantSlug}/admin/imports`,
     },
     {
-      title: "Initial route/task plan",
-      detail: initialPlanTemplateReady
-        ? "Initial visit/task plan template is available for upload."
-        : "Initial plan template is unavailable; check import templates.",
+      title: t("planTitle"),
+      detail: initialPlanTemplateReady ? t("planReady") : t("planBlocked"),
       status:
         templatesResult.ok && initialPlanTemplateReady ? "ready" : "blocked",
-      actionLabel: "Upload plan",
+      actionLabel: t("uploadPlan"),
       href: `/${tenantSlug}/admin/imports`,
     },
     {
-      title: "Pilot review baseline",
+      title: t("baselineTitle"),
       detail:
         hasManager && fieldRepCount > 0 && activeLocationCount > 0
-          ? "Core data is ready to generate pilot usage metrics after field work."
-          : "Manager, field and location data are required before pilot review can be meaningful.",
+          ? t("baselineReady")
+          : t("baselineNeedsWork"),
       status:
         usersResult.ok &&
         locationsResult.ok &&
@@ -305,19 +304,22 @@ function buildChecklist({
         activeLocationCount > 0
           ? "ready"
           : "needs-work",
-      actionLabel: "View manager",
+      actionLabel: t("viewManager"),
       href: `/${tenantSlug}/manager`,
     },
   ];
 }
 
-function formatStatus(status: ChecklistItem["status"]): string {
+function formatStatus(
+  status: ChecklistItem["status"],
+  t: SetupTranslator,
+): string {
   switch (status) {
     case "ready":
-      return "Ready";
+      return t("statusReady");
     case "needs-work":
-      return "Needs work";
+      return t("statusNeedsWork");
     case "blocked":
-      return "Blocked";
+      return t("statusBlocked");
   }
 }

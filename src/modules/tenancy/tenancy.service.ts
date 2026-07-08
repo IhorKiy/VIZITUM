@@ -7,6 +7,7 @@ import type { PlatformTenant } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type {
+  PublicTenantLocale,
   TenantResolutionInput,
   TenantResolutionResult,
 } from "./tenant-resolution.types";
@@ -41,6 +42,29 @@ export class TenancyService {
     this.assertTenantCanServeRequests(tenant);
 
     return { tenant, slug };
+  }
+
+  async getPublicTenantLocale(slug: string): Promise<PublicTenantLocale> {
+    const normalizedSlug = normalizeSlug(slug);
+    const tenant = normalizedSlug
+      ? await this.prisma.platformTenant.findUnique({
+          where: { slug: normalizedSlug },
+          select: { slug: true, language: true, timezone: true },
+        })
+      : null;
+
+    if (!tenant) {
+      throw new NotFoundException({
+        code: "TENANT_NOT_FOUND",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    return {
+      slug: tenant.slug,
+      language: tenant.language,
+      timezone: tenant.timezone,
+    };
   }
 
   private assertTenantCanServeRequests(tenant: PlatformTenant): void {

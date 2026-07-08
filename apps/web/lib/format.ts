@@ -1,3 +1,13 @@
+import type { useFormatter, useTranslations } from "next-intl";
+
+// Works with both the sync `useFormatter()` and async `getFormatter()`
+// results; formatting honors the request locale and tenant timezone.
+export type IntlFormatter = ReturnType<typeof useFormatter>;
+
+// Translator scoped to the `common` namespace (from `useTranslations` or
+// `getTranslations`).
+export type CommonTranslator = ReturnType<typeof useTranslations<"common">>;
+
 export function formatLabel(value: string): string {
   return value
     .split("_")
@@ -6,12 +16,24 @@ export function formatLabel(value: string): string {
     .join(" ");
 }
 
-export function formatLabelOrDash(value: unknown): string {
+// Translates enum-like values (statuses, priorities, visit types) through
+// `common.labels.*`, falling back to the humanized raw value for anything
+// the dictionary does not know about.
+export function formatEnumLabel(t: CommonTranslator, value: string): string {
+  const key = `labels.${value}`;
+
+  return t.has(key as never) ? t(key as never) : formatLabel(value);
+}
+
+export function formatEnumLabelOrDash(
+  t: CommonTranslator,
+  value: unknown,
+): string {
   if (typeof value !== "string" || !value.trim()) {
     return "-";
   }
 
-  return formatLabel(value);
+  return formatEnumLabel(t, value);
 }
 
 export function normalizeFilterValue(value: string | undefined): string | null {
@@ -20,18 +42,8 @@ export function normalizeFilterValue(value: string | undefined): string | null {
   return normalizedValue || null;
 }
 
-export function formatDateTime(value: string | null, emptyLabel = "-"): string {
-  if (!value) {
-    return emptyLabel;
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-export function formatShortDate(
+export function formatDateTime(
+  format: IntlFormatter,
   value: string | null,
   emptyLabel = "-",
 ): string {
@@ -39,11 +51,26 @@ export function formatShortDate(
     return emptyLabel;
   }
 
-  return new Intl.DateTimeFormat("en", {
+  return format.dateTime(new Date(value), {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+export function formatShortDate(
+  format: IntlFormatter,
+  value: string | null,
+  emptyLabel = "-",
+): string {
+  if (!value) {
+    return emptyLabel;
+  }
+
+  return format.dateTime(new Date(value), {
     year: "2-digit",
     month: "numeric",
     day: "numeric",
-  }).format(new Date(value));
+  });
 }
 
 export function statusTone(

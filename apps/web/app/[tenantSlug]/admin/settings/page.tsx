@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -21,21 +22,28 @@ export default async function AdminSettingsPage({
 }: AdminSettingsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
+  const [t, tAdmin, tCommon] = await Promise.all([
+    getTranslations("admin.settings"),
+    getTranslations("admin"),
+    getTranslations("common"),
+  ]);
 
   async function updateSettingsAction(formData: FormData) {
     "use server";
 
     const name = String(formData.get("name") ?? "").trim();
     const timezone = String(formData.get("timezone") ?? "").trim();
+    const language = String(formData.get("language") ?? "").trim();
     const productsEnabled = formData.get("productsEnabled") === "on";
 
-    if (!name || !timezone) {
+    if (!name || !timezone || !language) {
       redirect(`/${tenantSlug}/admin/settings?error=1`);
     }
 
     const result = await updateAdminSettings({
       name,
       timezone,
+      language,
       productsEnabled,
     });
 
@@ -53,24 +61,24 @@ export default async function AdminSettingsPage({
       <AppShell tenantSlug={tenantSlug} activeArea="admin-settings">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Company admin</p>
-            <h1>Company settings</h1>
-            <p>
-              Tenant identity settings are required in production before this
-              screen can load.
-            </p>
+            <p className="eyebrow">{tAdmin("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Tenant settings are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{settingsResult.message}</p>
           </div>
         </section>
@@ -84,65 +92,54 @@ export default async function AdminSettingsPage({
     <AppShell tenantSlug={tenantSlug} activeArea="admin-settings">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Company admin</p>
-          <h1>Company settings</h1>
-          <p>
-            Set the company display name, time zone and whether product/SKU
-            tracking applies to this tenant.
-          </p>
+          <p className="eyebrow">{tAdmin("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
       </header>
 
       {pageState.saved ? (
-        <section className="notice-panel success" aria-label="Settings status">
+        <section className="notice-panel success" aria-label={t("savedAria")}>
           <div>
-            <p className="eyebrow">Settings saved</p>
-            <h2>Company settings were updated</h2>
-            <p>The change applies to this tenant immediately.</p>
+            <p className="eyebrow">{t("savedEyebrow")}</p>
+            <h2>{t("savedTitle")}</h2>
+            <p>{t("savedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {pageState.error ? (
-        <section className="notice-panel danger" aria-label="Settings error">
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
-            <p className="eyebrow">Update failed</p>
-            <h2>Check the settings and try again</h2>
-            <p>
-              Company name is required and the time zone must be a valid IANA
-              time zone, such as Europe/Kiev.
-            </p>
+            <p className="eyebrow">{t("errorEyebrow")}</p>
+            <h2>{t("errorTitle")}</h2>
+            <p>{t("errorBody")}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="manager-grid" aria-label="Tenant identity">
+      <section className="manager-grid" aria-label={t("identityAria")}>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Product mode</p>
-            <span className="status-pill info">Fixed</span>
+            <p className="metric-label">{t("productMode")}</p>
+            <span className="status-pill info">{t("fixed")}</span>
           </header>
           <p className="metric-value">
             {formatProductMode(settings.productMode)}
           </p>
-          <p className="small-label">
-            Team Pilot product mode is set during tenant provisioning.
-          </p>
+          <p className="small-label">{t("productModeHint")}</p>
         </article>
       </section>
 
       <section className="admin-users-grid">
         <div className="panel">
           <div className="panel-title-stack">
-            <h2>Company identity</h2>
-            <p>
-              This name and time zone appear across tenant screens and
-              scheduling.
-            </p>
+            <h2>{t("companyIdentity")}</h2>
+            <p>{t("companyIdentityBody")}</p>
           </div>
           <form action={updateSettingsAction} className="visit-form compact">
             <label>
-              Company display name
+              {t("companyName")}
               <input
                 defaultValue={settings.name}
                 maxLength={200}
@@ -152,7 +149,7 @@ export default async function AdminSettingsPage({
               />
             </label>
             <label>
-              Time zone (IANA)
+              {t("timezone")}
               <input
                 defaultValue={settings.timezone}
                 name="timezone"
@@ -161,19 +158,27 @@ export default async function AdminSettingsPage({
                 type="text"
               />
             </label>
+            <label>
+              {t("language")}
+              <select defaultValue={settings.language} name="language" required>
+                <option value="en">{t("languageEnglish")}</option>
+                <option value="uk">{t("languageUkrainian")}</option>
+              </select>
+              <span className="form-hint">{t("languageHint")}</span>
+            </label>
             <label className="checkbox-inline">
               <input
                 defaultChecked={settings.productsEnabled}
                 name="productsEnabled"
                 type="checkbox"
               />
-              <span>Product/SKU tracking applies to this tenant</span>
+              <span>{t("productsEnabled")}</span>
             </label>
             <PendingSubmitButton
               className="primary-button"
-              pendingLabel="Saving..."
+              pendingLabel={tCommon("saving")}
             >
-              Save settings
+              {t("saveSettings")}
             </PendingSubmitButton>
           </form>
         </div>

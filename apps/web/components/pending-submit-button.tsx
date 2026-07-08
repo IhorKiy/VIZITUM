@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useFormStatus } from "react-dom";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
@@ -10,11 +11,13 @@ type PendingSubmitButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 export function PendingSubmitButton({
   children,
   disabled,
-  pendingLabel = "Saving...",
+  pendingLabel,
   type = "submit",
   ...props
 }: PendingSubmitButtonProps) {
+  const t = useTranslations("common");
   const { pending } = useFormStatus();
+  const resolvedPendingLabel = pendingLabel ?? t("saving");
   const isDisabled = disabled || pending;
 
   return (
@@ -24,7 +27,7 @@ export function PendingSubmitButton({
       disabled={isDisabled}
       type={type}
     >
-      {pending ? pendingLabel : children}
+      {pending ? resolvedPendingLabel : children}
     </button>
   );
 }

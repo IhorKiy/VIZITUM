@@ -49,6 +49,9 @@ jobs:
       - name: Web typecheck
         run: npm run web:typecheck
 
+      - name: Web i18n literal check
+        run: npm run web:i18n:check
+
       - name: Web build
         run: npm run web:build
 

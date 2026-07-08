@@ -1,9 +1,16 @@
+import { getFormatter, getTranslations } from "next-intl/server";
+
 import { AppShell } from "../../../components/app-shell";
 import {
   getOperationsSummary,
   type OperationsSummary,
 } from "../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
+import { formatDateTime, formatEnumLabel } from "../../../lib/format";
+
+type OperationsTranslator = Awaited<
+  ReturnType<typeof getTranslations<"operations">>
+>;
 
 type OperationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -50,6 +57,11 @@ const demoSummary: OperationsSummary = {
 
 export default async function OperationsPage({ params }: OperationsPageProps) {
   const { tenantSlug } = await params;
+  const [t, tCommon, format] = await Promise.all([
+    getTranslations("operations"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
   const summaryResult = await getOperationsSummary();
   const demoFallbackEnabled = isDemoFallbackEnabled();
 
@@ -58,24 +70,24 @@ export default async function OperationsPage({ params }: OperationsPageProps) {
       <AppShell tenantSlug={tenantSlug} activeArea="operations">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Platform operations</p>
-            <h1>Production readiness</h1>
-            <p>
-              Live operational counters are required in production before pilot
-              readiness can be reviewed.
-            </p>
+            <p className="eyebrow">{t("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Operations summary is not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{summaryResult.message}</p>
           </div>
         </section>
@@ -84,48 +96,46 @@ export default async function OperationsPage({ params }: OperationsPageProps) {
   }
 
   const summary = summaryResult.ok ? summaryResult.data : demoSummary;
-  const metrics = buildMetrics(summary);
+  const metrics = buildMetrics(summary, t);
   const tenantRows = Object.entries(summary.tenants.byStatus);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="operations">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Platform operations</p>
-          <h1>Production readiness</h1>
-          <p>
-            Monitor tenant status, job backlogs, import failures, AI processing
-            and temporary storage cleanup from aggregate operational counters.
-          </p>
+          <p className="eyebrow">{t("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <span className="status-pill info">
-            {summaryResult.ok ? "Live" : "Demo"}
+            {summaryResult.ok ? tCommon("labels.live") : tCommon("labels.demo")}
           </span>
         </div>
       </header>
 
       {!summaryResult.ok && demoFallbackEnabled ? (
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Demo mode</p>
-            <h2>Operations summary is not connected</h2>
-            <p>
-              Showing sample operations counters until the API returns an
-              authenticated platform operations response. Reason:{" "}
-              {summaryResult.message}
-            </p>
+            <p className="eyebrow">{tCommon("notice.demoMode")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
+            <p>{t("demoBody", { reason: summaryResult.message })}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="manager-grid" aria-label="Operations metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         {metrics.map((metric) => (
           <article className="metric-card" key={metric.label}>
             <header>
               <p className="metric-label">{metric.label}</p>
               <span className={`status-pill ${metric.tone}`}>
-                {metric.tone === "active" ? "OK" : metric.tone}
+                {metric.tone === "active"
+                  ? tCommon("tone.ok")
+                  : tCommon(`tone.${metric.tone}`)}
               </span>
             </header>
             <p className="metric-value">{metric.value}</p>
@@ -134,20 +144,20 @@ export default async function OperationsPage({ params }: OperationsPageProps) {
         ))}
       </section>
 
-      <section className="dashboard-grid" aria-label="Operations details">
+      <section className="dashboard-grid" aria-label={t("detailsAria")}>
         <div className="panel">
-          <h2>Tenant status</h2>
+          <h2>{t("tenantStatus")}</h2>
           <table className="table">
             <thead>
               <tr>
-                <th>Status</th>
-                <th>Tenants</th>
+                <th>{t("tableStatus")}</th>
+                <th>{t("tableTenants")}</th>
               </tr>
             </thead>
             <tbody>
               {tenantRows.map(([status, count]) => (
                 <tr key={status}>
-                  <td>{formatLabel(status)}</td>
+                  <td>{formatEnumLabel(tCommon, status)}</td>
                   <td>{count}</td>
                 </tr>
               ))}
@@ -156,28 +166,28 @@ export default async function OperationsPage({ params }: OperationsPageProps) {
         </div>
 
         <div className="panel">
-          <h2>Cleanup and jobs</h2>
+          <h2>{t("cleanupJobs")}</h2>
           <table className="table">
             <tbody>
               <tr>
-                <th scope="row">Provisioning queued</th>
+                <th scope="row">{t("provisioningQueued")}</th>
                 <td>{summary.provisioning.queued}</td>
               </tr>
               <tr>
-                <th scope="row">Provisioning running</th>
+                <th scope="row">{t("provisioningRunning")}</th>
                 <td>{summary.provisioning.running}</td>
               </tr>
               <tr>
-                <th scope="row">AI queue</th>
+                <th scope="row">{t("aiQueue")}</th>
                 <td>{summary.ai.queued + summary.ai.running}</td>
               </tr>
               <tr>
-                <th scope="row">Expired temp objects</th>
+                <th scope="row">{t("expiredTempObjects")}</th>
                 <td>{summary.storage.expiredTemporaryAwaitingCleanup}</td>
               </tr>
               <tr>
-                <th scope="row">Generated</th>
-                <td>{formatDateTime(summary.generatedAt)}</td>
+                <th scope="row">{t("generated")}</th>
+                <td>{formatDateTime(format, summary.generatedAt)}</td>
               </tr>
             </tbody>
           </table>
@@ -187,7 +197,10 @@ export default async function OperationsPage({ params }: OperationsPageProps) {
   );
 }
 
-function buildMetrics(summary: OperationsSummary): OpsMetric[] {
+function buildMetrics(
+  summary: OperationsSummary,
+  t: OperationsTranslator,
+): OpsMetric[] {
   const importIssues =
     summary.imports.failedRecent + summary.imports.validationFailedRecent;
   const aiBacklog = summary.ai.queued + summary.ai.running;
@@ -197,56 +210,53 @@ function buildMetrics(summary: OperationsSummary): OpsMetric[] {
 
   return [
     {
-      label: "Tenants",
+      label: t("tenants"),
       value: String(summary.tenants.total),
-      detail: `${Object.keys(summary.tenants.byStatus).length} statuses tracked`,
+      detail: t("statusesTracked", {
+        count: Object.keys(summary.tenants.byStatus).length,
+      }),
       tone: "active",
     },
     {
-      label: "Import issues",
+      label: t("importIssues"),
       value: String(importIssues),
-      detail: `${summary.imports.pendingConfirmation} pending confirmation`,
+      detail: t("pendingConfirmation", {
+        count: summary.imports.pendingConfirmation,
+      }),
       tone: importIssues > 0 ? "warning" : "active",
     },
     {
-      label: "AI backlog",
+      label: t("aiBacklog"),
       value: String(aiBacklog),
-      detail: `${summary.ai.failedRecent} failed in ${summary.windowHours}h`,
+      detail: t("failedInWindow", {
+        count: summary.ai.failedRecent,
+        hours: summary.windowHours,
+      }),
       tone: summary.ai.failedRecent > 0 ? "warning" : "info",
     },
     {
-      label: "Cleanup backlog",
+      label: t("cleanupBacklog"),
       value: String(cleanupBacklog),
-      detail: `${summary.storage.deletedRecent} temporary objects deleted recently`,
+      detail: t("deletedRecently", {
+        count: summary.storage.deletedRecent,
+      }),
       tone: cleanupBacklog > 0 ? "warning" : "active",
     },
     {
-      label: "Provisioning failures",
+      label: t("provisioningFailures"),
       value: String(summary.provisioning.failedRecent),
-      detail: `${summary.provisioning.queued + summary.provisioning.running} active provisioning jobs`,
+      detail: t("activeProvisioningJobs", {
+        count: summary.provisioning.queued + summary.provisioning.running,
+      }),
       tone: summary.provisioning.failedRecent > 0 ? "warning" : "active",
     },
     {
-      label: "Window",
+      label: t("window"),
       value: `${summary.windowHours}h`,
       detail: summary.requestId
-        ? `Request ${summary.requestId}`
-        : "Latest API snapshot",
+        ? t("requestLabel", { id: summary.requestId })
+        : t("latestSnapshot"),
       tone: "info",
     },
   ];
-}
-
-function formatLabel(value: string): string {
-  return value
-    .split("_")
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-}
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -9,7 +11,7 @@ import {
   type LocationStatus,
 } from "../../../../lib/api-client";
 import {
-  formatLabel,
+  formatEnumLabel,
   normalizeFilterValue,
   statusTone,
 } from "../../../../lib/format";
@@ -32,6 +34,11 @@ export default async function AdminLocationsPage({
 }: AdminLocationsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
+  const [t, tAdmin, tCommon] = await Promise.all([
+    getTranslations("admin.locations"),
+    getTranslations("admin"),
+    getTranslations("common"),
+  ]);
   const selectedStatus = normalizeStatus(pageState.status);
   const search = normalizeFilterValue(pageState.search);
   const hasFilters = Boolean(selectedStatus || search);
@@ -84,24 +91,24 @@ export default async function AdminLocationsPage({
       <AppShell tenantSlug={tenantSlug} activeArea="admin-locations">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Company admin</p>
-            <h1>Locations</h1>
-            <p>
-              Live tenant locations are required in production before this
-              screen can load.
-            </p>
+            <p className="eyebrow">{tAdmin("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Tenant locations are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{locationsResult.message}</p>
           </div>
         </section>
@@ -118,61 +125,66 @@ export default async function AdminLocationsPage({
     <AppShell tenantSlug={tenantSlug} activeArea="admin-locations">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Company admin</p>
-          <h1>Locations</h1>
-          <p>
-            Review imported locations and keep status, region and territory
-            current for field coverage.
-          </p>
+          <p className="eyebrow">{tAdmin("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
       </header>
 
       {pageState.updated ? (
-        <section className="notice-panel success" aria-label="Location status">
+        <section className="notice-panel success" aria-label={t("updatedAria")}>
           <div>
-            <p className="eyebrow">Location updated</p>
-            <h2>Location details were saved</h2>
-            <p>The change applies to this tenant immediately.</p>
+            <p className="eyebrow">{t("updatedEyebrow")}</p>
+            <h2>{t("updatedTitle")}</h2>
+            <p>{t("updatedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {pageState.error ? (
-        <section className="notice-panel danger" aria-label="Location error">
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
-            <p className="eyebrow">Update failed</p>
-            <h2>Check the location details and try again</h2>
-            <p>Name, city and status are required.</p>
+            <p className="eyebrow">{t("errorEyebrow")}</p>
+            <h2>{t("errorTitle")}</h2>
+            <p>{t("errorBody")}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="manager-grid" aria-label="Location metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Tenant locations</p>
-            <span className="status-pill active">Live</span>
+            <p className="metric-label">{t("tenantLocations")}</p>
+            <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
           <p className="metric-value">{locationsResult.data.total}</p>
-          <p className="small-label">{activeCount} active locations</p>
+          <p className="small-label">
+            {t("activeCount", { count: activeCount })}
+          </p>
         </article>
       </section>
 
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
-            <h2>Location list</h2>
+            <h2>{t("locationList")}</h2>
             <p>
-              Showing {selectedStatus ? formatLabel(selectedStatus) : "all"}{" "}
-              locations{search ? ` matching "${search}"` : ""}.
+              {selectedStatus
+                ? t("showingStatus", {
+                    status: formatEnumLabel(tCommon, selectedStatus),
+                    search: search ? t("searchSuffix", { search }) : "",
+                  })
+                : t("showingAll", {
+                    search: search ? t("searchSuffix", { search }) : "",
+                  })}
             </p>
           </div>
-          <div className="filter-pills" aria-label="Location status filters">
+          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
             <a
               aria-current={!selectedStatus ? "page" : undefined}
               href={buildLocationFilterHref(tenantSlug, null, search)}
             >
-              All
+              {tCommon("all")}
             </a>
             {locationStatuses.map((status) => (
               <a
@@ -180,7 +192,7 @@ export default async function AdminLocationsPage({
                 href={buildLocationFilterHref(tenantSlug, status, search)}
                 key={status}
               >
-                {formatLabel(status)}
+                {formatEnumLabel(tCommon, status)}
               </a>
             ))}
           </div>
@@ -191,24 +203,24 @@ export default async function AdminLocationsPage({
             <input name="status" type="hidden" value={selectedStatus} />
           ) : null}
           <label>
-            Search
+            {t("search")}
             <input
               defaultValue={search ?? ""}
               name="search"
-              placeholder="Name or city"
+              placeholder={t("searchPlaceholder")}
               type="text"
             />
           </label>
           <div className="filter-actions">
             <button className="secondary-button" type="submit">
-              Apply filters
+              {tCommon("applyFilters")}
             </button>
             {hasFilters ? (
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/admin/locations`}
               >
-                Reset
+                {tCommon("reset")}
               </a>
             ) : null}
           </div>
@@ -226,25 +238,22 @@ export default async function AdminLocationsPage({
           </div>
         ) : (
           <div className="empty-state-panel">
-            <h2>No locations match this filter</h2>
-            <p>
-              Use another status filter or import locations before managing
-              coverage here.
-            </p>
+            <h2>{t("emptyTitle")}</h2>
+            <p>{t("emptyBody")}</p>
             <div className="toolbar">
               {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/admin/locations`}
                 >
-                  Show all locations
+                  {t("showAllLocations")}
                 </a>
               ) : null}
               <a
                 className="primary-button"
                 href={`/${tenantSlug}/admin/imports`}
               >
-                Open imports
+                {t("openImports")}
               </a>
             </div>
           </div>
@@ -261,6 +270,9 @@ function LocationRow({
   location: Location;
   updateLocationAction: (formData: FormData) => Promise<void>;
 }) {
+  const t = useTranslations("admin.locations");
+  const tCommon = useTranslations("common");
+
   return (
     <article className="admin-user-row">
       <header>
@@ -271,47 +283,47 @@ function LocationRow({
           </p>
         </div>
         <span className={`status-pill ${statusTone(location.status)}`}>
-          {formatLabel(location.status)}
+          {formatEnumLabel(tCommon, location.status)}
         </span>
       </header>
 
       <form action={updateLocationAction} className="visit-form compact">
         <input name="locationId" type="hidden" value={location.id} />
         <label>
-          Name
+          {t("name")}
           <input defaultValue={location.name} name="name" required />
         </label>
         <label>
-          City
+          {t("city")}
           <input defaultValue={location.city} name="city" required />
         </label>
         <label>
-          Type
+          {t("type")}
           <input defaultValue={location.type ?? ""} name="type" />
         </label>
         <label>
-          Region
+          {t("region")}
           <input defaultValue={location.region ?? ""} name="region" />
         </label>
         <label>
-          Territory
+          {t("territory")}
           <input defaultValue={location.territory ?? ""} name="territory" />
         </label>
         <label>
-          Status
+          {t("status")}
           <select defaultValue={location.status} name="status" required>
             {locationStatuses.map((status) => (
               <option key={status} value={status}>
-                {formatLabel(status)}
+                {formatEnumLabel(tCommon, status)}
               </option>
             ))}
           </select>
         </label>
         <PendingSubmitButton
           className="secondary-button"
-          pendingLabel="Saving..."
+          pendingLabel={tCommon("saving")}
         >
-          Save location
+          {t("saveLocation")}
         </PendingSubmitButton>
       </form>
     </article>

@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { useFormatter, useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -16,6 +18,7 @@ import {
   type TenantRoleCode,
   type TenantUser,
 } from "../../../../lib/api-client";
+import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
 
 type AdminUsersPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -31,10 +34,11 @@ type AdminUsersPageProps = {
   }>;
 };
 
-const tenantRoles: Array<{ code: TenantRoleCode; label: string }> = [
-  { code: "company_admin", label: "Company Admin" },
-  { code: "team_manager", label: "Team Manager" },
-  { code: "field_representative", label: "Field Representative" },
+// Labels come from `common.labels.<roleCode>` in the message dictionaries.
+const tenantRoles: TenantRoleCode[] = [
+  "company_admin",
+  "team_manager",
+  "field_representative",
 ];
 
 export default async function AdminUsersPage({
@@ -43,14 +47,19 @@ export default async function AdminUsersPage({
 }: AdminUsersPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
+  const [t, tAdmin, tCommon] = await Promise.all([
+    getTranslations("admin.users"),
+    getTranslations("admin"),
+    getTranslations("common"),
+  ]);
 
   async function inviteUserAction(formData: FormData) {
     "use server";
 
     const email = String(formData.get("email") ?? "").trim();
-    const roleCodes = tenantRoles
-      .map((role) => role.code)
-      .filter((roleCode) => formData.get(roleCode) === "on");
+    const roleCodes = tenantRoles.filter(
+      (roleCode) => formData.get(roleCode) === "on",
+    );
 
     if (!email || roleCodes.length === 0) {
       redirect(`/${tenantSlug}/admin/users?error=invite`);
@@ -201,24 +210,24 @@ export default async function AdminUsersPage({
       <AppShell tenantSlug={tenantSlug} activeArea="admin-users">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Company admin</p>
-            <h1>Users and roles</h1>
-            <p>
-              Live tenant users are required in production before role setup can
-              continue.
-            </p>
+            <p className="eyebrow">{tAdmin("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Tenant users are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{usersResult.message}</p>
           </div>
         </section>
@@ -241,28 +250,30 @@ export default async function AdminUsersPage({
     <AppShell tenantSlug={tenantSlug} activeArea="admin-users">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Company admin</p>
-          <h1>Users and roles</h1>
-          <p>
-            Invite users, review tenant access and keep Team Pilot roles aligned
-            before field work starts.
-          </p>
+          <p className="eyebrow">{tAdmin("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
       </header>
 
       {pageState.invited ? (
-        <section className="notice-panel success" aria-label="Invite status">
+        <section
+          className="notice-panel success"
+          aria-label={t("inviteStatusAria")}
+        >
           <div>
             <p className="eyebrow">
               {pageState.invited === "resent"
-                ? "Invite refreshed"
-                : "Invite created"}
+                ? t("inviteRefreshed")
+                : t("inviteCreated")}
             </p>
-            <h2>User invite is ready</h2>
+            <h2>{t("inviteReadyTitle")}</h2>
             <p>
-              The invite was created
-              {pageState.inviteEmail ? ` for ${pageState.inviteEmail}` : ""}.
-              Share this link with the user through a trusted channel.
+              {t("inviteReadyBody", {
+                forEmail: pageState.inviteEmail
+                  ? t("inviteForEmail", { email: pageState.inviteEmail })
+                  : "",
+              })}
             </p>
             {inviteLink ? (
               <code className="copyable-value">{inviteLink}</code>
@@ -272,82 +283,80 @@ export default async function AdminUsersPage({
       ) : null}
 
       {pageState.status || pageState.role || pageState.deleted ? (
-        <section className="notice-panel success" aria-label="User update">
+        <section
+          className="notice-panel success"
+          aria-label={t("userUpdateAria")}
+        >
           <div>
-            <p className="eyebrow">User updated</p>
+            <p className="eyebrow">{t("userUpdatedEyebrow")}</p>
             <h2>
               {pageState.deleted
-                ? "The user was deleted"
-                : "Tenant access was updated"}
+                ? t("userDeletedTitle")
+                : t("accessUpdatedTitle")}
             </h2>
-            <p>
-              The latest user list reflects the saved role, status or deletion
-              change.
-            </p>
+            <p>{t("userUpdatedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {pageState.error ? (
-        <section className="notice-panel danger" aria-label="User error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("userErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Update failed</p>
-            <h2>Check the user details and try again</h2>
-            <p>
-              {pageState.message ??
-                "Email, status and role changes must match the tenant's allowed Team Pilot roles."}
-            </p>
+            <p className="eyebrow">{t("errorEyebrow")}</p>
+            <h2>{t("errorTitle")}</h2>
+            <p>{pageState.message ?? t("errorFallback")}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="manager-grid" aria-label="User metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Tenant users</p>
-            <span className="status-pill active">Live</span>
+            <p className="metric-label">{t("tenantUsers")}</p>
+            <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
           <p className="metric-value">{usersResult.data.total}</p>
-          <p className="small-label">{activeCount} active users</p>
+          <p className="small-label">
+            {t("activeUsersCount", { count: activeCount })}
+          </p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Admin seats</p>
-            <span className="status-pill info">Limit</span>
+            <p className="metric-label">{t("adminSeats")}</p>
+            <span className="status-pill info">{t("limit")}</span>
           </header>
           <p className="metric-value">
             {usersResult.data.activeAdminCount} / {usersResult.data.adminLimit}
           </p>
-          <p className="small-label">Active Company Admins in use</p>
+          <p className="small-label">{t("adminSeatsDetail")}</p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Team managers</p>
-            <span className="status-pill info">Role</span>
+            <p className="metric-label">{t("teamManagers")}</p>
+            <span className="status-pill info">{t("role")}</span>
           </header>
           <p className="metric-value">{managerCount}</p>
-          <p className="small-label">Full tenant operational view</p>
+          <p className="small-label">{t("teamManagersDetail")}</p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Field reps</p>
-            <span className="status-pill info">Role</span>
+            <p className="metric-label">{t("fieldReps")}</p>
+            <span className="status-pill info">{t("role")}</span>
           </header>
           <p className="metric-value">{fieldCount}</p>
-          <p className="small-label">Mobile-first field users</p>
+          <p className="small-label">{t("fieldRepsDetail")}</p>
         </article>
       </section>
 
       {superadmin ? (
-        <section className="notice-panel" aria-label="Tenant superadmin">
+        <section className="notice-panel" aria-label={t("superadminAria")}>
           <div>
-            <p className="eyebrow">Tenant superadmin</p>
+            <p className="eyebrow">{t("superadminEyebrow")}</p>
             <h2>{superadmin.name}</h2>
-            <p>
-              {superadmin.email} — invited and replaced only by the platform
-              owner. Company Admins cannot suspend, delete or re-role the
-              superadmin.
-            </p>
+            <p>{t("superadminBody", { email: superadmin.email })}</p>
           </div>
         </section>
       ) : null}
@@ -355,54 +364,48 @@ export default async function AdminUsersPage({
       <section className="admin-users-grid">
         <div className="panel">
           <div className="panel-title-stack">
-            <h2>Invite user</h2>
+            <h2>{t("inviteUser")}</h2>
             <p>
-              Invite links are generated after validation and should be shared
-              through a trusted customer channel.
-              {canInviteAdmins
-                ? ""
-                : " Only the tenant superadmin can invite Company Admins."}
+              {t("inviteUserBody")}
+              {canInviteAdmins ? "" : t("inviteUserAdminsHint")}
             </p>
           </div>
           <form action={inviteUserAction} className="visit-form compact">
             <label>
-              Email
+              {t("email")}
               <input
                 name="email"
-                placeholder="name@company.com"
+                placeholder={t("emailPlaceholder")}
                 required
                 type="email"
               />
             </label>
             <fieldset className="checkbox-group">
-              <legend>Roles</legend>
-              {tenantRoles.map((role) => (
-                <label key={role.code}>
+              <legend>{t("roles")}</legend>
+              {tenantRoles.map((roleCode) => (
+                <label key={roleCode}>
                   <input
-                    disabled={role.code === "company_admin" && !canInviteAdmins}
-                    name={role.code}
+                    disabled={roleCode === "company_admin" && !canInviteAdmins}
+                    name={roleCode}
                     type="checkbox"
                   />
-                  <span>{role.label}</span>
+                  <span>{formatEnumLabel(tCommon, roleCode)}</span>
                 </label>
               ))}
             </fieldset>
             <PendingSubmitButton
               className="primary-button"
-              pendingLabel="Creating..."
+              pendingLabel={t("creating")}
             >
-              Create invite
+              {t("createInvite")}
             </PendingSubmitButton>
           </form>
         </div>
 
         <div className="panel admin-invites-panel">
           <div className="panel-title-stack">
-            <h2>Pending invites</h2>
-            <p>
-              Track open invite links, expiry and accepted/revoked history for
-              this tenant.
-            </p>
+            <h2>{t("pendingInvites")}</h2>
+            <p>{t("pendingInvitesBody")}</p>
           </div>
           {invitesResult.ok ? (
             <InviteHistoryList
@@ -411,18 +414,17 @@ export default async function AdminUsersPage({
             />
           ) : (
             <p className="empty-state">
-              Invite history is unavailable right now: {invitesResult.message}
+              {t("inviteHistoryUnavailable", {
+                message: invitesResult.message,
+              })}
             </p>
           )}
         </div>
 
         <div className="panel admin-users-panel">
           <div className="panel-title-stack">
-            <h2>Tenant users</h2>
-            <p>
-              Role and status changes apply immediately to the tenant session
-              model.
-            </p>
+            <h2>{t("tenantUsers")}</h2>
+            <p>{t("tenantUsersPanelBody")}</p>
           </div>
           {users.length > 0 ? (
             <div className="admin-user-list">
@@ -440,9 +442,7 @@ export default async function AdminUsersPage({
               ))}
             </div>
           ) : (
-            <p className="empty-state">
-              No tenant users yet. Create the first invite to start onboarding.
-            </p>
+            <p className="empty-state">{t("noUsers")}</p>
           )}
         </div>
       </section>
@@ -457,12 +457,12 @@ function InviteHistoryList({
   invites: InviteHistoryItem[];
   resendInviteAction: (formData: FormData) => Promise<void>;
 }) {
+  const t = useTranslations("admin.users");
+  const tCommon = useTranslations("common");
+  const format = useFormatter();
+
   if (invites.length === 0) {
-    return (
-      <p className="empty-state">
-        Created invites will appear here with expiry and resend controls.
-      </p>
-    );
+    return <p className="empty-state">{t("noInvites")}</p>;
   }
 
   return (
@@ -473,30 +473,39 @@ function InviteHistoryList({
             <div>
               <h3>{invite.email}</h3>
               <p>
-                Expires {formatDateTime(invite.expiresAt)}
+                {t("expires", {
+                  date: formatDateTime(format, invite.expiresAt),
+                })}
                 {invite.acceptedAt
-                  ? ` · Accepted ${formatDateTime(invite.acceptedAt)}`
+                  ? t("acceptedAt", {
+                      date: formatDateTime(format, invite.acceptedAt),
+                    })
                   : ""}
               </p>
             </div>
             <span className={`issue-badge ${inviteStatusTone(invite.status)}`}>
-              {formatInviteStatus(invite.status)}
+              {formatEnumLabel(tCommon, invite.status)}
             </span>
           </header>
-          <div className="role-chip-list" aria-label={`${invite.email} roles`}>
+          <div
+            className="role-chip-list"
+            aria-label={t("rolesAria", { name: invite.email })}
+          >
             {invite.roleCodes.map((roleCode) => (
               <span className="role-chip" key={roleCode}>
-                {formatRole(roleCode)}
+                {formatEnumLabel(tCommon, roleCode)}
               </span>
             ))}
           </div>
           <div className="invite-meta-row">
             <span>
-              Created by {invite.createdBy?.name ?? "System"} ·{" "}
-              {formatDateTime(invite.createdAt)}
+              {t("createdBy", {
+                name: invite.createdBy?.name ?? t("system"),
+                date: formatDateTime(format, invite.createdAt),
+              })}
             </span>
             {invite.acceptedBy ? (
-              <span>Accepted by {invite.acceptedBy.name}</span>
+              <span>{t("acceptedBy", { name: invite.acceptedBy.name })}</span>
             ) : null}
           </div>
           {invite.status === "pending" &&
@@ -505,9 +514,9 @@ function InviteHistoryList({
               <input name="inviteId" type="hidden" value={invite.id} />
               <PendingSubmitButton
                 className="secondary-button"
-                pendingLabel="Refreshing..."
+                pendingLabel={t("refreshing")}
               >
-                Resend invite
+                {t("resendInvite")}
               </PendingSubmitButton>
             </form>
           ) : null}
@@ -534,6 +543,8 @@ function UserRow({
   updateUserStatusAction: (formData: FormData) => Promise<void>;
   user: TenantUser;
 }) {
+  const t = useTranslations("admin.users");
+  const tCommon = useTranslations("common");
   const isSuperadmin = user.roleCodes.includes("tenant_superadmin");
   const isCompanyAdmin = user.roleCodes.includes("company_admin");
   const actionsLocked = isSuperadmin || (isCompanyAdmin && !canManageAdmins);
@@ -541,9 +552,9 @@ function UserRow({
   // inviting one), not admins.manage — keep this select in sync with
   // UsersService.addRole rather than reusing the manage-scoped flag above.
   const missingRoles = tenantRoles.filter(
-    (role) =>
-      !user.roleCodes.includes(role.code) &&
-      (role.code !== "company_admin" || canInviteAdmins),
+    (roleCode) =>
+      !user.roleCodes.includes(roleCode) &&
+      (roleCode !== "company_admin" || canInviteAdmins),
   );
   const canRemoveRole = user.roleCodes.length > 1 && !actionsLocked;
   const nextStatus = user.status === "suspended" ? "active" : "suspended";
@@ -556,23 +567,23 @@ function UserRow({
           <p>{user.email}</p>
         </div>
         <span className={`status-pill ${statusTone(user.status)}`}>
-          {formatStatus(user.status)}
+          {formatEnumLabel(tCommon, user.status)}
         </span>
       </header>
 
-      <div className="role-chip-list" aria-label={`${user.name} roles`}>
+      <div
+        className="role-chip-list"
+        aria-label={t("rolesAria", { name: user.name })}
+      >
         {user.roleCodes.map((roleCode) => (
           <span className="role-chip" key={roleCode}>
-            {formatRole(roleCode)}
+            {formatEnumLabel(tCommon, roleCode)}
           </span>
         ))}
       </div>
 
       {isSuperadmin ? (
-        <p className="small-label">
-          Managed by the platform owner — Company Admins cannot change this
-          user.
-        </p>
+        <p className="small-label">{t("superadminLocked")}</p>
       ) : (
         <div className="user-actions-grid">
           <form action={updateUserStatusAction} className="inline-control-form">
@@ -581,57 +592,57 @@ function UserRow({
             <PendingSubmitButton
               className="secondary-button"
               disabled={actionsLocked}
-              pendingLabel="Saving..."
+              pendingLabel={tCommon("saving")}
             >
-              {nextStatus === "active" ? "Reactivate" : "Suspend"}
+              {nextStatus === "active" ? t("reactivate") : t("suspend")}
             </PendingSubmitButton>
           </form>
 
           <form action={addRoleAction} className="inline-control-form">
             <input name="userId" type="hidden" value={user.id} />
             <select
-              aria-label={`Add role to ${user.name}`}
+              aria-label={t("addRoleAria", { name: user.name })}
               disabled={missingRoles.length === 0}
               name="roleCode"
               required
             >
-              <option value="">Add role</option>
-              {missingRoles.map((role) => (
-                <option key={role.code} value={role.code}>
-                  {role.label}
+              <option value="">{t("addRole")}</option>
+              {missingRoles.map((roleCode) => (
+                <option key={roleCode} value={roleCode}>
+                  {formatEnumLabel(tCommon, roleCode)}
                 </option>
               ))}
             </select>
             <PendingSubmitButton
               className="secondary-button"
               disabled={missingRoles.length === 0}
-              pendingLabel="Saving..."
+              pendingLabel={tCommon("saving")}
             >
-              Add
+              {t("add")}
             </PendingSubmitButton>
           </form>
 
           <form action={removeRoleAction} className="inline-control-form">
             <input name="userId" type="hidden" value={user.id} />
             <select
-              aria-label={`Remove role from ${user.name}`}
+              aria-label={t("removeRoleAria", { name: user.name })}
               disabled={!canRemoveRole}
               name="roleCode"
               required
             >
-              <option value="">Remove role</option>
+              <option value="">{t("removeRole")}</option>
               {user.roleCodes.map((roleCode) => (
                 <option key={roleCode} value={roleCode}>
-                  {formatRole(roleCode)}
+                  {formatEnumLabel(tCommon, roleCode)}
                 </option>
               ))}
             </select>
             <PendingSubmitButton
               className="secondary-button"
               disabled={!canRemoveRole}
-              pendingLabel="Saving..."
+              pendingLabel={tCommon("saving")}
             >
-              Remove
+              {t("remove")}
             </PendingSubmitButton>
           </form>
 
@@ -641,9 +652,9 @@ function UserRow({
               <PendingSubmitButton
                 className="secondary-button danger"
                 disabled={actionsLocked}
-                pendingLabel="Deleting..."
+                pendingLabel={t("deleting")}
               >
-                Delete
+                {t("delete")}
               </PendingSubmitButton>
             </form>
           ) : null}
@@ -677,43 +688,6 @@ function normalizeUserStatus(
   return null;
 }
 
-function formatRole(roleCode: TenantRoleCode): string {
-  switch (roleCode) {
-    case "tenant_superadmin":
-      return "Tenant Superadmin";
-    case "company_admin":
-      return "Company Admin";
-    case "team_manager":
-      return "Team Manager";
-    case "field_representative":
-      return "Field Representative";
-  }
-}
-
-function formatStatus(status: TenantUser["status"]): string {
-  switch (status) {
-    case "active":
-      return "Active";
-    case "invited":
-      return "Invited";
-    case "suspended":
-      return "Suspended";
-  }
-}
-
-function formatInviteStatus(status: InviteHistoryItem["status"]): string {
-  switch (status) {
-    case "pending":
-      return "Pending";
-    case "accepted":
-      return "Accepted";
-    case "expired":
-      return "Expired";
-    case "revoked":
-      return "Revoked";
-  }
-}
-
 function inviteStatusTone(
   status: InviteHistoryItem["status"],
 ): "error" | "success" | "warning" {
@@ -736,11 +710,4 @@ function statusTone(
   }
 
   return "warning";
-}
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

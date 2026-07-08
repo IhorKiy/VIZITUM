@@ -8,6 +8,9 @@ import {
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
+import { useFormatter, useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
+
 import { formatDateTime, normalizeFilterValue } from "../../../../lib/format";
 
 type ManagerRepresentativesPageProps = {
@@ -34,18 +37,27 @@ type RepresentativeSummary = {
 
 const activityFilters: Array<{
   value: RepresentativeActivityFilter;
-  label: string;
+  labelKey: "filterHasVisits" | "filterOpenTasks" | "filterNoActivity";
 }> = [
-  { value: "has_visits", label: "With visits" },
-  { value: "open_tasks", label: "Open tasks" },
-  { value: "no_activity", label: "No activity" },
+  { value: "has_visits", labelKey: "filterHasVisits" },
+  { value: "open_tasks", labelKey: "filterOpenTasks" },
+  { value: "no_activity", labelKey: "filterNoActivity" },
 ];
+
+type RepresentativesTranslator = Awaited<
+  ReturnType<typeof getTranslations<"manager.representatives">>
+>;
 
 export default async function ManagerRepresentativesPage({
   params,
   searchParams,
 }: ManagerRepresentativesPageProps) {
   const { tenantSlug } = await params;
+  const [t, tManager, tCommon] = await Promise.all([
+    getTranslations("manager.representatives"),
+    getTranslations("manager"),
+    getTranslations("common"),
+  ]);
   const sessionResult = await getCurrentSession();
 
   if (
@@ -56,25 +68,25 @@ export default async function ManagerRepresentativesPage({
       <AppShell tenantSlug={tenantSlug} activeArea="manager-representatives">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Team manager</p>
-            <h1>Representatives</h1>
-            <p>
-              Team Manager access is required before representative review can
-              continue.
-            </p>
+            <p className="eyebrow">{tManager("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("permissionBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="Permission status">
+        <section
+          className="notice-panel"
+          aria-label={t("permissionStatusAria")}
+        >
           <div>
-            <p className="eyebrow">Permission required</p>
-            <h2>Representatives are not available</h2>
-            <p>Ask a Company Admin to assign the Team Manager role.</p>
+            <p className="eyebrow">{t("permissionRequiredEyebrow")}</p>
+            <h2>{t("permissionRequiredTitle")}</h2>
+            <p>{t("permissionRequiredBody")}</p>
           </div>
         </section>
       </AppShell>
@@ -96,24 +108,24 @@ export default async function ManagerRepresentativesPage({
       <AppShell tenantSlug={tenantSlug} activeArea="manager-representatives">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Team manager</p>
-            <h1>Representatives</h1>
-            <p>
-              Live route, visit or task data is required before representative
-              review can continue.
-            </p>
+            <p className="eyebrow">{tManager("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Representative activity is not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>
               {routesResult.ok
                 ? visitsResult.ok
@@ -137,46 +149,48 @@ export default async function ManagerRepresentativesPage({
       search,
     },
   );
-  const counters = buildRepresentativeCounters(representatives);
-  const filterSummary = buildRepresentativeFilterSummary({
-    activity: selectedActivity,
-    search,
-  });
+  const counters = buildRepresentativeCounters(representatives, t);
+  const filterSummary = buildRepresentativeFilterSummary(
+    {
+      activity: selectedActivity,
+      search,
+    },
+    t,
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-representatives">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Team manager</p>
-          <h1>Representatives</h1>
-          <p>
-            Review field workload, recent activity and follow-up ownership from
-            operational route, visit and task data.
-          </p>
+          <p className="eyebrow">{tManager("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/manager`}>
-            Overview
+            {t("overview")}
           </a>
           <a
             className="secondary-button"
             href={`/${tenantSlug}/manager/locations`}
           >
-            Coverage
+            {t("coverage")}
           </a>
           <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
-            Tasks
+            {t("tasks")}
           </a>
         </div>
       </header>
 
-      <section className="manager-grid" aria-label="Representative metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         {counters.map((counter) => (
           <article className="metric-card" key={counter.label}>
             <header>
               <p className="metric-label">{counter.label}</p>
               <span className={`status-pill ${counter.tone}`}>
-                {counter.tone === "active" ? "OK" : counter.tone}
+                {counter.tone === "active"
+                  ? tCommon("tone.ok")
+                  : tCommon(`tone.${counter.tone}`)}
               </span>
             </header>
             <p className="metric-value">{counter.value}</p>
@@ -188,13 +202,10 @@ export default async function ManagerRepresentativesPage({
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
-            <h2>Representative workload</h2>
-            <p>Showing {filterSummary.toLowerCase()} for this tenant.</p>
+            <h2>{t("workload")}</h2>
+            <p>{t("showingSummary", { summary: filterSummary })}</p>
           </div>
-          <div
-            className="filter-pills"
-            aria-label="Representative activity filters"
-          >
+          <div className="filter-pills" aria-label={t("activityFiltersAria")}>
             <a
               aria-current={!selectedActivity ? "page" : undefined}
               href={buildRepresentativeFilterHref(tenantSlug, {
@@ -202,7 +213,7 @@ export default async function ManagerRepresentativesPage({
                 search,
               })}
             >
-              All
+              {tCommon("all")}
             </a>
             {activityFilters.map((filter) => (
               <a
@@ -215,7 +226,7 @@ export default async function ManagerRepresentativesPage({
                 })}
                 key={filter.value}
               >
-                {filter.label}
+                {t(filter.labelKey)}
               </a>
             ))}
           </div>
@@ -229,24 +240,24 @@ export default async function ManagerRepresentativesPage({
             <input name="activity" type="hidden" value={selectedActivity} />
           ) : null}
           <label>
-            Search
+            {t("search")}
             <input
               defaultValue={search ?? ""}
               name="search"
-              placeholder="Name or email"
+              placeholder={t("searchPlaceholder")}
               type="search"
             />
           </label>
           <div className="filter-actions">
             <button className="secondary-button" type="submit">
-              Apply filters
+              {tCommon("applyFilters")}
             </button>
             {hasFilters ? (
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/manager/representatives`}
               >
-                Reset
+                {tCommon("reset")}
               </a>
             ) : null}
           </div>
@@ -259,22 +270,19 @@ export default async function ManagerRepresentativesPage({
           />
         ) : (
           <div className="empty-state-panel">
-            <h2>No representatives match this filter</h2>
-            <p>
-              Use another activity filter or create route, visit or task
-              activity before reviewing representative workload here.
-            </p>
+            <h2>{t("emptyTitle")}</h2>
+            <p>{t("emptyBody")}</p>
             <div className="toolbar">
               {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/representatives`}
                 >
-                  Show all representatives
+                  {t("showAll")}
                 </a>
               ) : null}
               <a className="primary-button" href={`/${tenantSlug}/manager`}>
-                Open overview
+                {t("openOverview")}
               </a>
             </div>
           </div>
@@ -291,16 +299,19 @@ function RepresentativesTable({
   representatives: RepresentativeSummary[];
   tenantSlug: string;
 }) {
+  const t = useTranslations("manager.representatives");
+  const format = useFormatter();
+
   return (
     <table className="table drilldown-table">
       <thead>
         <tr>
-          <th>Representative</th>
-          <th>Routes</th>
-          <th>Visits</th>
-          <th>Open tasks</th>
-          <th>Last activity</th>
-          <th>Actions</th>
+          <th>{t("tableRepresentative")}</th>
+          <th>{t("tableRoutes")}</th>
+          <th>{t("tableVisits")}</th>
+          <th>{t("tableOpenTasks")}</th>
+          <th>{t("tableLastActivity")}</th>
+          <th>{t("tableActions")}</th>
         </tr>
       </thead>
       <tbody>
@@ -313,7 +324,11 @@ function RepresentativesTable({
             <td>{representative.routeCount}</td>
             <td>
               <strong>{representative.visitCount}</strong>
-              <span>{representative.completedVisitCount} completed</span>
+              <span>
+                {t("completedCount", {
+                  count: representative.completedVisitCount,
+                })}
+              </span>
             </td>
             <td>
               <span
@@ -325,7 +340,11 @@ function RepresentativesTable({
               </span>
             </td>
             <td>
-              {formatDateTime(representative.lastActivityAt, "No activity")}
+              {formatDateTime(
+                format,
+                representative.lastActivityAt,
+                t("noActivity"),
+              )}
             </td>
             <td>
               <div className="table-actions">
@@ -333,13 +352,13 @@ function RepresentativesTable({
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/visits?representativeUserId=${representative.id}`}
                 >
-                  Visits
+                  {t("visits")}
                 </a>
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/tasks?assignedToUserId=${representative.id}`}
                 >
-                  Tasks
+                  {t("tasks")}
                 </a>
               </div>
             </td>
@@ -469,6 +488,7 @@ function filterRepresentatives(
 
 function buildRepresentativeCounters(
   representatives: RepresentativeSummary[],
+  t: RepresentativesTranslator,
 ): Array<{
   label: string;
   value: string;
@@ -488,21 +508,21 @@ function buildRepresentativeCounters(
 
   return [
     {
-      label: "Visible reps",
+      label: t("visibleReps"),
       value: String(representatives.length),
-      detail: "Representatives found in routes, visits or tasks",
+      detail: t("visibleRepsDetail"),
       tone: representatives.length > 0 ? "active" : "info",
     },
     {
-      label: "With visits",
+      label: t("withVisits"),
       value: String(withVisits.length),
-      detail: `${withoutRecentActivity.length} without visit or open task activity`,
+      detail: t("withVisitsDetail", { count: withoutRecentActivity.length }),
       tone: withVisits.length > 0 ? "active" : "info",
     },
     {
-      label: "Open follow-ups",
+      label: t("openFollowUps"),
       value: String(withOpenTasks.length),
-      detail: "Representatives owning open tasks",
+      detail: t("openFollowUpsDetail"),
       tone: withOpenTasks.length > 0 ? "warning" : "active",
     },
   ];
@@ -530,15 +550,18 @@ function buildRepresentativeFilterHref(
   return `/${tenantSlug}/manager/representatives${suffix ? `?${suffix}` : ""}`;
 }
 
-function buildRepresentativeFilterSummary(filters: {
-  activity: RepresentativeActivityFilter | null;
-  search: string | null;
-}): string {
+function buildRepresentativeFilterSummary(
+  filters: {
+    activity: RepresentativeActivityFilter | null;
+    search: string | null;
+  },
+  t: RepresentativesTranslator,
+): string {
   const parts = [
     filters.activity
-      ? formatActivityFilter(filters.activity)
-      : "All representatives",
-    filters.search ? `matching "${filters.search}"` : null,
+      ? formatActivityFilter(filters.activity, t)
+      : t("summaryAll"),
+    filters.search ? t("summaryMatching", { search: filters.search }) : null,
   ].filter(Boolean);
 
   return parts.join(", ");
@@ -558,8 +581,11 @@ function normalizeActivityFilter(
   return null;
 }
 
-function formatActivityFilter(value: RepresentativeActivityFilter): string {
-  return (
-    activityFilters.find((filter) => filter.value === value)?.label ?? value
-  );
+function formatActivityFilter(
+  value: RepresentativeActivityFilter,
+  t: RepresentativesTranslator,
+): string {
+  const filter = activityFilters.find((entry) => entry.value === value);
+
+  return filter ? t(filter.labelKey) : value;
 }

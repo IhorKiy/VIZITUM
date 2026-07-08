@@ -1,3 +1,5 @@
+import { getFormatter, getTranslations } from "next-intl/server";
+
 import { AppShell } from "../../../components/app-shell";
 import {
   getCurrentSession,
@@ -59,6 +61,11 @@ export default async function FieldPage({
 }: FieldPageProps) {
   const { tenantSlug } = await params;
   const { report } = await searchParams;
+  const [t, tCommon, format] = await Promise.all([
+    getTranslations("field"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
 
   const [sessionResult, routesResult] = await Promise.all([
     getCurrentSession(),
@@ -78,24 +85,27 @@ export default async function FieldPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Field flow</p>
-            <h1>Today&apos;s visits</h1>
-            <p>
-              Live visit data is required in production before field work can
-              continue.
-            </p>
+            <p className="eyebrow">{t("flowEyebrow")}</p>
+            <h1>{t("home.signedOutTitle")}</h1>
+            <p>{t("home.signedOutBody")}</p>
           </div>
-          <div className="toolbar" aria-label="Session actions">
+          <div
+            className="toolbar"
+            aria-label={tCommon("notice.sessionActions")}
+          >
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Backend session is not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{tCommon("notice.backendNotConnected")}</h2>
             <p>{todayRoutesResult.message}</p>
           </div>
         </section>
@@ -111,56 +121,54 @@ export default async function FieldPage({
   const firstName = sessionResult.ok
     ? (sessionResult.data.user.name.split(" ")[0] ??
       sessionResult.data.user.name)
-    : "Гість";
-  const tenantTimezone = sessionResult.ok
-    ? sessionResult.data.tenantTimezone
-    : undefined;
+    : t("home.guestName");
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       <header className="page-header greeting-header">
         <div>
-          <h1>Привіт, {firstName}!</h1>
-          <p className="greeting-date">
-            {formatGreetingDate(new Date(), tenantTimezone)}
-          </p>
+          <h1>{t("home.greeting", { firstName })}</h1>
+          <p className="greeting-date">{formatGreetingDate(format)}</p>
         </div>
-        <div className="toolbar" aria-label="Visit actions">
+        <div className="toolbar" aria-label={t("home.visitActions")}>
           <a className="secondary-button" href={`/${tenantSlug}/field/history`}>
-            History
+            {t("home.history")}
           </a>
         </div>
       </header>
 
       {report === "confirmed" ? (
-        <section className="notice-panel success" aria-label="Report status">
+        <section
+          className="notice-panel success"
+          aria-label={t("home.reportStatusAria")}
+        >
           <div>
-            <p className="eyebrow">Report confirmed</p>
-            <h2>Manual report saved</h2>
-            <p>The visit was marked completed and the report was confirmed.</p>
+            <p className="eyebrow">{t("home.reportConfirmedEyebrow")}</p>
+            <h2>{t("home.reportConfirmedTitle")}</h2>
+            <p>{t("home.reportConfirmedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {isDemoMode ? (
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Demo mode</p>
-            <h2>Backend session is not connected</h2>
-            <p>
-              Showing sample visits until the Nest API returns an authenticated
-              session. Reason: {todayRoutesResult.message}
-            </p>
+            <p className="eyebrow">{tCommon("notice.demoMode")}</p>
+            <h2>{tCommon("notice.backendNotConnected")}</h2>
+            <p>{t("home.demoBody", { reason: todayRoutesResult.message })}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="route-section" aria-label="Today's route">
+      <section className="route-section" aria-label={t("home.todayRouteAria")}>
         {routeStops.length > 0 ? (
           <>
             <article className="route-progress-card">
               <div className="route-progress-head">
-                <span>Progress today</span>
+                <span>{t("home.progressToday")}</span>
                 <span className="route-progress-count">
                   {visitedStops}/{routeStops.length}
                 </span>
@@ -182,11 +190,15 @@ export default async function FieldPage({
                 />
               </div>
               <div className="route-progress-legend">
-                <span>{visitedStops} visited</span>
+                <span>{t("home.visitedCount", { count: visitedStops })}</span>
                 {routeStops.length - visitedStops > 0 ? (
-                  <span>{routeStops.length - visitedStops} remaining</span>
+                  <span>
+                    {t("home.remainingCount", {
+                      count: routeStops.length - visitedStops,
+                    })}
+                  </span>
                 ) : (
-                  <span>All visited</span>
+                  <span>{t("home.allVisited")}</span>
                 )}
               </div>
             </article>
@@ -197,12 +209,12 @@ export default async function FieldPage({
                   ⇄
                 </span>
                 <div className="route-plan-heading">
-                  <p className="route-plan-name">Today&apos;s route</p>
+                  <p className="route-plan-name">{t("home.todayRoute")}</p>
                   <a
                     className="route-plan-link"
                     href={`/${tenantSlug}/field/planning`}
                   >
-                    Edit plan →
+                    {t("home.editPlan")}
                   </a>
                 </div>
               </div>
@@ -238,15 +250,13 @@ export default async function FieldPage({
           </>
         ) : (
           <div className="route-empty">
-            <p className="route-empty-title">No route planned for today</p>
-            <p className="route-empty-text">
-              Build a route in planning to line up today&apos;s stops in order.
-            </p>
+            <p className="route-empty-title">{t("home.emptyTitle")}</p>
+            <p className="route-empty-text">{t("home.emptyBody")}</p>
             <a
               className="route-plan-link"
               href={`/${tenantSlug}/field/planning`}
             >
-              Go to planning →
+              {t("home.goToPlanning")}
             </a>
           </div>
         )}
@@ -275,27 +285,17 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
     .sort((a, b) => a.sequence - b.sequence);
 }
 
-function formatGreetingDate(date: Date, timeZone?: string): string {
-  const parts = new Intl.DateTimeFormat("uk-UA", {
+function formatGreetingDate(
+  format: Awaited<ReturnType<typeof getFormatter>>,
+): string {
+  const formatted = format.dateTime(new Date(), {
     day: "numeric",
     month: "long",
     weekday: "long",
     year: "numeric",
-    ...(timeZone ? { timeZone } : {}),
-  }).formatToParts(date);
+  });
 
-  const weekday = capitalize(
-    parts.find((part) => part.type === "weekday")?.value ?? "",
-  );
-  const day = parts.find((part) => part.type === "day")?.value ?? "";
-  const month = capitalize(
-    parts.find((part) => part.type === "month")?.value ?? "",
-  );
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-
-  return `${weekday}, ${day} ${month} ${year}`;
-}
-
-function capitalize(value: string): string {
-  return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
+  return formatted
+    ? `${formatted[0].toUpperCase()}${formatted.slice(1)}`
+    : formatted;
 }

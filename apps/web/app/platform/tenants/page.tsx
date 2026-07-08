@@ -21,6 +21,8 @@ import {
   type TenantUser,
 } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
+import { getFormatter } from "next-intl/server";
+
 import { formatLabel, formatShortDate } from "../../../lib/format";
 import { AdminLimitForm } from "./admin-limit-form";
 import { ArchiveTenantForm } from "./archive-tenant-form";
@@ -30,6 +32,7 @@ import { NameChangeForm } from "./name-change-form";
 import { PurgeTenantForm } from "./purge-tenant-form";
 import { StatusChangeForm } from "./status-change-form";
 import { TenantAdminControls } from "./tenant-admin-controls";
+import { LanguageForm } from "./language-form";
 import { TimezoneForm } from "./timezone-form";
 
 const SEGMENT_TEMPLATES: PlatformSegmentTemplate[] = [
@@ -79,6 +82,7 @@ export default async function PlatformTenantsPage({
   searchParams,
 }: PlatformTenantsPageProps) {
   const pageState = await searchParams;
+  const format = await getFormatter();
 
   const sessionResult = await getPlatformSession();
 
@@ -280,6 +284,21 @@ export default async function PlatformTenantsPage({
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
 
+  async function updateLanguageAction(formData: FormData) {
+    "use server";
+
+    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const language = String(formData.get("language") ?? "").trim();
+
+    if (!tenantId || !language) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    const result = await updatePlatformTenant(tenantId, { language });
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
   async function updateAdminLimitAction(formData: FormData) {
     "use server";
 
@@ -352,11 +371,15 @@ export default async function PlatformTenantsPage({
               </div>
               <div>
                 <dt>Created</dt>
-                <dd>{formatShortDate(tenant.createdAt)}</dd>
+                <dd>{formatShortDate(format, tenant.createdAt)}</dd>
               </div>
               <div>
                 <dt>Timezone</dt>
                 <dd>{tenant.timezone}</dd>
+              </div>
+              <div>
+                <dt>Language</dt>
+                <dd>{tenant.language}</dd>
               </div>
               <div>
                 <dt>Admins</dt>
@@ -448,6 +471,11 @@ export default async function PlatformTenantsPage({
               <TimezoneForm
                 action={updateTimezoneAction}
                 currentTimezone={tenant.timezone}
+                tenantId={tenant.id}
+              />
+              <LanguageForm
+                action={updateLanguageAction}
+                currentLanguage={tenant.language}
                 tenantId={tenant.id}
               />
               <AdminLimitForm

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -13,6 +14,7 @@ import {
   type Location,
   type RoutePlan,
 } from "../../../../lib/api-client";
+import type { IntlFormatter } from "../../../../lib/format";
 
 type PlanningPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -24,14 +26,17 @@ type PlanningPageProps = {
   }>;
 };
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
 export default async function PlanningPage({
   params,
   searchParams,
 }: PlanningPageProps) {
   const { tenantSlug } = await params;
   const { month, date, planning, error } = await searchParams;
+  const [t, tCommon, format] = await Promise.all([
+    getTranslations("field.planning"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
 
   const selectedDate = isDateString(date) ? date : todayString();
   const currentMonth = isMonthString(month) ? month : selectedDate.slice(0, 7);
@@ -153,20 +158,26 @@ export default async function PlanningPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field-planning">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Route planning</p>
-            <h1>Plan your routes</h1>
-            <p>Sign in to build and schedule your daily routes.</p>
+            <p className="eyebrow">{t("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
-          <div className="toolbar" aria-label="Session actions">
+          <div
+            className="toolbar"
+            aria-label={tCommon("notice.sessionActions")}
+          >
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Backend session is not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{tCommon("notice.backendNotConnected")}</h2>
             <p>{sessionResult.message}</p>
           </div>
         </section>
@@ -191,60 +202,67 @@ export default async function PlanningPage({
       .map((plan) => plan.planDate),
   );
 
-  const grid = buildMonthGrid(currentMonth);
+  const grid = buildMonthGrid(currentMonth, format);
   const prevMonth = shiftMonth(currentMonth, -1);
   const nextMonth = shiftMonth(currentMonth, 1);
+  const weekdayLabels = buildWeekdayLabels(format);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-planning">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Route planning</p>
-          <h1>Plan your routes</h1>
-          <p>
-            Pick a day, then line up the locations you want to visit in order.
-          </p>
+          <p className="eyebrow">{t("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
-        <div className="toolbar" aria-label="Planning actions">
+        <div className="toolbar" aria-label={t("planningActions")}>
           <a className="secondary-button" href={`/${tenantSlug}/field`}>
-            Back to field
+            {t("backToField")}
           </a>
         </div>
       </header>
 
       {planning === "added" ? (
         <NoticePanel
-          title="Stop added"
-          body="The location was added to this day."
+          eyebrow={tCommon("notice.updated")}
+          ariaLabel={t("statusAria")}
+          title={t("addedTitle")}
+          body={t("addedBody")}
         />
       ) : null}
       {planning === "removed" ? (
         <NoticePanel
-          title="Stop removed"
-          body="The location was removed from this day."
+          eyebrow={tCommon("notice.updated")}
+          ariaLabel={t("statusAria")}
+          title={t("removedTitle")}
+          body={t("removedBody")}
         />
       ) : null}
       {planning === "reordered" ? (
         <NoticePanel
-          title="Route reordered"
-          body="The stop order was updated."
+          eyebrow={tCommon("notice.updated")}
+          ariaLabel={t("statusAria")}
+          title={t("reorderedTitle")}
+          body={t("reorderedBody")}
         />
       ) : null}
       {error ? (
         <NoticePanel
           tone="danger"
-          title="Action failed"
-          body="Something went wrong updating the plan. Please try again."
+          eyebrow={tCommon("notice.error")}
+          ariaLabel={t("statusAria")}
+          title={t("failedTitle")}
+          body={t("failedBody")}
         />
       ) : null}
 
-      <section className="dashboard-grid" aria-label="Planning workspace">
+      <section className="dashboard-grid" aria-label={t("workspaceAria")}>
         <div className="panel">
           <div className="route-section-head">
             <Link
               className="secondary-button"
               href={monthHref(tenantSlug, prevMonth, selectedDate)}
-              aria-label="Previous month"
+              aria-label={t("previousMonth")}
             >
               ‹
             </Link>
@@ -252,14 +270,14 @@ export default async function PlanningPage({
             <Link
               className="secondary-button"
               href={monthHref(tenantSlug, nextMonth, selectedDate)}
-              aria-label="Next month"
+              aria-label={t("nextMonth")}
             >
               ›
             </Link>
           </div>
 
           <div className="calendar-grid">
-            {WEEKDAYS.map((weekday) => (
+            {weekdayLabels.map((weekday) => (
               <div className="calendar-weekday" key={weekday}>
                 {weekday}
               </div>
@@ -291,8 +309,8 @@ export default async function PlanningPage({
           </div>
         </div>
 
-        <aside className="panel" aria-label="Selected day">
-          <h2>{formatLongDate(selectedDate)}</h2>
+        <aside className="panel" aria-label={t("selectedDayAria")}>
+          <h2>{formatLongDate(selectedDate, format)}</h2>
 
           {selectedStops.length > 0 ? (
             <ol className="route-stop-list">
@@ -330,7 +348,9 @@ export default async function PlanningPage({
                         className="secondary-button"
                         disabled={index === 0}
                         type="submit"
-                        aria-label={`Move ${stop.location.name} up`}
+                        aria-label={t("moveUpAria", {
+                          name: stop.location.name,
+                        })}
                       >
                         ↑
                       </button>
@@ -355,7 +375,9 @@ export default async function PlanningPage({
                         className="secondary-button"
                         disabled={index === selectedStops.length - 1}
                         type="submit"
-                        aria-label={`Move ${stop.location.name} down`}
+                        aria-label={t("moveDownAria", {
+                          name: stop.location.name,
+                        })}
                       >
                         ↓
                       </button>
@@ -377,9 +399,9 @@ export default async function PlanningPage({
                       />
                       <PendingSubmitButton
                         className="secondary-button"
-                        pendingLabel="Removing..."
+                        pendingLabel={t("removing")}
                       >
-                        Remove
+                        {t("remove")}
                       </PendingSubmitButton>
                     </form>
                   </div>
@@ -387,16 +409,16 @@ export default async function PlanningPage({
               ))}
             </ol>
           ) : (
-            <p className="empty-state">No stops planned for this day yet.</p>
+            <p className="empty-state">{t("noStops")}</p>
           )}
 
           <section className="field-panel-section">
-            <h2>Add stop</h2>
+            <h2>{t("addStop")}</h2>
             {availableLocations.length > 0 ? (
               <form action={addStopAction} className="visit-form compact">
                 <input name="planDate" type="hidden" value={selectedDate} />
                 <label>
-                  Location
+                  {t("locationLabel")}
                   <select name="locationId" required>
                     {availableLocations.map((location: Location) => (
                       <option key={location.id} value={location.id}>
@@ -408,16 +430,16 @@ export default async function PlanningPage({
                 </label>
                 <PendingSubmitButton
                   className="primary-button"
-                  pendingLabel="Adding..."
+                  pendingLabel={t("adding")}
                 >
-                  Add to route
+                  {t("addToRoute")}
                 </PendingSubmitButton>
               </form>
             ) : (
               <p className="empty-state">
                 {locations.length === 0
-                  ? "No locations are available yet."
-                  : "Every available location is already on this day's route."}
+                  ? t("noLocations")
+                  : t("allLocationsUsed")}
               </p>
             )}
           </section>
@@ -439,19 +461,23 @@ function activeStops(plan: RoutePlan): PlanningStop[] {
 function NoticePanel({
   title,
   body,
+  eyebrow,
+  ariaLabel,
   tone,
 }: {
   title: string;
   body: string;
+  eyebrow: string;
+  ariaLabel: string;
   tone?: "danger";
 }) {
   return (
     <section
       className={`notice-panel ${tone ?? "success"}`}
-      aria-label="Planning status"
+      aria-label={ariaLabel}
     >
       <div>
-        <p className="eyebrow">{tone === "danger" ? "Error" : "Updated"}</p>
+        <p className="eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
         <p>{body}</p>
       </div>
@@ -510,7 +536,21 @@ function shiftMonth(month: string, delta: number): string {
   return `${base.getFullYear()}-${pad(base.getMonth() + 1)}`;
 }
 
-function buildMonthGrid(month: string): {
+// Monday-first weekday header labels in the request locale.
+function buildWeekdayLabels(format: IntlFormatter): string[] {
+  return Array.from({ length: 7 }, (_, index) =>
+    format.dateTime(
+      // 2024-01-01 is a Monday; format sequential days in UTC.
+      new Date(Date.UTC(2024, 0, 1 + index, 12)),
+      { weekday: "short", timeZone: "UTC" },
+    ),
+  );
+}
+
+function buildMonthGrid(
+  month: string,
+  format: IntlFormatter,
+): {
   label: string;
   leadingBlanks: number[];
   days: Array<{ day: number; dateStr: string }>;
@@ -522,10 +562,11 @@ function buildMonthGrid(month: string): {
   const leadingCount = (firstOfMonth.getDay() + 6) % 7; // Monday-first
 
   return {
-    label: new Intl.DateTimeFormat("en", {
+    label: format.dateTime(new Date(Date.UTC(year, monthIndex, 1, 12)), {
       month: "long",
       year: "numeric",
-    }).format(firstOfMonth),
+      timeZone: "UTC",
+    }),
     leadingBlanks: Array.from({ length: leadingCount }, (_, index) => index),
     days: Array.from({ length: daysInMonth }, (_, index) => {
       const day = index + 1;
@@ -537,12 +578,13 @@ function buildMonthGrid(month: string): {
   };
 }
 
-function formatLongDate(dateStr: string): string {
+function formatLongDate(dateStr: string, format: IntlFormatter): string {
   const [year, month, day] = dateStr.split("-").map(Number);
-  return new Intl.DateTimeFormat("en", {
+  return format.dateTime(new Date(Date.UTC(year, month - 1, day, 12)), {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(new Date(year, month - 1, day));
+    timeZone: "UTC",
+  });
 }

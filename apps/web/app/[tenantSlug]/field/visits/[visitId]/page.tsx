@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
 import { FieldVoiceNoteRecorder } from "../../../../../components/field-voice-note-recorder";
@@ -12,7 +14,11 @@ import {
   type Visit,
 } from "../../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
-import { formatLabel, statusPillTone } from "../../../../../lib/format";
+import {
+  formatEnumLabel,
+  statusPillTone,
+  type CommonTranslator,
+} from "../../../../../lib/format";
 
 type VisitDetailPageProps = {
   params: Promise<{ tenantSlug: string; visitId: string }>;
@@ -50,6 +56,11 @@ export default async function VisitDetailPage({
   const { tenantSlug, visitId } = await params;
   const { audio, note, error, demoName, demoAddress, demoLocationId } =
     await searchParams;
+  const [t, tField, tCommon] = await Promise.all([
+    getTranslations("field.visit"),
+    getTranslations("field"),
+    getTranslations("common"),
+  ]);
 
   async function addTextNoteAction(formData: FormData) {
     "use server";
@@ -125,13 +136,16 @@ export default async function VisitDetailPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Field flow</p>
-            <h1>Visit</h1>
-            <p>Sign in to view this visit.</p>
+            <p className="eyebrow">{tField("flowEyebrow")}</p>
+            <h1>{t("signedOutTitle")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
-          <div className="toolbar" aria-label="Session actions">
+          <div
+            className="toolbar"
+            aria-label={tCommon("notice.sessionActions")}
+          >
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
@@ -144,19 +158,22 @@ export default async function VisitDetailPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Field flow</p>
-            <h1>Visit not found</h1>
+            <p className="eyebrow">{tField("flowEyebrow")}</p>
+            <h1>{t("notFoundTitle")}</h1>
           </div>
-          <div className="toolbar" aria-label="Visit actions">
+          <div className="toolbar" aria-label={t("visitActions")}>
             <a className="secondary-button" href={`/${tenantSlug}/field`}>
-              Back to route
+              {tField("backToRoute")}
             </a>
           </div>
         </header>
-        <section className="notice-panel danger" aria-label="Visit error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("visitErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Could not load this visit</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("loadErrorTitle")}</h2>
             <p>{visitResult.message}</p>
           </div>
         </section>
@@ -165,18 +182,18 @@ export default async function VisitDetailPage({
   }
 
   const visit = visitResult.ok
-    ? toFieldVisit(visitResult.data)
-    : toDemoFieldVisit(visitId, demoLocationId, demoName, demoAddress);
+    ? toFieldVisit(visitResult.data, t, tCommon)
+    : toDemoFieldVisit(visitId, t, demoLocationId, demoName, demoAddress);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Visit</p>
+          <p className="eyebrow">{t("eyebrow")}</p>
           <h1>{visit.name}</h1>
           <p>{visit.address}</p>
         </div>
-        <div className="toolbar" aria-label="Visit actions">
+        <div className="toolbar" aria-label={t("visitActions")}>
           <a
             className="secondary-button"
             href={`/${tenantSlug}/field/locations/${visit.locationId}${
@@ -185,76 +202,85 @@ export default async function VisitDetailPage({
                 : ""
             }`}
           >
-            Back to location
+            {t("backToLocation")}
           </a>
         </div>
       </header>
 
       {isDemoVisit ? (
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Demo mode</p>
-            <h2>Backend session is not connected</h2>
-            <p>
-              This is a sample visit. Notes, audio and report confirmation
-              require a live backend session and are disabled here.
-            </p>
+            <p className="eyebrow">{tCommon("notice.demoMode")}</p>
+            <h2>{tCommon("notice.backendNotConnected")}</h2>
+            <p>{t("demoBody")}</p>
           </div>
         </section>
       ) : null}
 
       {audio === "uploaded" ? (
-        <section className="notice-panel success" aria-label="Audio status">
+        <section
+          className="notice-panel success"
+          aria-label={t("audioStatusAria")}
+        >
           <div>
-            <p className="eyebrow">Voice note uploaded</p>
-            <h2>Audio attached</h2>
-            <p>
-              The voice note is attached for processing. You can continue with a
-              text note or confirm the manual fallback if the visit is ready.
-            </p>
+            <p className="eyebrow">{t("audioUploadedEyebrow")}</p>
+            <h2>{t("audioUploadedTitle")}</h2>
+            <p>{t("audioUploadedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {note === "saved" ? (
-        <section className="notice-panel success" aria-label="Note status">
+        <section
+          className="notice-panel success"
+          aria-label={t("noteStatusAria")}
+        >
           <div>
-            <p className="eyebrow">Note saved</p>
-            <h2>Text note added</h2>
-            <p>The note was attached to the visit.</p>
+            <p className="eyebrow">{t("noteSavedEyebrow")}</p>
+            <h2>{t("noteSavedTitle")}</h2>
+            <p>{t("noteSavedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {error === "audio" ? (
-        <section className="notice-panel danger" aria-label="Audio error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("audioErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Voice note not uploaded</p>
-            <h2>Audio upload failed</h2>
-            <p>
-              Choose a supported audio file up to 50 MB, record again or save a
-              text note so the visit can still be completed.
-            </p>
+            <p className="eyebrow">{t("audioErrorEyebrow")}</p>
+            <h2>{t("audioErrorTitle")}</h2>
+            <p>{t("audioErrorBody")}</p>
           </div>
         </section>
       ) : null}
 
       {error === "note" ? (
-        <section className="notice-panel danger" aria-label="Note error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("noteErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Note not saved</p>
-            <h2>Text note failed</h2>
-            <p>Add note text and try again.</p>
+            <p className="eyebrow">{t("noteErrorEyebrow")}</p>
+            <h2>{t("noteErrorTitle")}</h2>
+            <p>{t("noteErrorBody")}</p>
           </div>
         </section>
       ) : null}
 
       {error === "report" ? (
-        <section className="notice-panel danger" aria-label="Report error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("reportErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Report not saved</p>
-            <h2>Manual report confirmation failed</h2>
-            <p>Add a short summary and try again.</p>
+            <p className="eyebrow">{t("reportErrorEyebrow")}</p>
+            <h2>{t("reportErrorTitle")}</h2>
+            <p>{t("reportErrorBody")}</p>
           </div>
         </section>
       ) : null}
@@ -274,60 +300,60 @@ export default async function VisitDetailPage({
         {visit.canConfirm ? (
           <form action={addTextNoteAction} className="visit-form">
             <label>
-              Text note
+              {t("textNote")}
               <textarea
                 name="textContent"
-                placeholder="Add shelf notes, agreements or observations"
+                placeholder={t("textNotePlaceholder")}
                 required
                 rows={2}
               />
             </label>
             <PendingSubmitButton
               className="secondary-button"
-              pendingLabel="Saving note..."
+              pendingLabel={t("savingNote")}
             >
-              Save note
+              {t("saveNote")}
             </PendingSubmitButton>
           </form>
         ) : null}
         {visit.canConfirm ? (
           <form action={uploadAudioNoteAction} className="visit-form">
             <label>
-              Voice note
+              {t("voiceNote")}
               <FieldVoiceNoteRecorder inputName="audioFile" />
             </label>
             <PendingSubmitButton
               className="secondary-button"
-              pendingLabel="Uploading..."
+              pendingLabel={t("uploading")}
             >
-              Upload voice note
+              {t("uploadVoiceNote")}
             </PendingSubmitButton>
           </form>
         ) : null}
         {visit.canConfirm ? (
           <form action={confirmReportAction} className="visit-form">
             <label>
-              Visit summary
+              {t("visitSummary")}
               <textarea
                 name="summary"
-                placeholder="What happened during this visit?"
+                placeholder={t("visitSummaryPlaceholder")}
                 required
                 rows={3}
               />
             </label>
             <label>
-              Next steps
+              {t("nextSteps")}
               <textarea
                 name="nextSteps"
-                placeholder="Optional follow-up, blockers or tasks"
+                placeholder={t("nextStepsPlaceholder")}
                 rows={2}
               />
             </label>
             <PendingSubmitButton
               className="primary-button"
-              pendingLabel="Confirming..."
+              pendingLabel={t("confirming")}
             >
-              Confirm manual fallback
+              {t("confirmManualFallback")}
             </PendingSubmitButton>
           </form>
         ) : null}
@@ -336,7 +362,15 @@ export default async function VisitDetailPage({
   );
 }
 
-function toFieldVisit(visit: Visit): FieldVisit {
+type VisitTranslator = Awaited<
+  ReturnType<typeof getTranslations<"field.visit">>
+>;
+
+function toFieldVisit(
+  visit: Visit,
+  t: VisitTranslator,
+  tCommon: CommonTranslator,
+): FieldVisit {
   return {
     id: visit.id,
     locationId: visit.locationId,
@@ -344,14 +378,14 @@ function toFieldVisit(visit: Visit): FieldVisit {
     address: [visit.location.addressLine, visit.location.city]
       .filter(Boolean)
       .join(", "),
-    status: formatLabel(visit.status),
+    status: formatEnumLabel(tCommon, visit.status),
     statusTone: statusPillTone(visit.status),
     next:
       visit.status === "completed"
-        ? "Review confirmed report"
+        ? t("nextCompleted")
         : visit.status === "cancelled"
-          ? "Route item cancelled"
-          : "Add note and confirm report",
+          ? t("nextCancelled")
+          : t("nextDefault"),
     canConfirm: visit.status !== "completed" && visit.status !== "cancelled",
     aiQualityState:
       visit.status === "completed"
@@ -364,6 +398,7 @@ function toFieldVisit(visit: Visit): FieldVisit {
 
 function toDemoFieldVisit(
   visitId: string,
+  t: VisitTranslator,
   demoLocationId: string | undefined,
   demoName: string | undefined,
   demoAddress: string | undefined,
@@ -371,83 +406,49 @@ function toDemoFieldVisit(
   return {
     id: visitId,
     locationId: demoLocationId ?? "",
-    name: demoName ?? "Demo location",
+    name: demoName ?? t("demoStatus"),
     address: demoAddress ?? "",
-    status: "Demo",
+    status: t("demoStatus"),
     statusTone: "info",
-    next: "Sign in to record notes and confirm a report.",
+    next: t("demoNext"),
     canConfirm: false,
     aiQualityState: "ready_to_confirm",
   };
 }
 
 function AiQualityStatePanel({ visit }: { visit: FieldVisit }) {
+  const t = useTranslations("field.visit");
   const state = resolveAiQualityState(visit.aiQualityState);
 
   return (
     <section className={`ai-draft-state ${state.tone}`}>
       <div>
-        <p className="eyebrow">AI quality</p>
-        <h3>{state.title}</h3>
-        <p>{state.detail}</p>
+        <p className="eyebrow">{t("aiQualityEyebrow")}</p>
+        <h3>{t(`ai.${state.key}.title`)}</h3>
+        <p>{t(`ai.${state.key}.detail`)}</p>
       </div>
-      <span className={`status-pill ${state.badgeTone}`}>{state.label}</span>
+      <span className={`status-pill ${state.badgeTone}`}>
+        {t(`ai.${state.key}.label`)}
+      </span>
     </section>
   );
 }
 
 function resolveAiQualityState(state: FieldVisit["aiQualityState"]): {
   badgeTone: "active" | "info" | "warning";
-  detail: string;
-  label: string;
-  title: string;
+  key: "confirmed" | "processing" | "needsReview" | "manualFallback" | "ready";
   tone: "ready" | "processing" | "needs-review" | "fallback" | "confirmed";
 } {
   switch (state) {
     case "confirmed":
-      return {
-        badgeTone: "active",
-        detail:
-          "The visit is completed. Review the final report from manager views.",
-        label: "Confirmed",
-        title: "Final report saved",
-        tone: "confirmed",
-      };
+      return { badgeTone: "active", key: "confirmed", tone: "confirmed" };
     case "processing":
-      return {
-        badgeTone: "info",
-        detail:
-          "Add a voice or text note. If transcription or extraction is delayed, use the manual fallback below.",
-        label: "Processing",
-        title: "AI processing can use visit notes",
-        tone: "processing",
-      };
+      return { badgeTone: "info", key: "processing", tone: "processing" };
     case "needs_review":
-      return {
-        badgeTone: "warning",
-        detail:
-          "Review the draft carefully before confirmation. Missing or uncertain fields should be corrected manually.",
-        label: "Needs review",
-        title: "Draft requires review",
-        tone: "needs-review",
-      };
+      return { badgeTone: "warning", key: "needsReview", tone: "needs-review" };
     case "manual_fallback_available":
-      return {
-        badgeTone: "warning",
-        detail:
-          "AI output may be incomplete for this visit. Confirm the report manually if the draft is weak or unavailable.",
-        label: "Manual fallback",
-        title: "Manual confirmation is available",
-        tone: "fallback",
-      };
+      return { badgeTone: "warning", key: "manualFallback", tone: "fallback" };
     case "ready_to_confirm":
-      return {
-        badgeTone: "info",
-        detail:
-          "Start the visit and add text or audio notes before confirming a final report.",
-        label: "Ready",
-        title: "Waiting for visit notes",
-        tone: "ready",
-      };
+      return { badgeTone: "info", key: "ready", tone: "ready" };
   }
 }

@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -9,7 +11,7 @@ import {
   type ProductStatus,
 } from "../../../../lib/api-client";
 import {
-  formatLabel,
+  formatEnumLabel,
   normalizeFilterValue,
   statusTone,
 } from "../../../../lib/format";
@@ -32,6 +34,11 @@ export default async function AdminProductsPage({
 }: AdminProductsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
+  const [t, tAdmin, tCommon] = await Promise.all([
+    getTranslations("admin.products"),
+    getTranslations("admin"),
+    getTranslations("common"),
+  ]);
   const selectedStatus = normalizeStatus(pageState.status);
   const search = normalizeFilterValue(pageState.search);
   const hasFilters = Boolean(selectedStatus || search);
@@ -82,24 +89,24 @@ export default async function AdminProductsPage({
       <AppShell tenantSlug={tenantSlug} activeArea="admin-products">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Company admin</p>
-            <h1>Products / SKUs</h1>
-            <p>
-              Live tenant products are required in production before this screen
-              can load.
-            </p>
+            <p className="eyebrow">{tAdmin("eyebrow")}</p>
+            <h1>{t("title")}</h1>
+            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
 
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Tenant products are not connected</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("notConnectedTitle")}</h2>
             <p>{productsResult.message}</p>
           </div>
         </section>
@@ -119,69 +126,74 @@ export default async function AdminProductsPage({
     <AppShell tenantSlug={tenantSlug} activeArea="admin-products">
       <header className="page-header">
         <div>
-          <p className="eyebrow">Company admin</p>
-          <h1>Products / SKUs</h1>
-          <p>
-            Review imported products, keep status current and mark items not
-            applicable when this tenant does not track them.
-          </p>
+          <p className="eyebrow">{tAdmin("eyebrow")}</p>
+          <h1>{t("title")}</h1>
+          <p>{t("body")}</p>
         </div>
       </header>
 
       {pageState.updated ? (
-        <section className="notice-panel success" aria-label="Product status">
+        <section className="notice-panel success" aria-label={t("updatedAria")}>
           <div>
-            <p className="eyebrow">Product updated</p>
-            <h2>Product details were saved</h2>
-            <p>The change applies to this tenant immediately.</p>
+            <p className="eyebrow">{t("updatedEyebrow")}</p>
+            <h2>{t("updatedTitle")}</h2>
+            <p>{t("updatedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {pageState.error ? (
-        <section className="notice-panel danger" aria-label="Product error">
+        <section className="notice-panel danger" aria-label={t("errorAria")}>
           <div>
-            <p className="eyebrow">Update failed</p>
-            <h2>Check the product details and try again</h2>
-            <p>Name and status are required.</p>
+            <p className="eyebrow">{t("errorEyebrow")}</p>
+            <h2>{t("errorTitle")}</h2>
+            <p>{t("errorBody")}</p>
           </div>
         </section>
       ) : null}
 
-      <section className="manager-grid" aria-label="Product metrics">
+      <section className="manager-grid" aria-label={t("metricsAria")}>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Tenant products</p>
-            <span className="status-pill active">Live</span>
+            <p className="metric-label">{t("tenantProducts")}</p>
+            <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
           <p className="metric-value">{productsResult.data.total}</p>
-          <p className="small-label">{activeCount} active products</p>
+          <p className="small-label">
+            {t("activeCount", { count: activeCount })}
+          </p>
         </article>
         <article className="metric-card">
           <header>
-            <p className="metric-label">Not applicable</p>
-            <span className="status-pill info">Flag</span>
+            <p className="metric-label">{t("notApplicable")}</p>
+            <span className="status-pill info">{t("flag")}</span>
           </header>
           <p className="metric-value">{notApplicableCount}</p>
-          <p className="small-label">Excluded from product/SKU tracking</p>
+          <p className="small-label">{t("notApplicableDetail")}</p>
         </article>
       </section>
 
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
-            <h2>Product list</h2>
+            <h2>{t("productList")}</h2>
             <p>
-              Showing {selectedStatus ? formatLabel(selectedStatus) : "all"}{" "}
-              products{search ? ` matching "${search}"` : ""}.
+              {selectedStatus
+                ? t("showingStatus", {
+                    status: formatEnumLabel(tCommon, selectedStatus),
+                    search: search ? t("searchSuffix", { search }) : "",
+                  })
+                : t("showingAll", {
+                    search: search ? t("searchSuffix", { search }) : "",
+                  })}
             </p>
           </div>
-          <div className="filter-pills" aria-label="Product status filters">
+          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
             <a
               aria-current={!selectedStatus ? "page" : undefined}
               href={buildProductFilterHref(tenantSlug, null, search)}
             >
-              All
+              {tCommon("all")}
             </a>
             {productStatuses.map((status) => (
               <a
@@ -189,7 +201,7 @@ export default async function AdminProductsPage({
                 href={buildProductFilterHref(tenantSlug, status, search)}
                 key={status}
               >
-                {formatLabel(status)}
+                {formatEnumLabel(tCommon, status)}
               </a>
             ))}
           </div>
@@ -200,24 +212,24 @@ export default async function AdminProductsPage({
             <input name="status" type="hidden" value={selectedStatus} />
           ) : null}
           <label>
-            Search
+            {t("search")}
             <input
               defaultValue={search ?? ""}
               name="search"
-              placeholder="Name, SKU or category"
+              placeholder={t("searchPlaceholder")}
               type="text"
             />
           </label>
           <div className="filter-actions">
             <button className="secondary-button" type="submit">
-              Apply filters
+              {tCommon("applyFilters")}
             </button>
             {hasFilters ? (
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/admin/products`}
               >
-                Reset
+                {tCommon("reset")}
               </a>
             ) : null}
           </div>
@@ -235,25 +247,22 @@ export default async function AdminProductsPage({
           </div>
         ) : (
           <div className="empty-state-panel">
-            <h2>No products match this filter</h2>
-            <p>
-              Use another status filter or import products before managing SKUs
-              here.
-            </p>
+            <h2>{t("emptyTitle")}</h2>
+            <p>{t("emptyBody")}</p>
             <div className="toolbar">
               {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/admin/products`}
                 >
-                  Show all products
+                  {t("showAllProducts")}
                 </a>
               ) : null}
               <a
                 className="primary-button"
                 href={`/${tenantSlug}/admin/imports`}
               >
-                Open imports
+                {t("openImports")}
               </a>
             </div>
           </div>
@@ -270,30 +279,35 @@ function ProductRow({
   product: Product;
   updateProductAction: (formData: FormData) => Promise<void>;
 }) {
+  const t = useTranslations("admin.products");
+  const tCommon = useTranslations("common");
+
   return (
     <article className="admin-user-row">
       <header>
         <div>
           <h3>{product.name}</h3>
-          <p>{product.sku ? `SKU ${product.sku}` : "No SKU"}</p>
+          <p>
+            {product.sku ? t("skuLabel", { sku: product.sku }) : t("noSku")}
+          </p>
         </div>
         <span className={`status-pill ${statusTone(product.status)}`}>
-          {formatLabel(product.status)}
+          {formatEnumLabel(tCommon, product.status)}
         </span>
       </header>
 
       <form action={updateProductAction} className="visit-form compact">
         <input name="productId" type="hidden" value={product.id} />
         <label>
-          Name
+          {t("name")}
           <input defaultValue={product.name} name="name" required />
         </label>
         <label>
-          SKU
+          {t("sku")}
           <input defaultValue={product.sku ?? ""} name="sku" />
         </label>
         <label>
-          Category
+          {t("category")}
           <input defaultValue={product.category ?? ""} name="category" />
         </label>
         <label className="checkbox-inline">
@@ -302,23 +316,23 @@ function ProductRow({
             name="notApplicable"
             type="checkbox"
           />
-          <span>Not applicable for this tenant</span>
+          <span>{t("notApplicableCheckbox")}</span>
         </label>
         <label>
-          Status
+          {t("status")}
           <select defaultValue={product.status} name="status" required>
             {productStatuses.map((status) => (
               <option key={status} value={status}>
-                {formatLabel(status)}
+                {formatEnumLabel(tCommon, status)}
               </option>
             ))}
           </select>
         </label>
         <PendingSubmitButton
           className="secondary-button"
-          pendingLabel="Saving..."
+          pendingLabel={tCommon("saving")}
         >
-          Save product
+          {t("saveProduct")}
         </PendingSubmitButton>
       </form>
     </article>

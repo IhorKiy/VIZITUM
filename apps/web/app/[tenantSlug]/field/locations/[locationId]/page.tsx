@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
@@ -15,7 +16,7 @@ import {
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
 import {
   formatDateTime,
-  formatLabel,
+  formatEnumLabel,
   statusPillTone,
 } from "../../../../../lib/format";
 
@@ -47,6 +48,11 @@ export default async function LocationDetailPage({
     demoAddress,
   } = await searchParams;
   const stopAlreadyVisited = visited === "1";
+  const [t, tCommon, format] = await Promise.all([
+    getTranslations("field"),
+    getTranslations("common"),
+    getFormatter(),
+  ]);
 
   async function startVisitAction(formData: FormData) {
     "use server";
@@ -117,13 +123,16 @@ export default async function LocationDetailPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Field flow</p>
-            <h1>Location</h1>
-            <p>Sign in to view this location.</p>
+            <p className="eyebrow">{t("flowEyebrow")}</p>
+            <h1>{t("location.signedOutTitle")}</h1>
+            <p>{t("location.signedOutBody")}</p>
           </div>
-          <div className="toolbar" aria-label="Session actions">
+          <div
+            className="toolbar"
+            aria-label={tCommon("notice.sessionActions")}
+          >
             <a className="primary-button" href={`/${tenantSlug}/login`}>
-              Sign in
+              {tCommon("signIn")}
             </a>
           </div>
         </header>
@@ -136,19 +145,22 @@ export default async function LocationDetailPage({
       <AppShell tenantSlug={tenantSlug} activeArea="field">
         <header className="page-header">
           <div>
-            <p className="eyebrow">Field flow</p>
-            <h1>Location not found</h1>
+            <p className="eyebrow">{t("flowEyebrow")}</p>
+            <h1>{t("location.notFoundTitle")}</h1>
           </div>
-          <div className="toolbar" aria-label="Location actions">
+          <div className="toolbar" aria-label={t("location.locationActions")}>
             <a className="secondary-button" href={`/${tenantSlug}/field`}>
-              Back to route
+              {t("backToRoute")}
             </a>
           </div>
         </header>
-        <section className="notice-panel danger" aria-label="Location error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("location.locationErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Connection required</p>
-            <h2>Could not load this location</h2>
+            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
+            <h2>{t("location.loadErrorTitle")}</h2>
             <p>{locationResult.message}</p>
           </div>
         </section>
@@ -158,7 +170,7 @@ export default async function LocationDetailPage({
 
   const locationName = locationResult.ok
     ? locationResult.data.name
-    : (demoName ?? "Demo location");
+    : (demoName ?? t("location.demoLocationName"));
   const locationAddress = locationResult.ok
     ? [locationResult.data.addressLine, locationResult.data.city]
         .filter(Boolean)
@@ -166,7 +178,7 @@ export default async function LocationDetailPage({
     : (demoAddress ?? "");
   const representativeName = sessionResult.ok
     ? sessionResult.data.user.name
-    : "Demo representative";
+    : t("location.demoRepresentative");
 
   const representativeUserId = sessionResult.ok
     ? sessionResult.data.user.id
@@ -205,44 +217,53 @@ export default async function LocationDetailPage({
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       {error === "visit" ? (
-        <section className="notice-panel danger" aria-label="Visit error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("location.visitErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Visit not created</p>
-            <h2>New visit failed</h2>
-            <p>Try starting the visit again.</p>
+            <p className="eyebrow">{t("location.visitErrorEyebrow")}</p>
+            <h2>{t("location.visitErrorTitle")}</h2>
+            <p>{t("location.visitErrorBody")}</p>
           </div>
         </section>
       ) : null}
 
       {error === "route" ? (
-        <section className="notice-panel danger" aria-label="Route error">
+        <section
+          className="notice-panel danger"
+          aria-label={t("location.routeErrorAria")}
+        >
           <div>
-            <p className="eyebrow">Route not updated</p>
-            <h2>Could not update the stop</h2>
-            <p>Refresh and try again.</p>
+            <p className="eyebrow">{t("location.routeErrorEyebrow")}</p>
+            <h2>{t("location.routeErrorTitle")}</h2>
+            <p>{t("location.routeErrorBody")}</p>
           </div>
         </section>
       ) : null}
 
       {route === "visited" ? (
-        <section className="notice-panel success" aria-label="Route status">
+        <section
+          className="notice-panel success"
+          aria-label={t("location.routeVisitedAria")}
+        >
           <div>
-            <p className="eyebrow">Route updated</p>
-            <h2>Stop marked as visited</h2>
-            <p>Your route progress for today was updated.</p>
+            <p className="eyebrow">{t("location.routeVisitedEyebrow")}</p>
+            <h2>{t("location.routeVisitedTitle")}</h2>
+            <p>{t("location.routeVisitedBody")}</p>
           </div>
         </section>
       ) : null}
 
       {isDemoLocation ? (
-        <section className="notice-panel" aria-label="API status">
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
           <div>
-            <p className="eyebrow">Demo mode</p>
-            <h2>Backend session is not connected</h2>
-            <p>
-              Showing sample location details until the Nest API returns an
-              authenticated session. Reason: {sessionResult.message}
-            </p>
+            <p className="eyebrow">{tCommon("notice.demoMode")}</p>
+            <h2>{tCommon("notice.backendNotConnected")}</h2>
+            <p>{t("location.demoBody", { reason: sessionResult.message })}</p>
           </div>
         </section>
       ) : null}
@@ -250,7 +271,7 @@ export default async function LocationDetailPage({
       <div className="location-header panel">
         <div className="location-header-top">
           <a
-            aria-label="Back to route"
+            aria-label={t("location.backAria")}
             className="location-header-back"
             href={`/${tenantSlug}/field`}
           >
@@ -271,12 +292,14 @@ export default async function LocationDetailPage({
               </span>
               <span className="location-feature-titles">
                 <span className="location-feature-name">
-                  Потенціал
+                  {t("location.potential")}
                   <span className="location-feature-help" aria-hidden="true">
                     ?
                   </span>
                 </span>
-                <span className="location-feature-meta">0 товарних груп</span>
+                <span className="location-feature-meta">
+                  {t("location.productGroupCount", { count: 0 })}
+                </span>
               </span>
             </span>
             <span className="location-feature-actions">
@@ -285,12 +308,10 @@ export default async function LocationDetailPage({
               </span>
             </span>
           </summary>
-          <p className="empty-state">
-            Product group potential is not tracked yet.
-          </p>
+          <p className="empty-state">{t("location.potentialEmpty")}</p>
         </details>
         <button
-          aria-label="Add product group (coming soon)"
+          aria-label={t("location.addProductGroupAria")}
           className="location-feature-add"
           disabled
           type="button"
@@ -308,12 +329,14 @@ export default async function LocationDetailPage({
               </span>
               <span className="location-feature-titles">
                 <span className="location-feature-name">
-                  Асортимент
+                  {t("location.assortment")}
                   <span className="location-feature-help" aria-hidden="true">
                     ?
                   </span>
                 </span>
-                <span className="location-feature-meta">0 позицій</span>
+                <span className="location-feature-meta">
+                  {t("location.assortmentItemCount", { count: 0 })}
+                </span>
               </span>
             </span>
             <span className="location-feature-actions">
@@ -322,12 +345,10 @@ export default async function LocationDetailPage({
               </span>
             </span>
           </summary>
-          <p className="empty-state">
-            Assortment tracking is not available yet.
-          </p>
+          <p className="empty-state">{t("location.assortmentEmpty")}</p>
         </details>
         <button
-          aria-label="Add assortment item (coming soon)"
+          aria-label={t("location.addAssortmentAria")}
           className="location-feature-add"
           disabled
           type="button"
@@ -341,27 +362,25 @@ export default async function LocationDetailPage({
           className="primary-button location-start-visit"
           href={`/${tenantSlug}/field/visits/demo-visit-${locationId}?demoLocationId=${encodeURIComponent(locationId)}&demoName=${encodeURIComponent(locationName)}&demoAddress=${encodeURIComponent(locationAddress)}`}
         >
-          <span aria-hidden="true">▶</span> Почати візит (demo)
+          <span aria-hidden="true">▶</span> {t("location.startVisitDemo")}
         </a>
       ) : activeVisit ? (
         <a
           className="primary-button location-start-visit"
           href={`/${tenantSlug}/field/visits/${activeVisit.id}`}
         >
-          <span aria-hidden="true">▶</span> Продовжити візит
+          <span aria-hidden="true">▶</span> {t("location.continueVisit")}
         </a>
       ) : stopAlreadyVisited ? (
-        <p className="empty-state">
-          This stop is already marked visited today.
-        </p>
+        <p className="empty-state">{t("location.alreadyVisited")}</p>
       ) : (
         <form action={startVisitAction}>
           <input name="routeItemId" type="hidden" value={routeItemId ?? ""} />
           <PendingSubmitButton
             className="primary-button location-start-visit"
-            pendingLabel="Starting..."
+            pendingLabel={t("location.starting")}
           >
-            <span aria-hidden="true">▶</span> Почати візит
+            <span aria-hidden="true">▶</span> {t("location.startVisit")}
           </PendingSubmitButton>
         </form>
       )}
@@ -376,9 +395,9 @@ export default async function LocationDetailPage({
           <input name="routeItemId" type="hidden" value={routeItemId} />
           <PendingSubmitButton
             className="secondary-button"
-            pendingLabel="Saving..."
+            pendingLabel={tCommon("saving")}
           >
-            Позначити відвіданим
+            {t("location.markVisited")}
           </PendingSubmitButton>
         </form>
       ) : null}
@@ -391,13 +410,13 @@ export default async function LocationDetailPage({
             </span>
             <span className="location-feature-titles">
               <span className="location-feature-name">
-                Відкриті задачі
+                {t("location.openTasks")}
                 <span className="location-feature-help" aria-hidden="true">
                   ?
                 </span>
               </span>
               <span className="location-feature-meta">
-                {openTasks.length} задач
+                {t("location.taskCount", { count: openTasks.length })}
               </span>
             </span>
           </span>
@@ -414,23 +433,29 @@ export default async function LocationDetailPage({
                 <header>
                   <div>
                     <h3>{item.title}</h3>
-                    <p>{item.description ?? "No additional details"}</p>
+                    <p>{item.description ?? t("location.noTaskDetails")}</p>
                   </div>
                   <span
                     className={`status-pill ${statusPillTone(item.status)}`}
                   >
-                    {formatLabel(item.status)}
+                    {formatEnumLabel(tCommon, item.status)}
                   </span>
                 </header>
                 <p className="form-hint">
-                  {formatLabel(item.priority)} priority · Due{" "}
-                  {formatDateTime(item.dueDate, "not set")}
+                  {t("location.priorityDue", {
+                    priority: formatEnumLabel(tCommon, item.priority),
+                    due: formatDateTime(
+                      format,
+                      item.dueDate,
+                      tCommon("notSet"),
+                    ),
+                  })}
                 </p>
               </article>
             ))}
           </div>
         ) : (
-          <p className="empty-state">No open tasks for this location.</p>
+          <p className="empty-state">{t("location.noOpenTasks")}</p>
         )}
       </details>
 
@@ -442,13 +467,13 @@ export default async function LocationDetailPage({
             </span>
             <span className="location-feature-titles">
               <span className="location-feature-name">
-                Історія візитів
+                {t("location.visitHistory")}
                 <span className="location-feature-help" aria-hidden="true">
                   ?
                 </span>
               </span>
               <span className="location-feature-meta">
-                {visitHistory.length} візитів
+                {t("location.visitCount", { count: visitHistory.length })}
               </span>
             </span>
           </span>
@@ -469,21 +494,24 @@ export default async function LocationDetailPage({
                 <header>
                   <div>
                     <h3>
-                      {formatDateTime(item.completedAt ?? item.createdAt)}
+                      {formatDateTime(
+                        format,
+                        item.completedAt ?? item.createdAt,
+                      )}
                     </h3>
-                    <p>{formatLabel(item.visitType)}</p>
+                    <p>{formatEnumLabel(tCommon, item.visitType)}</p>
                   </div>
                   <span
                     className={`status-pill ${statusPillTone(item.status)}`}
                   >
-                    {formatLabel(item.status)}
+                    {formatEnumLabel(tCommon, item.status)}
                   </span>
                 </header>
               </a>
             ))}
           </div>
         ) : (
-          <p className="empty-state">No past visits recorded yet.</p>
+          <p className="empty-state">{t("location.noPastVisits")}</p>
         )}
       </details>
     </AppShell>

@@ -9,3 +9,9 @@ export type TenantResolutionResult = {
   tenant: PlatformTenant;
   slug: string;
 };
+
+export type PublicTenantLocale = {
+  slug: string;
+  language: string;
+  timezone: string;
+};
