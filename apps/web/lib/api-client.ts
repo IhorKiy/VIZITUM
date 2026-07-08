@@ -1057,6 +1057,9 @@ async function apiDelete<TData>(path: string): Promise<ApiResult<TData>> {
 // namespaces them the same way, see src/modules/auth/csrf.ts) so that
 // authenticating into one domain can't invalidate the other's still-valid
 // session. Pick the cookie that matches which domain `path` targets.
+const TENANT_CSRF_COOKIE_NAME = "vizitum_csrf";
+const PLATFORM_CSRF_COOKIE_NAME = "vizitum_platform_csrf";
+
 function isPlatformApiPath(path: string): boolean {
   return path === "/platform" || path.startsWith("/platform/");
 }
@@ -1067,8 +1070,8 @@ export async function buildRequestHeaders(path: string): Promise<HeadersInit> {
   const cookieHeader = cookieStore.toString();
   const requestId = headerStore.get("x-request-id");
   const csrfCookieName = isPlatformApiPath(path)
-    ? "vizitum_platform_csrf"
-    : "vizitum_csrf";
+    ? PLATFORM_CSRF_COOKIE_NAME
+    : TENANT_CSRF_COOKIE_NAME;
   const csrfToken = cookieStore.get(csrfCookieName)?.value;
 
   return {

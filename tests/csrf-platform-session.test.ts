@@ -3,10 +3,7 @@ import { describe, it } from "node:test";
 import { ForbiddenException } from "@nestjs/common";
 import type { Request, Response } from "express";
 
-import {
-  applyCsrfProtection,
-  createCsrfToken,
-} from "../src/modules/auth/csrf";
+import { applyCsrfProtection, createCsrfToken } from "../src/modules/auth/csrf";
 
 describe("csrf platform session selection", () => {
   it("validates platform mutations against the platform CSRF cookie when both sessions exist", () => {
@@ -76,6 +73,23 @@ describe("csrf platform session selection", () => {
       sessionToken: "tenant-token",
       tenantCsrfToken,
       headerToken: tenantCsrfToken,
+    });
+    let nextCalled = false;
+
+    applyCsrfProtection(request, {} as Response, () => {
+      nextCalled = true;
+    });
+
+    assert.equal(nextCalled, true);
+  });
+
+  it("falls back to the platform session and cookie on a tenant path when no tenant session exists", () => {
+    const platformCsrfToken = createCsrfToken("platform-token");
+    const request = createRequest({
+      originalUrl: "/api/visits",
+      platformSessionToken: "platform-token",
+      platformCsrfToken,
+      headerToken: platformCsrfToken,
     });
     let nextCalled = false;
 

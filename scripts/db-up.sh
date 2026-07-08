@@ -1,6 +1,11 @@
 #!/bin/sh
 set -eu
 
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker is not running. Start Docker Desktop (or the docker daemon) and retry." >&2
+  exit 1
+fi
+
 if docker ps --format '{{.Names}}' | grep -qx 'vizitum-postgres' \
   && docker ps --format '{{.Names}}' | grep -qx 'vizitum-redis'; then
   echo "Local Postgres and Redis are already running."
