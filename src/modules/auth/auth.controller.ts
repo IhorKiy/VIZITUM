@@ -14,6 +14,7 @@ import type {
   AcceptInviteRequestBody,
   LoginRequestBody,
   SwitchRoleRequestBody,
+  SwitchZoneRequestBody,
 } from "./auth.types";
 import { CSRF_COOKIE_NAME } from "./auth.constants";
 import { clearCsrfCookie } from "./csrf";
@@ -46,6 +47,12 @@ export class AuthController {
   @HttpCode(200)
   switchRole(@Body() body: SwitchRoleRequestBody, @Req() request: Request) {
     return this.authService.switchRole(body, request);
+  }
+
+  @Post("zone")
+  @HttpCode(200)
+  switchZone(@Body() body: SwitchZoneRequestBody, @Req() request: Request) {
+    return this.authService.switchZone(body, request);
   }
 
   @Post("invites/accept")

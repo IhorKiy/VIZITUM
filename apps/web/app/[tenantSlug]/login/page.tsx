@@ -2,8 +2,12 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { forwardSetCookies } from "../../../lib/backend-cookies";
-import { buildApiUrl } from "../../../lib/api-client";
-import { normalizeTenantName } from "../../../lib/navigation";
+import { buildApiUrl, getCurrentSession } from "../../../lib/api-client";
+import {
+  normalizeTenantName,
+  resolveZoneLanding,
+  zoneHomePath,
+} from "../../../lib/navigation";
 
 type LoginPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -50,7 +54,29 @@ export default async function LoginPage({
     }
 
     await forwardSetCookies(response.headers);
-    redirect(`/${tenantSlug}/field`);
+
+    // Fresh cookies set above are visible to this same-action read: Server
+    // Actions expose cookies().set() to subsequent cookies() reads within
+    // the same execution, so this sees the just-created session with no
+    // extra user-visible round trip. Reused (rather than growing
+    // POST /auth/login's response) because /auth/me already assembles
+    // productsEnabled, which login() doesn't currently look up.
+    const sessionResult = await getCurrentSession();
+    const landing = resolveZoneLanding(
+      sessionResult.ok ? sessionResult.data.permissions : undefined,
+      sessionResult.ok ? sessionResult.data.productsEnabled : true,
+      sessionResult.ok ? sessionResult.data.user.lastSelectedZone : null,
+    );
+
+    if (landing.kind === "zone") {
+      redirect(`/${tenantSlug}${zoneHomePath(landing.zone)}`);
+    }
+
+    if (landing.kind === "choose") {
+      redirect(`/${tenantSlug}/choose-zone`);
+    }
+
+    redirect(`/${tenantSlug}/no-access`);
   }
 
   return (

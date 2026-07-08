@@ -7,6 +7,7 @@ export type AuthSession = {
     name: string;
     status: string;
     lastSelectedRoleCode: string | null;
+    lastSelectedZone: string | null;
   };
   roleCodes: string[];
   permissions: string[];
@@ -389,6 +390,20 @@ export type ApiResult<TData> =
 
 export async function getCurrentSession(): Promise<ApiResult<AuthSession>> {
   return apiGet<AuthSession>("/auth/me");
+}
+
+// POST /auth/zone returns the same shape POST /auth/role does — user,
+// roleCodes and permissions, without the productsEnabled/tenantTimezone
+// extras that only GET /auth/me adds.
+export type SwitchZoneResult = Pick<
+  AuthSession,
+  "user" | "roleCodes" | "permissions"
+>;
+
+export async function switchZone(
+  zone: string,
+): Promise<ApiResult<SwitchZoneResult>> {
+  return apiPost<SwitchZoneResult>("/auth/zone", { zone });
 }
 
 export async function listVisits(

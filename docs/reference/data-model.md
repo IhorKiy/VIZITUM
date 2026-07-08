@@ -24,7 +24,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 
 | Model | Table | Purpose |
 | --- | --- | --- |
-| `User` | `users` | Tenant user: `status` (invited/active/suspended/deleted), `passwordHash`, `lastSelectedRoleCode`. Email unique per tenant. |
+| `User` | `users` | Tenant user: `status` (invited/active/suspended/deleted), `passwordHash`, `lastSelectedRoleCode`, `lastSelectedZone` (NavZone?; frontend nav grouping, not part of the permission model — set by `POST /auth/zone`, see [api-reference.md](api-reference.md) and [module-map.md](module-map.md)). Email unique per tenant. |
 | `UserRole` | `user_roles` | Role assignment (`roleCode`: tenant_superadmin / company_admin / team_manager / field_representative), unique per (tenant, user, role). Users can hold multiple roles, but a `tenant_superadmin` holds only that single role — see [permissions.md](permissions.md). |
 | `Invite` | `invites` | Invite with `tokenHash` (raw token never stored), `roleCodes[]`, status (pending/accepted/expired/revoked), `expiresAt`. |
 | `Session` | `sessions` | Backend session: `sessionTokenHash` (unique), `expiresAt`, `revokedAt`, hashed user agent/IP. |
@@ -79,4 +79,4 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 
 Defined in `prisma/schema.prisma` and mirrored in TypeScript where needed:
 
-`TenantStatus` (draft/provisioning/ready/active retired — see `PlatformTenant` above; `pilot`/`team`/`business` double as the plan tier, plus `suspended`/`archived`), `ProductMode` (team/business), `DatabasePlacement` (shared/dedicated), `SegmentTemplate` (distribution/service/partner_account), `JobStatus`, `PlatformUserStatus` (active/suspended), `UserStatus`, `InviteStatus`, `RoleCode`, `LocationStatus`, `AssignmentStatus`, `ProductStatus`, `RouteStatus`, `RouteItemStatus`, `VisitStatus`, `VisitNoteInputType` (text/audio), `ReportStatus` (draft/confirmed/discarded), `TaskStatus`, `TaskPriority`, `ImportType`, `ImportStatus`, `ImportIssueSeverity`, `AiJobType`, `AiJobStatus`, `StorageObjectStatus`, `StorageObjectPurpose`.
+`TenantStatus` (draft/provisioning/ready/active retired — see `PlatformTenant` above; `pilot`/`team`/`business` double as the plan tier, plus `suspended`/`archived`), `ProductMode` (team/business), `DatabasePlacement` (shared/dedicated), `SegmentTemplate` (distribution/service/partner_account), `JobStatus`, `PlatformUserStatus` (active/suspended), `UserStatus`, `InviteStatus`, `RoleCode`, `NavZone` (field/manager/admin/operations — frontend nav grouping, see `User.lastSelectedZone` above), `LocationStatus`, `AssignmentStatus`, `ProductStatus`, `RouteStatus`, `RouteItemStatus`, `VisitStatus`, `VisitNoteInputType` (text/audio), `ReportStatus` (draft/confirmed/discarded), `TaskStatus`, `TaskPriority`, `ImportType`, `ImportStatus`, `ImportIssueSeverity`, `AiJobType`, `AiJobStatus`, `StorageObjectStatus`, `StorageObjectPurpose`.
