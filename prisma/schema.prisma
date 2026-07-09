@@ -206,7 +206,11 @@ model PlatformTenant {
   databasePlacement DatabasePlacement @default(shared)
   databaseKey       String
   primaryDomain     String?
-  adminLimit        Int               @default(2)
+  // Optional platform-owner override for the Company Admin cap. NULL means the
+  // cap derives from the plan tier (`status`): pilot 0, team 1, business 2 (see
+  // adminCapForStatus in src/modules/users/users.types.ts). A number is an
+  // explicit per-tenant exception the owner sets deliberately.
+  adminLimit        Int?
   archivedAt        DateTime?
   // Two-stage deletion markers. `purgeRequestedAt` is the platform owner's
   // explicit early-purge mark (set only on archived tenants; cleared by

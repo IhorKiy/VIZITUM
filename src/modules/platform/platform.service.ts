@@ -12,6 +12,7 @@ import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import { resolveInviteStatus, UsersService } from "../users/users.service";
+import { adminCapForStatus, resolveAdminCap } from "../users/users.types";
 import type { InviteHistoryItem, UserResponse } from "../users/users.types";
 import { TEAM_MODE_CAPABILITIES } from "./product-capabilities";
 import type {
@@ -230,7 +231,7 @@ export class PlatformService {
     }
 
     return tenants.map((tenant) => ({
-      ...tenant,
+      ...withEffectiveAdminLimit(tenant),
       metrics: metricsByTenantId.get(tenant.id),
       // When the worker may purge this tenant on retention alone. Display
       // hint for the platform console — the worker recomputes eligibility
@@ -285,7 +286,7 @@ export class PlatformService {
       },
     );
 
-    return { tenant, provisioningJob };
+    return { tenant: withEffectiveAdminLimit(tenant), provisioningJob };
   }
 
   async listTenantUsers(tenantId: string) {
@@ -495,8 +496,13 @@ export class PlatformService {
     }
 
     if (input.adminLimit !== undefined) {
-      if (!Number.isInteger(input.adminLimit) || input.adminLimit < 1) {
-        fieldErrors.adminLimit = ["Admin limit must be a positive integer."];
+      if (input.adminLimit === null) {
+        // Clearing the override: the cap falls back to the plan-derived value.
+        data.adminLimit = null;
+      } else if (!Number.isInteger(input.adminLimit) || input.adminLimit < 1) {
+        fieldErrors.adminLimit = [
+          "Admin limit override must be a positive integer, or null to follow the plan.",
+        ];
       } else {
         data.adminLimit = input.adminLimit;
       }
@@ -533,7 +539,7 @@ export class PlatformService {
         },
       });
 
-      return updated;
+      return withEffectiveAdminLimit(updated);
     });
   }
 
@@ -884,7 +890,7 @@ export class PlatformService {
         },
       });
 
-      return { tenant };
+      return { tenant: withEffectiveAdminLimit(tenant) };
     });
   }
 }
@@ -904,6 +910,28 @@ function createPlatformTenantContext(
 
 function normalizeSlug(value: string): string {
   return value.trim().toLowerCase();
+}
+
+// The persisted `adminLimit` column is the owner's optional override (NULL =
+// follow the plan tier). API consumers want the effective cap, so expose that
+// as `adminLimit` and surface the raw override separately as
+// `adminLimitOverride` (so the console can tell a deliberate exception from the
+// plan default and offer to clear it).
+function withEffectiveAdminLimit<
+  T extends { status: TenantStatus; adminLimit: number | null },
+>(
+  tenant: T,
+): T & {
+  adminLimit: number;
+  adminLimitOverride: number | null;
+  adminLimitPlanDefault: number;
+} {
+  return {
+    ...tenant,
+    adminLimit: resolveAdminCap(tenant),
+    adminLimitOverride: tenant.adminLimit,
+    adminLimitPlanDefault: adminCapForStatus(tenant.status),
+  };
 }
 
 type SuperadminUserRecord = Prisma.UserGetPayload<{

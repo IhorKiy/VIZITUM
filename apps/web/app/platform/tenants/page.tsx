@@ -303,10 +303,23 @@ export default async function PlatformTenantsPage({
     "use server";
 
     const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const adminLimit = Number(formData.get("adminLimit"));
-
-    if (!tenantId || !Number.isInteger(adminLimit) || adminLimit < 1) {
+    if (!tenantId) {
       redirect("/platform/tenants?error=1");
+    }
+
+    // Checkbox present → clear the override so the cap follows the plan tier;
+    // otherwise persist the explicit per-tenant number.
+    const followPlan = formData.get("followPlan") !== null;
+    let adminLimit: number | null = null;
+
+    if (!followPlan) {
+      const parsed = Number(formData.get("adminLimit"));
+
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        redirect("/platform/tenants?error=1");
+      }
+
+      adminLimit = parsed;
     }
 
     const result = await updatePlatformTenant(tenantId, { adminLimit });
@@ -480,7 +493,8 @@ export default async function PlatformTenantsPage({
               />
               <AdminLimitForm
                 action={updateAdminLimitAction}
-                currentLimit={tenant.adminLimit}
+                currentOverride={tenant.adminLimitOverride}
+                planDefault={tenant.adminLimitPlanDefault}
                 tenantId={tenant.id}
               />
               <ArchiveTenantForm

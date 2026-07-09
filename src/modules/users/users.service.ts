@@ -31,6 +31,7 @@ import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import {
   DEFAULT_ADMIN_LIMIT,
+  resolveAdminCap,
   type AddUserRoleRequestBody,
   type DeleteUserResponse,
   type InviteHistoryItem,
@@ -80,7 +81,7 @@ export class UsersService {
       this.prisma.user.count({ where }),
       this.prisma.platformTenant.findUnique({
         where: { id: context.tenantId },
-        select: { adminLimit: true },
+        select: { adminLimit: true, status: true },
       }),
       this.prisma.user.count({
         where: {
@@ -96,7 +97,7 @@ export class UsersService {
 
     return {
       ...createPaginatedResponse(users.map(toUserResponse), pagination, total),
-      adminLimit: tenant?.adminLimit ?? DEFAULT_ADMIN_LIMIT,
+      adminLimit: tenant ? resolveAdminCap(tenant) : DEFAULT_ADMIN_LIMIT,
       activeAdminCount,
     };
   }
@@ -757,9 +758,9 @@ export class UsersService {
   ): Promise<void> {
     const tenant = await client.platformTenant.findUnique({
       where: { id: tenantId },
-      select: { adminLimit: true },
+      select: { adminLimit: true, status: true },
     });
-    const adminLimit = tenant?.adminLimit ?? DEFAULT_ADMIN_LIMIT;
+    const adminLimit = tenant ? resolveAdminCap(tenant) : DEFAULT_ADMIN_LIMIT;
 
     const activeAdminCount = await client.user.count({
       where: {

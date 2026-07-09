@@ -102,7 +102,28 @@ describe("platform tenant management", () => {
       actorUserId: "owner-1",
     });
 
+    // Override wins over the pilot plan's cap of 0.
     assert.equal(updated.adminLimit, 5);
+    assert.equal(updated.adminLimitOverride, 5);
+    assert.deepEqual(store.events[0]?.metadata, { fields: ["adminLimit"] });
+  });
+
+  it("clears the admin limit override so the cap follows the plan", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "team",
+      adminLimit: 5,
+    });
+    const service = createPlatformService(store);
+
+    const updated = await service.updateTenant("tenant-1", {
+      adminLimit: null,
+      actorUserId: "owner-1",
+    });
+
+    // Override cleared → effective cap derives from the team plan (1).
+    assert.equal(updated.adminLimitOverride, null);
+    assert.equal(updated.adminLimit, 1);
     assert.deepEqual(store.events[0]?.metadata, { fields: ["adminLimit"] });
   });
 
