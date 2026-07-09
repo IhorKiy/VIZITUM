@@ -100,6 +100,70 @@ describe("csrf platform session selection", () => {
   });
 });
 
+describe("csrf logout exemption", () => {
+  // Logout must succeed even when the readable CSRF cookie is missing or
+  // stale while the httpOnly session cookie is still valid — otherwise a
+  // CSRF hiccup blocks the session from ever being revoked server-side.
+  // See src/modules/auth/csrf.ts for the full reasoning.
+  for (const path of ["/api/auth/logout", "/auth/logout"]) {
+    it(`exempts POST ${path} from CSRF for a tenant session with no CSRF cookie at all`, () => {
+      const request = createRequest({
+        originalUrl: path,
+        sessionToken: "tenant-token",
+      });
+      let nextCalled = false;
+
+      applyCsrfProtection(request, {} as Response, () => {
+        nextCalled = true;
+      });
+
+      assert.equal(nextCalled, true);
+    });
+  }
+
+  for (const path of ["/api/platform/auth/logout", "/platform/auth/logout"]) {
+    it(`exempts POST ${path} from CSRF for a platform session with no CSRF cookie at all`, () => {
+      const request = createRequest({
+        originalUrl: path,
+        platformSessionToken: "platform-token",
+      });
+      let nextCalled = false;
+
+      applyCsrfProtection(request, {} as Response, () => {
+        nextCalled = true;
+      });
+
+      assert.equal(nextCalled, true);
+    });
+  }
+
+  it("does not exempt a path that merely starts with a logout path", () => {
+    // Guards against the exemption becoming a prefix match: only the exact
+    // logout paths should skip CSRF, not anything nested under them.
+    const request = createRequest({
+      originalUrl: "/api/auth/logout/all-devices",
+      sessionToken: "tenant-token",
+    });
+
+    assert.throws(
+      () => applyCsrfProtection(request, {} as Response, () => undefined),
+      ForbiddenException,
+    );
+  });
+
+  it("still requires CSRF for the platform login route despite the logout exemption", () => {
+    const request = createRequest({
+      originalUrl: "/api/platform/auth/login",
+      platformSessionToken: "platform-token",
+    });
+
+    assert.throws(
+      () => applyCsrfProtection(request, {} as Response, () => undefined),
+      ForbiddenException,
+    );
+  });
+});
+
 function createRequest(input: {
   originalUrl: string;
   platformSessionToken?: string;

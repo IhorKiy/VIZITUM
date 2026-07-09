@@ -23,6 +23,25 @@ import { readSessionToken } from "./session-cookie";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+// Logout intentionally skips CSRF. A forged cross-site logout can only ever
+// end the *caller's own* session — the token it acts on comes from that
+// browser's httpOnly session cookie, never one an attacker can choose — so
+// the worst case is an unwanted logout, not data exposure or privilege
+// escalation (the commonly-accepted "logout CSRF" trade-off). Requiring a
+// token here instead has a real cost with no offsetting benefit: the
+// readable, independently-stored CSRF cookie can go stale or missing while
+// the httpOnly session cookie is still valid, which blocks the session from
+// ever being revoked server-side until its 30-day TTL lapses — including
+// for a stolen token, which is exactly the case logout-revocation exists to
+// guard against. Both the `/api`-prefixed and bare forms are listed to
+// match the tolerance already used below for platform-path detection.
+const CSRF_EXEMPT_ROUTES = new Set([
+  "/api/auth/logout",
+  "/auth/logout",
+  "/api/platform/auth/logout",
+  "/platform/auth/logout",
+]);
+
 export function createCsrfToken(sessionToken: string): string {
   const nonce = randomBytes(CSRF_TOKEN_BYTES).toString("base64url");
   const signature = signCsrfNonce(sessionToken, nonce);
@@ -55,6 +74,11 @@ export function applyCsrfProtection(
     return;
   }
 
+  if (isCsrfExemptRoute(request)) {
+    next();
+    return;
+  }
+
   const resolved = resolveCsrfSession(request);
 
   if (!resolved) {
@@ -80,6 +104,13 @@ export function applyCsrfProtection(
   }
 
   next();
+}
+
+function isCsrfExemptRoute(request: Request): boolean {
+  const requestPath = request.originalUrl ?? request.url ?? "";
+  const pathWithoutQuery = requestPath.split("?")[0];
+
+  return request.method === "POST" && CSRF_EXEMPT_ROUTES.has(pathWithoutQuery);
 }
 
 // Platform and tenant sessions each get their own CSRF cookie
