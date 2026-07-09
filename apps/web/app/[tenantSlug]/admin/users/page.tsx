@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { InfoHint } from "../../../../components/info-hint";
 import { InviteUserModal } from "../../../../components/invite-user-modal";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import { RoleCheckbox } from "../../../../components/role-checkbox";
@@ -22,6 +23,7 @@ import {
   type TenantUser,
 } from "../../../../lib/api-client";
 import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
+import { TENANT_ROLES } from "../../../../lib/tenant-roles";
 
 type AdminUsersPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -36,13 +38,6 @@ type AdminUsersPageProps = {
     deleted?: string;
   }>;
 };
-
-// Labels come from `common.labels.<roleCode>` in the message dictionaries.
-const tenantRoles: TenantRoleCode[] = [
-  "company_admin",
-  "team_manager",
-  "field_representative",
-];
 
 export default async function AdminUsersPage({
   params,
@@ -60,7 +55,7 @@ export default async function AdminUsersPage({
     "use server";
 
     const email = String(formData.get("email") ?? "").trim();
-    const roleCodes = tenantRoles.filter(
+    const roleCodes = TENANT_ROLES.filter(
       (roleCode) => formData.get(roleCode) === "on",
     );
 
@@ -623,7 +618,7 @@ function UserRow({
               role="group"
               aria-label={t("rolesAria", { name: user.name })}
             >
-              {tenantRoles.map((roleCode) => {
+              {TENANT_ROLES.map((roleCode) => {
                 const hasRole = user.roleCodes.includes(roleCode);
                 const label = formatEnumLabel(tCommon, roleCode);
                 // Granting company_admin is gated server-side by admins.invite
@@ -692,39 +687,6 @@ function UserRow({
         )}
       </div>
     </details>
-  );
-}
-
-// Focusable info affordance: the bubble is revealed on hover/focus purely via
-// CSS, so this stays a server component (no client JS needed).
-function InfoHint({ text, label }: { text: string; label: string }) {
-  return (
-    <span aria-label={label} className="info-hint" role="note" tabIndex={0}>
-      <InfoIcon />
-      <span className="info-hint-bubble" role="tooltip">
-        {text}
-      </span>
-    </span>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      height="16"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-      width="16"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5" />
-      <path d="M12 8h.01" />
-    </svg>
   );
 }
 

@@ -29,6 +29,13 @@ export function UserNameField({
     }
   }, [editing]);
 
+  // A successful rename redirects and RSC-refreshes the page without
+  // remounting this component, so `editing` would otherwise stay true and
+  // leave the input open. Exit edit mode whenever the name prop changes.
+  useEffect(() => {
+    setEditing(false);
+  }, [name]);
+
   // The name sits inside the <summary>, which toggles the disclosure on any
   // click or Space/Enter — so every control here stops the event from reaching
   // the summary's default toggle.

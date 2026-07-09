@@ -669,8 +669,6 @@
       "teamManagersDetail": "Full tenant operational view",
       "fieldReps": "Field reps",
       "fieldRepsDetail": "Mobile-first field users",
-      "superadminAria": "Tenant superadmin",
-      "superadminEyebrow": "Tenant superadmin",
       "superadminBody": "{email} — invited and replaced only by the platform owner. Company Admins cannot suspend, delete or re-role the superadmin.",
       "superadminBadge": "Superadmin",
       "inviteUser": "Invite user",

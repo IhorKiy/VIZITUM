@@ -3,15 +3,9 @@
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
-import type { TenantRoleCode } from "../lib/api-client";
 import { formatEnumLabel } from "../lib/format";
+import { TENANT_ROLES } from "../lib/tenant-roles";
 import { PendingSubmitButton } from "./pending-submit-button";
-
-const inviteRoles: TenantRoleCode[] = [
-  "company_admin",
-  "team_manager",
-  "field_representative",
-];
 
 type InviteUserModalProps = {
   action: (formData: FormData) => Promise<void>;
@@ -72,7 +66,7 @@ export function InviteUserModal({
           </label>
           <fieldset className="checkbox-group">
             <legend>{t("roles")}</legend>
-            {inviteRoles.map((roleCode) => (
+            {TENANT_ROLES.map((roleCode) => (
               <label key={roleCode}>
                 <input
                   disabled={roleCode === "company_admin" && !canInviteAdmins}
