@@ -5,10 +5,7 @@ import { useRef } from "react";
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import type { PlatformSegmentTemplate } from "../../../lib/api-client";
 import { defaultTimezoneOption, listTimezones } from "../../../lib/timezones";
-import {
-  DEFAULT_TENANT_LANGUAGE,
-  LANGUAGE_OPTIONS,
-} from "./language-options";
+import { DEFAULT_TENANT_LANGUAGE, LANGUAGE_OPTIONS } from "./language-options";
 
 type CreateTenantModalProps = {
   action: (formData: FormData) => Promise<void>;
