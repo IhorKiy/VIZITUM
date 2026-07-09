@@ -110,9 +110,7 @@ function isCsrfExemptRoute(request: Request): boolean {
   const requestPath = request.originalUrl ?? request.url ?? "";
   const pathWithoutQuery = requestPath.split("?")[0];
 
-  return (
-    request.method === "POST" && CSRF_EXEMPT_ROUTES.has(pathWithoutQuery)
-  );
+  return request.method === "POST" && CSRF_EXEMPT_ROUTES.has(pathWithoutQuery);
 }
 
 // Platform and tenant sessions each get their own CSRF cookie
