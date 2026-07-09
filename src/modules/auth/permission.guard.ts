@@ -51,19 +51,30 @@ export class PermissionGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
-    const requestContext = await this.buildRequestContext(request);
-    const hasRequiredPermissions =
-      !requiredPermissions?.length ||
-      requiredPermissions.every((permission) =>
-        requestContext.permissions.includes(permission),
-      );
-    const hasAnyRequiredPermission =
-      !requiredAnyPermissions?.length ||
-      requiredAnyPermissions.some((permission) =>
-        requestContext.permissions.includes(permission),
-      );
+    const candidates = await this.buildRequestContextCandidates(request);
 
-    if (!hasRequiredPermissions || !hasAnyRequiredPermission) {
+    if (candidates.length === 0) {
+      throwUnauthorized();
+    }
+
+    const satisfiesRequirement = (requestContext: RequestContext) => {
+      const hasRequiredPermissions =
+        !requiredPermissions?.length ||
+        requiredPermissions.every((permission) =>
+          requestContext.permissions.includes(permission),
+        );
+      const hasAnyRequiredPermission =
+        !requiredAnyPermissions?.length ||
+        requiredAnyPermissions.some((permission) =>
+          requestContext.permissions.includes(permission),
+        );
+
+      return hasRequiredPermissions && hasAnyRequiredPermission;
+    };
+
+    const requestContext = candidates.find(satisfiesRequirement);
+
+    if (!requestContext) {
       throw new ForbiddenException({
         code: "MISSING_PERMISSION",
         message: "You do not have permission to perform this action.",
@@ -76,30 +87,56 @@ export class PermissionGuard implements CanActivate {
     return true;
   }
 
-  private async buildRequestContext(request: Request): Promise<RequestContext> {
+  // A single browser can legitimately hold both a platform-owner session
+  // cookie and a tenant session cookie at once (e.g. a platform owner
+  // accepting a tenant invite in the same tab used to create the tenant) —
+  // both cookies are set with `path: "/"`, so nothing keeps them from
+  // coexisting regardless of which app the request is "for". Resolving
+  // every credential actually present and picking whichever one satisfies
+  // the route's declared requirement (rather than always preferring the
+  // platform session) keeps a valid tenant session from being silently
+  // shadowed. Permission sets never overlap between platform_owner and
+  // tenant roles, so there's no ambiguity in which candidate "should" win.
+  private async buildRequestContextCandidates(
+    request: Request,
+  ): Promise<RequestContext[]> {
+    const candidates: RequestContext[] = [];
+
     const platformTokenContext = buildPlatformOperationsContext(request);
 
     if (platformTokenContext) {
-      return platformTokenContext;
+      candidates.push(platformTokenContext);
     }
 
-    const platformSessionContext =
-      await this.buildPlatformSessionContext(request);
+    const [platformSessionContext, tenantSessionContext] = await Promise.all([
+      this.buildPlatformSessionContext(request),
+      this.buildTenantSessionContext(request),
+    ]);
 
     if (platformSessionContext) {
-      return platformSessionContext;
+      candidates.push(platformSessionContext);
     }
 
+    if (tenantSessionContext) {
+      candidates.push(tenantSessionContext);
+    }
+
+    return candidates;
+  }
+
+  private async buildTenantSessionContext(
+    request: Request,
+  ): Promise<RequestContext | null> {
     const token = readSessionToken(request);
 
     if (!token) {
-      throwUnauthorized();
+      return null;
     }
 
     const session = await this.sessionService.findActiveSessionByToken(token);
 
     if (!session) {
-      throwUnauthorized();
+      return null;
     }
 
     const [tenant, user] = await Promise.all([
@@ -116,7 +153,7 @@ export class PermissionGuard implements CanActivate {
     ]);
 
     if (!tenant || !user || user.status !== "active") {
-      throwUnauthorized();
+      return null;
     }
 
     const roleCodes = user.roles.map((role) => role.roleCode);
