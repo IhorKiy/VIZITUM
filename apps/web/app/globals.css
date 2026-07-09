@@ -657,9 +657,87 @@ textarea {
   min-width: 0;
 }
 
+.admin-invites-panel {
+  grid-column: 1 / -1;
+}
+
+.panel-summary-sub {
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+
 .admin-user-list {
   display: grid;
   gap: 12px;
+}
+
+.user-group-list {
+  display: grid;
+  gap: 20px;
+}
+
+/* Each role section is its own tinted, bordered card so the groups read as
+   distinct blocks rather than one continuous stream. */
+.user-group {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.user-group-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+  padding: 12px 16px;
+}
+
+.user-group[open] > .user-group-summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.user-group > .admin-user-list,
+.user-group > .empty-state {
+  padding: 14px 16px 16px;
+}
+
+.user-group-summary::-webkit-details-marker {
+  display: none;
+}
+
+.user-group-summary::marker {
+  content: "";
+}
+
+.user-group-summary:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.user-group-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.user-group-meta {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.user-group-count {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 24px;
+  padding: 2px 8px;
+  text-align: center;
 }
 
 .admin-invite-list {
@@ -668,11 +746,214 @@ textarea {
 }
 
 .admin-user-row {
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
   gap: 12px;
   padding: 14px;
+}
+
+.admin-user-disclosure {
+  gap: 0;
+  padding: 0;
+}
+
+.admin-user-disclosure[open] {
+  gap: 12px;
+  padding: 14px;
+}
+
+.admin-user-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+  padding: 10px 14px;
+}
+
+.admin-user-disclosure[open] .admin-user-summary {
+  padding: 0;
+}
+
+/* A <details> with display:grid wraps everything after <summary> in a single
+   anonymous box, so the grid gap can't space the body's own children. Own
+   grid on the body restores spacing between the role checkboxes and actions. */
+.admin-user-body {
+  display: grid;
+  gap: 12px;
+}
+
+/* Remove the native disclosure marker across engines so only our chevron shows. */
+.admin-user-summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-user-summary::marker {
+  content: "";
+}
+
+.admin-user-summary:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.admin-user-summary-lead {
+  min-width: 0;
+}
+
+.user-name-field {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.user-name-field.editing {
+  gap: 4px;
+}
+
+.user-name-input {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 8px;
+  max-width: 100%;
+}
+
+.user-name-input:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
+/* Small borderless glyph button for the inline name editor — distinct from the
+   design system's bordered 40x40 `.icon-button`. */
+.name-edit-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 4px;
+  transition: opacity 0.12s ease;
+}
+
+/* The edit affordance is revealed only when the row is hovered or keyboard-
+   focused; its space is kept reserved (opacity, not display) so nothing
+   shifts. The save/cancel controls in edit mode stay visible. */
+.user-name-field:not(.editing) .name-edit-button {
+  opacity: 0;
+}
+
+.admin-user-summary:hover .user-name-field:not(.editing) .name-edit-button,
+.admin-user-summary:focus-within
+  .user-name-field:not(.editing)
+  .name-edit-button,
+.user-name-field:not(.editing) .name-edit-button:focus-visible {
+  opacity: 1;
+}
+
+.name-edit-button:hover {
+  background: var(--surface-muted);
+  color: var(--accent-strong);
+}
+
+.name-edit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.name-edit-button:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
+.admin-user-name-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.superadmin-badge {
+  background: var(--gold);
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.info-hint {
+  align-items: center;
+  color: var(--muted);
+  cursor: help;
+  display: inline-flex;
+  position: relative;
+}
+
+.info-hint:hover,
+.info-hint:focus-visible {
+  color: var(--accent-strong);
+}
+
+.info-hint-bubble {
+  background: var(--ink);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  left: 0;
+  line-height: 1.45;
+  max-width: 280px;
+  opacity: 0;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  transition: opacity 0.12s ease;
+  width: max-content;
+  z-index: 20;
+}
+
+.info-hint:hover .info-hint-bubble,
+.info-hint:focus .info-hint-bubble,
+.info-hint:focus-within .info-hint-bubble {
+  opacity: 1;
+}
+
+.admin-user-summary-meta {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.disclosure-chevron {
+  border-bottom: 2px solid var(--muted);
+  border-right: 2px solid var(--muted);
+  display: inline-block;
+  height: 8px;
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  width: 8px;
+}
+
+.admin-user-disclosure[open] .disclosure-chevron {
+  transform: rotate(-135deg);
 }
 
 .admin-invite-row {
@@ -740,6 +1021,48 @@ textarea {
   font-size: 12px;
   font-weight: 850;
   padding: 6px 9px;
+}
+
+.role-checkbox-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-checkbox {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.role-checkbox input {
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.role-checkbox:has(input:checked) {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.role-checkbox:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.role-checkbox:has(input:disabled) input {
+  cursor: not-allowed;
 }
 
 .tenant-admin-list {

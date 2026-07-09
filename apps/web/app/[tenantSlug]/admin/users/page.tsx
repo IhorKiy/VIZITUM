@@ -3,7 +3,11 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { InfoHint } from "../../../../components/info-hint";
+import { InviteUserModal } from "../../../../components/invite-user-modal";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
+import { RoleCheckbox } from "../../../../components/role-checkbox";
+import { UserNameField } from "../../../../components/user-name-field";
 import {
   addAdminUserRole,
   deleteAdminUser,
@@ -19,6 +23,7 @@ import {
   type TenantUser,
 } from "../../../../lib/api-client";
 import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
+import { TENANT_ROLES } from "../../../../lib/tenant-roles";
 
 type AdminUsersPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -33,13 +38,6 @@ type AdminUsersPageProps = {
     deleted?: string;
   }>;
 };
-
-// Labels come from `common.labels.<roleCode>` in the message dictionaries.
-const tenantRoles: TenantRoleCode[] = [
-  "company_admin",
-  "team_manager",
-  "field_representative",
-];
 
 export default async function AdminUsersPage({
   params,
@@ -57,7 +55,7 @@ export default async function AdminUsersPage({
     "use server";
 
     const email = String(formData.get("email") ?? "").trim();
-    const roleCodes = tenantRoles.filter(
+    const roleCodes = TENANT_ROLES.filter(
       (roleCode) => formData.get(roleCode) === "on",
     );
 
@@ -171,6 +169,27 @@ export default async function AdminUsersPage({
     redirect(`/${tenantSlug}/admin/users?role=updated`);
   }
 
+  async function updateUserNameAction(formData: FormData) {
+    "use server";
+
+    const userId = String(formData.get("userId") ?? "").trim();
+    const name = String(formData.get("name") ?? "").trim();
+
+    if (!userId || !name) {
+      redirect(`/${tenantSlug}/admin/users?error=status`);
+    }
+
+    const result = await updateAdminUser(userId, { name });
+
+    if (!result.ok) {
+      redirect(
+        `/${tenantSlug}/admin/users?error=status&message=${encodeURIComponent(result.message)}`,
+      );
+    }
+
+    redirect(`/${tenantSlug}/admin/users?status=updated`);
+  }
+
   async function deleteUserAction(formData: FormData) {
     "use server";
 
@@ -236,8 +255,6 @@ export default async function AdminUsersPage({
   }
 
   const users = usersResult.data.items;
-  const superadmin =
-    users.find((user) => user.roleCodes.includes("tenant_superadmin")) ?? null;
   const activeCount = users.filter((user) => user.status === "active").length;
   const managerCount = users.filter((user) =>
     user.roleCodes.includes("team_manager"),
@@ -245,6 +262,34 @@ export default async function AdminUsersPage({
   const fieldCount = users.filter((user) =>
     user.roleCodes.includes("field_representative"),
   ).length;
+
+  // The workspace user list is split into role sections shown in a fixed
+  // order. A user is listed in every section whose role they hold, so a
+  // multi-role account appears under each of its roles rather than being
+  // forced into one bucket.
+  const userGroups = [
+    {
+      key: "managers",
+      title: t("groupManagers"),
+      members: users.filter((user) => user.roleCodes.includes("team_manager")),
+    },
+    {
+      key: "representatives",
+      title: t("groupRepresentatives"),
+      members: users.filter((user) =>
+        user.roleCodes.includes("field_representative"),
+      ),
+    },
+    {
+      key: "admins",
+      title: t("groupAdmins"),
+      members: users.filter(
+        (user) =>
+          user.roleCodes.includes("company_admin") ||
+          user.roleCodes.includes("tenant_superadmin"),
+      ),
+    },
+  ];
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-users">
@@ -351,62 +396,12 @@ export default async function AdminUsersPage({
         </article>
       </section>
 
-      {superadmin ? (
-        <section className="notice-panel" aria-label={t("superadminAria")}>
-          <div>
-            <p className="eyebrow">{t("superadminEyebrow")}</p>
-            <h2>{superadmin.name}</h2>
-            <p>{t("superadminBody", { email: superadmin.email })}</p>
-          </div>
-        </section>
-      ) : null}
-
       <section className="admin-users-grid">
-        <div className="panel">
-          <div className="panel-title-stack">
-            <h2>{t("inviteUser")}</h2>
-            <p>
-              {t("inviteUserBody")}
-              {canInviteAdmins ? "" : t("inviteUserAdminsHint")}
-            </p>
-          </div>
-          <form action={inviteUserAction} className="visit-form compact">
-            <label>
-              {t("email")}
-              <input
-                name="email"
-                placeholder={t("emailPlaceholder")}
-                required
-                type="email"
-              />
-            </label>
-            <fieldset className="checkbox-group">
-              <legend>{t("roles")}</legend>
-              {tenantRoles.map((roleCode) => (
-                <label key={roleCode}>
-                  <input
-                    disabled={roleCode === "company_admin" && !canInviteAdmins}
-                    name={roleCode}
-                    type="checkbox"
-                  />
-                  <span>{formatEnumLabel(tCommon, roleCode)}</span>
-                </label>
-              ))}
-            </fieldset>
-            <PendingSubmitButton
-              className="primary-button"
-              pendingLabel={t("creating")}
-            >
-              {t("createInvite")}
-            </PendingSubmitButton>
-          </form>
-        </div>
-
-        <div className="panel admin-invites-panel">
-          <div className="panel-title-stack">
+        <details className="panel panel-collapsible admin-invites-panel">
+          <summary className="panel-summary">
             <h2>{t("pendingInvites")}</h2>
-            <p>{t("pendingInvitesBody")}</p>
-          </div>
+          </summary>
+          <p className="panel-summary-sub">{t("pendingInvitesBody")}</p>
           {invitesResult.ok ? (
             <InviteHistoryList
               invites={invitesResult.data}
@@ -419,26 +414,52 @@ export default async function AdminUsersPage({
               })}
             </p>
           )}
-        </div>
+        </details>
 
         <div className="panel admin-users-panel">
-          <div className="panel-title-stack">
-            <h2>{t("tenantUsers")}</h2>
-            <p>{t("tenantUsersPanelBody")}</p>
+          <div className="panel-toolbar">
+            <div className="panel-title-stack">
+              <h2>{t("tenantUsers")}</h2>
+              <p>{t("tenantUsersPanelBody")}</p>
+            </div>
+            <InviteUserModal
+              action={inviteUserAction}
+              canInviteAdmins={canInviteAdmins}
+            />
           </div>
           {users.length > 0 ? (
-            <div className="admin-user-list">
-              {users.map((user) => (
-                <UserRow
-                  addRoleAction={addRoleAction}
-                  canInviteAdmins={canInviteAdmins}
-                  canManageAdmins={canManageAdmins}
-                  deleteUserAction={deleteUserAction}
-                  key={user.id}
-                  removeRoleAction={removeRoleAction}
-                  updateUserStatusAction={updateUserStatusAction}
-                  user={user}
-                />
+            <div className="user-group-list">
+              {userGroups.map((group) => (
+                <details className="user-group" key={group.key}>
+                  <summary className="user-group-summary">
+                    <span className="user-group-title">{group.title}</span>
+                    <span className="user-group-meta">
+                      <span className="user-group-count">
+                        {group.members.length}
+                      </span>
+                      <span className="disclosure-chevron" aria-hidden="true" />
+                    </span>
+                  </summary>
+                  {group.members.length > 0 ? (
+                    <div className="admin-user-list">
+                      {group.members.map((user) => (
+                        <UserRow
+                          addRoleAction={addRoleAction}
+                          canInviteAdmins={canInviteAdmins}
+                          canManageAdmins={canManageAdmins}
+                          deleteUserAction={deleteUserAction}
+                          key={user.id}
+                          removeRoleAction={removeRoleAction}
+                          updateUserNameAction={updateUserNameAction}
+                          updateUserStatusAction={updateUserStatusAction}
+                          user={user}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="empty-state">{t("groupEmpty")}</p>
+                  )}
+                </details>
               ))}
             </div>
           ) : (
@@ -532,6 +553,7 @@ function UserRow({
   canManageAdmins,
   deleteUserAction,
   removeRoleAction,
+  updateUserNameAction,
   updateUserStatusAction,
   user,
 }: {
@@ -540,6 +562,7 @@ function UserRow({
   canManageAdmins: boolean;
   deleteUserAction: (formData: FormData) => Promise<void>;
   removeRoleAction: (formData: FormData) => Promise<void>;
+  updateUserNameAction: (formData: FormData) => Promise<void>;
   updateUserStatusAction: (formData: FormData) => Promise<void>;
   user: TenantUser;
 }) {
@@ -548,119 +571,122 @@ function UserRow({
   const isSuperadmin = user.roleCodes.includes("tenant_superadmin");
   const isCompanyAdmin = user.roleCodes.includes("company_admin");
   const actionsLocked = isSuperadmin || (isCompanyAdmin && !canManageAdmins);
-  // Granting company_admin is gated server-side by admins.invite (like
-  // inviting one), not admins.manage — keep this select in sync with
-  // UsersService.addRole rather than reusing the manage-scoped flag above.
-  const missingRoles = tenantRoles.filter(
-    (roleCode) =>
-      !user.roleCodes.includes(roleCode) &&
-      (roleCode !== "company_admin" || canInviteAdmins),
-  );
-  const canRemoveRole = user.roleCodes.length > 1 && !actionsLocked;
+  const isOnlyRole = user.roleCodes.length <= 1;
   const nextStatus = user.status === "suspended" ? "active" : "suspended";
 
   return (
-    <article className="admin-user-row">
-      <header>
-        <div>
-          <h3>{user.name}</h3>
+    // Exclusive-accordion disclosure: the shared `name` keeps only one user
+    // expanded at a time; collapsed rows show just the identity summary and
+    // the management controls stay hidden until a row is opened.
+    <details className="admin-user-row admin-user-disclosure" name="admin-user">
+      <summary className="admin-user-summary">
+        <div className="admin-user-summary-lead">
+          <div className="admin-user-name-row">
+            <UserNameField
+              canEdit={!actionsLocked}
+              name={user.name}
+              updateNameAction={updateUserNameAction}
+              userId={user.id}
+            />
+            {isSuperadmin ? (
+              <>
+                <span className="superadmin-badge">{t("superadminBadge")}</span>
+                <InfoHint
+                  label={t("superadminBadge")}
+                  text={t("superadminBody", { email: user.email })}
+                />
+              </>
+            ) : null}
+          </div>
           <p>{user.email}</p>
         </div>
-        <span className={`status-pill ${statusTone(user.status)}`}>
-          {formatEnumLabel(tCommon, user.status)}
-        </span>
-      </header>
-
-      <div
-        className="role-chip-list"
-        aria-label={t("rolesAria", { name: user.name })}
-      >
-        {user.roleCodes.map((roleCode) => (
-          <span className="role-chip" key={roleCode}>
-            {formatEnumLabel(tCommon, roleCode)}
+        <div className="admin-user-summary-meta">
+          <span className={`status-pill ${statusTone(user.status)}`}>
+            {formatEnumLabel(tCommon, user.status)}
           </span>
-        ))}
-      </div>
-
-      {isSuperadmin ? (
-        <p className="small-label">{t("superadminLocked")}</p>
-      ) : (
-        <div className="user-actions-grid">
-          <form action={updateUserStatusAction} className="inline-control-form">
-            <input name="userId" type="hidden" value={user.id} />
-            <input name="status" type="hidden" value={nextStatus} />
-            <PendingSubmitButton
-              className="secondary-button"
-              disabled={actionsLocked}
-              pendingLabel={tCommon("saving")}
-            >
-              {nextStatus === "active" ? t("reactivate") : t("suspend")}
-            </PendingSubmitButton>
-          </form>
-
-          <form action={addRoleAction} className="inline-control-form">
-            <input name="userId" type="hidden" value={user.id} />
-            <select
-              aria-label={t("addRoleAria", { name: user.name })}
-              disabled={missingRoles.length === 0}
-              name="roleCode"
-              required
-            >
-              <option value="">{t("addRole")}</option>
-              {missingRoles.map((roleCode) => (
-                <option key={roleCode} value={roleCode}>
-                  {formatEnumLabel(tCommon, roleCode)}
-                </option>
-              ))}
-            </select>
-            <PendingSubmitButton
-              className="secondary-button"
-              disabled={missingRoles.length === 0}
-              pendingLabel={tCommon("saving")}
-            >
-              {t("add")}
-            </PendingSubmitButton>
-          </form>
-
-          <form action={removeRoleAction} className="inline-control-form">
-            <input name="userId" type="hidden" value={user.id} />
-            <select
-              aria-label={t("removeRoleAria", { name: user.name })}
-              disabled={!canRemoveRole}
-              name="roleCode"
-              required
-            >
-              <option value="">{t("removeRole")}</option>
-              {user.roleCodes.map((roleCode) => (
-                <option key={roleCode} value={roleCode}>
-                  {formatEnumLabel(tCommon, roleCode)}
-                </option>
-              ))}
-            </select>
-            <PendingSubmitButton
-              className="secondary-button"
-              disabled={!canRemoveRole}
-              pendingLabel={tCommon("saving")}
-            >
-              {t("remove")}
-            </PendingSubmitButton>
-          </form>
-
-          {isCompanyAdmin ? (
-            <form action={deleteUserAction} className="inline-control-form">
-              <input name="userId" type="hidden" value={user.id} />
-              <PendingSubmitButton
-                className="secondary-button danger"
-                disabled={actionsLocked}
-                pendingLabel={t("deleting")}
-              >
-                {t("delete")}
-              </PendingSubmitButton>
-            </form>
-          ) : null}
+          <span className="disclosure-chevron" aria-hidden="true" />
         </div>
-      )}
-    </article>
+      </summary>
+
+      <div className="admin-user-body">
+        {isSuperadmin ? (
+          <p className="small-label">{t("superadminLocked")}</p>
+        ) : (
+          <>
+            <div
+              className="role-checkbox-list"
+              role="group"
+              aria-label={t("rolesAria", { name: user.name })}
+            >
+              {TENANT_ROLES.map((roleCode) => {
+                const hasRole = user.roleCodes.includes(roleCode);
+                const label = formatEnumLabel(tCommon, roleCode);
+                // Granting company_admin is gated server-side by admins.invite
+                // (like inviting one), not admins.manage; the last remaining
+                // role can never be removed (a user must keep at least one).
+                const disabled =
+                  actionsLocked ||
+                  (roleCode === "company_admin" &&
+                    !hasRole &&
+                    !canInviteAdmins) ||
+                  (hasRole && isOnlyRole);
+
+                return (
+                  <RoleCheckbox
+                    addMessage={t("confirmAddRole", {
+                      name: user.name,
+                      role: label,
+                    })}
+                    addRoleAction={addRoleAction}
+                    checked={hasRole}
+                    disabled={disabled}
+                    key={roleCode}
+                    label={label}
+                    removeMessage={t("confirmRemoveRole", {
+                      name: user.name,
+                      role: label,
+                    })}
+                    removeRoleAction={removeRoleAction}
+                    roleCode={roleCode}
+                    userId={user.id}
+                  />
+                );
+              })}
+            </div>
+
+            <div className="user-actions-grid">
+              <form
+                action={updateUserStatusAction}
+                className="inline-control-form"
+              >
+                <input name="userId" type="hidden" value={user.id} />
+                <input name="status" type="hidden" value={nextStatus} />
+                <PendingSubmitButton
+                  className="secondary-button"
+                  disabled={actionsLocked}
+                  pendingLabel={tCommon("saving")}
+                >
+                  {nextStatus === "active" ? t("reactivate") : t("suspend")}
+                </PendingSubmitButton>
+              </form>
+
+              {isCompanyAdmin ? (
+                <form action={deleteUserAction} className="inline-control-form">
+                  <input name="userId" type="hidden" value={user.id} />
+                  <PendingSubmitButton
+                    className="secondary-button danger"
+                    disabled={actionsLocked}
+                    pendingLabel={t("deleting")}
+                  >
+                    {t("delete")}
+                  </PendingSubmitButton>
+                </form>
+              ) : null}
+            </div>
+          </>
+        )}
+      </div>
+    </details>
   );
 }
 
