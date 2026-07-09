@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { AiModule } from "./modules/ai/ai.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { ChainsModule } from "./modules/chains/chains.module";
 import { HealthModule } from "./modules/health/health.module";
 import { ImportsModule } from "./modules/imports/imports.module";
 import { LocationsModule } from "./modules/locations/locations.module";
@@ -30,6 +31,7 @@ import { VisitsModule } from "./modules/visits/visits.module";
     UsersModule,
     RolesModule,
     LocationsModule,
+    ChainsModule,
     ProductsModule,
     RoutesModule,
     SettingsModule,

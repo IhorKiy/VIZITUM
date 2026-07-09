@@ -113,6 +113,7 @@ export type ImportApplyResult = {
   createdCounts: {
     users: number;
     userRoles: number;
+    chains: number;
     locations: number;
     locationAssignments: number;
     contacts: number;

@@ -5,12 +5,11 @@ import { getTranslations } from "next-intl/server";
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
+  createAdminChain,
   listAdminChains,
-  listAdminLocations,
-  updateAdminLocation,
+  updateAdminChain,
   type Chain,
-  type Location,
-  type LocationStatus,
+  type ChainStatus,
 } from "../../../../lib/api-client";
 import {
   formatEnumLabel,
@@ -18,26 +17,27 @@ import {
   statusTone,
 } from "../../../../lib/format";
 
-type AdminLocationsPageProps = {
+type AdminChainsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     error?: string;
     search?: string;
     status?: string;
+    created?: string;
     updated?: string;
   }>;
 };
 
-const locationStatuses: LocationStatus[] = ["active", "inactive", "archived"];
+const chainStatuses: ChainStatus[] = ["active", "archived"];
 
-export default async function AdminLocationsPage({
+export default async function AdminChainsPage({
   params,
   searchParams,
-}: AdminLocationsPageProps) {
+}: AdminChainsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
   const [t, tAdmin, tCommon] = await Promise.all([
-    getTranslations("admin.locations"),
+    getTranslations("admin.chains"),
     getTranslations("admin"),
     getTranslations("common"),
   ]);
@@ -55,48 +55,58 @@ export default async function AdminLocationsPage({
     query.set("search", search);
   }
 
-  async function updateLocationAction(formData: FormData) {
+  async function createChainAction(formData: FormData) {
     "use server";
 
-    const locationId = String(formData.get("locationId") ?? "").trim();
     const name = String(formData.get("name") ?? "").trim();
-    const city = String(formData.get("city") ?? "").trim();
-    const type = normalizeOptionalField(formData.get("type"));
-    const chainId = normalizeOptionalField(formData.get("chainId"));
-    const region = normalizeOptionalField(formData.get("region"));
-    const territory = normalizeOptionalField(formData.get("territory"));
-    const status = normalizeStatus(String(formData.get("status") ?? ""));
+    const externalCode = normalizeOptionalField(formData.get("externalCode"));
+    const notes = normalizeOptionalField(formData.get("notes"));
 
-    if (!locationId || !name || !city || !status) {
-      redirect(`/${tenantSlug}/admin/locations?error=1`);
+    if (!name) {
+      redirect(`/${tenantSlug}/admin/chains?error=1`);
     }
 
-    const result = await updateAdminLocation(locationId, {
+    const result = await createAdminChain({ name, externalCode, notes });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/chains?error=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/chains?created=1`);
+  }
+
+  async function updateChainAction(formData: FormData) {
+    "use server";
+
+    const chainId = String(formData.get("chainId") ?? "").trim();
+    const name = String(formData.get("name") ?? "").trim();
+    const externalCode = normalizeOptionalField(formData.get("externalCode"));
+    const notes = normalizeOptionalField(formData.get("notes"));
+    const status = normalizeStatus(String(formData.get("status") ?? ""));
+
+    if (!chainId || !name || !status) {
+      redirect(`/${tenantSlug}/admin/chains?error=1`);
+    }
+
+    const result = await updateAdminChain(chainId, {
       name,
-      city,
-      type,
-      chainId,
-      region,
-      territory,
+      externalCode,
+      notes,
       status,
     });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?error=1`);
+      redirect(`/${tenantSlug}/admin/chains?error=1`);
     }
 
-    redirect(`/${tenantSlug}/admin/locations?updated=1`);
+    redirect(`/${tenantSlug}/admin/chains?updated=1`);
   }
 
-  const [locationsResult, chainsResult] = await Promise.all([
-    listAdminLocations(query.toString()),
-    listAdminChains("pageSize=100&status=active"),
-  ]);
-  const chains = chainsResult.ok ? chainsResult.data.items : [];
+  const chainsResult = await listAdminChains(query.toString());
 
-  if (!locationsResult.ok) {
+  if (!chainsResult.ok) {
     return (
-      <AppShell tenantSlug={tenantSlug} activeArea="admin-locations">
+      <AppShell tenantSlug={tenantSlug} activeArea="admin-chains">
         <header className="page-header">
           <div>
             <p className="eyebrow">{tAdmin("eyebrow")}</p>
@@ -117,20 +127,20 @@ export default async function AdminLocationsPage({
           <div>
             <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
             <h2>{t("notConnectedTitle")}</h2>
-            <p>{locationsResult.message}</p>
+            <p>{chainsResult.message}</p>
           </div>
         </section>
       </AppShell>
     );
   }
 
-  const locations = locationsResult.data.items;
-  const activeCount = locations.filter(
-    (location) => location.status === "active",
+  const chains = chainsResult.data.items;
+  const activeCount = chains.filter(
+    (chain) => chain.status === "active",
   ).length;
 
   return (
-    <AppShell tenantSlug={tenantSlug} activeArea="admin-locations">
+    <AppShell tenantSlug={tenantSlug} activeArea="admin-chains">
       <header className="page-header">
         <div>
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
@@ -138,6 +148,16 @@ export default async function AdminLocationsPage({
           <p>{t("body")}</p>
         </div>
       </header>
+
+      {pageState.created ? (
+        <section className="notice-panel success" aria-label={t("createdAria")}>
+          <div>
+            <p className="eyebrow">{t("createdEyebrow")}</p>
+            <h2>{t("createdTitle")}</h2>
+            <p>{t("createdBody")}</p>
+          </div>
+        </section>
+      ) : null}
 
       {pageState.updated ? (
         <section className="notice-panel success" aria-label={t("updatedAria")}>
@@ -162,20 +182,47 @@ export default async function AdminLocationsPage({
       <section className="manager-grid" aria-label={t("metricsAria")}>
         <article className="metric-card">
           <header>
-            <p className="metric-label">{t("tenantLocations")}</p>
+            <p className="metric-label">{t("tenantChains")}</p>
             <span className="status-pill active">{tCommon("labels.live")}</span>
           </header>
-          <p className="metric-value">{locationsResult.data.total}</p>
+          <p className="metric-value">{chainsResult.data.total}</p>
           <p className="small-label">
             {t("activeCount", { count: activeCount })}
           </p>
         </article>
       </section>
 
+      <section className="panel">
+        <div className="panel-title-stack">
+          <h2>{t("createTitle")}</h2>
+          <p>{t("createBody")}</p>
+        </div>
+        <form action={createChainAction} className="visit-form compact">
+          <label>
+            {t("name")}
+            <input name="name" required type="text" />
+          </label>
+          <label>
+            {t("externalCode")}
+            <input name="externalCode" type="text" />
+          </label>
+          <label>
+            {t("notes")}
+            <input name="notes" type="text" />
+          </label>
+          <PendingSubmitButton
+            className="primary-button"
+            pendingLabel={tCommon("saving")}
+          >
+            {t("createChain")}
+          </PendingSubmitButton>
+        </form>
+      </section>
+
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
-            <h2>{t("locationList")}</h2>
+            <h2>{t("chainList")}</h2>
             <p>
               {selectedStatus
                 ? t("showingStatus", {
@@ -190,14 +237,14 @@ export default async function AdminLocationsPage({
           <div className="filter-pills" aria-label={t("statusFiltersAria")}>
             <a
               aria-current={!selectedStatus ? "page" : undefined}
-              href={buildLocationFilterHref(tenantSlug, null, search)}
+              href={buildChainFilterHref(tenantSlug, null, search)}
             >
               {tCommon("all")}
             </a>
-            {locationStatuses.map((status) => (
+            {chainStatuses.map((status) => (
               <a
                 aria-current={selectedStatus === status ? "page" : undefined}
-                href={buildLocationFilterHref(tenantSlug, status, search)}
+                href={buildChainFilterHref(tenantSlug, status, search)}
                 key={status}
               >
                 {formatEnumLabel(tCommon, status)}
@@ -206,7 +253,7 @@ export default async function AdminLocationsPage({
           </div>
         </div>
 
-        <form action={`/${tenantSlug}/admin/locations`} className="filter-form">
+        <form action={`/${tenantSlug}/admin/chains`} className="filter-form">
           {selectedStatus ? (
             <input name="status" type="hidden" value={selectedStatus} />
           ) : null}
@@ -226,7 +273,7 @@ export default async function AdminLocationsPage({
             {hasFilters ? (
               <a
                 className="secondary-button"
-                href={`/${tenantSlug}/admin/locations`}
+                href={`/${tenantSlug}/admin/chains`}
               >
                 {tCommon("reset")}
               </a>
@@ -234,14 +281,13 @@ export default async function AdminLocationsPage({
           </div>
         </form>
 
-        {locations.length > 0 ? (
+        {chains.length > 0 ? (
           <div className="admin-user-list">
-            {locations.map((location) => (
-              <LocationRow
-                key={location.id}
-                chains={chains}
-                location={location}
-                updateLocationAction={updateLocationAction}
+            {chains.map((chain) => (
+              <ChainRow
+                key={chain.id}
+                chain={chain}
+                updateChainAction={updateChainAction}
               />
             ))}
           </div>
@@ -249,22 +295,16 @@ export default async function AdminLocationsPage({
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
             <p>{t("emptyBody")}</p>
-            <div className="toolbar">
-              {hasFilters ? (
+            {hasFilters ? (
+              <div className="toolbar">
                 <a
                   className="secondary-button"
-                  href={`/${tenantSlug}/admin/locations`}
+                  href={`/${tenantSlug}/admin/chains`}
                 >
-                  {t("showAllLocations")}
+                  {t("showAllChains")}
                 </a>
-              ) : null}
-              <a
-                className="primary-button"
-                href={`/${tenantSlug}/admin/imports`}
-              >
-                {t("openImports")}
-              </a>
-            </div>
+              </div>
+            ) : null}
           </div>
         )}
       </section>
@@ -272,75 +312,46 @@ export default async function AdminLocationsPage({
   );
 }
 
-function LocationRow({
-  chains,
-  location,
-  updateLocationAction,
+function ChainRow({
+  chain,
+  updateChainAction,
 }: {
-  chains: Chain[];
-  location: Location;
-  updateLocationAction: (formData: FormData) => Promise<void>;
+  chain: Chain;
+  updateChainAction: (formData: FormData) => Promise<void>;
 }) {
-  const t = useTranslations("admin.locations");
+  const t = useTranslations("admin.chains");
   const tCommon = useTranslations("common");
-  // A location may point at a chain that is no longer active (so absent from
-  // the picker options); keep it selectable so saving doesn't silently drop it.
-  const chainOptions =
-    location.chain && !chains.some((chain) => chain.id === location.chainId)
-      ? [{ id: location.chain.id, name: location.chain.name }, ...chains]
-      : chains;
 
   return (
     <article className="admin-user-row">
       <header>
         <div>
-          <h3>{location.name}</h3>
-          <p>
-            {location.addressLine}, {location.city}
-          </p>
+          <h3>{chain.name}</h3>
+          {chain.externalCode ? <p>{chain.externalCode}</p> : null}
         </div>
-        <span className={`status-pill ${statusTone(location.status)}`}>
-          {formatEnumLabel(tCommon, location.status)}
+        <span className={`status-pill ${statusTone(chain.status)}`}>
+          {formatEnumLabel(tCommon, chain.status)}
         </span>
       </header>
 
-      <form action={updateLocationAction} className="visit-form compact">
-        <input name="locationId" type="hidden" value={location.id} />
+      <form action={updateChainAction} className="visit-form compact">
+        <input name="chainId" type="hidden" value={chain.id} />
         <label>
           {t("name")}
-          <input defaultValue={location.name} name="name" required />
+          <input defaultValue={chain.name} name="name" required />
         </label>
         <label>
-          {t("city")}
-          <input defaultValue={location.city} name="city" required />
+          {t("externalCode")}
+          <input defaultValue={chain.externalCode ?? ""} name="externalCode" />
         </label>
         <label>
-          {t("type")}
-          <input defaultValue={location.type ?? ""} name="type" />
-        </label>
-        <label>
-          {t("chain")}
-          <select defaultValue={location.chainId ?? ""} name="chainId">
-            <option value="">{t("chainNone")}</option>
-            {chainOptions.map((chain) => (
-              <option key={chain.id} value={chain.id}>
-                {chain.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t("region")}
-          <input defaultValue={location.region ?? ""} name="region" />
-        </label>
-        <label>
-          {t("territory")}
-          <input defaultValue={location.territory ?? ""} name="territory" />
+          {t("notes")}
+          <input defaultValue={chain.notes ?? ""} name="notes" />
         </label>
         <label>
           {t("status")}
-          <select defaultValue={location.status} name="status" required>
-            {locationStatuses.map((status) => (
+          <select defaultValue={chain.status} name="status" required>
+            {chainStatuses.map((status) => (
               <option key={status} value={status}>
                 {formatEnumLabel(tCommon, status)}
               </option>
@@ -351,16 +362,16 @@ function LocationRow({
           className="secondary-button"
           pendingLabel={tCommon("saving")}
         >
-          {t("saveLocation")}
+          {t("saveChain")}
         </PendingSubmitButton>
       </form>
     </article>
   );
 }
 
-function buildLocationFilterHref(
+function buildChainFilterHref(
   tenantSlug: string,
-  status: LocationStatus | null,
+  status: ChainStatus | null,
   search: string | null,
 ): string {
   const query = new URLSearchParams();
@@ -375,11 +386,11 @@ function buildLocationFilterHref(
 
   const suffix = query.toString();
 
-  return `/${tenantSlug}/admin/locations${suffix ? `?${suffix}` : ""}`;
+  return `/${tenantSlug}/admin/chains${suffix ? `?${suffix}` : ""}`;
 }
 
-function normalizeStatus(value: string | undefined): LocationStatus | null {
-  if (value === "active" || value === "inactive" || value === "archived") {
+function normalizeStatus(value: string | undefined): ChainStatus | null {
+  if (value === "active" || value === "archived") {
     return value;
   }
 

@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Location, LocationStatus, Prisma } from "@prisma/client";
+import type { LocationStatus, Prisma } from "@prisma/client";
 
 import {
   createPaginatedResponse,
@@ -25,10 +25,21 @@ import type {
   UpdateLocationRequestBody,
 } from "./locations.types";
 
+// Every location read that feeds toLocationResponse loads the linked chain
+// (id + name only) so the response can expose the denormalized chain summary.
+const LOCATION_INCLUDE = {
+  chain: { select: { id: true, name: true } },
+} satisfies Prisma.LocationInclude;
+
+type LocationWithChain = Prisma.LocationGetPayload<{
+  include: typeof LOCATION_INCLUDE;
+}>;
+
 type LocationCreateData = {
   externalCode: string | null;
   name: string;
   type: string | null;
+  chainId: string | null;
   addressLine: string;
   city: string;
   region: string | null;
@@ -71,6 +82,7 @@ export class LocationsService {
         orderBy: { createdAt: "desc" },
         skip: pagination.skip,
         take: pagination.take,
+        include: LOCATION_INCLUDE,
       }),
       this.prisma.location.count({ where }),
     ]);
@@ -107,11 +119,14 @@ export class LocationsService {
       );
     }
 
+    await this.assertChainAvailable(context.tenantId, data.chainId);
+
     const location = await this.prisma.location.create({
       data: {
         tenantId: context.tenantId,
         ...data,
       },
+      include: LOCATION_INCLUDE,
     });
 
     return toLocationResponse(location);
@@ -136,9 +151,14 @@ export class LocationsService {
       );
     }
 
+    if (data.chainId !== undefined) {
+      await this.assertChainAvailable(context.tenantId, data.chainId);
+    }
+
     const updatedLocation = await this.prisma.location.update({
       where: { id: location.id },
       data,
+      include: LOCATION_INCLUDE,
     });
 
     return toLocationResponse(updatedLocation);
@@ -322,13 +342,14 @@ export class LocationsService {
   private async findTenantLocation(
     tenantId: string,
     locationId: string,
-  ): Promise<Location> {
+  ): Promise<LocationWithChain> {
     const location = await this.prisma.location.findFirst({
       where: {
         id: locationId,
         tenantId,
         deletedAt: null,
       },
+      include: LOCATION_INCLUDE,
     });
 
     if (!location) {
@@ -339,6 +360,36 @@ export class LocationsService {
     }
 
     return location;
+  }
+
+  // A location may only be linked to a chain owned by the same tenant. `null`
+  // clears the link and is always allowed.
+  private async assertChainAvailable(
+    tenantId: string,
+    chainId: string | null,
+  ): Promise<void> {
+    if (!chainId) {
+      return;
+    }
+
+    const chain = await this.prisma.chain.findFirst({
+      where: {
+        id: chainId,
+        tenantId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!chain) {
+      throw new BadRequestException({
+        code: "LOCATION_CHAIN_INVALID",
+        message: "Chain was not found for this tenant.",
+        fieldErrors: {
+          chainId: ["Chain was not found."],
+        },
+      });
+    }
   }
 
   private async assertExternalCodeAvailable(
@@ -467,6 +518,7 @@ function buildLocationWhere(
     ...(query.city ? { city: query.city } : {}),
     ...(query.region ? { region: query.region } : {}),
     ...(query.territory ? { territory: query.territory } : {}),
+    ...(query.chainId ? { chainId: query.chainId } : {}),
     ...(query.search
       ? {
           OR: [
@@ -504,6 +556,7 @@ function parseCreateLocationBody(
     city,
     externalCode: normalizeOptionalString(body.externalCode),
     type: normalizeOptionalString(body.type),
+    chainId: normalizeId(body.chainId),
     region: normalizeOptionalString(body.region),
     territory: normalizeOptionalString(body.territory),
     latitude: normalizeCoordinate(body.latitude),
@@ -583,6 +636,9 @@ function parseUpdateLocationBody(
       : {}),
     ...(body.type !== undefined
       ? { type: normalizeOptionalString(body.type) }
+      : {}),
+    ...(body.chainId !== undefined
+      ? { chainId: normalizeId(body.chainId) }
       : {}),
     ...(body.region !== undefined
       ? { region: normalizeOptionalString(body.region) }
@@ -686,13 +742,17 @@ function normalizeLocationStatus(value: unknown): LocationStatus | null {
   return null;
 }
 
-function toLocationResponse(location: Location): LocationResponse {
+function toLocationResponse(location: LocationWithChain): LocationResponse {
   return {
     id: location.id,
     externalCode: location.externalCode,
     name: location.name,
     type: location.type,
     status: location.status,
+    chainId: location.chainId,
+    chain: location.chain
+      ? { id: location.chain.id, name: location.chain.name }
+      : null,
     addressLine: location.addressLine,
     city: location.city,
     region: location.region,

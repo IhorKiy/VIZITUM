@@ -30,6 +30,7 @@ const SHARED_STRINGS_PATH = "xl/sharedStrings.xml";
 const DEFAULT_IMPORT_COUNTS: ImportApplyResult["createdCounts"] = {
   users: 0,
   userRoles: 0,
+  chains: 0,
   locations: 0,
   locationAssignments: 0,
   contacts: 0,
@@ -90,6 +91,12 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         description: "Optional source-system location identifier.",
       },
       { key: "type", required: false, description: "Optional location type." },
+      {
+        key: "chain",
+        required: false,
+        description:
+          "Optional retail chain/network name; created on first use and reused by name.",
+      },
       { key: "region", required: false, description: "Optional region." },
       {
         key: "territory",
@@ -677,9 +684,17 @@ export class ImportsService {
     counts: ImportCreatedCounts,
   ): Promise<void> {
     for (const row of parsedFile.rows) {
+      const chainId = await this.resolveChainReference(
+        transaction,
+        context,
+        row.chain,
+        counts,
+      );
+
       const location = await transaction.location.create({
         data: {
           tenantId: context.tenantId,
+          chainId,
           externalCode: optionalString(row.external_code),
           name: requiredString(row.name),
           type: optionalString(row.type),
@@ -893,6 +908,47 @@ export class ImportsService {
     }
 
     return user;
+  }
+
+  // Resolve a chain by name for a location import row, creating it on first
+  // use so a chain column can populate the canonical list without a separate
+  // upload. Matching is case-insensitive to avoid duplicating an existing
+  // chain that differs only in casing. Returns null when no chain is given.
+  private async resolveChainReference(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    nameInput: string | undefined,
+    counts: ImportCreatedCounts,
+  ): Promise<string | null> {
+    const name = normalizeValue(nameInput);
+
+    if (!name) {
+      return null;
+    }
+
+    const existingChain = await transaction.chain.findFirst({
+      where: {
+        tenantId: context.tenantId,
+        name: { equals: name, mode: "insensitive" },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (existingChain) {
+      return existingChain.id;
+    }
+
+    const chain = await transaction.chain.create({
+      data: {
+        tenantId: context.tenantId,
+        name,
+      },
+      select: { id: true },
+    });
+    counts.chains += 1;
+
+    return chain.id;
   }
 
   private async resolveLocationReference(
@@ -1559,6 +1615,7 @@ function readAppliedCounts(
   return {
     users: readNumber(summary.appliedCounts.users),
     userRoles: readNumber(summary.appliedCounts.userRoles),
+    chains: readNumber(summary.appliedCounts.chains),
     locations: readNumber(summary.appliedCounts.locations),
     locationAssignments: readNumber(summary.appliedCounts.locationAssignments),
     contacts: readNumber(summary.appliedCounts.contacts),

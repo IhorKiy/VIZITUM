@@ -1,11 +1,18 @@
 import type { AssignmentStatus, LocationStatus } from "@prisma/client";
 
+export type LocationChainSummary = {
+  id: string;
+  name: string;
+};
+
 export type LocationResponse = {
   id: string;
   externalCode: string | null;
   name: string;
   type: string | null;
   status: LocationStatus;
+  chainId: string | null;
+  chain: LocationChainSummary | null;
   addressLine: string;
   city: string;
   region: string | null;
@@ -24,6 +31,7 @@ export type ListLocationsQuery = {
   city?: string;
   region?: string;
   territory?: string;
+  chainId?: string;
   search?: string;
 };
 
@@ -31,6 +39,7 @@ export type CreateLocationRequestBody = {
   externalCode?: unknown;
   name?: unknown;
   type?: unknown;
+  chainId?: unknown;
   addressLine?: unknown;
   city?: unknown;
   region?: unknown;

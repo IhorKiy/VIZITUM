@@ -55,12 +55,31 @@ export type Visit = {
   updatedAt: string;
 };
 
+export type ChainStatus = "active" | "archived";
+
+export type ChainSummary = {
+  id: string;
+  name: string;
+};
+
+export type Chain = {
+  id: string;
+  externalCode: string | null;
+  name: string;
+  status: ChainStatus;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Location = {
   id: string;
   externalCode: string | null;
   name: string;
   type: string | null;
   status: LocationStatus;
+  chainId: string | null;
+  chain: ChainSummary | null;
   addressLine: string;
   city: string;
   region: string | null;
@@ -473,6 +492,7 @@ export async function updateAdminLocation(
   input: {
     name?: string;
     type?: string | null;
+    chainId?: string | null;
     city?: string;
     region?: string | null;
     territory?: string | null;
@@ -480,6 +500,32 @@ export async function updateAdminLocation(
   },
 ): Promise<ApiResult<Location>> {
   return apiPatch<Location>(`/locations/${locationId}`, input);
+}
+
+export async function listAdminChains(
+  query = "pageSize=100",
+): Promise<ApiResult<PaginatedResponse<Chain>>> {
+  return apiGet<PaginatedResponse<Chain>>(`/chains?${query}`);
+}
+
+export async function createAdminChain(input: {
+  name: string;
+  externalCode?: string | null;
+  notes?: string | null;
+}): Promise<ApiResult<Chain>> {
+  return apiPost<Chain>("/chains", input);
+}
+
+export async function updateAdminChain(
+  chainId: string,
+  input: {
+    name?: string;
+    externalCode?: string | null;
+    notes?: string | null;
+    status?: ChainStatus;
+  },
+): Promise<ApiResult<Chain>> {
+  return apiPatch<Chain>(`/chains/${chainId}`, input);
 }
 
 export async function listAdminProducts(
