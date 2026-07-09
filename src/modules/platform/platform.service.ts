@@ -499,10 +499,7 @@ export class PlatformService {
       if (input.adminLimit === null) {
         // Clearing the override: the cap falls back to the plan-derived value.
         data.adminLimit = null;
-      } else if (
-        !Number.isInteger(input.adminLimit) ||
-        input.adminLimit < 1
-      ) {
+      } else if (!Number.isInteger(input.adminLimit) || input.adminLimit < 1) {
         fieldErrors.adminLimit = [
           "Admin limit override must be a positive integer, or null to follow the plan.",
         ];
