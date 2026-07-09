@@ -3,31 +3,39 @@
 import { useRef, useState } from "react";
 
 import { FieldIconButton, PencilIcon } from "./field-icon-button";
-import { LANGUAGE_OPTIONS } from "./language-options";
 
-type LanguageFormProps = {
+type ContactField = "contactName" | "contactEmail" | "contactPhone";
+
+type ContactFieldFormProps = {
   action: (formData: FormData) => void | Promise<void>;
-  currentLanguage: string;
+  currentValue: string | null;
+  field: ContactField;
+  inputType: "text" | "email" | "tel";
+  label: string;
   tenantId: string;
 };
 
-export function LanguageForm({
+// Edits a single primary-contact field (name / email / phone). One generic
+// component drives all three so each contact value gets its own edit icon,
+// mirroring the Name / Timezone / Language fields.
+export function ContactFieldForm({
   action,
-  currentLanguage,
+  currentValue,
+  field,
+  inputType,
+  label,
   tenantId,
-}: LanguageFormProps) {
+}: ContactFieldFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [language, setLanguage] = useState(currentLanguage);
-  const options = LANGUAGE_OPTIONS.some(
-    (option) => option.value === currentLanguage,
-  )
-    ? LANGUAGE_OPTIONS
-    : [{ value: currentLanguage, label: currentLanguage }, ...LANGUAGE_OPTIONS];
-  const canSubmit = Boolean(language) && language !== currentLanguage;
+  const [value, setValue] = useState(currentValue ?? "");
+  const normalizedValue = value.trim();
+  const canSubmit =
+    normalizedValue.length > 0 && normalizedValue !== (currentValue ?? "");
+  const lowerLabel = label.toLowerCase();
 
   function openDialog() {
-    setLanguage(currentLanguage);
+    setValue(currentValue ?? "");
     dialogRef.current?.showModal();
   }
 
@@ -40,22 +48,22 @@ export function LanguageForm({
   }
 
   return (
-    <div className="tenant-timezone-form">
-      <FieldIconButton label="Edit language" onClick={openDialog}>
+    <div className="tenant-contact-form">
+      <FieldIconButton label={`Edit ${lowerLabel}`} onClick={openDialog}>
         <PencilIcon />
       </FieldIconButton>
       <dialog
-        aria-labelledby={`tenant-language-title-${tenantId}`}
+        aria-labelledby={`tenant-${field}-title-${tenantId}`}
         className="modal-dialog"
         ref={dialogRef}
       >
         <div className="modal-header">
           <div>
-            <p className="eyebrow">Tenant language</p>
-            <h2 id={`tenant-language-title-${tenantId}`}>Change language</h2>
+            <p className="eyebrow">Contact details</p>
+            <h2 id={`tenant-${field}-title-${tenantId}`}>Edit {lowerLabel}</h2>
           </div>
           <button
-            aria-label="Close language modal"
+            aria-label="Close contact modal"
             className="icon-button"
             disabled={isSaving}
             onClick={closeDialog}
@@ -71,25 +79,17 @@ export function LanguageForm({
           onSubmit={() => setIsSaving(true)}
         >
           <input name="tenantId" type="hidden" value={tenantId} />
+          <input name="field" type="hidden" value={field} />
           <label>
-            Workspace UI language
-            <select
-              name="language"
-              onChange={(event) => setLanguage(event.target.value)}
+            {label}
+            <input
+              name="value"
+              onChange={(event) => setValue(event.target.value)}
               required
-              value={language}
-            >
-              {options.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              type={inputType}
+              value={value}
+            />
           </label>
-          <p className="tenant-status-confirmation">
-            Every screen of this tenant workspace, including sign-in, renders in
-            this language.
-          </p>
           <div className="modal-actions">
             <button
               className="secondary-button"
@@ -104,7 +104,7 @@ export function LanguageForm({
               disabled={isSaving || !canSubmit}
               type="submit"
             >
-              {isSaving ? "Saving..." : "Confirm language"}
+              {isSaving ? "Saving..." : "Confirm"}
             </button>
           </div>
         </form>

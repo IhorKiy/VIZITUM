@@ -719,6 +719,9 @@ export type PlatformTenant = {
   country: string;
   timezone: string;
   language: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
   status: string;
   productMode: string;
   segmentTemplate: PlatformSegmentTemplate;
@@ -747,6 +750,9 @@ export type CreatePlatformTenantInput = {
   country?: string;
   timezone?: string;
   language?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
   primaryDomain?: string;
 };
 
@@ -792,8 +798,12 @@ export async function createPlatformTenant(
 
 export type UpdatePlatformTenantInput = {
   name?: string;
+  country?: string;
   timezone?: string;
   language?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
   primaryDomain?: string | null;
   status?: string;
   // A positive integer sets a per-tenant override; null clears it so the cap

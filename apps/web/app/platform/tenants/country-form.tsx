@@ -3,31 +3,27 @@
 import { useRef, useState } from "react";
 
 import { FieldIconButton, PencilIcon } from "./field-icon-button";
-import { LANGUAGE_OPTIONS } from "./language-options";
 
-type LanguageFormProps = {
+type CountryFormProps = {
   action: (formData: FormData) => void | Promise<void>;
-  currentLanguage: string;
+  currentCountry: string;
   tenantId: string;
 };
 
-export function LanguageForm({
+export function CountryForm({
   action,
-  currentLanguage,
+  currentCountry,
   tenantId,
-}: LanguageFormProps) {
+}: CountryFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [language, setLanguage] = useState(currentLanguage);
-  const options = LANGUAGE_OPTIONS.some(
-    (option) => option.value === currentLanguage,
-  )
-    ? LANGUAGE_OPTIONS
-    : [{ value: currentLanguage, label: currentLanguage }, ...LANGUAGE_OPTIONS];
-  const canSubmit = Boolean(language) && language !== currentLanguage;
+  const [country, setCountry] = useState(currentCountry);
+  const normalizedCountry = country.trim();
+  const canSubmit =
+    normalizedCountry.length > 0 && normalizedCountry !== currentCountry;
 
   function openDialog() {
-    setLanguage(currentLanguage);
+    setCountry(currentCountry);
     dialogRef.current?.showModal();
   }
 
@@ -40,22 +36,22 @@ export function LanguageForm({
   }
 
   return (
-    <div className="tenant-timezone-form">
-      <FieldIconButton label="Edit language" onClick={openDialog}>
+    <div className="tenant-contact-form">
+      <FieldIconButton label="Edit country" onClick={openDialog}>
         <PencilIcon />
       </FieldIconButton>
       <dialog
-        aria-labelledby={`tenant-language-title-${tenantId}`}
+        aria-labelledby={`tenant-country-title-${tenantId}`}
         className="modal-dialog"
         ref={dialogRef}
       >
         <div className="modal-header">
           <div>
-            <p className="eyebrow">Tenant language</p>
-            <h2 id={`tenant-language-title-${tenantId}`}>Change language</h2>
+            <p className="eyebrow">Tenant country</p>
+            <h2 id={`tenant-country-title-${tenantId}`}>Change country</h2>
           </div>
           <button
-            aria-label="Close language modal"
+            aria-label="Close country modal"
             className="icon-button"
             disabled={isSaving}
             onClick={closeDialog}
@@ -72,24 +68,16 @@ export function LanguageForm({
         >
           <input name="tenantId" type="hidden" value={tenantId} />
           <label>
-            Workspace UI language
-            <select
-              name="language"
-              onChange={(event) => setLanguage(event.target.value)}
+            Country
+            <input
+              name="country"
+              onChange={(event) => setCountry(event.target.value)}
+              placeholder="UA"
               required
-              value={language}
-            >
-              {options.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              type="text"
+              value={country}
+            />
           </label>
-          <p className="tenant-status-confirmation">
-            Every screen of this tenant workspace, including sign-in, renders in
-            this language.
-          </p>
           <div className="modal-actions">
             <button
               className="secondary-button"
@@ -104,7 +92,7 @@ export function LanguageForm({
               disabled={isSaving || !canSubmit}
               type="submit"
             >
-              {isSaving ? "Saving..." : "Confirm language"}
+              {isSaving ? "Saving..." : "Confirm country"}
             </button>
           </div>
         </form>

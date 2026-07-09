@@ -40,7 +40,11 @@ export function ArchiveTenantForm({
 
   return (
     <div className="tenant-archive-form">
-      <button className="secondary-button" onClick={openDialog} type="button">
+      <button
+        className={`secondary-button${isArchive ? " danger" : ""}`}
+        onClick={openDialog}
+        type="button"
+      >
         {label}
       </button>
       <dialog

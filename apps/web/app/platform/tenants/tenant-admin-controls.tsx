@@ -4,6 +4,7 @@ import { useRef } from "react";
 
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import type { TenantUser } from "../../../lib/api-client";
+import { FieldIconButton, PlusIcon, UsersIcon } from "./field-icon-button";
 
 type TenantAdminControlsProps = {
   activeSuperadmin: TenantUser | null;
@@ -39,25 +40,22 @@ export function TenantAdminControls({
 
   return (
     <div className="tenant-admin-cell-actions">
-      <button
-        aria-label={`${inviteButtonLabel} for ${tenantName}`}
-        className="icon-button tenant-metric-action"
+      <FieldIconButton
         disabled={isArchived}
+        label={`${inviteButtonLabel} for ${tenantName}`}
         onClick={() => inviteDialogRef.current?.showModal()}
         title={inviteButtonLabel}
-        type="button"
       >
-        +
-      </button>
-      <button
-        aria-label={`Manage superadmin and admins for ${tenantName}`}
-        className="secondary-button tenant-metric-list-action"
+        <PlusIcon />
+      </FieldIconButton>
+      <FieldIconButton
         disabled={!usersAvailable}
+        label={`Manage superadmin and admins for ${tenantName}`}
         onClick={() => manageDialogRef.current?.showModal()}
-        type="button"
+        title="Manage superadmin and admins"
       >
-        Admins
-      </button>
+        <UsersIcon />
+      </FieldIconButton>
 
       <dialog
         aria-labelledby={`tenant-admin-invite-title-${tenantId}`}

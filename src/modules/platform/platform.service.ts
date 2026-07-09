@@ -7,7 +7,7 @@ import {
 import { RoleCode, SegmentTemplate, TenantStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
-import { normalizeTimezone } from "../../common/normalize";
+import { normalizeEmail, normalizeTimezone } from "../../common/normalize";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
@@ -461,6 +461,16 @@ export class PlatformService {
       }
     }
 
+    if (input.country !== undefined) {
+      const country = input.country.trim();
+
+      if (!country) {
+        fieldErrors.country = ["Country cannot be empty."];
+      } else {
+        data.country = country;
+      }
+    }
+
     if (input.timezone !== undefined) {
       const timezone = normalizeTimezone(input.timezone);
 
@@ -478,6 +488,36 @@ export class PlatformService {
         fieldErrors.language = ["Language cannot be empty."];
       } else {
         data.language = language;
+      }
+    }
+
+    if (input.contactName !== undefined) {
+      const contactName = input.contactName.trim();
+
+      if (!contactName) {
+        fieldErrors.contactName = ["Contact name cannot be empty."];
+      } else {
+        data.contactName = contactName;
+      }
+    }
+
+    if (input.contactEmail !== undefined) {
+      const contactEmail = normalizeEmail(input.contactEmail);
+
+      if (!contactEmail) {
+        fieldErrors.contactEmail = ["Contact email cannot be empty."];
+      } else {
+        data.contactEmail = contactEmail;
+      }
+    }
+
+    if (input.contactPhone !== undefined) {
+      const contactPhone = input.contactPhone.trim();
+
+      if (!contactPhone) {
+        fieldErrors.contactPhone = ["Contact phone cannot be empty."];
+      } else {
+        data.contactPhone = contactPhone;
       }
     }
 
@@ -823,10 +863,27 @@ export class PlatformService {
       }
     }
 
+    const contactName = input.contactName?.trim();
+    const contactEmail = normalizeEmail(input.contactEmail);
+    const contactPhone = input.contactPhone?.trim();
+
+    if (!contactName) {
+      fieldErrors.contactName = ["Contact name is required."];
+    }
+
+    if (!contactEmail) {
+      fieldErrors.contactEmail = ["Contact email is required."];
+    }
+
+    if (!contactPhone) {
+      fieldErrors.contactPhone = ["Contact phone is required."];
+    }
+
     if (Object.keys(fieldErrors).length) {
       throw new BadRequestException({
         code: "TENANT_INVALID",
-        message: "Tenant name, slug and segment template are required.",
+        message:
+          "Tenant name, slug, segment template and contact details are required.",
         fieldErrors,
       });
     }
@@ -854,6 +911,9 @@ export class PlatformService {
           country: input.country?.trim() || DEFAULT_COUNTRY,
           timezone,
           language: input.language?.trim() || DEFAULT_LANGUAGE,
+          contactName,
+          contactEmail,
+          contactPhone,
           segmentTemplate: input.segmentTemplate,
           databaseKey: DEFAULT_DATABASE_KEY,
           primaryDomain: input.primaryDomain?.trim() || null,

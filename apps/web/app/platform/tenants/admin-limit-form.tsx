@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import { FieldIconButton, PencilIcon } from "./field-icon-button";
+
 type AdminLimitFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   // The owner's explicit override, or null when the tenant follows its plan.
@@ -49,9 +51,9 @@ export function AdminLimitForm({
 
   return (
     <div className="tenant-admin-limit-form">
-      <button className="secondary-button" onClick={openDialog} type="button">
-        Change admin limit
-      </button>
+      <FieldIconButton label="Edit admin limit" onClick={openDialog}>
+        <PencilIcon />
+      </FieldIconButton>
       <dialog
         aria-labelledby={`tenant-admin-limit-title-${tenantId}`}
         className="modal-dialog"

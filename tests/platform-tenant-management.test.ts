@@ -33,6 +33,84 @@ describe("platform tenant management", () => {
     assert.deepEqual(store.events[0]?.metadata, { fields: ["name", "status"] });
   });
 
+  it("updates the primary contact fields and normalizes the email", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    const updated = await service.updateTenant("tenant-1", {
+      contactName: "  Olena Marchuk  ",
+      contactEmail: "  Olena@Example.COM ",
+      contactPhone: " +380 44 123 4567 ",
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(updated.contactName, "Olena Marchuk");
+    assert.equal(updated.contactEmail, "olena@example.com");
+    assert.equal(updated.contactPhone, "+380 44 123 4567");
+    assert.deepEqual(store.events[0]?.metadata, {
+      fields: ["contactName", "contactEmail", "contactPhone"],
+    });
+  });
+
+  it("rejects blanking a contact field to empty", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { contactEmail: "   " }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          code: string;
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.equal(response.code, "TENANT_UPDATE_INVALID");
+        assert.ok(response.fieldErrors.contactEmail);
+        return true;
+      },
+    );
+  });
+
+  it("updates the country and trims it", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      country: "UA",
+    });
+    const service = createPlatformService(store);
+
+    const updated = await service.updateTenant("tenant-1", {
+      country: "  PL  ",
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(updated.country, "PL");
+    assert.deepEqual(store.events[0]?.metadata, { fields: ["country"] });
+  });
+
+  it("rejects blanking the country to empty", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      country: "UA",
+    });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { country: "   " }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          code: string;
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.equal(response.code, "TENANT_UPDATE_INVALID");
+        assert.ok(response.fieldErrors.country);
+        return true;
+      },
+    );
+  });
+
   it("updates the timezone to a valid IANA time zone", async () => {
     const store = createStore({
       id: "tenant-1",
