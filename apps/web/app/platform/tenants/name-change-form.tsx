@@ -36,7 +36,10 @@ export function NameChangeForm({
 
   return (
     <div className="tenant-name-form">
-      <FieldIconButton label="Edit tenant name" onClick={openDialog}>
+      <FieldIconButton
+        label={`Edit name for ${currentName}`}
+        onClick={openDialog}
+      >
         <PencilIcon />
       </FieldIconButton>
       <dialog

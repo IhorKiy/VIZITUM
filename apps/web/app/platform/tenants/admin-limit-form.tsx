@@ -11,6 +11,7 @@ type AdminLimitFormProps = {
   // The cap implied by the tenant's current plan tier, shown as the default.
   planDefault: number;
   tenantId: string;
+  tenantName: string;
 };
 
 export function AdminLimitForm({
@@ -18,6 +19,7 @@ export function AdminLimitForm({
   currentOverride,
   planDefault,
   tenantId,
+  tenantName,
 }: AdminLimitFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -51,7 +53,10 @@ export function AdminLimitForm({
 
   return (
     <div className="tenant-admin-limit-form">
-      <FieldIconButton label="Edit admin limit" onClick={openDialog}>
+      <FieldIconButton
+        label={`Edit admin limit for ${tenantName}`}
+        onClick={openDialog}
+      >
         <PencilIcon />
       </FieldIconButton>
       <dialog

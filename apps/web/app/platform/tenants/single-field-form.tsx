@@ -4,35 +4,52 @@ import { useRef, useState } from "react";
 
 import { FieldIconButton, PencilIcon } from "./field-icon-button";
 
-type ContactField = "contactName" | "contactEmail" | "contactPhone";
-
-type ContactFieldFormProps = {
+type SingleFieldFormProps = {
   action: (formData: FormData) => void | Promise<void>;
-  currentValue: string | null;
-  field: ContactField;
-  inputType: "text" | "email" | "tel";
-  label: string;
   tenantId: string;
+  // Current value shown in the input; null renders as an empty field.
+  currentValue: string | null;
+  // aria-label for the edit trigger — include the tenant name so screen-reader
+  // users can tell rows apart in the tenant list.
+  triggerLabel: string;
+  eyebrow: string;
+  title: string;
+  fieldLabel: string;
+  confirmLabel: string;
+  // Name of the form field the server action reads.
+  inputName: string;
+  inputType?: "text" | "email" | "tel";
+  placeholder?: string;
+  // Extra hidden inputs (e.g. which contact field is being edited).
+  hiddenFields?: Record<string, string>;
+  // Stable prefix for the dialog's aria ids.
+  dialogId: string;
 };
 
-// Edits a single primary-contact field (name / email / phone). One generic
-// component drives all three so each contact value gets its own edit icon,
-// mirroring the Name / Timezone / Language fields.
-export function ContactFieldForm({
+// One dialog-backed editor for a single required text value, shared by the
+// Country and Contact fields (name / email / phone). Each field just supplies
+// its labels, input type and target form field; the server action reads them.
+export function SingleFieldForm({
   action,
-  currentValue,
-  field,
-  inputType,
-  label,
   tenantId,
-}: ContactFieldFormProps) {
+  currentValue,
+  triggerLabel,
+  eyebrow,
+  title,
+  fieldLabel,
+  confirmLabel,
+  inputName,
+  inputType = "text",
+  placeholder,
+  hiddenFields,
+  dialogId,
+}: SingleFieldFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [value, setValue] = useState(currentValue ?? "");
   const normalizedValue = value.trim();
   const canSubmit =
     normalizedValue.length > 0 && normalizedValue !== (currentValue ?? "");
-  const lowerLabel = label.toLowerCase();
 
   function openDialog() {
     setValue(currentValue ?? "");
@@ -49,21 +66,21 @@ export function ContactFieldForm({
 
   return (
     <div className="tenant-contact-form">
-      <FieldIconButton label={`Edit ${lowerLabel}`} onClick={openDialog}>
+      <FieldIconButton label={triggerLabel} onClick={openDialog}>
         <PencilIcon />
       </FieldIconButton>
       <dialog
-        aria-labelledby={`tenant-${field}-title-${tenantId}`}
+        aria-labelledby={`${dialogId}-${tenantId}`}
         className="modal-dialog"
         ref={dialogRef}
       >
         <div className="modal-header">
           <div>
-            <p className="eyebrow">Contact details</p>
-            <h2 id={`tenant-${field}-title-${tenantId}`}>Edit {lowerLabel}</h2>
+            <p className="eyebrow">{eyebrow}</p>
+            <h2 id={`${dialogId}-${tenantId}`}>{title}</h2>
           </div>
           <button
-            aria-label="Close contact modal"
+            aria-label="Close modal"
             className="icon-button"
             disabled={isSaving}
             onClick={closeDialog}
@@ -79,12 +96,17 @@ export function ContactFieldForm({
           onSubmit={() => setIsSaving(true)}
         >
           <input name="tenantId" type="hidden" value={tenantId} />
-          <input name="field" type="hidden" value={field} />
+          {hiddenFields
+            ? Object.entries(hiddenFields).map(([name, val]) => (
+                <input key={name} name={name} type="hidden" value={val} />
+              ))
+            : null}
           <label>
-            {label}
+            {fieldLabel}
             <input
-              name="value"
+              name={inputName}
               onChange={(event) => setValue(event.target.value)}
+              placeholder={placeholder}
               required
               type={inputType}
               value={value}
@@ -104,7 +126,7 @@ export function ContactFieldForm({
               disabled={isSaving || !canSubmit}
               type="submit"
             >
-              {isSaving ? "Saving..." : "Confirm"}
+              {isSaving ? "Saving..." : confirmLabel}
             </button>
           </div>
         </form>

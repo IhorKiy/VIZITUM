@@ -9,12 +9,14 @@ type LanguageFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   currentLanguage: string;
   tenantId: string;
+  tenantName: string;
 };
 
 export function LanguageForm({
   action,
   currentLanguage,
   tenantId,
+  tenantName,
 }: LanguageFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -41,7 +43,10 @@ export function LanguageForm({
 
   return (
     <div className="tenant-timezone-form">
-      <FieldIconButton label="Edit language" onClick={openDialog}>
+      <FieldIconButton
+        label={`Edit language for ${tenantName}`}
+        onClick={openDialog}
+      >
         <PencilIcon />
       </FieldIconButton>
       <dialog

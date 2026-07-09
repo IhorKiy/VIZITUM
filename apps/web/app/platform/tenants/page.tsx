@@ -27,11 +27,10 @@ import { formatLabel, formatShortDate } from "../../../lib/format";
 import { AdminLimitForm } from "./admin-limit-form";
 import { ArchiveTenantForm } from "./archive-tenant-form";
 import { AutoDismissNotice } from "./auto-dismiss-notice";
-import { ContactFieldForm } from "./contact-field-form";
-import { CountryForm } from "./country-form";
 import { CreateTenantModal } from "./create-tenant-modal";
 import { NameChangeForm } from "./name-change-form";
 import { PurgeTenantForm } from "./purge-tenant-form";
+import { SingleFieldForm } from "./single-field-form";
 import { StatusChangeForm } from "./status-change-form";
 import { TenantAdminControls } from "./tenant-admin-controls";
 import { LanguageForm } from "./language-form";
@@ -486,10 +485,18 @@ export default async function PlatformTenantsPage({
                     {tenant.country}
                   </span>
                   {isArchived ? null : (
-                    <CountryForm
+                    <SingleFieldForm
                       action={updateCountryAction}
-                      currentCountry={tenant.country}
+                      confirmLabel="Confirm country"
+                      currentValue={tenant.country}
+                      dialogId="tenant-country-title"
+                      eyebrow="Tenant country"
+                      fieldLabel="Country"
+                      inputName="country"
+                      placeholder="UA"
                       tenantId={tenant.id}
+                      title="Change country"
+                      triggerLabel={`Edit country for ${tenant.name}`}
                     />
                   )}
                 </dd>
@@ -505,6 +512,7 @@ export default async function PlatformTenantsPage({
                       action={updateTimezoneAction}
                       currentTimezone={tenant.timezone}
                       tenantId={tenant.id}
+                      tenantName={tenant.name}
                     />
                   )}
                 </dd>
@@ -520,6 +528,7 @@ export default async function PlatformTenantsPage({
                       action={updateLanguageAction}
                       currentLanguage={tenant.language}
                       tenantId={tenant.id}
+                      tenantName={tenant.name}
                     />
                   )}
                 </dd>
@@ -531,13 +540,19 @@ export default async function PlatformTenantsPage({
                     {tenant.contactName ?? "—"}
                   </span>
                   {isArchived ? null : (
-                    <ContactFieldForm
+                    <SingleFieldForm
                       action={updateContactAction}
+                      confirmLabel="Confirm"
                       currentValue={tenant.contactName}
-                      field="contactName"
+                      dialogId="tenant-contactName-title"
+                      eyebrow="Contact details"
+                      fieldLabel="Contact name"
+                      hiddenFields={{ field: "contactName" }}
+                      inputName="value"
                       inputType="text"
-                      label="Contact name"
                       tenantId={tenant.id}
+                      title="Edit contact name"
+                      triggerLabel={`Edit contact name for ${tenant.name}`}
                     />
                   )}
                 </dd>
@@ -555,13 +570,19 @@ export default async function PlatformTenantsPage({
                     )}
                   </span>
                   {isArchived ? null : (
-                    <ContactFieldForm
+                    <SingleFieldForm
                       action={updateContactAction}
+                      confirmLabel="Confirm"
                       currentValue={tenant.contactEmail}
-                      field="contactEmail"
+                      dialogId="tenant-contactEmail-title"
+                      eyebrow="Contact details"
+                      fieldLabel="Contact email"
+                      hiddenFields={{ field: "contactEmail" }}
+                      inputName="value"
                       inputType="email"
-                      label="Contact email"
                       tenantId={tenant.id}
+                      title="Edit contact email"
+                      triggerLabel={`Edit contact email for ${tenant.name}`}
                     />
                   )}
                 </dd>
@@ -571,7 +592,9 @@ export default async function PlatformTenantsPage({
                 <dd className="tenant-admin-metric-value">
                   <span className="tenant-metric-inline-text">
                     {tenant.contactPhone ? (
-                      <a href={`tel:${tenant.contactPhone}`}>
+                      <a
+                        href={`tel:${tenant.contactPhone.replace(/\s+/g, "")}`}
+                      >
                         {tenant.contactPhone}
                       </a>
                     ) : (
@@ -579,13 +602,19 @@ export default async function PlatformTenantsPage({
                     )}
                   </span>
                   {isArchived ? null : (
-                    <ContactFieldForm
+                    <SingleFieldForm
                       action={updateContactAction}
+                      confirmLabel="Confirm"
                       currentValue={tenant.contactPhone}
-                      field="contactPhone"
+                      dialogId="tenant-contactPhone-title"
+                      eyebrow="Contact details"
+                      fieldLabel="Contact phone"
+                      hiddenFields={{ field: "contactPhone" }}
+                      inputName="value"
                       inputType="tel"
-                      label="Contact phone"
                       tenantId={tenant.id}
+                      title="Edit contact phone"
+                      triggerLabel={`Edit contact phone for ${tenant.name}`}
                     />
                   )}
                 </dd>
@@ -601,7 +630,6 @@ export default async function PlatformTenantsPage({
                       activeSuperadmin={activeSuperadmin}
                       admins={companyAdmins}
                       inviteAction={inviteSuperadminAction}
-                      isArchived={isArchived}
                       pendingSuperadminInvite={Boolean(
                         superadminSummary?.pendingInvite,
                       )}
@@ -626,6 +654,7 @@ export default async function PlatformTenantsPage({
                       currentOverride={tenant.adminLimitOverride}
                       planDefault={tenant.adminLimitPlanDefault}
                       tenantId={tenant.id}
+                      tenantName={tenant.name}
                     />
                   )}
                 </dd>

@@ -7,7 +7,11 @@ import {
 import { RoleCode, SegmentTemplate, TenantStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
-import { normalizeEmail, normalizeTimezone } from "../../common/normalize";
+import {
+  isValidEmail,
+  normalizeEmail,
+  normalizeTimezone,
+} from "../../common/normalize";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
@@ -506,6 +510,8 @@ export class PlatformService {
 
       if (!contactEmail) {
         fieldErrors.contactEmail = ["Contact email cannot be empty."];
+      } else if (!isValidEmail(contactEmail)) {
+        fieldErrors.contactEmail = ["Enter a valid contact email address."];
       } else {
         data.contactEmail = contactEmail;
       }
@@ -873,6 +879,8 @@ export class PlatformService {
 
     if (!contactEmail) {
       fieldErrors.contactEmail = ["Contact email is required."];
+    } else if (!isValidEmail(contactEmail)) {
+      fieldErrors.contactEmail = ["Enter a valid contact email address."];
     }
 
     if (!contactPhone) {

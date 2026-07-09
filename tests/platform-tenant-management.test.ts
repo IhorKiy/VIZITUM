@@ -52,6 +52,25 @@ describe("platform tenant management", () => {
     });
   });
 
+  it("rejects a malformed contact email on update", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { contactEmail: "not-an-email" }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          code: string;
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.equal(response.code, "TENANT_UPDATE_INVALID");
+        assert.ok(response.fieldErrors.contactEmail);
+        return true;
+      },
+    );
+  });
+
   it("rejects blanking a contact field to empty", async () => {
     const store = createStore({ id: "tenant-1", status: "pilot" });
     const service = createPlatformService(store);

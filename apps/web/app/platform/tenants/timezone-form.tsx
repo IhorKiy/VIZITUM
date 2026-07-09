@@ -9,12 +9,14 @@ type TimezoneFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   currentTimezone: string;
   tenantId: string;
+  tenantName: string;
 };
 
 export function TimezoneForm({
   action,
   currentTimezone,
   tenantId,
+  tenantName,
 }: TimezoneFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -37,7 +39,10 @@ export function TimezoneForm({
 
   return (
     <div className="tenant-timezone-form">
-      <FieldIconButton label="Edit timezone" onClick={openDialog}>
+      <FieldIconButton
+        label={`Edit timezone for ${tenantName}`}
+        onClick={openDialog}
+      >
         <PencilIcon />
       </FieldIconButton>
       <dialog

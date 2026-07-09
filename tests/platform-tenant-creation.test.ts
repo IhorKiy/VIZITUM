@@ -57,6 +57,31 @@ describe("platform tenant creation", () => {
     assert.equal(created.tenant.contactPhone, "+380 44 123 4567");
   });
 
+  it("rejects a malformed contact email", async () => {
+    const service = new PlatformService(
+      createPrismaStub() as unknown as PrismaService,
+    );
+
+    await assert.rejects(
+      () =>
+        service.createTenant({
+          name: "Acme Co",
+          slug: "acme",
+          segmentTemplate: "distribution",
+          ...validContact,
+          contactEmail: "not-an-email",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.ok(response.fieldErrors.contactEmail);
+        return true;
+      },
+    );
+  });
+
   it("rejects a timezone that is not a real IANA time zone", async () => {
     const service = new PlatformService(createPrismaStub() as unknown as PrismaService);
 

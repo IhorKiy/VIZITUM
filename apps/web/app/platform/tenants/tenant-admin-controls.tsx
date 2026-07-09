@@ -10,7 +10,6 @@ type TenantAdminControlsProps = {
   activeSuperadmin: TenantUser | null;
   admins: TenantUser[];
   inviteAction: (formData: FormData) => Promise<void>;
-  isArchived: boolean;
   pendingSuperadminInvite: boolean;
   promoteAction: (formData: FormData) => Promise<void>;
   tenantId: string;
@@ -23,7 +22,6 @@ export function TenantAdminControls({
   activeSuperadmin,
   admins,
   inviteAction,
-  isArchived,
   pendingSuperadminInvite,
   promoteAction,
   tenantId,
@@ -41,7 +39,6 @@ export function TenantAdminControls({
   return (
     <div className="tenant-admin-cell-actions">
       <FieldIconButton
-        disabled={isArchived}
         label={`${inviteButtonLabel} for ${tenantName}`}
         onClick={() => inviteDialogRef.current?.showModal()}
         title={inviteButtonLabel}

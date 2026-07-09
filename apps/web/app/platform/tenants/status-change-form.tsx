@@ -72,7 +72,7 @@ export function StatusChangeForm({
       </form>
       <FieldIconButton
         disabled={isSaving}
-        label="Edit status"
+        label={`Edit status for ${tenantName}`}
         onClick={openDialog}
       >
         <PencilIcon />
