@@ -22,7 +22,7 @@ import {
   type TenantSuperadminSummary,
   type TenantUser,
 } from "../../../lib/api-client";
-import { clearCookies, forwardSetCookies } from "../../../lib/backend-cookies";
+import { clearCookies } from "../../../lib/backend-cookies";
 import { getFormatter } from "next-intl/server";
 
 import { formatLabel, formatShortDate } from "../../../lib/format";
@@ -97,24 +97,24 @@ export default async function PlatformTenantsPage({
     "use server";
 
     try {
-      const response = await fetch(buildApiUrl("/platform/auth/logout"), {
+      // Only the server-side revocation matters here (logout is CSRF-exempt,
+      // so a stale CSRF cookie can't block it). The response's Set-Cookie
+      // headers only clear the same two cookies removed below, so they are
+      // deliberately not forwarded.
+      await fetch(buildApiUrl("/platform/auth/logout"), {
         method: "POST",
         cache: "no-store",
         headers: await buildRequestHeaders("/platform/auth/logout"),
       });
-
-      if (response.ok) {
-        await forwardSetCookies(response.headers);
-      }
     } catch {
       // Fall through: the cookies still get cleared below.
     }
 
-    // Never rely on the API call alone to end the session: a stale CSRF
-    // cookie fails logout with a 403 before the backend revokes anything,
-    // and a network error never reaches the backend at all. Either way the
-    // browser must not keep a working session cookie after the UI tells the
-    // user they're logged out, so clear both cookies here unconditionally.
+    // Never rely on the API call alone to end the session: a network error
+    // (or backend outage) means nothing was revoked server-side, yet the UI
+    // is about to tell the user they're logged out. The browser must not
+    // keep a working session cookie past that point, so clear both cookies
+    // here unconditionally.
     await clearCookies([
       PLATFORM_SESSION_COOKIE_NAME,
       PLATFORM_CSRF_COOKIE_NAME,

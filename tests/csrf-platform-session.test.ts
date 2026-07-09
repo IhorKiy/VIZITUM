@@ -137,6 +137,25 @@ describe("csrf logout exemption", () => {
     });
   }
 
+  // Express routing is case-insensitive and tolerates a trailing slash by
+  // default, so these variants still reach the logout handler — the
+  // exemption must normalize the same way or they'd stay CSRF-blocked.
+  for (const path of ["/api/auth/logout/", "/API/auth/LOGOUT"]) {
+    it(`exempts the routing-equivalent form POST ${path}`, () => {
+      const request = createRequest({
+        originalUrl: path,
+        sessionToken: "tenant-token",
+      });
+      let nextCalled = false;
+
+      applyCsrfProtection(request, {} as Response, () => {
+        nextCalled = true;
+      });
+
+      assert.equal(nextCalled, true);
+    });
+  }
+
   it("does not exempt a path that merely starts with a logout path", () => {
     // Guards against the exemption becoming a prefix match: only the exact
     // logout paths should skip CSRF, not anything nested under them.
