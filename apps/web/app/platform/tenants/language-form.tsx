@@ -2,12 +2,7 @@
 
 import { useRef, useState } from "react";
 
-// Platform screens stay English by design; only the option labels name the
-// languages themselves.
-const LANGUAGE_OPTIONS = [
-  { value: "en", label: "English (en)" },
-  { value: "uk", label: "Ukrainian (uk)" },
-];
+import { LANGUAGE_OPTIONS } from "./language-options";
 
 type LanguageFormProps = {
   action: (formData: FormData) => void | Promise<void>;
