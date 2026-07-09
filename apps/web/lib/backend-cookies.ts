@@ -27,6 +27,15 @@ export async function forwardSetCookies(headers: Headers): Promise<void> {
   }
 }
 
+export async function clearCookies(names: string[]): Promise<void> {
+  const cookieStore = await cookies();
+  const secure = process.env.NODE_ENV === "production";
+
+  for (const name of names) {
+    cookieStore.delete({ name, path: "/", secure });
+  }
+}
+
 function readSetCookieHeaders(headers: Headers): string[] {
   const headersWithGetter = headers as Headers & {
     getSetCookie?: () => string[];

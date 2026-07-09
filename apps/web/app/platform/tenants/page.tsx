@@ -11,6 +11,8 @@ import {
   invitePlatformTenantSuperadmin,
   listPlatformTenantUsers,
   listPlatformTenants,
+  PLATFORM_CSRF_COOKIE_NAME,
+  PLATFORM_SESSION_COOKIE_NAME,
   promotePlatformTenantSuperadmin,
   requestPlatformTenantPurge,
   unarchivePlatformTenant,
@@ -20,7 +22,7 @@ import {
   type TenantSuperadminSummary,
   type TenantUser,
 } from "../../../lib/api-client";
-import { forwardSetCookies } from "../../../lib/backend-cookies";
+import { clearCookies, forwardSetCookies } from "../../../lib/backend-cookies";
 import { getFormatter } from "next-intl/server";
 
 import { formatLabel, formatShortDate } from "../../../lib/format";
@@ -100,10 +102,23 @@ export default async function PlatformTenantsPage({
         cache: "no-store",
         headers: await buildRequestHeaders("/platform/auth/logout"),
       });
-      await forwardSetCookies(response.headers);
+
+      if (response.ok) {
+        await forwardSetCookies(response.headers);
+      }
     } catch {
-      // Even if the API call fails, fall through to the login screen.
+      // Fall through: the cookies still get cleared below.
     }
+
+    // Never rely on the API call alone to end the session: a stale CSRF
+    // cookie fails logout with a 403 before the backend revokes anything,
+    // and a network error never reaches the backend at all. Either way the
+    // browser must not keep a working session cookie after the UI tells the
+    // user they're logged out, so clear both cookies here unconditionally.
+    await clearCookies([
+      PLATFORM_SESSION_COOKIE_NAME,
+      PLATFORM_CSRF_COOKIE_NAME,
+    ]);
 
     redirect("/platform/login");
   }
