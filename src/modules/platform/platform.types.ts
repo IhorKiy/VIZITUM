@@ -6,6 +6,9 @@ export type CreateTenantInput = {
   country?: string;
   timezone?: string;
   language?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
   segmentTemplate: SegmentTemplate;
   primaryDomain?: string;
   actorUserId?: string;
@@ -14,8 +17,12 @@ export type CreateTenantInput = {
 
 export type UpdateTenantInput = {
   name?: string;
+  country?: string;
   timezone?: string;
   language?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
   primaryDomain?: string | null;
   status?: TenantStatus;
   // A positive integer sets an explicit per-tenant override; null clears it so

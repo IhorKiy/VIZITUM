@@ -8,6 +8,15 @@ export function normalizeEmail(value: unknown): string | null {
   return email || null;
 }
 
+// Deliberately lenient shape check ("something@something.something", no
+// whitespace) — enough to reject obvious garbage like "not-an-email" without
+// trying to fully model RFC 5322. Callers still normalize first.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidEmail(value: string): boolean {
+  return EMAIL_PATTERN.test(value);
+}
+
 // IANA validation via the runtime's own time zone database: anything Intl
 // rejects here would also break every later date formatting done in that zone.
 export function normalizeTimezone(value: unknown): string | null {

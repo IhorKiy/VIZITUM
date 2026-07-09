@@ -3,17 +3,20 @@
 import { useRef, useState } from "react";
 
 import { timezoneOptionsWith } from "../../../lib/timezones";
+import { FieldIconButton, PencilIcon } from "./field-icon-button";
 
 type TimezoneFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   currentTimezone: string;
   tenantId: string;
+  tenantName: string;
 };
 
 export function TimezoneForm({
   action,
   currentTimezone,
   tenantId,
+  tenantName,
 }: TimezoneFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -36,9 +39,12 @@ export function TimezoneForm({
 
   return (
     <div className="tenant-timezone-form">
-      <button className="secondary-button" onClick={openDialog} type="button">
-        Change timezone
-      </button>
+      <FieldIconButton
+        label={`Edit timezone for ${tenantName}`}
+        onClick={openDialog}
+      >
+        <PencilIcon />
+      </FieldIconButton>
       <dialog
         aria-labelledby={`tenant-timezone-title-${tenantId}`}
         className="modal-dialog"

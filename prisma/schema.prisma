@@ -200,6 +200,12 @@ model PlatformTenant {
   country           String
   timezone          String
   language          String
+  // Primary contact for the tenant, captured at creation by the platform owner.
+  // Nullable because tenants created before this was added have no contact on
+  // file; the create flow requires all three for new tenants.
+  contactName       String?
+  contactEmail      String?
+  contactPhone      String?
   status            TenantStatus      @default(pilot)
   productMode       ProductMode       @default(team)
   segmentTemplate   SegmentTemplate

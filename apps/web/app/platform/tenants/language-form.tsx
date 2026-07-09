@@ -2,18 +2,21 @@
 
 import { useRef, useState } from "react";
 
+import { FieldIconButton, PencilIcon } from "./field-icon-button";
 import { LANGUAGE_OPTIONS } from "./language-options";
 
 type LanguageFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   currentLanguage: string;
   tenantId: string;
+  tenantName: string;
 };
 
 export function LanguageForm({
   action,
   currentLanguage,
   tenantId,
+  tenantName,
 }: LanguageFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -40,9 +43,12 @@ export function LanguageForm({
 
   return (
     <div className="tenant-timezone-form">
-      <button className="secondary-button" onClick={openDialog} type="button">
-        Change language
-      </button>
+      <FieldIconButton
+        label={`Edit language for ${tenantName}`}
+        onClick={openDialog}
+      >
+        <PencilIcon />
+      </FieldIconButton>
       <dialog
         aria-labelledby={`tenant-language-title-${tenantId}`}
         className="modal-dialog"

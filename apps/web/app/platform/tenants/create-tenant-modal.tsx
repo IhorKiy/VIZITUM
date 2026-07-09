@@ -102,6 +102,18 @@ export function CreateTenantModal({
             </select>
           </label>
           <label>
+            Contact name
+            <input name="contactName" type="text" required />
+          </label>
+          <label>
+            Contact email
+            <input name="contactEmail" type="email" required />
+          </label>
+          <label>
+            Contact phone
+            <input name="contactPhone" type="tel" required />
+          </label>
+          <label>
             Primary domain
             <input name="primaryDomain" type="text" />
           </label>

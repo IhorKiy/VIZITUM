@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import { FieldIconButton, PencilIcon } from "./field-icon-button";
+
 type AdminLimitFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   // The owner's explicit override, or null when the tenant follows its plan.
@@ -9,6 +11,7 @@ type AdminLimitFormProps = {
   // The cap implied by the tenant's current plan tier, shown as the default.
   planDefault: number;
   tenantId: string;
+  tenantName: string;
 };
 
 export function AdminLimitForm({
@@ -16,6 +19,7 @@ export function AdminLimitForm({
   currentOverride,
   planDefault,
   tenantId,
+  tenantName,
 }: AdminLimitFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,9 +53,12 @@ export function AdminLimitForm({
 
   return (
     <div className="tenant-admin-limit-form">
-      <button className="secondary-button" onClick={openDialog} type="button">
-        Change admin limit
-      </button>
+      <FieldIconButton
+        label={`Edit admin limit for ${tenantName}`}
+        onClick={openDialog}
+      >
+        <PencilIcon />
+      </FieldIconButton>
       <dialog
         aria-labelledby={`tenant-admin-limit-title-${tenantId}`}
         className="modal-dialog"

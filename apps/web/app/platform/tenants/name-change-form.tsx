@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import { FieldIconButton, PencilIcon } from "./field-icon-button";
+
 type NameChangeFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   currentName: string;
@@ -34,9 +36,12 @@ export function NameChangeForm({
 
   return (
     <div className="tenant-name-form">
-      <button className="secondary-button" onClick={openDialog} type="button">
-        Change name
-      </button>
+      <FieldIconButton
+        label={`Edit name for ${currentName}`}
+        onClick={openDialog}
+      >
+        <PencilIcon />
+      </FieldIconButton>
       <dialog
         aria-labelledby={`tenant-name-title-${tenantId}`}
         className="modal-dialog"

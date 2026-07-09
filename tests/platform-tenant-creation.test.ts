@@ -5,8 +5,17 @@ import { BadRequestException, ConflictException } from "@nestjs/common";
 import { PlatformService } from "../src/modules/platform/platform.service";
 import type { PrismaService } from "../src/modules/prisma/prisma.service";
 
+// The primary contact is required on every new tenant, so the success-path
+// tests below all supply a valid contact; the failure-path tests omit or
+// override individual fields to pin the validation.
+const validContact = {
+  contactName: "Olena Marchuk",
+  contactEmail: "olena@example.com",
+  contactPhone: "+380 44 123 4567",
+};
+
 describe("platform tenant creation", () => {
-  it("rejects a tenant with a missing name, slug or segment template", async () => {
+  it("rejects a tenant with a missing name, slug, segment template or contact details", async () => {
     const service = new PlatformService(createPrismaStub() as unknown as PrismaService);
 
     await assert.rejects(
@@ -22,6 +31,52 @@ describe("platform tenant creation", () => {
         assert.ok(response.fieldErrors.name);
         assert.ok(response.fieldErrors.slug);
         assert.ok(response.fieldErrors.segmentTemplate);
+        assert.ok(response.fieldErrors.contactName);
+        assert.ok(response.fieldErrors.contactEmail);
+        assert.ok(response.fieldErrors.contactPhone);
+        return true;
+      },
+    );
+  });
+
+  it("persists the primary contact and normalizes the contact email", async () => {
+    const prisma = createPrismaStub();
+    const service = new PlatformService(prisma as unknown as PrismaService);
+
+    const created = await service.createTenant({
+      name: "Acme Co",
+      slug: "acme",
+      segmentTemplate: "distribution",
+      contactName: "  Olena Marchuk  ",
+      contactEmail: "  Olena@Example.COM ",
+      contactPhone: " +380 44 123 4567 ",
+    });
+
+    assert.equal(created.tenant.contactName, "Olena Marchuk");
+    assert.equal(created.tenant.contactEmail, "olena@example.com");
+    assert.equal(created.tenant.contactPhone, "+380 44 123 4567");
+  });
+
+  it("rejects a malformed contact email", async () => {
+    const service = new PlatformService(
+      createPrismaStub() as unknown as PrismaService,
+    );
+
+    await assert.rejects(
+      () =>
+        service.createTenant({
+          name: "Acme Co",
+          slug: "acme",
+          segmentTemplate: "distribution",
+          ...validContact,
+          contactEmail: "not-an-email",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.ok(response.fieldErrors.contactEmail);
         return true;
       },
     );
@@ -37,6 +92,7 @@ describe("platform tenant creation", () => {
           slug: "acme",
           segmentTemplate: "distribution",
           timezone: "Not/A_Real_Zone",
+          ...validContact,
         }),
       (error: unknown) => {
         assert.ok(error instanceof BadRequestException);
@@ -63,6 +119,7 @@ describe("platform tenant creation", () => {
       slug: "acme",
       segmentTemplate: "distribution",
       timezone: " europe/kyiv ",
+      ...validContact,
     });
     assert.equal(withTimezone.tenant.timezone, canonicalKyiv);
 
@@ -70,6 +127,7 @@ describe("platform tenant creation", () => {
       name: "Beta Co",
       slug: "beta",
       segmentTemplate: "distribution",
+      ...validContact,
     });
     assert.equal(withoutTimezone.tenant.timezone, canonicalKyiv);
   });
@@ -84,6 +142,7 @@ describe("platform tenant creation", () => {
           name: "Acme Co",
           slug: "acme",
           segmentTemplate: "distribution",
+          ...validContact,
         }),
       ConflictException,
     );
@@ -99,6 +158,7 @@ describe("platform tenant creation", () => {
       segmentTemplate: "distribution",
       actorUserId: "platform-owner",
       requestId: "req-1",
+      ...validContact,
     });
 
     assert.equal(result.tenant.slug, "acme");
@@ -113,6 +173,7 @@ describe("platform tenant creation", () => {
       name: "Acme Co",
       slug: "acme",
       segmentTemplate: "distribution",
+      ...validContact,
     });
 
     const listed = await service.listTenants();
@@ -133,11 +194,13 @@ describe("platform tenant creation", () => {
       name: "Acme Co",
       slug: "acme",
       segmentTemplate: "distribution",
+      ...validContact,
     });
     const archived = await service.createTenant({
       name: "Retired Co",
       slug: "retired",
       segmentTemplate: "distribution",
+      ...validContact,
     });
     await prisma.platformTenant.update({
       where: { id: archived.tenant.id },

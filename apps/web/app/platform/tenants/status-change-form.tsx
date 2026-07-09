@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import { formatLabel } from "../../../lib/format";
+import { FieldIconButton, PencilIcon } from "./field-icon-button";
 
 type StatusChangeFormProps = {
   currentStatus: string;
@@ -69,14 +70,13 @@ export function StatusChangeForm({
           type="hidden"
         />
       </form>
-      <button
-        className="secondary-button"
+      <FieldIconButton
         disabled={isSaving}
+        label={`Edit status for ${tenantName}`}
         onClick={openDialog}
-        type="button"
       >
-        {isSaving ? "Saving..." : "Change status"}
-      </button>
+        <PencilIcon />
+      </FieldIconButton>
       <dialog
         aria-labelledby={`tenant-status-title-${tenantId}`}
         className="modal-dialog"

@@ -30,6 +30,7 @@ import { AutoDismissNotice } from "./auto-dismiss-notice";
 import { CreateTenantModal } from "./create-tenant-modal";
 import { NameChangeForm } from "./name-change-form";
 import { PurgeTenantForm } from "./purge-tenant-form";
+import { SingleFieldForm } from "./single-field-form";
 import { StatusChangeForm } from "./status-change-form";
 import { TenantAdminControls } from "./tenant-admin-controls";
 import { LanguageForm } from "./language-form";
@@ -118,9 +119,19 @@ export default async function PlatformTenantsPage({
     const country = String(formData.get("country") ?? "").trim();
     const timezone = String(formData.get("timezone") ?? "").trim();
     const language = String(formData.get("language") ?? "").trim();
+    const contactName = String(formData.get("contactName") ?? "").trim();
+    const contactEmail = String(formData.get("contactEmail") ?? "").trim();
+    const contactPhone = String(formData.get("contactPhone") ?? "").trim();
     const primaryDomain = String(formData.get("primaryDomain") ?? "").trim();
 
-    if (!name || !slug || !SEGMENT_TEMPLATES.includes(segmentTemplate)) {
+    if (
+      !name ||
+      !slug ||
+      !SEGMENT_TEMPLATES.includes(segmentTemplate) ||
+      !contactName ||
+      !contactEmail ||
+      !contactPhone
+    ) {
       redirect("/platform/tenants?error=1");
     }
 
@@ -131,6 +142,9 @@ export default async function PlatformTenantsPage({
       country: country || undefined,
       timezone: timezone || undefined,
       language: language || undefined,
+      contactName,
+      contactEmail,
+      contactPhone,
       primaryDomain: primaryDomain || undefined,
     });
 
@@ -269,6 +283,21 @@ export default async function PlatformTenantsPage({
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
 
+  async function updateCountryAction(formData: FormData) {
+    "use server";
+
+    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const country = String(formData.get("country") ?? "").trim();
+
+    if (!tenantId || !country) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    const result = await updatePlatformTenant(tenantId, { country });
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
   async function updateTimezoneAction(formData: FormData) {
     "use server";
 
@@ -295,6 +324,31 @@ export default async function PlatformTenantsPage({
     }
 
     const result = await updatePlatformTenant(tenantId, { language });
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
+  async function updateContactAction(formData: FormData) {
+    "use server";
+
+    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const field = String(formData.get("field") ?? "").trim();
+    const value = String(formData.get("value") ?? "").trim();
+
+    if (!tenantId || !value) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    let result;
+    if (field === "contactName") {
+      result = await updatePlatformTenant(tenantId, { contactName: value });
+    } else if (field === "contactEmail") {
+      result = await updatePlatformTenant(tenantId, { contactEmail: value });
+    } else if (field === "contactPhone") {
+      result = await updatePlatformTenant(tenantId, { contactPhone: value });
+    } else {
+      redirect("/platform/tenants?error=1");
+    }
 
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
@@ -358,6 +412,12 @@ export default async function PlatformTenantsPage({
     const metrics = tenant.metrics ?? EMPTY_TENANT_METRICS;
     const superadminSummary: TenantSuperadminSummary | null =
       tenant.superadmin ?? null;
+    const activeSuperadmin = superadminSummary?.activeSuperadmin ?? null;
+    const superadminLabel = activeSuperadmin
+      ? activeSuperadmin.email
+      : superadminSummary?.pendingInvite
+        ? "Invite pending"
+        : "—";
 
     return (
       <details
@@ -379,20 +439,208 @@ export default async function PlatformTenantsPage({
             <h3>Tenant information</h3>
             <dl className="tenant-metrics-grid">
               <div>
+                <dt>Name</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {tenant.name}
+                  </span>
+                  {isArchived ? null : (
+                    <NameChangeForm
+                      action={updateNameAction}
+                      currentName={tenant.name}
+                      tenantId={tenant.id}
+                    />
+                  )}
+                </dd>
+              </div>
+              <div>
                 <dt>Slug</dt>
                 <dd>{tenant.slug}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {formatLabel(tenant.status)}
+                  </span>
+                  {isArchived ? null : (
+                    <StatusChangeForm
+                      currentStatus={tenant.status}
+                      statuses={ASSIGNABLE_STATUSES}
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                      updateAction={updateStatusAction}
+                    />
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>Created</dt>
                 <dd>{formatShortDate(format, tenant.createdAt)}</dd>
               </div>
               <div>
+                <dt>Country</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {tenant.country}
+                  </span>
+                  {isArchived ? null : (
+                    <SingleFieldForm
+                      action={updateCountryAction}
+                      confirmLabel="Confirm country"
+                      currentValue={tenant.country}
+                      dialogId="tenant-country-title"
+                      eyebrow="Tenant country"
+                      fieldLabel="Country"
+                      inputName="country"
+                      placeholder="UA"
+                      tenantId={tenant.id}
+                      title="Change country"
+                      triggerLabel={`Edit country for ${tenant.name}`}
+                    />
+                  )}
+                </dd>
+              </div>
+              <div>
                 <dt>Timezone</dt>
-                <dd>{tenant.timezone}</dd>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {tenant.timezone}
+                  </span>
+                  {isArchived ? null : (
+                    <TimezoneForm
+                      action={updateTimezoneAction}
+                      currentTimezone={tenant.timezone}
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                    />
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>Language</dt>
-                <dd>{tenant.language}</dd>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {tenant.language}
+                  </span>
+                  {isArchived ? null : (
+                    <LanguageForm
+                      action={updateLanguageAction}
+                      currentLanguage={tenant.language}
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                    />
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Contact name</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {tenant.contactName ?? "—"}
+                  </span>
+                  {isArchived ? null : (
+                    <SingleFieldForm
+                      action={updateContactAction}
+                      confirmLabel="Confirm"
+                      currentValue={tenant.contactName}
+                      dialogId="tenant-contactName-title"
+                      eyebrow="Contact details"
+                      fieldLabel="Contact name"
+                      hiddenFields={{ field: "contactName" }}
+                      inputName="value"
+                      inputType="text"
+                      tenantId={tenant.id}
+                      title="Edit contact name"
+                      triggerLabel={`Edit contact name for ${tenant.name}`}
+                    />
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Contact email</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {tenant.contactEmail ? (
+                      <a href={`mailto:${tenant.contactEmail}`}>
+                        {tenant.contactEmail}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </span>
+                  {isArchived ? null : (
+                    <SingleFieldForm
+                      action={updateContactAction}
+                      confirmLabel="Confirm"
+                      currentValue={tenant.contactEmail}
+                      dialogId="tenant-contactEmail-title"
+                      eyebrow="Contact details"
+                      fieldLabel="Contact email"
+                      hiddenFields={{ field: "contactEmail" }}
+                      inputName="value"
+                      inputType="email"
+                      tenantId={tenant.id}
+                      title="Edit contact email"
+                      triggerLabel={`Edit contact email for ${tenant.name}`}
+                    />
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Contact phone</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {tenant.contactPhone ? (
+                      <a
+                        href={`tel:${tenant.contactPhone.replace(/\s+/g, "")}`}
+                      >
+                        {tenant.contactPhone}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </span>
+                  {isArchived ? null : (
+                    <SingleFieldForm
+                      action={updateContactAction}
+                      confirmLabel="Confirm"
+                      currentValue={tenant.contactPhone}
+                      dialogId="tenant-contactPhone-title"
+                      eyebrow="Contact details"
+                      fieldLabel="Contact phone"
+                      hiddenFields={{ field: "contactPhone" }}
+                      inputName="value"
+                      inputType="tel"
+                      tenantId={tenant.id}
+                      title="Edit contact phone"
+                      triggerLabel={`Edit contact phone for ${tenant.name}`}
+                    />
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Superadmin</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {superadminLabel}
+                  </span>
+                  {isArchived ? null : (
+                    <TenantAdminControls
+                      activeSuperadmin={activeSuperadmin}
+                      admins={companyAdmins}
+                      inviteAction={inviteSuperadminAction}
+                      pendingSuperadminInvite={Boolean(
+                        superadminSummary?.pendingInvite,
+                      )}
+                      promoteAction={promoteSuperadminAction}
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                      tenantSlug={tenant.slug}
+                      usersAvailable={Boolean(usersResult?.ok)}
+                    />
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>Admins</dt>
@@ -400,22 +648,15 @@ export default async function PlatformTenantsPage({
                   <span>
                     {metrics.companyAdminCount} / {tenant.adminLimit}
                   </span>
-                  <TenantAdminControls
-                    activeSuperadmin={
-                      superadminSummary?.activeSuperadmin ?? null
-                    }
-                    admins={companyAdmins}
-                    inviteAction={inviteSuperadminAction}
-                    isArchived={isArchived}
-                    pendingSuperadminInvite={Boolean(
-                      superadminSummary?.pendingInvite,
-                    )}
-                    promoteAction={promoteSuperadminAction}
-                    tenantId={tenant.id}
-                    tenantName={tenant.name}
-                    tenantSlug={tenant.slug}
-                    usersAvailable={Boolean(usersResult?.ok)}
-                  />
+                  {isArchived ? null : (
+                    <AdminLimitForm
+                      action={updateAdminLimitAction}
+                      currentOverride={tenant.adminLimitOverride}
+                      planDefault={tenant.adminLimitPlanDefault}
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                    />
+                  )}
                 </dd>
               </div>
               <div>
@@ -469,34 +710,6 @@ export default async function PlatformTenantsPage({
             </div>
           ) : (
             <div className="toolbar">
-              <NameChangeForm
-                action={updateNameAction}
-                currentName={tenant.name}
-                tenantId={tenant.id}
-              />
-              <StatusChangeForm
-                currentStatus={tenant.status}
-                statuses={ASSIGNABLE_STATUSES}
-                tenantId={tenant.id}
-                tenantName={tenant.name}
-                updateAction={updateStatusAction}
-              />
-              <TimezoneForm
-                action={updateTimezoneAction}
-                currentTimezone={tenant.timezone}
-                tenantId={tenant.id}
-              />
-              <LanguageForm
-                action={updateLanguageAction}
-                currentLanguage={tenant.language}
-                tenantId={tenant.id}
-              />
-              <AdminLimitForm
-                action={updateAdminLimitAction}
-                currentOverride={tenant.adminLimitOverride}
-                planDefault={tenant.adminLimitPlanDefault}
-                tenantId={tenant.id}
-              />
               <ArchiveTenantForm
                 action={archiveAction}
                 mode="archive"

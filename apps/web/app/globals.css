@@ -768,6 +768,7 @@ textarea {
 }
 
 .tenant-name-form,
+.tenant-contact-form,
 .tenant-archive-form {
   display: flex;
 }
@@ -1298,33 +1299,25 @@ textarea {
   justify-content: space-between;
 }
 
+.tenant-metric-inline-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tenant-field-icon-button {
+  color: var(--accent-strong);
+  flex-shrink: 0;
+  height: 32px;
+  min-height: 32px;
+  width: 32px;
+}
+
 .tenant-admin-cell-actions {
   align-items: center;
   display: flex;
   gap: 6px;
   flex-shrink: 0;
   flex-wrap: nowrap;
-}
-
-.tenant-metric-action {
-  border-color: var(--accent);
-  color: var(--accent-strong);
-  font-size: 18px;
-  font-weight: 850;
-  height: 40px;
-  min-height: 40px;
-  min-width: 64px;
-  padding: 0;
-  width: 64px;
-}
-
-.tenant-metric-list-action {
-  font-size: 12px;
-  height: 40px;
-  min-height: 40px;
-  min-width: 64px;
-  padding: 0;
-  width: 64px;
 }
 
 .modal-admin-list {
