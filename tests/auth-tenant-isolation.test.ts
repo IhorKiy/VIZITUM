@@ -384,6 +384,79 @@ describe("auth tenant isolation", () => {
         instanceof Date,
     );
   });
+
+  it("falls back to the tenant session for a tenant permission when a platform session is also present", async () => {
+    // Regression test: a platform owner accepting a tenant invite (or
+    // otherwise touching a tenant page) in the same tab they used to sign
+    // into the platform console ends up with both session cookies set at
+    // once. PermissionGuard used to resolve identity from the platform
+    // session unconditionally, so the tenant session — and its real,
+    // correctly-assigned role — was silently shadowed and every tenant
+    // request 403'd with MISSING_PERMISSION regardless of the tenant
+    // user's actual permissions.
+    const session = createSession();
+    const platformSession = {
+      id: "platform-session-a",
+      platformUserId: "platform-user-a",
+      sessionTokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+      createdAt: new Date(),
+      lastSeenAt: null,
+      userAgentHash: null,
+      ipHash: null,
+      platformUser: {
+        id: "platform-user-a",
+        email: "owner@vizitum.dev",
+        name: "Platform Owner",
+        status: "active",
+      },
+    };
+    const reflector = {
+      getAllAndOverride: (key: string) =>
+        key === "requiredPermissions" ? [PERMISSIONS.USERS_READ] : undefined,
+    };
+    const guard = new PermissionGuard(
+      {
+        platformTenant: {
+          findUnique: async () => ({ id: session.tenantId, slug: "tenant-a" }),
+        },
+        platformSession: {
+          findUnique: async () => platformSession,
+          update: async () => platformSession,
+        },
+        user: {
+          findFirst: async () => ({
+            id: session.userId,
+            status: "active",
+            roles: [{ roleCode: "company_admin" }],
+          }),
+        },
+      } as never,
+      reflector as never,
+      new RolesService(),
+      createSessionService(session) as never,
+    );
+    const request = createRequest("tenant-token", undefined, {
+      cookieName: PLATFORM_SESSION_COOKIE_NAME,
+      token: "platform-session-token",
+    });
+
+    assert.equal(
+      await guard.canActivate(createExecutionContext(request)),
+      true,
+    );
+    assert.deepEqual(request.context, {
+      requestId: "request-a",
+      tenantId: session.tenantId,
+      tenantSlug: "tenant-a",
+      userId: session.userId,
+      roleCodes: ["company_admin"],
+      permissions: new RolesService().getPermissionsForRoles([
+        "company_admin",
+      ] as never),
+    });
+  });
 });
 
 // Sets PLATFORM_OPERATIONS_TOKEN for the plaintext comparison path and clears
@@ -438,8 +511,22 @@ function createRequest(
   authorization?: string,
   cookie?: { cookieName: string; token: string },
 ) {
-  const resolvedCookie =
-    cookie ?? (token ? { cookieName: SESSION_COOKIE_NAME, token } : undefined);
+  // `token` and `cookie` can both be set at once to simulate a browser that
+  // holds a tenant session cookie *and* a platform session cookie
+  // simultaneously — see the "falls back to the tenant session" test below.
+  const cookiePairs: string[] = [];
+
+  if (token) {
+    cookiePairs.push(`${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`);
+  }
+
+  if (cookie) {
+    cookiePairs.push(
+      `${cookie.cookieName}=${encodeURIComponent(cookie.token)}`,
+    );
+  }
+
+  const cookieHeader = cookiePairs.length ? cookiePairs.join("; ") : undefined;
 
   return {
     requestId: "request-a",
@@ -450,8 +537,8 @@ function createRequest(
         return authorization;
       }
 
-      if (headerName === "cookie" && resolvedCookie) {
-        return `${resolvedCookie.cookieName}=${encodeURIComponent(resolvedCookie.token)}`;
+      if (headerName === "cookie") {
+        return cookieHeader;
       }
 
       return undefined;
