@@ -40,6 +40,7 @@
     "web:dev": "npm run dev --workspace @vizitum/web",
     "web:start": "npm run start --workspace @vizitum/web",
     "web:typecheck": "npm run typecheck --workspace @vizitum/web",
+    "web:e2e": "npm run e2e --workspace @vizitum/web",
     "web:i18n:check": "node scripts/check-web-i18n-literals.mjs"
   },
   "repository": {
