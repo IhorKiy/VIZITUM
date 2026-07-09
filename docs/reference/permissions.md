@@ -5,7 +5,7 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 ## How enforcement works
 
 1. Controllers declare requirements with `@RequirePermissions(...)` (**all** listed permissions required) or `@RequireAnyPermissions(...)` (**one** is enough) from `src/modules/auth/permissions.decorator.ts`.
-2. `PermissionGuard` resolves the session → tenant → user → roles, expands roles to permissions via `RolesService`, checks the requirement, and attaches the `RequestContext` to the request. Undecorated endpoints skip the guard entirely (auth, health). A request can carry a platform session cookie and a tenant session cookie at the same time (both are `path: "/"`, e.g. a platform owner accepting a tenant invite in the same tab used to create the tenant) — the guard builds a context candidate for every credential actually present (bearer token, platform session, tenant session) and uses whichever one satisfies the route's required permission(s), rather than always preferring one over the other. This is unambiguous because platform and tenant permissions never overlap (see matrix below).
+2. `PermissionGuard` resolves the session → tenant → user → roles, expands roles to permissions via `RolesService`, checks the requirement, and attaches the `RequestContext` to the request. Undecorated endpoints skip the guard entirely (auth, health). A request can carry a platform session cookie and a tenant session cookie at the same time (both are `path: "/"`, e.g. a platform owner accepting a tenant invite in the same tab used to create the tenant) — the guard builds a context candidate for every credential actually present (bearer token, platform session, tenant session) and uses whichever one satisfies the route's required permission(s), rather than always preferring one over the other. This is unambiguous because platform and tenant permissions never overlap (see matrix below; pinned by `tests/role-permission-domain-disjointness.test.ts`).
 3. Users can hold **multiple roles**; their effective permission set is the union. Frontend navigation (`apps/web/lib/navigation.ts`) filters screens by the same permission strings.
 4. A `platform_owner` session (`vizitum_platform_session`, resolved from a `PlatformUser`) yields a context with the full `platform_owner` permission set (`platform.tenants.read`, `platform.tenants.manage`, `platform.operations.read`), `tenantId: "platform"` and the platform user id as `userId`. The platform bearer token is a separate, narrower service credential that grants only `platform.operations.read` (for `GET /operations/summary`); it cannot manage tenants.
 
@@ -17,55 +17,56 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 
 **Team Manager full tenant view means operational read access, not Company Admin rights** — managers see team visits/reports/tasks but cannot manage users, settings, or imports.
 
-**Admin management is exclusive to the superadmin.** A `company_admin` cannot invite, suspend, reactivate, delete or re-role *any* `company_admin` (including itself) — only a `tenant_superadmin` can, via `admins.invite`/`admins.manage`. `company_admin` keeps unrestricted control of `team_manager`/`field_representative` through the existing `users.*`/`roles.assign` permissions. The superadmin itself can only be modified by the platform owner — no tenant-side permission grants access to change its status or roles (see `SUPERADMIN_PROTECTED` in api-reference.md).
+**Admin management is exclusive to the superadmin.** A `company_admin` cannot invite, suspend, reactivate, delete or re-role _any_ `company_admin` (including itself) — only a `tenant_superadmin` can, via `admins.invite`/`admins.manage`. `company_admin` keeps unrestricted control of `team_manager`/`field_representative` through the existing `users.*`/`roles.assign` permissions. The superadmin itself can only be modified by the platform owner — no tenant-side permission grants access to change its status or roles (see `SUPERADMIN_PROTECTED` in api-reference.md).
 
 ## Role → permission matrix
 
 | Permission                 | platform_owner | tenant_superadmin | company_admin | team_manager | field_representative |
-| -------------------------- | :------------: | :----------------: | :-----------: | :----------: | :------------------: |
-| `platform.tenants.read`    |       x        |                     |               |              |                      |
-| `platform.tenants.manage`  |       x        |                     |               |              |                      |
-| `platform.operations.read` |       x        |                     |               |              |                      |
-| `tenant.settings.read`     |                |         x           |       x       |              |                      |
-| `tenant.settings.manage`   |                |         x           |       x       |              |                      |
-| `users.read`               |                |         x           |       x       |              |                      |
-| `users.invite`             |                |         x           |       x       |              |                      |
-| `users.manage`             |                |         x           |       x       |              |                      |
-| `roles.assign`             |                |         x           |       x       |              |                      |
-| `admins.invite`            |                |         x           |               |              |                      |
-| `admins.manage`            |                |         x           |               |              |                      |
-| `locations.read`           |                |         x           |       x       |      x       |          x           |
-| `locations.manage`         |                |         x           |       x       |              |                      |
-| `locations.assign`         |                |         x           |       x       |              |                      |
+| -------------------------- | :------------: | :---------------: | :-----------: | :----------: | :------------------: |
+| `platform.tenants.read`    |       x        |                   |               |              |                      |
+| `platform.tenants.manage`  |       x        |                   |               |              |                      |
+| `platform.operations.read` |       x        |                   |               |              |                      |
+| `tenant.settings.read`     |                |         x         |       x       |              |                      |
+| `tenant.settings.manage`   |                |         x         |       x       |              |                      |
+| `users.read`               |                |         x         |       x       |              |                      |
+| `users.invite`             |                |         x         |       x       |              |                      |
+| `users.manage`             |                |         x         |       x       |              |                      |
+| `roles.assign`             |                |         x         |       x       |              |                      |
+| `admins.invite`            |                |         x         |               |              |                      |
+| `admins.manage`            |                |         x         |               |              |                      |
+| `locations.read`           |                |         x         |       x       |      x       |          x           |
+| `locations.manage`         |                |         x         |       x       |              |                      |
+| `locations.assign`         |                |         x         |       x       |              |                      |
+
 <!-- Chains (`/chains`, retail networks) are part of the location domain and have no dedicated permission: reads use `locations.read`, create/update use `locations.manage`. -->
 
-| `contacts.read`            |                |         x           |       x       |      x       |          x           |
-| `contacts.manage`          |                |         x           |       x       |              |                      |
-| `products.read`            |                |         x           |       x       |      x       |          x           |
-| `products.manage`          |                |         x           |       x       |              |                      |
-| `routes.read`              |                |                     |               |      x       |          x           |
-| `routes.manage_team`       |                |                     |               |      x       |                      |
-| `routes.manage_own`        |                |                     |               |              |          x           |
-| `visits.read_own`          |                |                     |               |              |          x           |
-| `visits.read_team`         |                |                     |               |      x       |                      |
-| `visits.create`            |                |                     |               |              |          x           |
-| `visits.update_own`        |                |                     |               |              |          x           |
-| `visits.cancel_own`        |                |                     |               |              |          x           |
-| `reports.read_own`         |                |                     |               |              |          x           |
-| `reports.read_team`        |                |                     |               |      x       |                      |
-| `reports.confirm_own`      |                |                     |               |              |          x           |
-| `tasks.read_own`           |                |                     |               |              |          x           |
-| `tasks.read_team`          |                |                     |               |      x       |                      |
-| `tasks.create`             |                |                     |               |      x       |          x           |
-| `tasks.update_own`         |                |                     |               |              |          x           |
-| `tasks.update_team`        |                |                     |               |      x       |                      |
-| `imports.read`             |                |         x           |       x       |              |                      |
-| `imports.upload`           |                |         x           |       x       |              |                      |
-| `imports.confirm`          |                |         x           |       x       |              |                      |
-| `ai.use_reporting`         |                |                     |               |              |          x           |
-| `dashboard.manager.read`   |                |                     |               |      x       |                      |
-| `pilot_review.read`        |                |                     |               |      x       |                      |
-| `audit.read`               |                |         x           |       x       |              |                      |
+| `contacts.read` | | x | x | x | x |
+| `contacts.manage` | | x | x | | |
+| `products.read` | | x | x | x | x |
+| `products.manage` | | x | x | | |
+| `routes.read` | | | | x | x |
+| `routes.manage_team` | | | | x | |
+| `routes.manage_own` | | | | | x |
+| `visits.read_own` | | | | | x |
+| `visits.read_team` | | | | x | |
+| `visits.create` | | | | | x |
+| `visits.update_own` | | | | | x |
+| `visits.cancel_own` | | | | | x |
+| `reports.read_own` | | | | | x |
+| `reports.read_team` | | | | x | |
+| `reports.confirm_own` | | | | | x |
+| `tasks.read_own` | | | | | x |
+| `tasks.read_team` | | | | x | |
+| `tasks.create` | | | | x | x |
+| `tasks.update_own` | | | | | x |
+| `tasks.update_team` | | | | x | |
+| `imports.read` | | x | x | | |
+| `imports.upload` | | x | x | | |
+| `imports.confirm` | | x | x | | |
+| `ai.use_reporting` | | | | | x |
+| `dashboard.manager.read` | | | | x | |
+| `pilot_review.read` | | | | x | |
+| `audit.read` | | x | x | | |
 
 ## Ownership-scoped permissions
 

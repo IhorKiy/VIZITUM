@@ -107,10 +107,20 @@ export function applyCsrfProtection(
 }
 
 function isCsrfExemptRoute(request: Request): boolean {
-  const requestPath = request.originalUrl ?? request.url ?? "";
-  const pathWithoutQuery = requestPath.split("?")[0];
+  if (request.method !== "POST") {
+    return false;
+  }
 
-  return request.method === "POST" && CSRF_EXEMPT_ROUTES.has(pathWithoutQuery);
+  const requestPath = request.originalUrl ?? request.url ?? "";
+  // Express routing is case-insensitive and tolerant of trailing slashes by
+  // default, so `/api/auth/logout/` or `/API/auth/logout` still reach the
+  // logout handler. Normalize the same way before the exact-match lookup so
+  // those forms don't stay CSRF-blocked while nested paths (which the
+  // trailing-slash trim can't produce) still require a token.
+  const pathWithoutQuery = requestPath.split("?")[0].toLowerCase();
+  const normalizedPath = pathWithoutQuery.replace(/\/+$/, "");
+
+  return CSRF_EXEMPT_ROUTES.has(normalizedPath);
 }
 
 // Platform and tenant sessions each get their own CSRF cookie
