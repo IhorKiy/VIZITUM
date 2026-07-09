@@ -44,6 +44,7 @@ export class LocationsController {
       city: normalizeQueryString(query.city),
       region: normalizeQueryString(query.region),
       territory: normalizeQueryString(query.territory),
+      chainId: normalizeQueryString(query.chainId),
       search: normalizeQueryString(query.search),
     });
   }

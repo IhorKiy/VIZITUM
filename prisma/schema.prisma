@@ -87,6 +87,11 @@ enum LocationStatus {
   archived
 }
 
+enum ChainStatus {
+  active
+  archived
+}
+
 enum AssignmentStatus {
   active
   inactive
@@ -433,9 +438,29 @@ model ProductCapability {
   @@map("product_capabilities")
 }
 
+model Chain {
+  id           String      @id @default(cuid())
+  tenantId     String
+  externalCode String?
+  name         String
+  status       ChainStatus @default(active)
+  notes        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  locations Location[]
+
+  @@unique([tenantId, externalCode])
+  @@unique([tenantId, name])
+  @@index([tenantId, status])
+  @@map("chains")
+}
+
 model Location {
   id           String         @id @default(cuid())
   tenantId     String
+  chainId      String?
   externalCode String?
   name         String
   type         String?
@@ -451,6 +476,7 @@ model Location {
   updatedAt    DateTime       @updatedAt
   deletedAt    DateTime?
 
+  chain       Chain?               @relation(fields: [chainId], references: [id], onDelete: SetNull)
   contacts    LocationContact[]
   assignments LocationAssignment[]
   routeItems  RouteItem[]
@@ -463,6 +489,7 @@ model Location {
   @@index([tenantId, city])
   @@index([tenantId, region])
   @@index([tenantId, territory])
+  @@index([tenantId, chainId])
   @@map("locations")
 }
 

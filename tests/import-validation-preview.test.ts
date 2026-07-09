@@ -330,6 +330,7 @@ describe("import validation preview", () => {
     assert.deepEqual(jobs[0].createdCounts, {
       users: 2,
       userRoles: 3,
+      chains: 0,
       locations: 0,
       locationAssignments: 0,
       contacts: 0,

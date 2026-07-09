@@ -35,7 +35,8 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 
 | Model | Table | Purpose |
 | --- | --- | --- |
-| `Location` | `locations` | Visit points: address fields, `region`/`territory`, optional lat/long, LocationStatus. |
+| `Chain` | `chains` | Retail chain/network a location belongs to (ChainStatus active/archived). Canonical per-tenant list, unique on `(tenant, name)` and `(tenant, externalCode)`; `Location.chainId` → `Chain` is optional and `SetNull` on chain delete. |
+| `Location` | `locations` | Visit points: address fields, `region`/`territory`, optional lat/long, LocationStatus, optional `chainId` → `Chain`. |
 | `LocationContact` | `location_contacts` | Contacts attached to a location. |
 | `LocationAssignment` | `location_assignments` | Representative ↔ location link with AssignmentStatus; unique per (tenant, location, representative). |
 | `Product` | `products` | SKU catalog; `notApplicable` marks tenants that skip product tracking. |
@@ -79,4 +80,4 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 
 Defined in `prisma/schema.prisma` and mirrored in TypeScript where needed:
 
-`TenantStatus` (draft/provisioning/ready/active retired — see `PlatformTenant` above; `pilot`/`team`/`business` double as the plan tier, plus `suspended`/`archived`), `ProductMode` (team/business), `DatabasePlacement` (shared/dedicated), `SegmentTemplate` (distribution/service/partner_account), `JobStatus`, `PlatformUserStatus` (active/suspended), `UserStatus`, `InviteStatus`, `RoleCode`, `NavZone` (field/manager/admin/operations — frontend nav grouping, see `User.lastSelectedZone` above), `LocationStatus`, `AssignmentStatus`, `ProductStatus`, `RouteStatus`, `RouteItemStatus`, `VisitStatus`, `VisitNoteInputType` (text/audio), `ReportStatus` (draft/confirmed/discarded), `TaskStatus`, `TaskPriority`, `ImportType`, `ImportStatus`, `ImportIssueSeverity`, `AiJobType`, `AiJobStatus`, `StorageObjectStatus`, `StorageObjectPurpose`.
+`TenantStatus` (draft/provisioning/ready/active retired — see `PlatformTenant` above; `pilot`/`team`/`business` double as the plan tier, plus `suspended`/`archived`), `ProductMode` (team/business), `DatabasePlacement` (shared/dedicated), `SegmentTemplate` (distribution/service/partner_account), `JobStatus`, `PlatformUserStatus` (active/suspended), `UserStatus`, `InviteStatus`, `RoleCode`, `NavZone` (field/manager/admin/operations — frontend nav grouping, see `User.lastSelectedZone` above), `LocationStatus`, `ChainStatus` (active/archived), `AssignmentStatus`, `ProductStatus`, `RouteStatus`, `RouteItemStatus`, `VisitStatus`, `VisitNoteInputType` (text/audio), `ReportStatus` (draft/confirmed/discarded), `TaskStatus`, `TaskPriority`, `ImportType`, `ImportStatus`, `ImportIssueSeverity`, `AiJobType`, `AiJobStatus`, `StorageObjectStatus`, `StorageObjectPurpose`.
