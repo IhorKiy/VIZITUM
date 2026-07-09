@@ -506,6 +506,20 @@ textarea {
   gap: 6px;
 }
 
+.visit-form label.checkbox-label {
+  align-items: center;
+  cursor: pointer;
+  grid-auto-flow: column;
+  grid-template-columns: auto 1fr;
+  justify-items: start;
+}
+
+.visit-form label.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  height: 16px;
+  width: 16px;
+}
+
 .visit-form input[type="date"],
 .visit-form input:not([type]),
 .visit-form input[type="email"],

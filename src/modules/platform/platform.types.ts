@@ -18,7 +18,9 @@ export type UpdateTenantInput = {
   language?: string;
   primaryDomain?: string | null;
   status?: TenantStatus;
-  adminLimit?: number;
+  // A positive integer sets an explicit per-tenant override; null clears it so
+  // the cap follows the plan tier again.
+  adminLimit?: number | null;
   actorUserId?: string;
   requestId?: string;
 };

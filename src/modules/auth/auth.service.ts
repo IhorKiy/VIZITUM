@@ -27,7 +27,7 @@ import type {
 } from "./auth.types";
 import { isValidZone, isZoneAvailable } from "./zones";
 import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
-import { DEFAULT_ADMIN_LIMIT } from "../users/users.types";
+import { DEFAULT_ADMIN_LIMIT, resolveAdminCap } from "../users/users.types";
 
 @Injectable()
 export class AuthService {
@@ -177,9 +177,11 @@ export class AuthService {
           if (invite.roleCodes.includes("company_admin")) {
             const tenant = await tx.platformTenant.findUnique({
               where: { id: invite.tenantId },
-              select: { adminLimit: true },
+              select: { adminLimit: true, status: true },
             });
-            const adminLimit = tenant?.adminLimit ?? DEFAULT_ADMIN_LIMIT;
+            const adminLimit = tenant
+              ? resolveAdminCap(tenant)
+              : DEFAULT_ADMIN_LIMIT;
             const activeAdminCount = await tx.user.count({
               where: {
                 tenantId: invite.tenantId,

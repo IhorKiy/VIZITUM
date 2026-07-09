@@ -4,26 +4,38 @@ import { useRef, useState } from "react";
 
 type AdminLimitFormProps = {
   action: (formData: FormData) => void | Promise<void>;
-  currentLimit: number;
+  // The owner's explicit override, or null when the tenant follows its plan.
+  currentOverride: number | null;
+  // The cap implied by the tenant's current plan tier, shown as the default.
+  planDefault: number;
   tenantId: string;
 };
 
 export function AdminLimitForm({
   action,
-  currentLimit,
+  currentOverride,
+  planDefault,
   tenantId,
 }: AdminLimitFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [adminLimit, setAdminLimit] = useState(String(currentLimit));
-  const parsedLimit = Number(adminLimit);
-  const canSubmit =
-    Number.isInteger(parsedLimit) &&
-    parsedLimit > 0 &&
-    parsedLimit !== currentLimit;
+  const [followPlan, setFollowPlan] = useState(currentOverride === null);
+  const [overrideValue, setOverrideValue] = useState(
+    String(currentOverride ?? planDefault),
+  );
+
+  const parsedOverride = Number(overrideValue);
+  const overrideIsValid =
+    Number.isInteger(parsedOverride) && parsedOverride > 0;
+  // Nothing to save when the current state already matches what's persisted.
+  const isUnchanged = followPlan
+    ? currentOverride === null
+    : overrideIsValid && parsedOverride === currentOverride;
+  const canSubmit = (followPlan || overrideIsValid) && !isUnchanged;
 
   function openDialog() {
-    setAdminLimit(String(currentLimit));
+    setFollowPlan(currentOverride === null);
+    setOverrideValue(String(currentOverride ?? planDefault));
     dialogRef.current?.showModal();
   }
 
@@ -69,20 +81,32 @@ export function AdminLimitForm({
           onSubmit={() => setIsSaving(true)}
         >
           <input name="tenantId" type="hidden" value={tenantId} />
-          <label>
-            Active Company Admin limit
+          <label className="checkbox-label">
             <input
+              checked={followPlan}
+              name="followPlan"
+              onChange={(event) => setFollowPlan(event.target.checked)}
+              type="checkbox"
+            />
+            Follow the plan tier (allows {planDefault} Company Admin
+            {planDefault === 1 ? "" : "s"})
+          </label>
+          <label>
+            Custom Company Admin limit
+            <input
+              disabled={followPlan}
               min={1}
               name="adminLimit"
-              onChange={(event) => setAdminLimit(event.target.value)}
-              required
+              onChange={(event) => setOverrideValue(event.target.value)}
+              required={!followPlan}
               type="number"
-              value={adminLimit}
+              value={overrideValue}
             />
           </label>
           <p className="tenant-status-confirmation">
-            The tenant superadmin cannot invite or reactivate a Company Admin
-            past this limit.
+            By default the limit follows the plan tier. Set a custom value only
+            as a deliberate per-tenant exception. The tenant superadmin cannot
+            invite or reactivate a Company Admin past this limit.
           </p>
           <div className="modal-actions">
             <button

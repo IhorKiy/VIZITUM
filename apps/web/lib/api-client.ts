@@ -723,7 +723,12 @@ export type PlatformTenant = {
   productMode: string;
   segmentTemplate: PlatformSegmentTemplate;
   primaryDomain: string | null;
+  // Effective Company Admin cap (owner override if set, otherwise plan-derived).
   adminLimit: number;
+  // The raw owner override: null means the cap follows the plan tier.
+  adminLimitOverride: number | null;
+  // The cap the plan tier alone implies, regardless of any override.
+  adminLimitPlanDefault: number;
   archivedAt: string | null;
   purgeRequestedAt: string | null;
   purgeStartedAt: string | null;
@@ -791,7 +796,9 @@ export type UpdatePlatformTenantInput = {
   language?: string;
   primaryDomain?: string | null;
   status?: string;
-  adminLimit?: number;
+  // A positive integer sets a per-tenant override; null clears it so the cap
+  // follows the plan tier.
+  adminLimit?: number | null;
 };
 
 export async function updatePlatformTenant(
