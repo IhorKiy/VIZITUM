@@ -42,7 +42,10 @@ npm run web:dev
 npm run web:build
 npm run web:typecheck
 npm run web:i18n:check        # fails on Cyrillic literals outside apps/web/messages/
+npm run web:e2e               # Playwright e2e (apps/web/e2e); boots API+web on 4100/3100
 ```
+
+`web:e2e` needs the local Postgres up and a one-time `npx playwright install chromium`; it seeds the platform owner itself (global setup) and starts both servers on E2E-only ports, so it can run next to dev servers and worktree slots. Override ports with `E2E_API_PORT`/`E2E_WEB_PORT` if 4100/3100 are taken.
 
 Worker and ops:
 
