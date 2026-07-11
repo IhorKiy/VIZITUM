@@ -499,7 +499,10 @@ function LocationRow({
       </summary>
 
       <div className="admin-user-body">
-        <form action={saveLocationAction} className="visit-form compact">
+        <form
+          action={saveLocationAction}
+          className="visit-form compact visit-form-2col"
+        >
           <input name="locationId" type="hidden" value={location.id} />
           <label>
             {t("number")}
@@ -600,7 +603,7 @@ function LocationRow({
             type="hidden"
             value={activeAssignment?.representativeUserId ?? ""}
           />
-          <label>
+          <label className="visit-form-full">
             {t("assignedUser")}
             <select
               defaultValue={activeAssignment?.representativeUserId ?? ""}
@@ -615,7 +618,7 @@ function LocationRow({
             </select>
           </label>
 
-          <label>
+          <label className="visit-form-full">
             {t("notes")}
             <textarea
               defaultValue={location.notes ?? ""}
@@ -625,7 +628,7 @@ function LocationRow({
           </label>
 
           <PendingSubmitButton
-            className="secondary-button"
+            className="secondary-button visit-form-full"
             pendingLabel={tCommon("saving")}
           >
             {t("saveLocation")}

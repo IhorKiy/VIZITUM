@@ -51,7 +51,10 @@ export function CreateLocationModal({
           </button>
         </div>
 
-        <form action={action} className="visit-form compact modal-form">
+        <form
+          action={action}
+          className="visit-form compact modal-form visit-form-2col"
+        >
           <label>
             {t("number")}
             <input name="externalCode" />
@@ -98,12 +101,12 @@ export function CreateLocationModal({
               ))}
             </select>
           </label>
-          <label>
+          <label className="visit-form-full">
             {t("notes")}
             <textarea name="notes" rows={3} />
           </label>
 
-          <div className="modal-actions">
+          <div className="modal-actions visit-form-full">
             <button
               className="secondary-button"
               onClick={() => dialogRef.current?.close()}

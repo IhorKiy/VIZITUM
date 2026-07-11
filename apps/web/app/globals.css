@@ -651,6 +651,25 @@ textarea {
   padding-top: 0;
 }
 
+/* Two-column field layout so tall forms don't stack into one long strip.
+   Fields pair up row by row; hidden inputs are display:none and never take a
+   grid cell, so the pairing stays predictable. Items that need the whole row
+   (a textarea, the actions) opt in with .visit-form-full. */
+.visit-form-2col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+
+.visit-form-2col > .visit-form-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .visit-form-2col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .checkbox-group {
   border: 1px solid var(--line);
   border-radius: 8px;
