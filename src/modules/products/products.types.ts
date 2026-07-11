@@ -33,3 +33,14 @@ export type UpdateProductRequestBody = Partial<
     status?: unknown;
   }
 >;
+
+export type ProductCategoryResponse = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateProductCategoryRequestBody = {
+  name?: unknown;
+};

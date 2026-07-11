@@ -103,6 +103,13 @@ export type Product = {
   updatedAt: string;
 };
 
+export type ProductCategory = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type RoutePlan = {
   id: string;
   representativeUserId: string;
@@ -534,6 +541,15 @@ export async function listAdminProducts(
   return apiGet<PaginatedResponse<Product>>(`/products?${query}`);
 }
 
+export async function createAdminProduct(input: {
+  name: string;
+  sku?: string | null;
+  category?: string | null;
+  notApplicable?: boolean;
+}): Promise<ApiResult<Product>> {
+  return apiPost<Product>("/products", input);
+}
+
 export async function updateAdminProduct(
   productId: string,
   input: {
@@ -545,6 +561,24 @@ export async function updateAdminProduct(
   },
 ): Promise<ApiResult<Product>> {
   return apiPatch<Product>(`/products/${productId}`, input);
+}
+
+export async function listProductCategories(): Promise<
+  ApiResult<ProductCategory[]>
+> {
+  return apiGet<ProductCategory[]>("/product-categories");
+}
+
+export async function createProductCategory(input: {
+  name: string;
+}): Promise<ApiResult<ProductCategory>> {
+  return apiPost<ProductCategory>("/product-categories", input);
+}
+
+export async function deleteProductCategory(
+  categoryId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(`/product-categories/${categoryId}`);
 }
 
 export async function listTodayRoutes(): Promise<ApiResult<RoutePlan[]>> {
