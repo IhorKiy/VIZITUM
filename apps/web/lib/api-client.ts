@@ -516,6 +516,19 @@ export async function listAdminLocations(
   return apiGet<PaginatedResponse<Location>>(`/locations?${query}`);
 }
 
+export async function createAdminLocation(input: {
+  name: string;
+  addressLine: string;
+  city: string;
+  externalCode?: string | null;
+  type?: string | null;
+  chainId?: string | null;
+  region?: string | null;
+  notes?: string | null;
+}): Promise<ApiResult<Location>> {
+  return apiPost<Location>("/locations", input);
+}
+
 export async function updateAdminLocation(
   locationId: string,
   input: {

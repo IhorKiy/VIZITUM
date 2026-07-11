@@ -520,7 +520,16 @@
       "assignedUser": "Закріплено за користувачем",
       "notAssigned": "Не закріплено",
       "notes": "Нотатки",
-      "saveLocation": "Зберегти точку"
+      "saveLocation": "Зберегти точку",
+      "addLocation": "Додати точку",
+      "createLocationBody": "Створіть нову точку для цього простору.",
+      "createLocation": "Створити точку",
+      "creating": "Створення...",
+      "cancel": "Скасувати",
+      "createdAria": "Точку створено",
+      "createdEyebrow": "Точку створено",
+      "createdTitle": "Нову точку додано",
+      "createdBody": "Точка тепер доступна в цьому просторі."
     },
     "chains": {
       "title": "Мережі",

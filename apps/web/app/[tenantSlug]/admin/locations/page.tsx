@@ -3,8 +3,10 @@ import { useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { CreateLocationModal } from "../../../../components/create-location-modal";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
+  createAdminLocation,
   createAdminLocationAssignment,
   createAdminLocationContact,
   deactivateAdminLocationAssignment,
@@ -28,6 +30,7 @@ import {
 type AdminLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    created?: string;
     error?: string;
     search?: string;
     status?: string;
@@ -60,6 +63,36 @@ export default async function AdminLocationsPage({
 
   if (search) {
     query.set("search", search);
+  }
+
+  async function createLocationAction(formData: FormData) {
+    "use server";
+
+    const name = String(formData.get("name") ?? "").trim();
+    const addressLine = String(formData.get("addressLine") ?? "").trim();
+    const city = String(formData.get("city") ?? "").trim();
+
+    if (!name || !addressLine || !city) {
+      redirect(`/${tenantSlug}/admin/locations?error=1`);
+    }
+
+    const result = await createAdminLocation({
+      name,
+      addressLine,
+      city,
+      externalCode: normalizeOptionalField(formData.get("externalCode")),
+      // "Category" reuses the existing free-text `type` column.
+      type: normalizeOptionalField(formData.get("type")),
+      chainId: normalizeOptionalField(formData.get("chainId")),
+      region: normalizeOptionalField(formData.get("region")),
+      notes: normalizeOptionalField(formData.get("notes")),
+    });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/locations?error=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?created=1`);
   }
 
   async function saveLocationAction(formData: FormData) {
@@ -228,7 +261,20 @@ export default async function AdminLocationsPage({
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
           <h1>{t("title")}</h1>
         </div>
+        <div className="toolbar">
+          <CreateLocationModal action={createLocationAction} chains={chains} />
+        </div>
       </header>
+
+      {pageState.created ? (
+        <section className="notice-panel success" aria-label={t("createdAria")}>
+          <div>
+            <p className="eyebrow">{t("createdEyebrow")}</p>
+            <h2>{t("createdTitle")}</h2>
+            <p>{t("createdBody")}</p>
+          </div>
+        </section>
+      ) : null}
 
       {pageState.updated ? (
         <section className="notice-panel success" aria-label={t("updatedAria")}>

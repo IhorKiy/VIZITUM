@@ -520,7 +520,16 @@
       "assignedUser": "Assigned to user",
       "notAssigned": "Not assigned",
       "notes": "Notes",
-      "saveLocation": "Save location"
+      "saveLocation": "Save location",
+      "addLocation": "Add location",
+      "createLocationBody": "Create a new location for this tenant.",
+      "createLocation": "Create location",
+      "creating": "Creating...",
+      "cancel": "Cancel",
+      "createdAria": "Location created",
+      "createdEyebrow": "Location created",
+      "createdTitle": "New location was added",
+      "createdBody": "The location is now available for this tenant."
     },
     "chains": {
       "title": "Chains",
