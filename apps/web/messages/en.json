@@ -453,9 +453,7 @@
     "eyebrow": "Company admin",
     "settings": {
       "title": "Company settings",
-      "signedOutBody": "Tenant identity settings are required in production before this screen can load.",
       "notConnectedTitle": "Tenant settings are not connected",
-      "body": "Set the company display name, time zone, language and whether product/SKU tracking applies to this tenant.",
       "savedAria": "Settings status",
       "savedEyebrow": "Settings saved",
       "savedTitle": "Company settings were updated",
@@ -481,9 +479,7 @@
     },
     "locations": {
       "title": "Locations",
-      "signedOutBody": "Live tenant locations are required in production before this screen can load.",
       "notConnectedTitle": "Tenant locations are not connected",
-      "body": "Review imported locations and keep status, region and territory current for field coverage.",
       "updatedAria": "Location status",
       "updatedEyebrow": "Location updated",
       "updatedTitle": "Location details were saved",
@@ -518,9 +514,7 @@
     },
     "chains": {
       "title": "Chains",
-      "signedOutBody": "Live tenant chains are required in production before this screen can load.",
       "notConnectedTitle": "Tenant chains are not connected",
-      "body": "Manage the retail chains your locations belong to, so coverage and reporting group cleanly.",
       "metricsAria": "Chain metrics",
       "tenantChains": "Tenant chains",
       "activeCount": "{count} active chains",
@@ -557,9 +551,7 @@
     },
     "products": {
       "title": "Products / SKUs",
-      "signedOutBody": "Live tenant products are required in production before this screen can load.",
       "notConnectedTitle": "Tenant products are not connected",
-      "body": "Review imported products, keep status current and mark items not applicable when this tenant does not track them.",
       "updatedAria": "Product status",
       "updatedEyebrow": "Product updated",
       "updatedTitle": "Product details were saved",
@@ -596,9 +588,7 @@
     },
     "setup": {
       "title": "Onboarding checklist",
-      "signedOutBody": "Live tenant setup data is required in production before pilot readiness can be reviewed.",
       "notConnectedTitle": "Setup data is not connected",
-      "body": "Review tenant setup progress before inviting the team into active pilot work.",
       "pilotReady": "Pilot-ready",
       "setupNeeded": "Setup needed",
       "metricsAria": "Setup metrics",
@@ -648,9 +638,7 @@
     },
     "review": {
       "title": "Pilot review",
-      "signedOutBody": "Live tenant usage data is required before pilot review can be generated.",
       "notConnectedTitle": "Pilot review data is not connected",
-      "body": "Success thresholds are measured over the 7-day pilot window that starts at the first field visit.",
       "setup": "Setup",
       "managerView": "Manager view",
       "metricsAria": "Pilot review metrics",
@@ -682,9 +670,7 @@
     },
     "users": {
       "title": "Users and roles",
-      "signedOutBody": "Live tenant users are required in production before role setup can continue.",
       "notConnectedTitle": "Tenant users are not connected",
-      "body": "Invite users, review tenant access and keep Team Pilot roles aligned before field work starts.",
       "inviteStatusAria": "Invite status",
       "inviteRefreshed": "Invite refreshed",
       "inviteCreated": "Invite created",
@@ -757,9 +743,7 @@
     },
     "imports": {
       "title": "Onboarding imports",
-      "signedOutBody": "Live import templates are required in production before import setup can continue.",
       "notConnectedTitle": "Import templates are not connected",
-      "body": "Review approved templates, validate uploaded files and confirm all-or-nothing application.",
       "downloadTemplates": "Download templates",
       "appliedAria": "Import status",
       "appliedEyebrow": "Import applied",
