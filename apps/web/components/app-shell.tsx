@@ -74,6 +74,8 @@ export async function AppShell({
     sessionResult.ok ? sessionResult.data.productsEnabled : true,
   ).filter((item) => item.zone === currentZone);
 
+  const currentUser = sessionResult.ok ? sessionResult.data.user : null;
+
   return (
     <div className="app-shell">
       <header className="mobile-topbar" aria-label={tNav("ariaBrand")}>
@@ -86,6 +88,10 @@ export async function AppShell({
             <p className="topbar-app-name">{tCommon("appName")}</p>
           </div>
         </div>
+
+        {currentUser ? (
+          <p className="topbar-user-name">{currentUser.name}</p>
+        ) : null}
 
         {otherZones.length > 0 ? (
           <div
@@ -113,6 +119,13 @@ export async function AppShell({
             <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>
           </div>
         </div>
+
+        {currentUser ? (
+          <div className="current-user">
+            <p className="current-user-name">{currentUser.name}</p>
+            <p className="current-user-email">{currentUser.email}</p>
+          </div>
+        ) : null}
 
         <nav className="nav-list">
           {navItems.map((item) => (

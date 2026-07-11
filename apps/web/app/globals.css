@@ -93,6 +93,12 @@ textarea {
   margin: 2px 0 0;
 }
 
+.topbar-user-name {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
 .zone-switcher-mobile {
   display: flex;
   gap: 6px;
@@ -161,6 +167,29 @@ textarea {
   color: #bed3cb;
   font-size: 13px;
   margin-top: 2px;
+}
+
+.current-user {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  gap: 2px;
+  padding-top: 16px;
+}
+
+.current-user-name {
+  color: #f7fbf8;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.current-user-email {
+  color: #9fb6ac;
+  font-size: 12px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-list {

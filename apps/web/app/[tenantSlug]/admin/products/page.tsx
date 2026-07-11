@@ -91,7 +91,6 @@ export default async function AdminProductsPage({
           <div>
             <p className="eyebrow">{tAdmin("eyebrow")}</p>
             <h1>{t("title")}</h1>
-            <p>{t("signedOutBody")}</p>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
@@ -128,7 +127,6 @@ export default async function AdminProductsPage({
         <div>
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
           <h1>{t("title")}</h1>
-          <p>{t("body")}</p>
         </div>
       </header>
 
