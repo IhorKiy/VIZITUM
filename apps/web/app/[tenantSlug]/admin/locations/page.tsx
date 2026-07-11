@@ -92,6 +92,23 @@ export default async function AdminLocationsPage({
       redirect(`/${tenantSlug}/admin/locations?error=1`);
     }
 
+    // Assignment lives in its own table, so attach the chosen representative to
+    // the freshly created location as a follow-up step.
+    const representativeUserId = normalizeOptionalField(
+      formData.get("representativeUserId"),
+    );
+
+    if (representativeUserId) {
+      const assignResult = await createAdminLocationAssignment(
+        result.data.id,
+        representativeUserId,
+      );
+
+      if (!assignResult.ok) {
+        redirect(`/${tenantSlug}/admin/locations?error=1`);
+      }
+    }
+
     redirect(`/${tenantSlug}/admin/locations?created=1`);
   }
 
@@ -262,7 +279,11 @@ export default async function AdminLocationsPage({
           <h1>{t("title")}</h1>
         </div>
         <div className="toolbar">
-          <CreateLocationModal action={createLocationAction} chains={chains} />
+          <CreateLocationModal
+            action={createLocationAction}
+            chains={chains}
+            representatives={representatives}
+          />
         </div>
       </header>
 

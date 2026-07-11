@@ -3,17 +3,19 @@
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
-import type { Chain } from "../lib/api-client";
+import type { Chain, TenantUser } from "../lib/api-client";
 import { PendingSubmitButton } from "./pending-submit-button";
 
 type CreateLocationModalProps = {
   action: (formData: FormData) => Promise<void>;
   chains: Chain[];
+  representatives: TenantUser[];
 };
 
 export function CreateLocationModal({
   action,
   chains,
+  representatives,
 }: CreateLocationModalProps) {
   const t = useTranslations("admin.locations");
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -84,6 +86,17 @@ export function CreateLocationModal({
           <label>
             {t("category")}
             <input name="type" />
+          </label>
+          <label>
+            {t("assignedUser")}
+            <select defaultValue="" name="representativeUserId">
+              <option value="">{t("notAssigned")}</option>
+              {representatives.map((rep) => (
+                <option key={rep.id} value={rep.id}>
+                  {rep.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             {t("notes")}
