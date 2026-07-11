@@ -2,7 +2,7 @@
 
 Reference for the implemented database schema. Source of truth: `prisma/schema.prisma` (migrations in `prisma/migrations/`). This is the current state; `docs/vizitum-low-level-technical-design.md` §DB describes design intent and may differ. Update this document in the same change as any schema change.
 
-**26 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
+**27 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
 
 ## Conventions
 
@@ -40,6 +40,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 | `LocationContact` | `location_contacts` | Contacts attached to a location. |
 | `LocationAssignment` | `location_assignments` | Representative ↔ location link with AssignmentStatus; unique per (tenant, location, representative). |
 | `Product` | `products` | SKU catalog; `notApplicable` marks tenants that skip product tracking. |
+| `ProductCategory` | `product_categories` | Curated per-tenant category labels for grouping products (managed from the admin Products screen); `@@unique([tenantId, name])`. Hard-deleted — no FK from `products.category`, which stays a free-text string. |
 
 ## Routes & visits group
 

@@ -176,6 +176,16 @@ Retail chains/networks a location can belong to. Reuses the locations permission
 | `POST /products`             | all: `products.manage` | `{ externalCode?, name, sku?, category?, notApplicable? }`                     |
 | `PATCH /products/:productId` | all: `products.manage` | any create field plus `status?`                                                |
 
+### Product categories — `/product-categories` (`product-categories.controller.ts`)
+
+Managed vocabulary of category labels per tenant, used by the admin Products screen to tag products. `Product.category` stays a free-text string; these rows are the curated list surfaced in the "Add product" and "Manage categories" modals. Delete is a hard delete (no FK from products, so existing products keep their category string).
+
+| Method & path                          | Permissions            | Body / query        |
+| -------------------------------------- | ---------------------- | ------------------- |
+| `GET /product-categories`              | all: `products.read`   | — (all, name asc)   |
+| `POST /product-categories`             | all: `products.manage` | `{ name }` — unique per tenant, 409 `PRODUCT_CATEGORY_EXISTS` on duplicate |
+| `DELETE /product-categories/:categoryId` | all: `products.manage` | — → `{ deleted: true }` |
+
 ### Routes — `/routes` (`routes.controller.ts`)
 
 > Mutation scope: mutations require `routes.manage_team` or `routes.manage_own` at the guard level; `RoutesService.assertCanManageRouteForRepresentative` then enforces ownership. With `routes.manage_team` the caller may mutate any plan in the tenant; with only `routes.manage_own` the plan's `representativeUserId` must equal the caller's user id (403 `ROUTE_SCOPE_FORBIDDEN` otherwise). `GET /routes/today` is also scoped: `routes.manage_team` sees all of today's plans, everyone else only their own.

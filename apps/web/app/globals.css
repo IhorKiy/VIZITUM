@@ -1758,6 +1758,42 @@ textarea {
   justify-content: flex-end;
 }
 
+.category-list {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding: 16px 20px 20px;
+}
+
+.category-items {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.category-item {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 8px 8px 14px;
+}
+
+.category-item span {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.category-list .empty-hint {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
 .filter-groups {
   display: grid;
   gap: 8px;

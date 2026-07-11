@@ -2,12 +2,19 @@ import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
+import { AddProductModal } from "../../../../components/add-product-modal";
 import { AppShell } from "../../../../components/app-shell";
+import { ManageCategoriesModal } from "../../../../components/manage-categories-modal";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
+  createAdminProduct,
+  createProductCategory,
+  deleteProductCategory,
   listAdminProducts,
+  listProductCategories,
   updateAdminProduct,
   type Product,
+  type ProductCategory,
   type ProductStatus,
 } from "../../../../lib/api-client";
 import {
@@ -19,6 +26,7 @@ import {
 type AdminProductsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    created?: string;
     error?: string;
     search?: string;
     status?: string;
@@ -82,6 +90,68 @@ export default async function AdminProductsPage({
     redirect(`/${tenantSlug}/admin/products?updated=1`);
   }
 
+  async function createProductAction(formData: FormData) {
+    "use server";
+
+    const name = String(formData.get("name") ?? "").trim();
+    const sku = normalizeOptionalField(formData.get("sku"));
+    const category = normalizeOptionalField(formData.get("category"));
+    const notApplicable = formData.get("notApplicable") === "on";
+
+    if (!name) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    const result = await createAdminProduct({
+      name,
+      sku,
+      category,
+      notApplicable,
+    });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/products?created=product`);
+  }
+
+  async function createCategoryAction(formData: FormData) {
+    "use server";
+
+    const name = String(formData.get("name") ?? "").trim();
+
+    if (!name) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    const result = await createProductCategory({ name });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/products?created=category`);
+  }
+
+  async function deleteCategoryAction(formData: FormData) {
+    "use server";
+
+    const categoryId = String(formData.get("categoryId") ?? "").trim();
+
+    if (!categoryId) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    const result = await deleteProductCategory(categoryId);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/products?created=categoryRemoved`);
+  }
+
   const productsResult = await listAdminProducts(query.toString());
 
   if (!productsResult.ok) {
@@ -121,6 +191,11 @@ export default async function AdminProductsPage({
     (product) => product.notApplicable,
   ).length;
 
+  const categoriesResult = await listProductCategories();
+  const categories: ProductCategory[] = categoriesResult.ok
+    ? categoriesResult.data
+    : [];
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-products">
       <header className="page-header">
@@ -128,7 +203,40 @@ export default async function AdminProductsPage({
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
           <h1>{t("title")}</h1>
         </div>
+        <div className="toolbar">
+          <ManageCategoriesModal
+            categories={categories}
+            createAction={createCategoryAction}
+            deleteAction={deleteCategoryAction}
+          />
+          <AddProductModal
+            action={createProductAction}
+            categories={categories}
+          />
+        </div>
       </header>
+
+      {pageState.created ? (
+        <section className="notice-panel success" aria-label={t("createdAria")}>
+          <div>
+            <p className="eyebrow">{t("createdEyebrow")}</p>
+            <h2>
+              {pageState.created === "category"
+                ? t("createdCategoryTitle")
+                : pageState.created === "categoryRemoved"
+                  ? t("removedCategoryTitle")
+                  : t("createdProductTitle")}
+            </h2>
+            <p>
+              {pageState.created === "category"
+                ? t("createdCategoryBody")
+                : pageState.created === "categoryRemoved"
+                  ? t("removedCategoryBody")
+                  : t("createdProductBody")}
+            </p>
+          </div>
+        </section>
+      ) : null}
 
       {pageState.updated ? (
         <section className="notice-panel success" aria-label={t("updatedAria")}>

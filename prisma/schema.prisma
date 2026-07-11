@@ -550,6 +550,18 @@ model Product {
   @@map("products")
 }
 
+model ProductCategory {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("product_categories")
+}
+
 model RoutePlan {
   id                   String      @id @default(cuid())
   tenantId             String
