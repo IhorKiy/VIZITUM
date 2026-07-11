@@ -72,6 +72,33 @@ export type Chain = {
   updatedAt: string;
 };
 
+export type LocationContact = {
+  id: string;
+  locationId: string;
+  name: string;
+  roleTitle: string | null;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LocationAssignment = {
+  id: string;
+  locationId: string;
+  representativeUserId: string;
+  representative: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  status: "active" | "inactive";
+  assignedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Location = {
   id: string;
   externalCode: string | null;
@@ -87,6 +114,8 @@ export type Location = {
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  contacts: LocationContact[];
+  assignments: LocationAssignment[];
   createdAt: string;
   updatedAt: string;
 };
@@ -491,15 +520,64 @@ export async function updateAdminLocation(
   locationId: string,
   input: {
     name?: string;
+    externalCode?: string | null;
     type?: string | null;
     chainId?: string | null;
+    addressLine?: string;
     city?: string;
     region?: string | null;
     territory?: string | null;
+    notes?: string | null;
     status?: LocationStatus;
   },
 ): Promise<ApiResult<Location>> {
   return apiPatch<Location>(`/locations/${locationId}`, input);
+}
+
+export async function createAdminLocationContact(
+  locationId: string,
+  input: { name: string; phone?: string | null },
+): Promise<ApiResult<LocationContact>> {
+  return apiPost<LocationContact>(`/locations/${locationId}/contacts`, input);
+}
+
+export async function updateAdminLocationContact(
+  locationId: string,
+  contactId: string,
+  input: { name?: string; phone?: string | null },
+): Promise<ApiResult<LocationContact>> {
+  return apiPatch<LocationContact>(
+    `/locations/${locationId}/contacts/${contactId}`,
+    input,
+  );
+}
+
+export async function deleteAdminLocationContact(
+  locationId: string,
+  contactId: string,
+): Promise<ApiResult<{ ok: true }>> {
+  return apiDelete<{ ok: true }>(
+    `/locations/${locationId}/contacts/${contactId}`,
+  );
+}
+
+export async function createAdminLocationAssignment(
+  locationId: string,
+  representativeUserId: string,
+): Promise<ApiResult<LocationAssignment>> {
+  return apiPost<LocationAssignment>(`/locations/${locationId}/assignments`, {
+    representativeUserId,
+  });
+}
+
+export async function deactivateAdminLocationAssignment(
+  locationId: string,
+  assignmentId: string,
+): Promise<ApiResult<LocationAssignment>> {
+  return apiPatch<LocationAssignment>(
+    `/locations/${locationId}/assignments/${assignmentId}/deactivate`,
+    {},
+  );
 }
 
 export async function listAdminChains(

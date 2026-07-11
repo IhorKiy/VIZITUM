@@ -26,9 +26,21 @@ import type {
 } from "./locations.types";
 
 // Every location read that feeds toLocationResponse loads the linked chain
-// (id + name only) so the response can expose the denormalized chain summary.
+// (id + name only) plus the location's live contacts and active assignments so
+// the response can expose the denormalized chain summary alongside the related
+// records the admin console edits inline. Contacts are ordered oldest-first so
+// the "primary"/"secondary" slots stay stable across edits.
 const LOCATION_INCLUDE = {
   chain: { select: { id: true, name: true } },
+  contacts: {
+    where: { deletedAt: null },
+    orderBy: { createdAt: "asc" },
+  },
+  assignments: {
+    where: { status: "active" },
+    include: { representative: true },
+    orderBy: { createdAt: "desc" },
+  },
 } satisfies Prisma.LocationInclude;
 
 type LocationWithChain = Prisma.LocationGetPayload<{
@@ -760,6 +772,8 @@ function toLocationResponse(location: LocationWithChain): LocationResponse {
     latitude: location.latitude?.toNumber() ?? null,
     longitude: location.longitude?.toNumber() ?? null,
     notes: location.notes,
+    contacts: location.contacts.map(toLocationContactResponse),
+    assignments: location.assignments.map(toLocationAssignmentResponse),
     createdAt: location.createdAt.toISOString(),
     updatedAt: location.updatedAt.toISOString(),
   };

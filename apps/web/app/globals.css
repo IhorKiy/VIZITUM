@@ -553,6 +553,7 @@ textarea {
 .visit-form input:not([type]),
 .visit-form input[type="email"],
 .visit-form input[type="file"],
+.visit-form input[type="tel"],
 .visit-form select,
 .visit-form textarea {
   background: var(--surface);
@@ -565,7 +566,8 @@ textarea {
 .visit-form input[type="date"],
 .visit-form input:not([type]),
 .visit-form input[type="email"],
-.visit-form input[type="file"] {
+.visit-form input[type="file"],
+.visit-form input[type="tel"] {
   min-height: 42px;
   padding: 8px 10px;
 }
@@ -585,6 +587,7 @@ textarea {
 .visit-form input:not([type]):focus,
 .visit-form input[type="email"]:focus,
 .visit-form input[type="file"]:focus,
+.visit-form input[type="tel"]:focus,
 .visit-form select:focus,
 .visit-form textarea:focus {
   border-color: var(--accent);

@@ -20,6 +20,11 @@ export type LocationResponse = {
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  // Denormalized related records so the admin console can edit a location's
+  // contacts and its active representative assignment from the same row
+  // without a follow-up request per location.
+  contacts: LocationContactResponse[];
+  assignments: LocationAssignmentResponse[];
   createdAt: string;
   updatedAt: string;
 };
