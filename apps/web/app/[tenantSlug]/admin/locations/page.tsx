@@ -557,11 +557,7 @@ function LocationRow({
             </select>
           </label>
 
-          <input
-            name="contact1Id"
-            type="hidden"
-            value={contact1?.id ?? ""}
-          />
+          <input name="contact1Id" type="hidden" value={contact1?.id ?? ""} />
           <label>
             {t("contactPerson")}
             <input defaultValue={contact1?.name ?? ""} name="contact1Name" />
@@ -575,11 +571,7 @@ function LocationRow({
             />
           </label>
 
-          <input
-            name="contact2Id"
-            type="hidden"
-            value={contact2?.id ?? ""}
-          />
+          <input name="contact2Id" type="hidden" value={contact2?.id ?? ""} />
           <label>
             {t("contactPerson2")}
             <input defaultValue={contact2?.name ?? ""} name="contact2Name" />
