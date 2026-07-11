@@ -29,6 +29,10 @@ function locationRow(overrides: Record<string, unknown> = {}) {
     longitude: null,
     notes: null,
     chain: null,
+    // Reads load contacts and active assignments via LOCATION_INCLUDE, so the
+    // mocked row carries them (empty here) the way Prisma would.
+    contacts: [],
+    assignments: [],
     createdAt: new Date("2026-07-01T00:00:00.000Z"),
     updatedAt: new Date("2026-07-01T00:00:00.000Z"),
     ...overrides,
