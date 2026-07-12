@@ -3,14 +3,23 @@ import { useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { CreateLocationModal } from "../../../../components/create-location-modal";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
+  createAdminLocation,
+  createAdminLocationAssignment,
+  createAdminLocationContact,
+  deactivateAdminLocationAssignment,
+  deleteAdminLocationContact,
   listAdminChains,
   listAdminLocations,
+  listAdminUsers,
   updateAdminLocation,
+  updateAdminLocationContact,
   type Chain,
   type Location,
   type LocationStatus,
+  type TenantUser,
 } from "../../../../lib/api-client";
 import {
   formatEnumLabel,
@@ -21,6 +30,7 @@ import {
 type AdminLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    created?: string;
     error?: string;
     search?: string;
     status?: string;
@@ -55,44 +65,177 @@ export default async function AdminLocationsPage({
     query.set("search", search);
   }
 
-  async function updateLocationAction(formData: FormData) {
+  async function createLocationAction(formData: FormData) {
     "use server";
 
-    const locationId = String(formData.get("locationId") ?? "").trim();
     const name = String(formData.get("name") ?? "").trim();
+    const addressLine = String(formData.get("addressLine") ?? "").trim();
     const city = String(formData.get("city") ?? "").trim();
-    const type = normalizeOptionalField(formData.get("type"));
-    const chainId = normalizeOptionalField(formData.get("chainId"));
-    const region = normalizeOptionalField(formData.get("region"));
-    const territory = normalizeOptionalField(formData.get("territory"));
-    const status = normalizeStatus(String(formData.get("status") ?? ""));
 
-    if (!locationId || !name || !city || !status) {
+    if (!name || !addressLine || !city) {
       redirect(`/${tenantSlug}/admin/locations?error=1`);
     }
 
-    const result = await updateAdminLocation(locationId, {
+    const result = await createAdminLocation({
       name,
+      addressLine,
       city,
-      type,
-      chainId,
-      region,
-      territory,
-      status,
+      externalCode: normalizeOptionalField(formData.get("externalCode")),
+      // "Category" reuses the existing free-text `type` column.
+      type: normalizeOptionalField(formData.get("type")),
+      chainId: normalizeOptionalField(formData.get("chainId")),
+      region: normalizeOptionalField(formData.get("region")),
+      notes: normalizeOptionalField(formData.get("notes")),
     });
 
     if (!result.ok) {
       redirect(`/${tenantSlug}/admin/locations?error=1`);
     }
 
+    // Assignment lives in its own table, so attach the chosen representative to
+    // the freshly created location as a follow-up step.
+    const representativeUserId = normalizeOptionalField(
+      formData.get("representativeUserId"),
+    );
+
+    if (representativeUserId) {
+      const assignResult = await createAdminLocationAssignment(
+        result.data.id,
+        representativeUserId,
+      );
+
+      if (!assignResult.ok) {
+        redirect(`/${tenantSlug}/admin/locations?error=1`);
+      }
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?created=1`);
+  }
+
+  async function saveLocationAction(formData: FormData) {
+    "use server";
+
+    const errorHref = `/${tenantSlug}/admin/locations?error=1`;
+    const locationId = String(formData.get("locationId") ?? "").trim();
+    const name = String(formData.get("name") ?? "").trim();
+    const addressLine = String(formData.get("addressLine") ?? "").trim();
+    const city = String(formData.get("city") ?? "").trim();
+    const externalCode = normalizeOptionalField(formData.get("externalCode"));
+    // "Category" reuses the existing free-text `type` column.
+    const type = normalizeOptionalField(formData.get("type"));
+    const chainId = normalizeOptionalField(formData.get("chainId"));
+    const region = normalizeOptionalField(formData.get("region"));
+    const notes = normalizeOptionalField(formData.get("notes"));
+    const status = normalizeStatus(String(formData.get("status") ?? ""));
+
+    if (!locationId || !name || !addressLine || !city || !status) {
+      redirect(errorHref);
+    }
+
+    const result = await updateAdminLocation(locationId, {
+      name,
+      externalCode,
+      addressLine,
+      city,
+      type,
+      chainId,
+      region,
+      notes,
+      status,
+    });
+
+    if (!result.ok) {
+      redirect(errorHref);
+    }
+
+    // Two fixed contact slots (person + phone). A slot with a name is created
+    // or updated; a slot cleared of its name deletes the contact it stood for.
+    for (const slot of [1, 2] as const) {
+      const contactId = normalizeOptionalField(
+        formData.get(`contact${slot}Id`),
+      );
+      const contactName = String(
+        formData.get(`contact${slot}Name`) ?? "",
+      ).trim();
+      const phone = normalizeOptionalField(formData.get(`contact${slot}Phone`));
+
+      if (contactName) {
+        const contactResult = contactId
+          ? await updateAdminLocationContact(locationId, contactId, {
+              name: contactName,
+              phone,
+            })
+          : await createAdminLocationContact(locationId, {
+              name: contactName,
+              phone,
+            });
+
+        if (!contactResult.ok) {
+          redirect(errorHref);
+        }
+      } else if (contactId) {
+        const deleteResult = await deleteAdminLocationContact(
+          locationId,
+          contactId,
+        );
+
+        if (!deleteResult.ok) {
+          redirect(errorHref);
+        }
+      }
+    }
+
+    // Single active representative assignment. Switching reps deactivates the
+    // current assignment before (re)activating the chosen one; clearing it just
+    // deactivates.
+    const assignmentId = normalizeOptionalField(formData.get("assignmentId"));
+    const currentRepId = normalizeOptionalField(formData.get("currentRepId"));
+    const nextRepId = normalizeOptionalField(
+      formData.get("representativeUserId"),
+    );
+
+    if (nextRepId !== currentRepId) {
+      if (assignmentId) {
+        const deactivateResult = await deactivateAdminLocationAssignment(
+          locationId,
+          assignmentId,
+        );
+
+        if (!deactivateResult.ok) {
+          redirect(errorHref);
+        }
+      }
+
+      if (nextRepId) {
+        const assignResult = await createAdminLocationAssignment(
+          locationId,
+          nextRepId,
+        );
+
+        if (!assignResult.ok) {
+          redirect(errorHref);
+        }
+      }
+    }
+
     redirect(`/${tenantSlug}/admin/locations?updated=1`);
   }
 
-  const [locationsResult, chainsResult] = await Promise.all([
+  const [locationsResult, chainsResult, usersResult] = await Promise.all([
     listAdminLocations(query.toString()),
     listAdminChains("pageSize=100&status=active"),
+    listAdminUsers(),
   ]);
   const chains = chainsResult.ok ? chainsResult.data.items : [];
+  // Only active field representatives can be assigned to a location (the API
+  // rejects anyone else), so the picker offers exactly those.
+  const representatives = usersResult.ok
+    ? usersResult.data.items.filter(
+        (user) =>
+          user.status === "active" &&
+          user.roleCodes.includes("field_representative"),
+      )
+    : [];
 
   if (!locationsResult.ok) {
     return (
@@ -135,7 +278,24 @@ export default async function AdminLocationsPage({
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
           <h1>{t("title")}</h1>
         </div>
+        <div className="toolbar">
+          <CreateLocationModal
+            action={createLocationAction}
+            chains={chains}
+            representatives={representatives}
+          />
+        </div>
       </header>
+
+      {pageState.created ? (
+        <section className="notice-panel success" aria-label={t("createdAria")}>
+          <div>
+            <p className="eyebrow">{t("createdEyebrow")}</p>
+            <h2>{t("createdTitle")}</h2>
+            <p>{t("createdBody")}</p>
+          </div>
+        </section>
+      ) : null}
 
       {pageState.updated ? (
         <section className="notice-panel success" aria-label={t("updatedAria")}>
@@ -239,7 +399,8 @@ export default async function AdminLocationsPage({
                 key={location.id}
                 chains={chains}
                 location={location}
-                updateLocationAction={updateLocationAction}
+                representatives={representatives}
+                saveLocationAction={saveLocationAction}
               />
             ))}
           </div>
@@ -273,11 +434,13 @@ export default async function AdminLocationsPage({
 function LocationRow({
   chains,
   location,
-  updateLocationAction,
+  representatives,
+  saveLocationAction,
 }: {
   chains: Chain[];
   location: Location;
-  updateLocationAction: (formData: FormData) => Promise<void>;
+  representatives: TenantUser[];
+  saveLocationAction: (formData: FormData) => Promise<void>;
 }) {
   const t = useTranslations("admin.locations");
   const tCommon = useTranslations("common");
@@ -288,71 +451,183 @@ function LocationRow({
       ? [{ id: location.chain.id, name: location.chain.name }, ...chains]
       : chains;
 
+  // Backend returns contacts oldest-first, so the first two map to the fixed
+  // primary/secondary slots the form edits.
+  const [contact1, contact2] = location.contacts;
+  const activeAssignment = location.assignments[0] ?? null;
+
+  const repChoices = representatives.map((rep) => ({
+    id: rep.id,
+    name: rep.name,
+  }));
+  // Keep the current representative selectable even if they are no longer an
+  // active field rep (and thus absent from the picker), so saving can't drop
+  // the assignment behind the admin's back.
+  const representativeOptions =
+    activeAssignment &&
+    !repChoices.some((rep) => rep.id === activeAssignment.representativeUserId)
+      ? [
+          {
+            id: activeAssignment.representative.id,
+            name: activeAssignment.representative.name,
+          },
+          ...repChoices,
+        ]
+      : repChoices;
+
   return (
-    <article className="admin-user-row">
-      <header>
-        <div>
+    // Exclusive-accordion disclosure: the shared `name` keeps only one location
+    // expanded at a time; collapsed rows show just the name/address summary and
+    // the edit form stays hidden until a row is opened.
+    <details
+      className="admin-user-row admin-user-disclosure"
+      name="admin-location"
+    >
+      <summary className="admin-user-summary">
+        <div className="admin-user-summary-lead">
           <h3>{location.name}</h3>
           <p>
             {location.addressLine}, {location.city}
           </p>
         </div>
-        <span className={`status-pill ${statusTone(location.status)}`}>
-          {formatEnumLabel(tCommon, location.status)}
-        </span>
-      </header>
+        <div className="admin-user-summary-meta">
+          <span className={`status-pill ${statusTone(location.status)}`}>
+            {formatEnumLabel(tCommon, location.status)}
+          </span>
+          <span className="disclosure-chevron" aria-hidden="true" />
+        </div>
+      </summary>
 
-      <form action={updateLocationAction} className="visit-form compact">
-        <input name="locationId" type="hidden" value={location.id} />
-        <label>
-          {t("name")}
-          <input defaultValue={location.name} name="name" required />
-        </label>
-        <label>
-          {t("city")}
-          <input defaultValue={location.city} name="city" required />
-        </label>
-        <label>
-          {t("type")}
-          <input defaultValue={location.type ?? ""} name="type" />
-        </label>
-        <label>
-          {t("chain")}
-          <select defaultValue={location.chainId ?? ""} name="chainId">
-            <option value="">{t("chainNone")}</option>
-            {chainOptions.map((chain) => (
-              <option key={chain.id} value={chain.id}>
-                {chain.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {t("region")}
-          <input defaultValue={location.region ?? ""} name="region" />
-        </label>
-        <label>
-          {t("territory")}
-          <input defaultValue={location.territory ?? ""} name="territory" />
-        </label>
-        <label>
-          {t("status")}
-          <select defaultValue={location.status} name="status" required>
-            {locationStatuses.map((status) => (
-              <option key={status} value={status}>
-                {formatEnumLabel(tCommon, status)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <PendingSubmitButton
-          className="secondary-button"
-          pendingLabel={tCommon("saving")}
+      <div className="admin-user-body">
+        <form
+          action={saveLocationAction}
+          className="visit-form compact visit-form-2col"
         >
-          {t("saveLocation")}
-        </PendingSubmitButton>
-      </form>
-    </article>
+          <input name="locationId" type="hidden" value={location.id} />
+          <label>
+            {t("number")}
+            <input
+              defaultValue={location.externalCode ?? ""}
+              name="externalCode"
+            />
+          </label>
+          <label>
+            {t("name")}
+            <input defaultValue={location.name} name="name" required />
+          </label>
+          <label>
+            {t("address")}
+            <input
+              defaultValue={location.addressLine}
+              name="addressLine"
+              required
+            />
+          </label>
+          <label>
+            {t("city")}
+            <input defaultValue={location.city} name="city" required />
+          </label>
+          <label>
+            {t("chain")}
+            <select defaultValue={location.chainId ?? ""} name="chainId">
+              <option value="">{t("chainNone")}</option>
+              {chainOptions.map((chain) => (
+                <option key={chain.id} value={chain.id}>
+                  {chain.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t("region")}
+            <input defaultValue={location.region ?? ""} name="region" />
+          </label>
+          <label>
+            {t("category")}
+            <input defaultValue={location.type ?? ""} name="type" />
+          </label>
+          <label>
+            {t("status")}
+            <select defaultValue={location.status} name="status" required>
+              {locationStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {formatEnumLabel(tCommon, status)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <input name="contact1Id" type="hidden" value={contact1?.id ?? ""} />
+          <label>
+            {t("contactPerson")}
+            <input defaultValue={contact1?.name ?? ""} name="contact1Name" />
+          </label>
+          <label>
+            {t("phone")}
+            <input
+              defaultValue={contact1?.phone ?? ""}
+              name="contact1Phone"
+              type="tel"
+            />
+          </label>
+
+          <input name="contact2Id" type="hidden" value={contact2?.id ?? ""} />
+          <label>
+            {t("contactPerson2")}
+            <input defaultValue={contact2?.name ?? ""} name="contact2Name" />
+          </label>
+          <label>
+            {t("phone2")}
+            <input
+              defaultValue={contact2?.phone ?? ""}
+              name="contact2Phone"
+              type="tel"
+            />
+          </label>
+
+          <input
+            name="assignmentId"
+            type="hidden"
+            value={activeAssignment?.id ?? ""}
+          />
+          <input
+            name="currentRepId"
+            type="hidden"
+            value={activeAssignment?.representativeUserId ?? ""}
+          />
+          <label className="visit-form-full">
+            {t("assignedUser")}
+            <select
+              defaultValue={activeAssignment?.representativeUserId ?? ""}
+              name="representativeUserId"
+            >
+              <option value="">{t("notAssigned")}</option>
+              {representativeOptions.map((rep) => (
+                <option key={rep.id} value={rep.id}>
+                  {rep.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="visit-form-full">
+            {t("notes")}
+            <textarea
+              defaultValue={location.notes ?? ""}
+              name="notes"
+              rows={3}
+            />
+          </label>
+
+          <PendingSubmitButton
+            className="secondary-button visit-form-full"
+            pendingLabel={tCommon("saving")}
+          >
+            {t("saveLocation")}
+          </PendingSubmitButton>
+        </form>
+      </div>
+    </details>
   );
 }
 
