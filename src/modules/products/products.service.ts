@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma, Product, ProductStatus } from "@prisma/client";
+import { Prisma, type Product, type ProductStatus } from "@prisma/client";
 
 import {
   createPaginatedResponse,
@@ -83,14 +83,28 @@ export class ProductsService {
       );
     }
 
-    const product = await this.prisma.product.create({
-      data: {
-        tenantId: context.tenantId,
-        ...data,
-      },
-    });
+    try {
+      const product = await this.prisma.product.create({
+        data: {
+          tenantId: context.tenantId,
+          ...data,
+        },
+      });
 
-    return toProductResponse(product);
+      return toProductResponse(product);
+    } catch (error) {
+      // A concurrent create can slip between the pre-check above and this insert;
+      // the partial unique index on (tenantId, externalCode) then raises P2002.
+      // Surface it as the same 409 the pre-check would have, not an opaque 500.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw externalCodeConflict();
+      }
+
+      throw error;
+    }
   }
 
   async updateProduct(
@@ -171,15 +185,19 @@ export class ProductsService {
     });
 
     if (existingProduct) {
-      throw new ConflictException({
-        code: "PRODUCT_EXTERNAL_CODE_EXISTS",
-        message: "Product external code is already in use.",
-        fieldErrors: {
-          externalCode: ["External code is already in use."],
-        },
-      });
+      throw externalCodeConflict();
     }
   }
+}
+
+function externalCodeConflict(): ConflictException {
+  return new ConflictException({
+    code: "PRODUCT_EXTERNAL_CODE_EXISTS",
+    message: "Product external code is already in use.",
+    fieldErrors: {
+      externalCode: ["External code is already in use."],
+    },
+  });
 }
 
 function buildProductWhere(

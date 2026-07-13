@@ -352,11 +352,12 @@ async function seedProducts(tx, tenantId) {
 
   for (const row of rows) {
     // Product's (tenantId, externalCode) uniqueness is a PARTIAL index scoped to
-    // `deletedAt IS NULL`, which Prisma can't target with `upsert`. Match on the
-    // externalCode manually (including any soft-deleted seed row so re-seeding
-    // revives it), then update or create.
+    // `deletedAt IS NULL`, which Prisma can't target with `upsert`. Match only a
+    // LIVE row: a soft-deleted row must not be revived here, since a live row
+    // with the same code may coexist and reviving the deleted one would violate
+    // the partial index. If none is live, create a fresh row.
     const existing = await tx.product.findFirst({
-      where: { tenantId, externalCode: row.externalCode },
+      where: { tenantId, externalCode: row.externalCode, deletedAt: null },
     });
 
     if (existing) {
@@ -364,7 +365,6 @@ async function seedProducts(tx, tenantId) {
         where: { id: existing.id },
         data: {
           ...row,
-          deletedAt: null,
         },
       });
     } else {

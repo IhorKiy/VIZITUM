@@ -551,7 +551,10 @@ model Product {
   // can't express partial unique indexes in the schema, so it is managed via raw
   // SQL and intentionally omitted here — do NOT reintroduce a plain
   // `@@unique([tenantId, externalCode])`, which would reserve externalCodes of
-  // soft-deleted products and break re-import after delete.
+  // soft-deleted products and break re-import after delete. Because the index is
+  // invisible to Prisma's diff, a later `migrate dev` may auto-generate a
+  // `DROP INDEX` for it — keep it in the generated migration. tests/
+  // product-external-code-index.test.ts guards against both mistakes.
   @@index([tenantId, status])
   @@map("products")
 }

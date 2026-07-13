@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ConflictException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
 import { ProductsService } from "../src/modules/products/products.service";
 import type { RequestContext } from "../src/modules/tenancy/request-context";
@@ -131,5 +132,35 @@ describe("products service create external code uniqueness", () => {
       },
     );
     assert.equal(prisma.created().length, 0);
+  });
+
+  it("maps a concurrent unique-constraint violation to a 409, not a 500", async () => {
+    // The pre-check passes (no live row seen), but a racing create inserts the
+    // same code first, so this insert trips the partial unique index -> P2002.
+    // It must surface as the same conflict, not an opaque 500.
+    const prisma = createPrisma(
+      [],
+      new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+        code: "P2002",
+        clientVersion: "test",
+      }),
+    );
+    const service = new ProductsService(prisma as never);
+
+    await assert.rejects(
+      () =>
+        service.createProduct(createContext("tenant-1"), {
+          name: "Still Water",
+          externalCode: "SKU-9",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof ConflictException);
+        assert.equal(
+          (error.getResponse() as { code?: string }).code,
+          "PRODUCT_EXTERNAL_CODE_EXISTS",
+        );
+        return true;
+      },
+    );
   });
 });
