@@ -12,6 +12,7 @@ import {
 import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 
+import { buildLocationFieldOptions } from "../../../../lib/filter-options";
 import {
   formatDateTime,
   formatEnumLabel,
@@ -32,11 +33,6 @@ type ManagerLocationsPageProps = {
 };
 
 const locationStatuses: LocationStatus[] = ["active", "inactive", "archived"];
-
-type FilterOption = {
-  id: string;
-  label: string;
-};
 
 type LocationActivity = {
   openTaskCount: number;
@@ -175,17 +171,17 @@ export default async function ManagerLocationsPage({
     activityByLocation,
     t,
   );
-  const cityOptions = buildLocationOptions(
+  const cityOptions = buildLocationFieldOptions(
     locationOptionsSource,
     "city",
     locale,
   );
-  const regionOptions = buildLocationOptions(
+  const regionOptions = buildLocationFieldOptions(
     locationOptionsSource,
     "region",
     locale,
   );
-  const territoryOptions = buildLocationOptions(
+  const territoryOptions = buildLocationFieldOptions(
     locationOptionsSource,
     "territory",
     locale,
@@ -584,31 +580,6 @@ async function fetchAllLocations(): Promise<Location[]> {
   }
 
   return items;
-}
-
-function buildLocationOptions(
-  locations: Location[],
-  field: "city" | "region" | "territory",
-  locale: string,
-): FilterOption[] {
-  const options = new Map<string, FilterOption>();
-
-  for (const location of locations) {
-    const value = location[field]?.trim();
-
-    if (!value) {
-      continue;
-    }
-
-    options.set(value, {
-      id: value,
-      label: value,
-    });
-  }
-
-  return [...options.values()].sort((a, b) =>
-    a.label.localeCompare(b.label, locale),
-  );
 }
 
 function buildLocationFilterHref(
