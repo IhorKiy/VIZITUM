@@ -223,7 +223,10 @@ export default async function AdminProductsPage({
     redirect(`/${tenantSlug}/admin/products?created=categoryRemoved`);
   }
 
-  const productsResult = await listAdminProducts(query.toString());
+  const [productsResult, categoriesResult] = await Promise.all([
+    listAdminProducts(query.toString()),
+    listProductCategories(),
+  ]);
 
   if (!productsResult.ok) {
     return (
@@ -259,7 +262,6 @@ export default async function AdminProductsPage({
     (product) => product.status === "active",
   ).length;
 
-  const categoriesResult = await listProductCategories();
   const categories: ProductCategory[] = categoriesResult.ok
     ? categoriesResult.data
     : [];
