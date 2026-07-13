@@ -29,6 +29,13 @@ export function DismissableNotice({
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
+    // Error notices stay put until the user navigates or acts — auto-dismissing
+    // would hide failure detail (e.g. a server-provided message) before it can
+    // be read. Only success notices fade out on a timer.
+    if (tone === "danger") {
+      return;
+    }
+
     const fade = setTimeout(() => setLeaving(true), timeoutMs);
     const remove = setTimeout(() => {
       setHidden(true);
@@ -54,9 +61,9 @@ export function DismissableNotice({
   return (
     <section
       aria-label={ariaLabel}
-      className={`notice-panel ${tone} auto-dismiss${
-        leaving ? " is-leaving" : ""
-      }`}
+      className={`notice-panel ${tone}${
+        tone === "danger" ? "" : " auto-dismiss"
+      }${leaving ? " is-leaving" : ""}`}
     >
       <div>
         <p className="eyebrow">{eyebrow}</p>
