@@ -99,6 +99,34 @@ describe("product categories service", () => {
     );
   });
 
+  it("rejects a duplicate that differs only in letter case", async () => {
+    const probeWhere: Record<string, unknown>[] = [];
+    const prisma = {
+      productCategory: {
+        findFirst: async (query: { where: Record<string, unknown> }) => {
+          probeWhere.push(query.where);
+          return { id: "existing" };
+        },
+        create: async () => {
+          throw new Error("create should not be called");
+        },
+      },
+    };
+    const service = new ProductCategoriesService(prisma as never);
+
+    await assert.rejects(
+      () => service.createCategory(createContext(), { name: "beverages" }),
+      ConflictException,
+    );
+    // The duplicate probe compares case-insensitively.
+    assert.deepEqual(probeWhere, [
+      {
+        tenantId: "tenant-1",
+        name: { equals: "beverages", mode: "insensitive" },
+      },
+    ]);
+  });
+
   it("maps a concurrent unique-constraint violation to a conflict", async () => {
     const prisma = {
       productCategory: {
@@ -202,11 +230,67 @@ describe("product categories service", () => {
     assert.deepEqual(categoryUpdate, [
       { where: { id: "cat-1" }, data: { name: "Drinks" } },
     ]);
-    // Existing products tagged with the old name are relabelled.
+    // Existing products tagged with any case variant of the old name are
+    // relabelled to the new canonical display name.
     assert.deepEqual(productUpdateMany, [
       {
-        where: { tenantId: "tenant-1", category: "Beverages" },
+        where: {
+          tenantId: "tenant-1",
+          category: { equals: "Beverages", mode: "insensitive" },
+        },
         data: { category: "Drinks" },
+      },
+    ]);
+  });
+
+  it("allows recasing a category and cascades the new display name", async () => {
+    const probeWhere: Record<string, unknown>[] = [];
+    const productUpdateMany: { where: unknown; data: unknown }[] = [];
+    const prisma = {
+      productCategory: {
+        findFirst: async (query: { where: Record<string, unknown> }) => {
+          if ("name" in query.where) {
+            probeWhere.push(query.where);
+            // No *other* category owns this name (self is excluded).
+            return null;
+          }
+          return { id: "cat-1", name: "Beverages" };
+        },
+        update: (query: { data: Record<string, unknown> }) =>
+          Promise.resolve(createCategory({ name: query.data.name })),
+      },
+      product: {
+        updateMany: (query: { where: unknown; data: unknown }) => {
+          productUpdateMany.push(query);
+          return Promise.resolve({ count: 2 });
+        },
+      },
+      $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
+    };
+    const service = new ProductCategoriesService(prisma as never);
+
+    const result = await service.updateCategory(
+      createContext("tenant-1"),
+      "cat-1",
+      { name: "BEVERAGES" },
+    );
+
+    assert.equal(result.name, "BEVERAGES");
+    // The sibling-collision probe compares case-insensitively and excludes self.
+    assert.deepEqual(probeWhere, [
+      {
+        tenantId: "tenant-1",
+        name: { equals: "BEVERAGES", mode: "insensitive" },
+        id: { not: "cat-1" },
+      },
+    ]);
+    assert.deepEqual(productUpdateMany, [
+      {
+        where: {
+          tenantId: "tenant-1",
+          category: { equals: "Beverages", mode: "insensitive" },
+        },
+        data: { category: "BEVERAGES" },
       },
     ]);
   });

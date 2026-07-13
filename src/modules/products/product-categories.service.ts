@@ -45,8 +45,14 @@ export class ProductCategoriesService {
       });
     }
 
+    // Category names are a curated per-tenant vocabulary, so uniqueness is
+    // case-insensitive: "Beverages" and "beverages" are the same label. The
+    // display name is still stored exactly as typed.
     const existing = await this.prisma.productCategory.findFirst({
-      where: { tenantId: context.tenantId, name },
+      where: {
+        tenantId: context.tenantId,
+        name: { equals: name, mode: "insensitive" },
+      },
       select: { id: true },
     });
 
@@ -111,10 +117,13 @@ export class ProductCategoriesService {
       return this.renameCategoryRow(context.tenantId, category.id, name);
     }
 
+    // Case-insensitive collision check against sibling categories. A pure
+    // case change of this same category (e.g. "Beverages" -> "BEVERAGES")
+    // excludes itself here, so it falls through and updates the display name.
     const existing = await this.prisma.productCategory.findFirst({
       where: {
         tenantId: context.tenantId,
-        name,
+        name: { equals: name, mode: "insensitive" },
         id: { not: category.id },
       },
       select: { id: true },
@@ -132,13 +141,18 @@ export class ProductCategoriesService {
 
     // `Product.category` is a free-text string (no FK), so cascade the rename to
     // every product tagged with the old name to keep the catalog consistent.
+    // The match is case-insensitive so products stamped with any case variant of
+    // the old label get relabelled to the new canonical display name.
     const [updated] = await this.prisma.$transaction([
       this.prisma.productCategory.update({
         where: { id: category.id },
         data: { name },
       }),
       this.prisma.product.updateMany({
-        where: { tenantId: context.tenantId, category: category.name },
+        where: {
+          tenantId: context.tenantId,
+          category: { equals: category.name, mode: "insensitive" },
+        },
         data: { category: name },
       }),
     ]);

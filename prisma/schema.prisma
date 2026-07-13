@@ -557,7 +557,13 @@ model ProductCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([tenantId, name])
+  // Uniqueness on (tenantId, name) is enforced CASE-INSENSITIVELY by a functional
+  // unique index on (tenantId, lower(name)) (see the
+  // `20260713000000_product_category_case_insensitive_name` migration). Prisma
+  // can't express functional indexes in the schema, so it is managed via raw SQL
+  // and intentionally omitted here — do NOT reintroduce a plain
+  // `@@unique([tenantId, name])`, which would only guard exact case and let
+  // "Beverages" + "beverages" coexist again.
   @@index([tenantId])
   @@map("product_categories")
 }
