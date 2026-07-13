@@ -10,7 +10,7 @@ import {
   type Visit,
 } from "../../../../lib/api-client";
 import { useFormatter, useTranslations } from "next-intl";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import {
   formatDateTime,
@@ -49,7 +49,8 @@ export default async function ManagerLocationsPage({
   searchParams,
 }: ManagerLocationsPageProps) {
   const { tenantSlug } = await params;
-  const [t, tManager, tCommon] = await Promise.all([
+  const [locale, t, tManager, tCommon] = await Promise.all([
+    getLocale(),
     getTranslations("manager.locations"),
     getTranslations("manager"),
     getTranslations("common"),
@@ -174,11 +175,20 @@ export default async function ManagerLocationsPage({
     activityByLocation,
     t,
   );
-  const cityOptions = buildLocationOptions(locationOptionsSource, "city");
-  const regionOptions = buildLocationOptions(locationOptionsSource, "region");
+  const cityOptions = buildLocationOptions(
+    locationOptionsSource,
+    "city",
+    locale,
+  );
+  const regionOptions = buildLocationOptions(
+    locationOptionsSource,
+    "region",
+    locale,
+  );
   const territoryOptions = buildLocationOptions(
     locationOptionsSource,
     "territory",
+    locale,
   );
   const filterSummary = buildLocationFilterSummary(
     {
@@ -579,6 +589,7 @@ async function fetchAllLocations(): Promise<Location[]> {
 function buildLocationOptions(
   locations: Location[],
   field: "city" | "region" | "territory",
+  locale: string,
 ): FilterOption[] {
   const options = new Map<string, FilterOption>();
 
@@ -595,7 +606,9 @@ function buildLocationOptions(
     });
   }
 
-  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+  return [...options.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, locale),
+  );
 }
 
 function buildLocationFilterHref(

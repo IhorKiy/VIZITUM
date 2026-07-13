@@ -1,5 +1,5 @@
 import { useFormatter, useTranslations } from "next-intl";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import {
@@ -45,7 +45,8 @@ export default async function ManagerVisitsPage({
 }: ManagerVisitsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [t, tManager, tCommon] = await Promise.all([
+  const [locale, t, tManager, tCommon] = await Promise.all([
+    getLocale(),
     getTranslations("manager.visits"),
     getTranslations("manager"),
     getTranslations("common"),
@@ -132,13 +133,13 @@ export default async function ManagerVisitsPage({
   const visits = visitsResult.data.items;
   const counters = buildVisitCounters(visitsResult, t);
   const representativeOptions = allVisitsResult.ok
-    ? buildRepresentativeOptions(allVisitsResult.data.items)
+    ? buildRepresentativeOptions(allVisitsResult.data.items, locale)
     : [];
   const locationOptions = locationsResult.ok
-    ? buildLocationOptions(locationsResult.data.items)
+    ? buildLocationOptions(locationsResult.data.items, locale)
     : [];
   const routeOptions = routesResult.ok
-    ? buildRouteOptions(routesResult.data)
+    ? buildRouteOptions(routesResult.data, locale)
     : [];
   const selectedRepresentativeLabel =
     representativeOptions.find(
@@ -341,16 +342,22 @@ export default async function ManagerVisitsPage({
   );
 }
 
-function buildRouteOptions(routes: RoutePlan[]): FilterOption[] {
+function buildRouteOptions(
+  routes: RoutePlan[],
+  locale: string,
+): FilterOption[] {
   return routes
     .map((route) => ({
       id: route.id,
       label: `${route.planDate} · ${route.representative.name}`,
     }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
 }
 
-function buildRepresentativeOptions(visits: Visit[]): FilterOption[] {
+function buildRepresentativeOptions(
+  visits: Visit[],
+  locale: string,
+): FilterOption[] {
   const options = new Map<string, FilterOption>();
 
   for (const visit of visits) {
@@ -360,16 +367,21 @@ function buildRepresentativeOptions(visits: Visit[]): FilterOption[] {
     });
   }
 
-  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+  return [...options.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, locale),
+  );
 }
 
-function buildLocationOptions(locations: Location[]): FilterOption[] {
+function buildLocationOptions(
+  locations: Location[],
+  locale: string,
+): FilterOption[] {
   return locations
     .map((location) => ({
       id: location.id,
       label: location.name,
     }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
 }
 
 function VisitsTable({
