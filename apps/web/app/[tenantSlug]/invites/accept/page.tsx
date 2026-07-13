@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
 import { normalizeTenantName } from "../../../../lib/navigation";
+import { getFormString } from "../../../../lib/form";
 
 type AcceptInvitePageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -28,11 +29,11 @@ export default async function AcceptInvitePage({
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        token: String(formData.get("token") ?? ""),
+        token: getFormString(formData, "token"),
         tenantSlug,
-        name: String(formData.get("name") ?? ""),
-        password: String(formData.get("password") ?? ""),
-        phone: String(formData.get("phone") ?? ""),
+        name: getFormString(formData, "name"),
+        password: getFormString(formData, "password"),
+        phone: getFormString(formData, "phone"),
       }),
     });
 

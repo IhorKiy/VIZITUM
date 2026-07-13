@@ -22,6 +22,7 @@ import {
   statusPillTone,
   statusTone,
 } from "../../../../lib/format";
+import { getFormString } from "../../../../lib/form";
 
 type GeneralPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -47,7 +48,7 @@ export default async function GeneralPage({
   async function updateTaskStatusAction(formData: FormData) {
     "use server";
 
-    const taskId = String(formData.get("taskId") ?? "").trim();
+    const taskId = getFormString(formData, "taskId").trim();
     const status = normalizeTaskStatus(formData.get("status"));
 
     if (!taskId || !status) {

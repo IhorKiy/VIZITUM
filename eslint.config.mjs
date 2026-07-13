@@ -10,16 +10,18 @@ export default tseslint.config(
       "coverage/**",
       "*.tsbuildinfo",
       "eslint.config.mjs",
+      "apps/web/.next/**",
+      "apps/web/next-env.d.ts",
     ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked.map((config) => ({
     ...config,
-    files: ["**/*.ts"],
+    files: ["**/*.{ts,tsx}"],
   })),
   eslintConfigPrettier,
   {
-    files: ["**/*.ts"],
+    files: ["**/*.{ts,tsx}"],
     languageOptions: {
       parserOptions: {
         projectService: {

@@ -5,12 +5,13 @@ import { redirect } from "next/navigation";
 import { switchZone } from "./api-client";
 import { isZone, zoneHomePath } from "./navigation";
 import { isTenantSlug } from "./tenant-locale";
+import { getFormString } from "./form";
 
 // Shared by the zone chooser and the AppShell switcher so a picked zone is
 // always persisted (POST /auth/zone) the same way, from either entry point.
 export async function selectZoneAction(formData: FormData): Promise<void> {
-  const tenantSlug = String(formData.get("tenantSlug") ?? "");
-  const zone = String(formData.get("zone") ?? "");
+  const tenantSlug = getFormString(formData, "tenantSlug");
+  const zone = getFormString(formData, "zone");
 
   // isTenantSlug also keeps the redirect below same-origin: a crafted slug
   // like "\evil.com" would otherwise become "/\evil.com/..." — a URL

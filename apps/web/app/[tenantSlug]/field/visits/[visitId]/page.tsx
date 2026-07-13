@@ -19,6 +19,7 @@ import {
   statusPillTone,
   type CommonTranslator,
 } from "../../../../../lib/format";
+import { getFormString } from "../../../../../lib/form";
 
 type VisitDetailPageProps = {
   params: Promise<{ tenantSlug: string; visitId: string }>;
@@ -65,7 +66,7 @@ export default async function VisitDetailPage({
   async function addTextNoteAction(formData: FormData) {
     "use server";
 
-    const textContent = String(formData.get("textContent") ?? "").trim();
+    const textContent = getFormString(formData, "textContent").trim();
 
     if (!textContent) {
       redirect(`/${tenantSlug}/field/visits/${visitId}?error=note`);
@@ -101,8 +102,8 @@ export default async function VisitDetailPage({
   async function confirmReportAction(formData: FormData) {
     "use server";
 
-    const summary = String(formData.get("summary") ?? "").trim();
-    const nextSteps = String(formData.get("nextSteps") ?? "").trim();
+    const summary = getFormString(formData, "summary").trim();
+    const nextSteps = getFormString(formData, "nextSteps").trim();
 
     if (!summary) {
       redirect(`/${tenantSlug}/field/visits/${visitId}?error=report`);

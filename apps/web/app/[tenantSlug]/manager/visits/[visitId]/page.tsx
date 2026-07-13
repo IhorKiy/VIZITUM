@@ -620,5 +620,14 @@ function formatScalarValue(value: unknown, labels: ScalarLabels): string {
     return value ? labels.yes : labels.no;
   }
 
-  return String(value);
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "bigint") {
+    return value.toString();
+  }
+
+  // Objects/arrays are handled by formatNestedValue before reaching here.
+  return JSON.stringify(value) ?? "-";
 }

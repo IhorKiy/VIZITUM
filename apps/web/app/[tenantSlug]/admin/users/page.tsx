@@ -25,6 +25,7 @@ import {
 } from "../../../../lib/api-client";
 import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
 import { TENANT_ROLES } from "../../../../lib/tenant-roles";
+import { getFormString } from "../../../../lib/form";
 
 type AdminUsersPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -55,7 +56,7 @@ export default async function AdminUsersPage({
   async function inviteUserAction(formData: FormData) {
     "use server";
 
-    const email = String(formData.get("email") ?? "").trim();
+    const email = getFormString(formData, "email").trim();
     const roleCodes = TENANT_ROLES.filter(
       (roleCode) => formData.get(roleCode) === "on",
     );
@@ -84,7 +85,7 @@ export default async function AdminUsersPage({
   async function resendInviteAction(formData: FormData) {
     "use server";
 
-    const inviteId = String(formData.get("inviteId") ?? "").trim();
+    const inviteId = getFormString(formData, "inviteId").trim();
 
     if (!inviteId) {
       redirect(`/${tenantSlug}/admin/users?error=invite`);
@@ -110,7 +111,7 @@ export default async function AdminUsersPage({
   async function updateUserStatusAction(formData: FormData) {
     "use server";
 
-    const userId = String(formData.get("userId") ?? "").trim();
+    const userId = getFormString(formData, "userId").trim();
     const status = normalizeUserStatus(formData.get("status"));
 
     if (!userId || !status) {
@@ -131,7 +132,7 @@ export default async function AdminUsersPage({
   async function addRoleAction(formData: FormData) {
     "use server";
 
-    const userId = String(formData.get("userId") ?? "").trim();
+    const userId = getFormString(formData, "userId").trim();
     const roleCode = normalizeRoleCode(formData.get("roleCode"));
 
     if (!userId || !roleCode) {
@@ -152,7 +153,7 @@ export default async function AdminUsersPage({
   async function removeRoleAction(formData: FormData) {
     "use server";
 
-    const userId = String(formData.get("userId") ?? "").trim();
+    const userId = getFormString(formData, "userId").trim();
     const roleCode = normalizeRoleCode(formData.get("roleCode"));
 
     if (!userId || !roleCode) {
@@ -173,8 +174,8 @@ export default async function AdminUsersPage({
   async function updateUserNameAction(formData: FormData) {
     "use server";
 
-    const userId = String(formData.get("userId") ?? "").trim();
-    const name = String(formData.get("name") ?? "").trim();
+    const userId = getFormString(formData, "userId").trim();
+    const name = getFormString(formData, "name").trim();
 
     if (!userId || !name) {
       redirect(`/${tenantSlug}/admin/users?error=status`);
@@ -194,7 +195,7 @@ export default async function AdminUsersPage({
   async function deleteUserAction(formData: FormData) {
     "use server";
 
-    const userId = String(formData.get("userId") ?? "").trim();
+    const userId = getFormString(formData, "userId").trim();
 
     if (!userId) {
       redirect(`/${tenantSlug}/admin/users?error=delete`);

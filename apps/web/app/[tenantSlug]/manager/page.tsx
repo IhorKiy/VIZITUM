@@ -18,6 +18,7 @@ import {
 } from "../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 import { formatEnumLabel, type CommonTranslator } from "../../../lib/format";
+import { getFormString } from "../../../lib/form";
 
 type ManagerPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -125,14 +126,12 @@ export default async function ManagerPage({
   async function createManagerTaskAction(formData: FormData) {
     "use server";
 
-    const title = String(formData.get("title") ?? "").trim();
-    const description = String(formData.get("description") ?? "").trim();
+    const title = getFormString(formData, "title").trim();
+    const description = getFormString(formData, "description").trim();
     const priority = parseTaskPriorityInput(formData.get("priority"));
-    const assignedToUserId = String(
-      formData.get("assignedToUserId") ?? "",
-    ).trim();
-    const locationId = String(formData.get("locationId") ?? "").trim();
-    const dueDate = String(formData.get("dueDate") ?? "").trim();
+    const assignedToUserId = getFormString(formData, "assignedToUserId").trim();
+    const locationId = getFormString(formData, "locationId").trim();
+    const dueDate = getFormString(formData, "dueDate").trim();
 
     if (!title) {
       redirect(`/${tenantSlug}/manager?error=task`);
