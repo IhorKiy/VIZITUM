@@ -333,9 +333,7 @@ export default async function AdminUsersPage({
           clearParams={["status", "role", "deleted"]}
           eyebrow={t("userUpdatedEyebrow")}
           title={
-            pageState.deleted
-              ? t("userDeletedTitle")
-              : t("accessUpdatedTitle")
+            pageState.deleted ? t("userDeletedTitle") : t("accessUpdatedTitle")
           }
           tone="success"
         />

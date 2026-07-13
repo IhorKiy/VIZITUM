@@ -676,10 +676,7 @@ export async function updateProductCategory(
   categoryId: string,
   input: { name: string },
 ): Promise<ApiResult<ProductCategory>> {
-  return apiPatch<ProductCategory>(
-    `/product-categories/${categoryId}`,
-    input,
-  );
+  return apiPatch<ProductCategory>(`/product-categories/${categoryId}`, input);
 }
 
 export async function deleteProductCategory(
