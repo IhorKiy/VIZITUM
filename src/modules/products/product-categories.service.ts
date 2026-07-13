@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { ProductCategory } from "@prisma/client";
+import { Prisma, type ProductCategory } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
@@ -51,23 +51,31 @@ export class ProductCategoriesService {
     });
 
     if (existing) {
-      throw new ConflictException({
-        code: "PRODUCT_CATEGORY_EXISTS",
-        message: "Category already exists.",
-        fieldErrors: {
-          name: ["Category already exists."],
-        },
-      });
+      throw categoryExistsConflict();
     }
 
-    const category = await this.prisma.productCategory.create({
-      data: {
-        tenantId: context.tenantId,
-        name,
-      },
-    });
+    try {
+      const category = await this.prisma.productCategory.create({
+        data: {
+          tenantId: context.tenantId,
+          name,
+        },
+      });
 
-    return toProductCategoryResponse(category);
+      return toProductCategoryResponse(category);
+    } catch (error) {
+      // A concurrent create can slip between the findFirst above and this
+      // insert; the @@unique([tenantId, name]) index then raises P2002. Surface
+      // it as the same 409 the pre-check would have, not an opaque 500.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw categoryExistsConflict();
+      }
+
+      throw error;
+    }
   }
 
   async updateCategory(
@@ -171,6 +179,16 @@ export class ProductCategoriesService {
 
     return { deleted: true };
   }
+}
+
+function categoryExistsConflict(): ConflictException {
+  return new ConflictException({
+    code: "PRODUCT_CATEGORY_EXISTS",
+    message: "Category already exists.",
+    fieldErrors: {
+      name: ["Category already exists."],
+    },
+  });
 }
 
 function normalizeCategoryName(value: unknown): string | null {

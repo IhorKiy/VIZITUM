@@ -5,6 +5,7 @@ import {
   ConflictException,
   NotFoundException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
 import { ProductCategoriesService } from "../src/modules/products/product-categories.service";
 import type { RequestContext } from "../src/modules/tenancy/request-context";
@@ -87,6 +88,28 @@ describe("product categories service", () => {
         findFirst: async () => ({ id: "existing" }),
         create: async () => {
           throw new Error("create should not be called");
+        },
+      },
+    };
+    const service = new ProductCategoriesService(prisma as never);
+
+    await assert.rejects(
+      () => service.createCategory(createContext(), { name: "Beverages" }),
+      ConflictException,
+    );
+  });
+
+  it("maps a concurrent unique-constraint violation to a conflict", async () => {
+    const prisma = {
+      productCategory: {
+        // Pre-check passes (no row yet), but a racing insert wins first, so the
+        // create hits the @@unique index and Prisma raises P2002.
+        findFirst: async () => null,
+        create: async () => {
+          throw new Prisma.PrismaClientKnownRequestError(
+            "Unique constraint failed",
+            { code: "P2002", clientVersion: "test" },
+          );
         },
       },
     };

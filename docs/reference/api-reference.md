@@ -177,6 +177,8 @@ Retail chains/networks a location can belong to. Reuses the locations permission
 | `PATCH /products/:productId` | all: `products.manage` | any create field plus `status?`                                                |
 | `DELETE /products/:productId`| all: `products.manage` | — (soft delete: sets `deletedAt`; returns `{ deleted: true }`)                 |
 
+> `notApplicable` is **deprecated** and no longer used by the admin Products UI (dropped in #46; column kept, still accepted/returned by the API). The launch checklist counts active products directly; treat the flag as legacy and do not reintroduce it into new UI.
+
 ### Product categories — `/product-categories` (`product-categories.controller.ts`)
 
 Managed vocabulary of category labels per tenant, used by the admin Products screen to tag products. `Product.category` stays a free-text string; these rows are the curated list surfaced in the "Add product" and "Manage categories" modals. Delete is a hard delete (no FK from products, so existing products keep their category string).
