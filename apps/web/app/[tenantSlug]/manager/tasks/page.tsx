@@ -9,12 +9,15 @@ import {
   listTodayRoutes,
   listTasks,
   updateTask,
-  type Location,
-  type RoutePlan,
   type Task,
   type TaskPriority,
   type TaskStatus,
 } from "../../../../lib/api-client";
+import {
+  buildLocationOptions,
+  buildRouteOptions,
+  type FilterOption,
+} from "../../../../lib/filter-options";
 import { formatEnumLabel, type CommonTranslator } from "../../../../lib/format";
 
 type ManagerTasksPageProps = {
@@ -34,11 +37,6 @@ type ManagerTasksPageProps = {
 
 const taskStatuses: TaskStatus[] = ["open", "in_progress", "done", "cancelled"];
 const taskPriorities: TaskPriority[] = ["high", "normal", "low"];
-
-type FilterOption = {
-  id: string;
-  label: string;
-};
 
 export default async function ManagerTasksPage({
   params,
@@ -416,18 +414,6 @@ export default async function ManagerTasksPage({
   );
 }
 
-function buildRouteOptions(
-  routes: RoutePlan[],
-  locale: string,
-): FilterOption[] {
-  return routes
-    .map((route) => ({
-      id: route.id,
-      label: `${route.planDate} · ${route.representative.name}`,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, locale));
-}
-
 function buildAssigneeOptions(tasks: Task[], locale: string): FilterOption[] {
   const options = new Map<string, FilterOption>();
 
@@ -445,18 +431,6 @@ function buildAssigneeOptions(tasks: Task[], locale: string): FilterOption[] {
   return [...options.values()].sort((a, b) =>
     a.label.localeCompare(b.label, locale),
   );
-}
-
-function buildLocationOptions(
-  locations: Location[],
-  locale: string,
-): FilterOption[] {
-  return locations
-    .map((location) => ({
-      id: location.id,
-      label: location.name,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, locale));
 }
 
 function TasksTable({

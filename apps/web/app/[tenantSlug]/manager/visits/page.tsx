@@ -7,12 +7,15 @@ import {
   listTodayRoutes,
   listVisits,
   type ApiResult,
-  type Location,
   type PaginatedResponse,
-  type RoutePlan,
   type Visit,
   type VisitStatus,
 } from "../../../../lib/api-client";
+import {
+  buildLocationOptions,
+  buildRouteOptions,
+  type FilterOption,
+} from "../../../../lib/filter-options";
 import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
 
 type ManagerVisitsPageProps = {
@@ -33,11 +36,6 @@ const visitStatuses: VisitStatus[] = [
   "completed",
   "cancelled",
 ];
-
-type FilterOption = {
-  id: string;
-  label: string;
-};
 
 export default async function ManagerVisitsPage({
   params,
@@ -342,18 +340,6 @@ export default async function ManagerVisitsPage({
   );
 }
 
-function buildRouteOptions(
-  routes: RoutePlan[],
-  locale: string,
-): FilterOption[] {
-  return routes
-    .map((route) => ({
-      id: route.id,
-      label: `${route.planDate} · ${route.representative.name}`,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, locale));
-}
-
 function buildRepresentativeOptions(
   visits: Visit[],
   locale: string,
@@ -370,18 +356,6 @@ function buildRepresentativeOptions(
   return [...options.values()].sort((a, b) =>
     a.label.localeCompare(b.label, locale),
   );
-}
-
-function buildLocationOptions(
-  locations: Location[],
-  locale: string,
-): FilterOption[] {
-  return locations
-    .map((location) => ({
-      id: location.id,
-      label: location.name,
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label, locale));
 }
 
 function VisitsTable({
