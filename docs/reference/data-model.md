@@ -40,7 +40,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 | `LocationContact` | `location_contacts` | Contacts attached to a location. |
 | `LocationAssignment` | `location_assignments` | Representative ↔ location link with AssignmentStatus; unique per (tenant, location, representative). |
 | `Product` | `products` | SKU catalog. `notApplicable` is a **deprecated** legacy flag — no longer read/written by the web UI (kept as a column, still accepted by the API); see api-reference Products note. Soft-deleted via `deletedAt` (all reads filter `deletedAt: null`). |
-| `ProductCategory` | `product_categories` | Curated per-tenant category labels for grouping products (managed from the admin Products screen); `@@unique([tenantId, name])`. Hard-deleted — no FK from `products.category`, which stays a free-text string. |
+| `ProductCategory` | `product_categories` | Curated per-tenant category labels for grouping products (managed from the admin Products screen). Names are unique per tenant **case-insensitively** — enforced by a functional unique index on `(tenantId, lower(name))` (raw SQL, since Prisma can't express it declaratively), so "Beverages" and "beverages" can't coexist; the display name is stored exactly as typed. Hard-deleted — no FK from `products.category`, which stays a free-text string; renames cascade case-insensitively to matching `products.category` values. |
 
 ## Routes & visits group
 

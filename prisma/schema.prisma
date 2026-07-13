@@ -557,7 +557,9 @@ model ProductCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([tenantId, name])
+  // Case-insensitive per-tenant uniqueness is enforced by a functional unique
+  // index on (tenantId, lower(name)), which Prisma can't express declaratively.
+  // See migration 20260713_product_category_case_insensitive_name.
   @@index([tenantId])
   @@map("product_categories")
 }
