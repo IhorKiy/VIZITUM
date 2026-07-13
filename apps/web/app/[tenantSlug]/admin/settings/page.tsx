@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   getAdminSettings,
@@ -97,23 +98,25 @@ export default async function AdminSettingsPage({
       </header>
 
       {pageState.saved ? (
-        <section className="notice-panel success" aria-label={t("savedAria")}>
-          <div>
-            <p className="eyebrow">{t("savedEyebrow")}</p>
-            <h2>{t("savedTitle")}</h2>
-            <p>{t("savedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("savedAria")}
+          body={t("savedBody")}
+          clearParams={["saved"]}
+          eyebrow={t("savedEyebrow")}
+          title={t("savedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {pageState.error ? (
-        <section className="notice-panel danger" aria-label={t("errorAria")}>
-          <div>
-            <p className="eyebrow">{t("errorEyebrow")}</p>
-            <h2>{t("errorTitle")}</h2>
-            <p>{t("errorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("errorAria")}
+          body={t("errorBody")}
+          clearParams={["error"]}
+          eyebrow={t("errorEyebrow")}
+          title={t("errorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       <section className="manager-grid" aria-label={t("identityAria")}>

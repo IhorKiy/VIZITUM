@@ -4,15 +4,19 @@ import { getTranslations } from "next-intl/server";
 
 import { AddProductModal } from "../../../../components/add-product-modal";
 import { AppShell } from "../../../../components/app-shell";
-import { ManageCategoriesModal } from "../../../../components/manage-categories-modal";
-import { PendingSubmitButton } from "../../../../components/pending-submit-button";
+import { CategoriesAccordion } from "../../../../components/categories-accordion";
+import { DeleteProductButton } from "../../../../components/delete-product-button";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { ProductFieldEditor } from "../../../../components/product-field-editor";
 import {
   createAdminProduct,
   createProductCategory,
+  deleteAdminProduct,
   deleteProductCategory,
   listAdminProducts,
   listProductCategories,
   updateAdminProduct,
+  updateProductCategory,
   type Product,
   type ProductCategory,
   type ProductStatus,
@@ -26,11 +30,14 @@ import {
 type AdminProductsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    category?: string;
     created?: string;
+    deleted?: string;
     error?: string;
     search?: string;
     status?: string;
     updated?: string;
+    view?: string;
   }>;
 };
 
@@ -48,13 +55,20 @@ export default async function AdminProductsPage({
     getTranslations("common"),
   ]);
   const selectedStatus = normalizeStatus(pageState.status);
+  const selectedCategory = normalizeFilterValue(pageState.category);
   const search = normalizeFilterValue(pageState.search);
-  const hasFilters = Boolean(selectedStatus || search);
+  const groupByCategory = pageState.view === "category";
+  const viewParam = groupByCategory ? "category" : null;
+  const hasFilters = Boolean(selectedStatus || selectedCategory || search);
 
   const query = new URLSearchParams({ pageSize: "100" });
 
   if (selectedStatus) {
     query.set("status", selectedStatus);
+  }
+
+  if (selectedCategory) {
+    query.set("category", selectedCategory);
   }
 
   if (search) {
@@ -65,27 +79,69 @@ export default async function AdminProductsPage({
     "use server";
 
     const productId = String(formData.get("productId") ?? "").trim();
-    const name = String(formData.get("name") ?? "").trim();
-    const sku = normalizeOptionalField(formData.get("sku"));
-    const category = normalizeOptionalField(formData.get("category"));
-    const status = normalizeStatus(String(formData.get("status") ?? ""));
 
-    if (!productId || !name || !status) {
+    if (!productId) {
       redirect(`/${tenantSlug}/admin/products?error=1`);
     }
 
-    const result = await updateAdminProduct(productId, {
-      name,
-      sku,
-      category,
-      status,
-    });
+    // Each field editor saves on its own, so only patch the fields present in
+    // this submission rather than overwriting the whole product.
+    const input: {
+      name?: string;
+      sku?: string | null;
+      category?: string | null;
+      status?: ProductStatus;
+    } = {};
+
+    if (formData.has("name")) {
+      const name = String(formData.get("name") ?? "").trim();
+      if (!name) {
+        redirect(`/${tenantSlug}/admin/products?error=1`);
+      }
+      input.name = name;
+    }
+
+    if (formData.has("sku")) {
+      input.sku = normalizeOptionalField(formData.get("sku"));
+    }
+
+    if (formData.has("category")) {
+      input.category = normalizeOptionalField(formData.get("category"));
+    }
+
+    if (formData.has("status")) {
+      const status = normalizeStatus(String(formData.get("status") ?? ""));
+      if (!status) {
+        redirect(`/${tenantSlug}/admin/products?error=1`);
+      }
+      input.status = status;
+    }
+
+    const result = await updateAdminProduct(productId, input);
 
     if (!result.ok) {
       redirect(`/${tenantSlug}/admin/products?error=1`);
     }
 
     redirect(`/${tenantSlug}/admin/products?updated=1`);
+  }
+
+  async function deleteProductAction(formData: FormData) {
+    "use server";
+
+    const productId = String(formData.get("productId") ?? "").trim();
+
+    if (!productId) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    const result = await deleteAdminProduct(productId);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/products?deleted=1`);
   }
 
   async function createProductAction(formData: FormData) {
@@ -128,6 +184,25 @@ export default async function AdminProductsPage({
     }
 
     redirect(`/${tenantSlug}/admin/products?created=category`);
+  }
+
+  async function updateCategoryAction(formData: FormData) {
+    "use server";
+
+    const categoryId = String(formData.get("categoryId") ?? "").trim();
+    const name = String(formData.get("name") ?? "").trim();
+
+    if (!categoryId || !name) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    const result = await updateProductCategory(categoryId, { name });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/products?error=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/products?created=categoryUpdated`);
   }
 
   async function deleteCategoryAction(formData: FormData) {
@@ -189,6 +264,18 @@ export default async function AdminProductsPage({
     ? categoriesResult.data
     : [];
 
+  // Keep a legacy/free-text filter value selectable even if it is no longer a
+  // managed category.
+  const categoryFilterOptions =
+    selectedCategory &&
+    !categories.some((category) => category.name === selectedCategory)
+      ? [{ id: selectedCategory, name: selectedCategory }, ...categories]
+      : categories;
+
+  const productGroups = groupByCategory
+    ? buildProductGroups(products, t("noCategoryOption"))
+    : [];
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-products">
       <header className="page-header">
@@ -197,11 +284,6 @@ export default async function AdminProductsPage({
           <h1>{t("title")}</h1>
         </div>
         <div className="toolbar">
-          <ManageCategoriesModal
-            categories={categories}
-            createAction={createCategoryAction}
-            deleteAction={deleteCategoryAction}
-          />
           <AddProductModal
             action={createProductAction}
             categories={categories}
@@ -210,45 +292,63 @@ export default async function AdminProductsPage({
       </header>
 
       {pageState.created ? (
-        <section className="notice-panel success" aria-label={t("createdAria")}>
-          <div>
-            <p className="eyebrow">{t("createdEyebrow")}</p>
-            <h2>
-              {pageState.created === "category"
-                ? t("createdCategoryTitle")
-                : pageState.created === "categoryRemoved"
-                  ? t("removedCategoryTitle")
-                  : t("createdProductTitle")}
-            </h2>
-            <p>
-              {pageState.created === "category"
-                ? t("createdCategoryBody")
+        <DismissableNotice
+          ariaLabel={t("createdAria")}
+          body={
+            pageState.created === "category"
+              ? t("createdCategoryBody")
+              : pageState.created === "categoryUpdated"
+                ? t("updatedCategoryBody")
                 : pageState.created === "categoryRemoved"
                   ? t("removedCategoryBody")
-                  : t("createdProductBody")}
-            </p>
-          </div>
-        </section>
+                  : t("createdProductBody")
+          }
+          clearParams={["created"]}
+          eyebrow={t("createdEyebrow")}
+          title={
+            pageState.created === "category"
+              ? t("createdCategoryTitle")
+              : pageState.created === "categoryUpdated"
+                ? t("updatedCategoryTitle")
+                : pageState.created === "categoryRemoved"
+                  ? t("removedCategoryTitle")
+                  : t("createdProductTitle")
+          }
+          tone="success"
+        />
       ) : null}
 
       {pageState.updated ? (
-        <section className="notice-panel success" aria-label={t("updatedAria")}>
-          <div>
-            <p className="eyebrow">{t("updatedEyebrow")}</p>
-            <h2>{t("updatedTitle")}</h2>
-            <p>{t("updatedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("updatedAria")}
+          body={t("updatedBody")}
+          clearParams={["updated"]}
+          eyebrow={t("updatedEyebrow")}
+          title={t("updatedTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      {pageState.deleted ? (
+        <DismissableNotice
+          ariaLabel={t("deletedAria")}
+          body={t("deletedBody")}
+          clearParams={["deleted"]}
+          eyebrow={t("deletedEyebrow")}
+          title={t("deletedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {pageState.error ? (
-        <section className="notice-panel danger" aria-label={t("errorAria")}>
-          <div>
-            <p className="eyebrow">{t("errorEyebrow")}</p>
-            <h2>{t("errorTitle")}</h2>
-            <p>{t("errorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("errorAria")}
+          body={t("errorBody")}
+          clearParams={["error"]}
+          eyebrow={t("errorEyebrow")}
+          title={t("errorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       <section className="manager-grid" aria-label={t("metricsAria")}>
@@ -263,6 +363,18 @@ export default async function AdminProductsPage({
           </p>
         </article>
       </section>
+
+      <CategoriesAccordion
+        categories={categories}
+        createAction={createCategoryAction}
+        defaultOpen={
+          pageState.created === "category" ||
+          pageState.created === "categoryUpdated" ||
+          pageState.created === "categoryRemoved"
+        }
+        deleteAction={deleteCategoryAction}
+        updateAction={updateCategoryAction}
+      />
 
       <section className="panel drilldown-panel">
         <div className="panel-toolbar">
@@ -279,29 +391,80 @@ export default async function AdminProductsPage({
                   })}
             </p>
           </div>
-          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
-            <a
-              aria-current={!selectedStatus ? "page" : undefined}
-              href={buildProductFilterHref(tenantSlug, null, search)}
-            >
-              {tCommon("all")}
-            </a>
-            {productStatuses.map((status) => (
+          <div className="panel-toolbar-filters">
+            <div className="filter-pills" aria-label={t("statusFiltersAria")}>
               <a
-                aria-current={selectedStatus === status ? "page" : undefined}
-                href={buildProductFilterHref(tenantSlug, status, search)}
-                key={status}
+                aria-current={!selectedStatus ? "page" : undefined}
+                href={buildProductHref(tenantSlug, {
+                  category: selectedCategory,
+                  search,
+                  view: viewParam,
+                })}
               >
-                {formatEnumLabel(tCommon, status)}
+                {tCommon("all")}
               </a>
-            ))}
+              {productStatuses.map((status) => (
+                <a
+                  aria-current={selectedStatus === status ? "page" : undefined}
+                  href={buildProductHref(tenantSlug, {
+                    status,
+                    category: selectedCategory,
+                    search,
+                    view: viewParam,
+                  })}
+                  key={status}
+                >
+                  {formatEnumLabel(tCommon, status)}
+                </a>
+              ))}
+            </div>
+            <div className="filter-pills" aria-label={t("viewFiltersAria")}>
+              <a
+                aria-current={!groupByCategory ? "page" : undefined}
+                href={buildProductHref(tenantSlug, {
+                  status: selectedStatus,
+                  category: selectedCategory,
+                  search,
+                })}
+              >
+                {t("viewList")}
+              </a>
+              <a
+                aria-current={groupByCategory ? "page" : undefined}
+                href={buildProductHref(tenantSlug, {
+                  status: selectedStatus,
+                  category: selectedCategory,
+                  search,
+                  view: "category",
+                })}
+              >
+                {t("viewByCategory")}
+              </a>
+            </div>
           </div>
         </div>
 
-        <form action={`/${tenantSlug}/admin/products`} className="filter-form">
+        <form
+          action={`/${tenantSlug}/admin/products`}
+          className="filter-form products-filter-form"
+        >
           {selectedStatus ? (
             <input name="status" type="hidden" value={selectedStatus} />
           ) : null}
+          {groupByCategory ? (
+            <input name="view" type="hidden" value="category" />
+          ) : null}
+          <label>
+            {t("category")}
+            <select defaultValue={selectedCategory ?? ""} name="category">
+              <option value="">{t("allCategories")}</option>
+              {categoryFilterOptions.map((category) => (
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             {t("search")}
             <input
@@ -327,15 +490,43 @@ export default async function AdminProductsPage({
         </form>
 
         {products.length > 0 ? (
-          <div className="admin-user-list">
-            {products.map((product) => (
-              <ProductRow
-                key={product.id}
-                product={product}
-                updateProductAction={updateProductAction}
-              />
-            ))}
-          </div>
+          groupByCategory ? (
+            <div className="product-category-groups">
+              {productGroups.map((group) => (
+                <section className="product-category-group" key={group.key}>
+                  <h3 className="product-category-group-title">
+                    <span>{group.label}</span>
+                    <span className="product-category-group-count">
+                      {group.items.length}
+                    </span>
+                  </h3>
+                  <div className="admin-user-list">
+                    {group.items.map((product) => (
+                      <ProductRow
+                        key={product.id}
+                        categories={categories}
+                        deleteProductAction={deleteProductAction}
+                        product={product}
+                        updateProductAction={updateProductAction}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="admin-user-list">
+              {products.map((product) => (
+                <ProductRow
+                  key={product.id}
+                  categories={categories}
+                  deleteProductAction={deleteProductAction}
+                  product={product}
+                  updateProductAction={updateProductAction}
+                />
+              ))}
+            </div>
+          )
         ) : (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
@@ -365,13 +556,38 @@ export default async function AdminProductsPage({
 
 function ProductRow({
   product,
+  categories,
   updateProductAction,
+  deleteProductAction,
 }: {
   product: Product;
+  categories: ProductCategory[];
   updateProductAction: (formData: FormData) => Promise<void>;
+  deleteProductAction: (formData: FormData) => Promise<void>;
 }) {
   const t = useTranslations("admin.products");
   const tCommon = useTranslations("common");
+
+  // Preserve a legacy/free-text category that isn't (yet) a managed category so
+  // opening the row doesn't silently reset it to "no category" on save.
+  const categoryOptions =
+    product.category &&
+    !categories.some((category) => category.name === product.category)
+      ? [{ id: product.category, name: product.category }, ...categories]
+      : categories;
+
+  const categorySelectOptions = [
+    { value: "", label: t("noCategoryOption") },
+    ...categoryOptions.map((category) => ({
+      value: category.name,
+      label: category.name,
+    })),
+  ];
+
+  const statusSelectOptions = productStatuses.map((status) => ({
+    value: status,
+    label: formatEnumLabel(tCommon, status),
+  }));
 
   return (
     // Exclusive-accordion disclosure: the shared `name` keeps only one product
@@ -397,63 +613,130 @@ function ProductRow({
       </summary>
 
       <div className="admin-user-body">
-        <form
-          action={updateProductAction}
-          className="visit-form compact visit-form-2col"
-        >
-          <input name="productId" type="hidden" value={product.id} />
-          <label>
-            {t("name")}
-            <input defaultValue={product.name} name="name" required />
-          </label>
-          <label>
-            {t("sku")}
-            <input defaultValue={product.sku ?? ""} name="sku" />
-          </label>
-          <label>
-            {t("category")}
-            <input defaultValue={product.category ?? ""} name="category" />
-          </label>
-          <label>
-            {t("status")}
-            <select defaultValue={product.status} name="status" required>
-              {productStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {formatEnumLabel(tCommon, status)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <PendingSubmitButton
-            className="secondary-button visit-form-full"
-            pendingLabel={tCommon("saving")}
-          >
-            {t("saveProduct")}
-          </PendingSubmitButton>
-        </form>
+        <div className="visit-form compact visit-form-2col">
+          <ProductFieldEditor
+            field="name"
+            kind="text"
+            label={t("name")}
+            productId={product.id}
+            required
+            updateAction={updateProductAction}
+            value={product.name}
+            displayText={product.name}
+          />
+          <ProductFieldEditor
+            field="sku"
+            kind="text"
+            label={t("sku")}
+            placeholder={t("noSku")}
+            productId={product.id}
+            updateAction={updateProductAction}
+            value={product.sku ?? ""}
+            displayText={product.sku ?? ""}
+          />
+          <ProductFieldEditor
+            field="category"
+            kind="select"
+            label={t("category")}
+            options={categorySelectOptions}
+            placeholder={t("noCategoryOption")}
+            productId={product.id}
+            updateAction={updateProductAction}
+            value={product.category ?? ""}
+            displayText={product.category ?? ""}
+          />
+          <ProductFieldEditor
+            field="status"
+            kind="select"
+            label={t("status")}
+            options={statusSelectOptions}
+            productId={product.id}
+            required
+            updateAction={updateProductAction}
+            value={product.status}
+            displayText={formatEnumLabel(tCommon, product.status)}
+          />
+        </div>
+        <div className="product-row-footer">
+          <DeleteProductButton
+            deleteAction={deleteProductAction}
+            productId={product.id}
+            productName={product.name}
+          />
+        </div>
       </div>
     </details>
   );
 }
 
-function buildProductFilterHref(
+function buildProductHref(
   tenantSlug: string,
-  status: ProductStatus | null,
-  search: string | null,
+  filters: {
+    status?: ProductStatus | null;
+    category?: string | null;
+    search?: string | null;
+    view?: string | null;
+  },
 ): string {
   const query = new URLSearchParams();
 
-  if (status) {
-    query.set("status", status);
+  if (filters.status) {
+    query.set("status", filters.status);
   }
 
-  if (search) {
-    query.set("search", search);
+  if (filters.category) {
+    query.set("category", filters.category);
+  }
+
+  if (filters.search) {
+    query.set("search", filters.search);
+  }
+
+  if (filters.view) {
+    query.set("view", filters.view);
   }
 
   const suffix = query.toString();
 
   return `/${tenantSlug}/admin/products${suffix ? `?${suffix}` : ""}`;
+}
+
+function buildProductGroups(
+  products: Product[],
+  uncategorizedLabel: string,
+): { key: string; label: string; items: Product[] }[] {
+  const groups = new Map<
+    string,
+    { key: string; label: string; items: Product[] }
+  >();
+
+  for (const product of products) {
+    const key = product.category ?? "";
+    const group = groups.get(key);
+
+    if (group) {
+      group.items.push(product);
+    } else {
+      groups.set(key, {
+        key,
+        label: product.category ?? uncategorizedLabel,
+        items: [product],
+      });
+    }
+  }
+
+  // Named categories first (alphabetical), the uncategorized bucket last.
+  return [...groups.values()].sort((a, b) => {
+    if (a.key === "") {
+      return 1;
+    }
+
+    if (b.key === "") {
+      return -1;
+    }
+
+    return a.label.localeCompare(b.label);
+  });
 }
 
 function normalizeStatus(value: string | undefined): ProductStatus | null {

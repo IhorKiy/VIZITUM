@@ -934,6 +934,135 @@ textarea {
   outline-offset: 1px;
 }
 
+/* Per-field inline editor inside a product card: a read-only value with a
+   pencil that swaps in the matching input/select plus save/cancel glyphs.
+   Reuses .name-edit-button for the icon controls and .visit-form control
+   styling for the inputs. */
+.product-field {
+  display: grid;
+  gap: 6px;
+}
+
+.product-field-label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.product-field-view,
+.product-field-edit {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  min-height: 42px;
+}
+
+/* Read-only value reads as a filled field box (matching the inputs) with the
+   pencil tucked inside on the right. */
+.product-field-view {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 6px 0 10px;
+}
+
+.product-field-value {
+  color: var(--ink);
+  flex: 1;
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-field-value.is-empty {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* The pencil is revealed only when its field is hovered or keyboard-focused;
+   its space is reserved (opacity, not display) so nothing shifts. */
+.product-field-view .name-edit-button {
+  opacity: 0;
+}
+
+.product-field-view:hover .name-edit-button,
+.product-field-view:focus-within .name-edit-button,
+.product-field-view .name-edit-button:focus-visible {
+  opacity: 1;
+}
+
+.product-field-edit input:not([type]),
+.product-field-edit select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Toolbar can carry two stacked pill groups (status + view mode). */
+.panel-toolbar-filters {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Delete affordance in the expanded product card, separated from the fields. */
+.product-row-footer {
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+}
+
+.product-delete.confirming {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.product-delete-prompt {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.product-delete-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Products grouped under category headings. */
+.product-category-groups {
+  display: grid;
+  gap: 20px;
+}
+
+.product-category-group {
+  display: grid;
+  gap: 10px;
+}
+
+.product-category-group-title {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  font-size: 15px;
+  font-weight: 800;
+  gap: 8px;
+}
+
+.product-category-group-count {
+  background: var(--surface-muted);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+}
+
 .admin-user-name-row {
   align-items: center;
   display: flex;
@@ -1822,6 +1951,73 @@ textarea {
   margin: 0;
 }
 
+/* Inline category manager (accordion on the products screen). */
+.category-accordion-body {
+  display: grid;
+  gap: 14px;
+}
+
+.category-accordion-body .empty-hint {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.category-add-toggle {
+  justify-self: start;
+}
+
+.category-add-form {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.category-add-form label {
+  color: var(--ink);
+  display: grid;
+  flex: 1;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
+  min-width: 200px;
+}
+
+.category-add-form input,
+.category-edit input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+.category-edit {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  gap: 6px;
+}
+
+.category-edit input {
+  flex: 1;
+  min-height: 38px;
+  min-width: 0;
+}
+
+.category-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.category-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .filter-groups {
   display: grid;
   gap: 8px;
@@ -1856,6 +2052,19 @@ textarea {
   grid-template-columns:
     repeat(2, minmax(160px, 1fr))
     auto;
+}
+
+.products-filter-form {
+  grid-template-columns:
+    minmax(170px, 240px)
+    minmax(180px, 1fr)
+    auto;
+}
+
+/* Keep Apply + Reset side by side so the auto track sizes to both buttons
+   instead of collapsing and stacking them. */
+.products-filter-form .filter-actions {
+  flex-wrap: nowrap;
 }
 
 .filter-form label {
@@ -2041,6 +2250,21 @@ textarea {
   margin: 0 auto 16px;
   max-width: 1180px;
   padding: 16px;
+}
+
+/* Auto-dismissing action notices fade out before they are removed. */
+.notice-panel.auto-dismiss {
+  transition: opacity 0.3s ease;
+}
+
+.notice-panel.auto-dismiss.is-leaving {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-panel.auto-dismiss {
+    transition: none;
+  }
 }
 
 .notice-panel.success {

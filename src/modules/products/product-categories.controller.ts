@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -15,7 +16,10 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { ProductCategoriesService } from "./product-categories.service";
-import type { CreateProductCategoryRequestBody } from "./products.types";
+import type {
+  CreateProductCategoryRequestBody,
+  UpdateProductCategoryRequestBody,
+} from "./products.types";
 
 @Controller("product-categories")
 @UseGuards(PermissionGuard)
@@ -40,6 +44,20 @@ export class ProductCategoriesController {
   ) {
     return this.productCategoriesService.createCategory(
       getRequestContext(request),
+      body,
+    );
+  }
+
+  @Patch(":categoryId")
+  @RequirePermissions(PERMISSIONS.PRODUCTS_MANAGE)
+  updateCategory(
+    @Req() request: Request,
+    @Param("categoryId") categoryId: string,
+    @Body() body: UpdateProductCategoryRequestBody,
+  ) {
+    return this.productCategoriesService.updateCategory(
+      getRequestContext(request),
+      categoryId,
       body,
     );
   }

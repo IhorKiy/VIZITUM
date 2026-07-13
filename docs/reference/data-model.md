@@ -39,7 +39,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 | `Location` | `locations` | Visit points: address fields, `region`/`territory`, optional lat/long, LocationStatus, optional `chainId` → `Chain`. |
 | `LocationContact` | `location_contacts` | Contacts attached to a location. |
 | `LocationAssignment` | `location_assignments` | Representative ↔ location link with AssignmentStatus; unique per (tenant, location, representative). |
-| `Product` | `products` | SKU catalog; `notApplicable` marks tenants that skip product tracking. |
+| `Product` | `products` | SKU catalog; `notApplicable` marks tenants that skip product tracking. Soft-deleted via `deletedAt` (all reads filter `deletedAt: null`). |
 | `ProductCategory` | `product_categories` | Curated per-tenant category labels for grouping products (managed from the admin Products screen); `@@unique([tenantId, name])`. Hard-deleted — no FK from `products.category`, which stays a free-text string. |
 
 ## Routes & visits group
