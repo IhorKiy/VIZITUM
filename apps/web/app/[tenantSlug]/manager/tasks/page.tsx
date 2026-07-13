@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -46,7 +46,8 @@ export default async function ManagerTasksPage({
 }: ManagerTasksPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [t, tManager, tCommon] = await Promise.all([
+  const [locale, t, tManager, tCommon] = await Promise.all([
+    getLocale(),
     getTranslations("manager.tasks"),
     getTranslations("manager"),
     getTranslations("common"),
@@ -156,13 +157,13 @@ export default async function ManagerTasksPage({
   const tasks = tasksResult.data.items;
   const counters = buildTaskCounters(tasks, tasksResult.data.total, t);
   const assigneeOptions = allTasksResult.ok
-    ? buildAssigneeOptions(allTasksResult.data.items)
+    ? buildAssigneeOptions(allTasksResult.data.items, locale)
     : [];
   const locationOptions = locationsResult.ok
-    ? buildLocationOptions(locationsResult.data.items)
+    ? buildLocationOptions(locationsResult.data.items, locale)
     : [];
   const routeOptions = routesResult.ok
-    ? buildRouteOptions(routesResult.data)
+    ? buildRouteOptions(routesResult.data, locale)
     : [];
   const selectedAssigneeLabel =
     assigneeOptions.find((option) => option.id === selectedAssigneeId)?.label ??
@@ -415,16 +416,16 @@ export default async function ManagerTasksPage({
   );
 }
 
-function buildRouteOptions(routes: RoutePlan[]): FilterOption[] {
+function buildRouteOptions(routes: RoutePlan[], locale: string): FilterOption[] {
   return routes
     .map((route) => ({
       id: route.id,
       label: `${route.planDate} · ${route.representative.name}`,
     }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
 }
 
-function buildAssigneeOptions(tasks: Task[]): FilterOption[] {
+function buildAssigneeOptions(tasks: Task[], locale: string): FilterOption[] {
   const options = new Map<string, FilterOption>();
 
   for (const task of tasks) {
@@ -438,16 +439,21 @@ function buildAssigneeOptions(tasks: Task[]): FilterOption[] {
     });
   }
 
-  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+  return [...options.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, locale),
+  );
 }
 
-function buildLocationOptions(locations: Location[]): FilterOption[] {
+function buildLocationOptions(
+  locations: Location[],
+  locale: string,
+): FilterOption[] {
   return locations
     .map((location) => ({
       id: location.id,
       label: location.name,
     }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
 }
 
 function TasksTable({

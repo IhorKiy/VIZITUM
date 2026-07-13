@@ -9,7 +9,7 @@ import {
   type Visit,
 } from "../../../../lib/api-client";
 import { useFormatter, useTranslations } from "next-intl";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { formatDateTime, normalizeFilterValue } from "../../../../lib/format";
 
@@ -53,7 +53,8 @@ export default async function ManagerRepresentativesPage({
   searchParams,
 }: ManagerRepresentativesPageProps) {
   const { tenantSlug } = await params;
-  const [t, tManager, tCommon] = await Promise.all([
+  const [locale, t, tManager, tCommon] = await Promise.all([
+    getLocale(),
     getTranslations("manager.representatives"),
     getTranslations("manager"),
     getTranslations("common"),
@@ -143,7 +144,7 @@ export default async function ManagerRepresentativesPage({
   const visits = visitsResult.ok ? visitsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
   const representatives = filterRepresentatives(
-    buildRepresentativeSummaries(routes, visits, tasks),
+    buildRepresentativeSummaries(routes, visits, tasks, locale),
     {
       activity: selectedActivity,
       search,
@@ -373,6 +374,7 @@ function buildRepresentativeSummaries(
   routes: RoutePlan[],
   visits: Visit[],
   tasks: Task[],
+  locale: string,
 ): RepresentativeSummary[] {
   const summaries = new Map<string, RepresentativeSummary>();
 
@@ -416,7 +418,7 @@ function buildRepresentativeSummaries(
       new Date(b.lastActivityAt ?? 0).getTime() -
       new Date(a.lastActivityAt ?? 0).getTime();
 
-    return activityDifference || a.name.localeCompare(b.name);
+    return activityDifference || a.name.localeCompare(b.name, locale);
   });
 }
 

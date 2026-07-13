@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../components/app-shell";
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
@@ -113,7 +113,8 @@ export default async function ManagerPage({
 }: ManagerPageProps) {
   const { tenantSlug } = await params;
   const { task, error } = await searchParams;
-  const [t, tManager, tCommon] = await Promise.all([
+  const [locale, t, tManager, tCommon] = await Promise.all([
+    getLocale(),
     getTranslations("manager.overview"),
     getTranslations("manager"),
     getTranslations("common"),
@@ -226,8 +227,13 @@ export default async function ManagerPage({
     hasLiveData && (routes.length > 0 || tasks.length > 0)
       ? buildAttentionItems(routes, tasks, t)
       : buildDemoAttentionItems(t);
-  const assigneeOptions = buildTaskAssigneeOptions(routes, visits, tasks);
-  const locationOptions = buildTaskLocationOptions(routes, visits, locations);
+  const assigneeOptions = buildTaskAssigneeOptions(routes, visits, tasks, locale);
+  const locationOptions = buildTaskLocationOptions(
+    routes,
+    visits,
+    locations,
+    locale,
+  );
   const managerCsv = buildManagerCsv(
     metrics,
     representatives,
@@ -585,6 +591,7 @@ function buildTaskAssigneeOptions(
   routes: RoutePlan[],
   visits: Visit[],
   tasks: Task[],
+  locale: string,
 ): TaskAssigneeOption[] {
   const options = new Map<string, TaskAssigneeOption>();
 
@@ -609,13 +616,16 @@ function buildTaskAssigneeOptions(
     }
   });
 
-  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+  return [...options.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, locale),
+  );
 }
 
 function buildTaskLocationOptions(
   routes: RoutePlan[],
   visits: Visit[],
   locations: Location[],
+  locale: string,
 ): TaskLocationOption[] {
   const options = new Map<string, TaskLocationOption>();
 
@@ -640,7 +650,9 @@ function buildTaskLocationOptions(
     });
   });
 
-  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+  return [...options.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, locale),
+  );
 }
 
 function buildManagerCsv(
