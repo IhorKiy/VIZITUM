@@ -517,6 +517,22 @@ export async function listProducts(): Promise<
   return apiGet<PaginatedResponse<Product>>("/products?pageSize=100");
 }
 
+// Cheap active-product count for the launch checklist: the paginated `total`
+// reflects the full filtered count server-side (prisma.product.count over the
+// same `status=active` where clause), so we don't have to page through or count
+// items on a single page — which would undercount tenants with >100 products.
+export async function countActiveProducts(): Promise<ApiResult<number>> {
+  const result = await apiGet<PaginatedResponse<Product>>(
+    "/products?status=active&pageSize=1",
+  );
+
+  if (!result.ok) {
+    return result;
+  }
+
+  return { ok: true, data: result.data.total };
+}
+
 export async function listAdminLocations(
   query = "pageSize=100",
 ): Promise<ApiResult<PaginatedResponse<Location>>> {
