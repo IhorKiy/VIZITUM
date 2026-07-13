@@ -342,7 +342,10 @@ export default async function ManagerVisitsPage({
   );
 }
 
-function buildRouteOptions(routes: RoutePlan[], locale: string): FilterOption[] {
+function buildRouteOptions(
+  routes: RoutePlan[],
+  locale: string,
+): FilterOption[] {
   return routes
     .map((route) => ({
       id: route.id,

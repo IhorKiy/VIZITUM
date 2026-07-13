@@ -227,7 +227,12 @@ export default async function ManagerPage({
     hasLiveData && (routes.length > 0 || tasks.length > 0)
       ? buildAttentionItems(routes, tasks, t)
       : buildDemoAttentionItems(t);
-  const assigneeOptions = buildTaskAssigneeOptions(routes, visits, tasks, locale);
+  const assigneeOptions = buildTaskAssigneeOptions(
+    routes,
+    visits,
+    tasks,
+    locale,
+  );
   const locationOptions = buildTaskLocationOptions(
     routes,
     visits,
