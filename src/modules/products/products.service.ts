@@ -117,6 +117,22 @@ export class ProductsService {
     return toProductResponse(updatedProduct);
   }
 
+  async deleteProduct(
+    context: RequestContext,
+    productId: string,
+  ): Promise<{ deleted: true }> {
+    const product = await this.findTenantProduct(context.tenantId, productId);
+
+    // Soft delete: `deletedAt` hides the product from every read path (all
+    // queries filter `deletedAt: null`) while preserving the row and history.
+    await this.prisma.product.update({
+      where: { id: product.id },
+      data: { deletedAt: new Date() },
+    });
+
+    return { deleted: true };
+  }
+
   private async findTenantProduct(
     tenantId: string,
     productId: string,

@@ -144,4 +144,101 @@ describe("product categories service", () => {
     );
     assert.equal(deleteCalled, false);
   });
+
+  it("renames a category and cascades the new name to its products", async () => {
+    const categoryUpdate: unknown[] = [];
+    const productUpdateMany: unknown[] = [];
+    const prisma = {
+      productCategory: {
+        findFirst: async (query: { where: Record<string, unknown> }) =>
+          "name" in query.where
+            ? null // uniqueness probe: no conflicting name
+            : { id: "cat-1", name: "Beverages" },
+        update: (query: { where: unknown; data: Record<string, unknown> }) => {
+          categoryUpdate.push(query);
+          return Promise.resolve(createCategory({ name: query.data.name }));
+        },
+      },
+      product: {
+        updateMany: (query: { where: unknown; data: unknown }) => {
+          productUpdateMany.push(query);
+          return Promise.resolve({ count: 3 });
+        },
+      },
+      $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
+    };
+    const service = new ProductCategoriesService(prisma as never);
+
+    const result = await service.updateCategory(
+      createContext("tenant-1"),
+      "cat-1",
+      { name: "  Drinks  " },
+    );
+
+    assert.equal(result.name, "Drinks");
+    assert.deepEqual(categoryUpdate, [
+      { where: { id: "cat-1" }, data: { name: "Drinks" } },
+    ]);
+    // Existing products tagged with the old name are relabelled.
+    assert.deepEqual(productUpdateMany, [
+      {
+        where: { tenantId: "tenant-1", category: "Beverages" },
+        data: { category: "Drinks" },
+      },
+    ]);
+  });
+
+  it("rejects renaming a category to a name already in use", async () => {
+    const prisma = {
+      productCategory: {
+        findFirst: async (query: { where: Record<string, unknown> }) =>
+          "name" in query.where
+            ? { id: "cat-2" } // a different category already owns the name
+            : { id: "cat-1", name: "Beverages" },
+        update: async () => {
+          throw new Error("update should not be called");
+        },
+      },
+    };
+    const service = new ProductCategoriesService(prisma as never);
+
+    await assert.rejects(
+      () =>
+        service.updateCategory(createContext("tenant-1"), "cat-1", {
+          name: "Snacks",
+        }),
+      ConflictException,
+    );
+  });
+
+  it("does not rename a category from another tenant", async () => {
+    const prisma = {
+      productCategory: {
+        findFirst: async () => null,
+        update: async () => {
+          throw new Error("update should not be called");
+        },
+      },
+    };
+    const service = new ProductCategoriesService(prisma as never);
+
+    await assert.rejects(
+      () =>
+        service.updateCategory(createContext("tenant-2"), "cat-1", {
+          name: "Drinks",
+        }),
+      NotFoundException,
+    );
+  });
+
+  it("rejects a blank rename", async () => {
+    const prisma = { productCategory: {} };
+    const service = new ProductCategoriesService(prisma as never);
+
+    await assert.rejects(
+      () =>
+        service.updateCategory(createContext(), "cat-1", { name: "   " }),
+      BadRequestException,
+    );
+  });
 });

@@ -11,6 +11,7 @@ import type { RequestContext } from "../tenancy/request-context";
 import type {
   CreateProductCategoryRequestBody,
   ProductCategoryResponse,
+  UpdateProductCategoryRequestBody,
 } from "./products.types";
 
 @Injectable()
@@ -67,6 +68,87 @@ export class ProductCategoriesService {
     });
 
     return toProductCategoryResponse(category);
+  }
+
+  async updateCategory(
+    context: RequestContext,
+    categoryId: string,
+    body: UpdateProductCategoryRequestBody,
+  ): Promise<ProductCategoryResponse> {
+    const name = normalizeCategoryName(body.name);
+
+    if (!name) {
+      throw new BadRequestException({
+        code: "PRODUCT_CATEGORY_INVALID",
+        message: "Category name is required.",
+        fieldErrors: {
+          name: ["Name is required."],
+        },
+      });
+    }
+
+    const category = await this.prisma.productCategory.findFirst({
+      where: { id: categoryId, tenantId: context.tenantId },
+      select: { id: true, name: true },
+    });
+
+    if (!category) {
+      throw new NotFoundException({
+        code: "PRODUCT_CATEGORY_NOT_FOUND",
+        message: "Category was not found.",
+      });
+    }
+
+    if (name === category.name) {
+      return this.renameCategoryRow(context.tenantId, category.id, name);
+    }
+
+    const existing = await this.prisma.productCategory.findFirst({
+      where: {
+        tenantId: context.tenantId,
+        name,
+        id: { not: category.id },
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw new ConflictException({
+        code: "PRODUCT_CATEGORY_EXISTS",
+        message: "Category already exists.",
+        fieldErrors: {
+          name: ["Category already exists."],
+        },
+      });
+    }
+
+    // `Product.category` is a free-text string (no FK), so cascade the rename to
+    // every product tagged with the old name to keep the catalog consistent.
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.productCategory.update({
+        where: { id: category.id },
+        data: { name },
+      }),
+      this.prisma.product.updateMany({
+        where: { tenantId: context.tenantId, category: category.name },
+        data: { category: name },
+      }),
+    ]);
+
+    return toProductCategoryResponse(updated);
+  }
+
+  private async renameCategoryRow(
+    tenantId: string,
+    categoryId: string,
+    name: string,
+  ): Promise<ProductCategoryResponse> {
+    const updated = await this.prisma.productCategory.update({
+      where: { id: categoryId },
+      data: { name },
+    });
+
+    return toProductCategoryResponse(updated);
   }
 
   async deleteCategory(

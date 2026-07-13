@@ -44,3 +44,7 @@ export type ProductCategoryResponse = {
 export type CreateProductCategoryRequestBody = {
   name?: unknown;
 };
+
+export type UpdateProductCategoryRequestBody = {
+  name?: unknown;
+};

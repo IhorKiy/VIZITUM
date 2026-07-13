@@ -175,6 +175,7 @@ Retail chains/networks a location can belong to. Reuses the locations permission
 | `GET /products/:productId`   | all: `products.read`   | —                                                                              |
 | `POST /products`             | all: `products.manage` | `{ externalCode?, name, sku?, category?, notApplicable? }`                     |
 | `PATCH /products/:productId` | all: `products.manage` | any create field plus `status?`                                                |
+| `DELETE /products/:productId`| all: `products.manage` | — (soft delete: sets `deletedAt`; returns `{ deleted: true }`)                 |
 
 ### Product categories — `/product-categories` (`product-categories.controller.ts`)
 
@@ -184,6 +185,7 @@ Managed vocabulary of category labels per tenant, used by the admin Products scr
 | -------------------------------------- | ---------------------- | ------------------- |
 | `GET /product-categories`              | all: `products.read`   | — (all, name asc)   |
 | `POST /product-categories`             | all: `products.manage` | `{ name }` — unique per tenant, 409 `PRODUCT_CATEGORY_EXISTS` on duplicate |
+| `PATCH /product-categories/:categoryId` | all: `products.manage` | `{ name }` — rename; cascades to `Product.category` of matching products; 409 on duplicate |
 | `DELETE /product-categories/:categoryId` | all: `products.manage` | — → `{ deleted: true }` |
 
 ### Routes — `/routes` (`routes.controller.ts`)

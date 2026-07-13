@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -71,6 +72,18 @@ export class ProductsController {
       getRequestContext(request),
       productId,
       body,
+    );
+  }
+
+  @Delete(":productId")
+  @RequirePermissions(PERMISSIONS.PRODUCTS_MANAGE)
+  deleteProduct(
+    @Req() request: Request,
+    @Param("productId") productId: string,
+  ) {
+    return this.productsService.deleteProduct(
+      getRequestContext(request),
+      productId,
     );
   }
 }

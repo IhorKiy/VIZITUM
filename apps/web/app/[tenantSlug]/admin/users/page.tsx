@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { InfoHint } from "../../../../components/info-hint";
 import { InviteUserModal } from "../../../../components/invite-user-modal";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -326,33 +327,27 @@ export default async function AdminUsersPage({
       ) : null}
 
       {pageState.status || pageState.role || pageState.deleted ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("userUpdateAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("userUpdatedEyebrow")}</p>
-            <h2>
-              {pageState.deleted
-                ? t("userDeletedTitle")
-                : t("accessUpdatedTitle")}
-            </h2>
-            <p>{t("userUpdatedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("userUpdateAria")}
+          body={t("userUpdatedBody")}
+          clearParams={["status", "role", "deleted"]}
+          eyebrow={t("userUpdatedEyebrow")}
+          title={
+            pageState.deleted ? t("userDeletedTitle") : t("accessUpdatedTitle")
+          }
+          tone="success"
+        />
       ) : null}
 
       {pageState.error ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("userErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("errorEyebrow")}</p>
-            <h2>{t("errorTitle")}</h2>
-            <p>{pageState.message ?? t("errorFallback")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("userErrorAria")}
+          body={pageState.message ?? t("errorFallback")}
+          clearParams={["error", "message"]}
+          eyebrow={t("errorEyebrow")}
+          title={t("errorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       <section className="manager-grid" aria-label={t("metricsAria")}>

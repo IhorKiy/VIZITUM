@@ -654,6 +654,12 @@ export async function updateAdminProduct(
   return apiPatch<Product>(`/products/${productId}`, input);
 }
 
+export async function deleteAdminProduct(
+  productId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(`/products/${productId}`);
+}
+
 export async function listProductCategories(): Promise<
   ApiResult<ProductCategory[]>
 > {
@@ -664,6 +670,13 @@ export async function createProductCategory(input: {
   name: string;
 }): Promise<ApiResult<ProductCategory>> {
   return apiPost<ProductCategory>("/product-categories", input);
+}
+
+export async function updateProductCategory(
+  categoryId: string,
+  input: { name: string },
+): Promise<ApiResult<ProductCategory>> {
+  return apiPatch<ProductCategory>(`/product-categories/${categoryId}`, input);
 }
 
 export async function deleteProductCategory(
