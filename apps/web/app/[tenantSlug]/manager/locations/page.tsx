@@ -12,10 +12,7 @@ import {
 import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 
-import {
-  buildLocationFieldOptions,
-  type FilterOption,
-} from "../../../../lib/filter-options";
+import { buildLocationFieldOptions } from "../../../../lib/filter-options";
 import {
   formatDateTime,
   formatEnumLabel,
