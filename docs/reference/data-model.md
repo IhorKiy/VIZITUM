@@ -8,7 +8,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 
 - IDs: `cuid()` strings.
 - Tenant-owned tables: `tenantId` + `createdAt` + `updatedAt`; soft delete via `deletedAt` where user-facing records can be removed (`users`, `locations`, `location_contacts`, `products`, `tasks`, `visit_notes`, `storage_objects`).
-- Uniqueness is tenant-scoped where it matters: `users @@unique([tenantId, email])`, `locations`/`products` `@@unique([tenantId, externalCode])`, `route_plans @@unique([tenantId, representativeUserId, planDate])`, `tenant_settings @@unique([tenantId, key])`.
+- Uniqueness is tenant-scoped where it matters: `users @@unique([tenantId, email])`, `locations @@unique([tenantId, externalCode])`, `route_plans @@unique([tenantId, representativeUserId, planDate])`, `tenant_settings @@unique([tenantId, key])`. `products` uniqueness on `(tenantId, externalCode)` is a **partial** unique index scoped to live rows (`WHERE deletedAt IS NULL`, migration `20260713120000_product_external_code_partial_unique`) — not a plain `@@unique`, so a soft-deleted product frees its externalCode for re-import/re-create (matches the `deletedAt: null` create + import pre-checks). Prisma can't express partial unique indexes, so it's managed via raw SQL and omitted from `schema.prisma`.
 
 ## Platform group
 

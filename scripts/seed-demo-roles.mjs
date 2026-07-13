@@ -351,22 +351,30 @@ async function seedProducts(tx, tenantId) {
   ];
 
   for (const row of rows) {
-    await tx.product.upsert({
-      where: {
-        tenantId_externalCode: {
-          tenantId,
-          externalCode: row.externalCode,
-        },
-      },
-      create: {
-        tenantId,
-        ...row,
-      },
-      update: {
-        ...row,
-        deletedAt: null,
-      },
+    // Product's (tenantId, externalCode) uniqueness is a PARTIAL index scoped to
+    // `deletedAt IS NULL`, which Prisma can't target with `upsert`. Match on the
+    // externalCode manually (including any soft-deleted seed row so re-seeding
+    // revives it), then update or create.
+    const existing = await tx.product.findFirst({
+      where: { tenantId, externalCode: row.externalCode },
     });
+
+    if (existing) {
+      await tx.product.update({
+        where: { id: existing.id },
+        data: {
+          ...row,
+          deletedAt: null,
+        },
+      });
+    } else {
+      await tx.product.create({
+        data: {
+          tenantId,
+          ...row,
+        },
+      });
+    }
   }
 }
 

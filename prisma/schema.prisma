@@ -545,7 +545,13 @@ model Product {
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
 
-  @@unique([tenantId, externalCode])
+  // Uniqueness on (tenantId, externalCode) is enforced by a PARTIAL unique index
+  // scoped to `deletedAt IS NULL` (see the
+  // `20260713120000_product_external_code_partial_unique` migration). Prisma
+  // can't express partial unique indexes in the schema, so it is managed via raw
+  // SQL and intentionally omitted here — do NOT reintroduce a plain
+  // `@@unique([tenantId, externalCode])`, which would reserve externalCodes of
+  // soft-deleted products and break re-import after delete.
   @@index([tenantId, status])
   @@map("products")
 }
