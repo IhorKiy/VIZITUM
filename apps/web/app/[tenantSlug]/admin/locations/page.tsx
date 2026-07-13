@@ -27,6 +27,7 @@ import {
   normalizeFilterValue,
   statusTone,
 } from "../../../../lib/format";
+import { getFormString } from "../../../../lib/form";
 
 type AdminLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -69,9 +70,9 @@ export default async function AdminLocationsPage({
   async function createLocationAction(formData: FormData) {
     "use server";
 
-    const name = String(formData.get("name") ?? "").trim();
-    const addressLine = String(formData.get("addressLine") ?? "").trim();
-    const city = String(formData.get("city") ?? "").trim();
+    const name = getFormString(formData, "name").trim();
+    const addressLine = getFormString(formData, "addressLine").trim();
+    const city = getFormString(formData, "city").trim();
 
     if (!name || !addressLine || !city) {
       redirect(`/${tenantSlug}/admin/locations?error=1`);
@@ -117,17 +118,17 @@ export default async function AdminLocationsPage({
     "use server";
 
     const errorHref = `/${tenantSlug}/admin/locations?error=1`;
-    const locationId = String(formData.get("locationId") ?? "").trim();
-    const name = String(formData.get("name") ?? "").trim();
-    const addressLine = String(formData.get("addressLine") ?? "").trim();
-    const city = String(formData.get("city") ?? "").trim();
+    const locationId = getFormString(formData, "locationId").trim();
+    const name = getFormString(formData, "name").trim();
+    const addressLine = getFormString(formData, "addressLine").trim();
+    const city = getFormString(formData, "city").trim();
     const externalCode = normalizeOptionalField(formData.get("externalCode"));
     // "Category" reuses the existing free-text `type` column.
     const type = normalizeOptionalField(formData.get("type"));
     const chainId = normalizeOptionalField(formData.get("chainId"));
     const region = normalizeOptionalField(formData.get("region"));
     const notes = normalizeOptionalField(formData.get("notes"));
-    const status = normalizeStatus(String(formData.get("status") ?? ""));
+    const status = normalizeStatus(getFormString(formData, "status"));
 
     if (!locationId || !name || !addressLine || !city || !status) {
       redirect(errorHref);
@@ -155,9 +156,7 @@ export default async function AdminLocationsPage({
       const contactId = normalizeOptionalField(
         formData.get(`contact${slot}Id`),
       );
-      const contactName = String(
-        formData.get(`contact${slot}Name`) ?? "",
-      ).trim();
+      const contactName = getFormString(formData, `contact${slot}Name`).trim();
       const phone = normalizeOptionalField(formData.get(`contact${slot}Phone`));
 
       if (contactName) {
@@ -666,7 +665,7 @@ function normalizeStatus(value: string | undefined): LocationStatus | null {
 function normalizeOptionalField(
   value: FormDataEntryValue | null,
 ): string | null {
-  const normalizedValue = String(value ?? "").trim();
+  const normalizedValue = typeof value === "string" ? value.trim() : "";
 
   return normalizedValue || null;
 }

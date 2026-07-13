@@ -19,6 +19,7 @@ import {
   formatEnumLabel,
   statusPillTone,
 } from "../../../../../lib/format";
+import { getFormString } from "../../../../../lib/form";
 
 type LocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
@@ -58,7 +59,7 @@ export default async function LocationDetailPage({
     "use server";
 
     const actionSessionResult = await getCurrentSession();
-    const formRouteItemId = String(formData.get("routeItemId") ?? "").trim();
+    const formRouteItemId = getFormString(formData, "routeItemId").trim();
 
     if (!actionSessionResult.ok) {
       redirect(
@@ -89,8 +90,8 @@ export default async function LocationDetailPage({
   async function markVisitedAction(formData: FormData) {
     "use server";
 
-    const formRoutePlanId = String(formData.get("routePlanId") ?? "").trim();
-    const formRouteItemId = String(formData.get("routeItemId") ?? "").trim();
+    const formRoutePlanId = getFormString(formData, "routePlanId").trim();
+    const formRouteItemId = getFormString(formData, "routeItemId").trim();
 
     if (!formRoutePlanId || !formRouteItemId) {
       redirect(`/${tenantSlug}/field/locations/${locationId}?error=route`);

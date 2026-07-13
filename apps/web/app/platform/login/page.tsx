@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { buildApiUrl } from "../../../lib/api-client";
 import { buildRequestHeaders } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
+import { getFormString } from "../../../lib/form";
 
 type PlatformLoginPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -16,8 +17,8 @@ export default async function PlatformLoginPage({
   async function loginAction(formData: FormData) {
     "use server";
 
-    const email = String(formData.get("email") ?? "");
-    const password = String(formData.get("password") ?? "");
+    const email = getFormString(formData, "email");
+    const password = getFormString(formData, "password");
     let response: Response;
 
     try {

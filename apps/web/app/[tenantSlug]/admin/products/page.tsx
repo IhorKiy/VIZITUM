@@ -26,6 +26,7 @@ import {
   normalizeFilterValue,
   statusTone,
 } from "../../../../lib/format";
+import { getFormString } from "../../../../lib/form";
 
 type AdminProductsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -79,7 +80,7 @@ export default async function AdminProductsPage({
   async function updateProductAction(formData: FormData) {
     "use server";
 
-    const productId = String(formData.get("productId") ?? "").trim();
+    const productId = getFormString(formData, "productId").trim();
 
     if (!productId) {
       redirect(`/${tenantSlug}/admin/products?error=1`);
@@ -95,7 +96,7 @@ export default async function AdminProductsPage({
     } = {};
 
     if (formData.has("name")) {
-      const name = String(formData.get("name") ?? "").trim();
+      const name = getFormString(formData, "name").trim();
       if (!name) {
         redirect(`/${tenantSlug}/admin/products?error=1`);
       }
@@ -111,7 +112,7 @@ export default async function AdminProductsPage({
     }
 
     if (formData.has("status")) {
-      const status = normalizeStatus(String(formData.get("status") ?? ""));
+      const status = normalizeStatus(getFormString(formData, "status"));
       if (!status) {
         redirect(`/${tenantSlug}/admin/products?error=1`);
       }
@@ -130,7 +131,7 @@ export default async function AdminProductsPage({
   async function deleteProductAction(formData: FormData) {
     "use server";
 
-    const productId = String(formData.get("productId") ?? "").trim();
+    const productId = getFormString(formData, "productId").trim();
 
     if (!productId) {
       redirect(`/${tenantSlug}/admin/products?error=1`);
@@ -148,7 +149,7 @@ export default async function AdminProductsPage({
   async function createProductAction(formData: FormData) {
     "use server";
 
-    const name = String(formData.get("name") ?? "").trim();
+    const name = getFormString(formData, "name").trim();
     const sku = normalizeOptionalField(formData.get("sku"));
     const category = normalizeOptionalField(formData.get("category"));
 
@@ -172,7 +173,7 @@ export default async function AdminProductsPage({
   async function createCategoryAction(formData: FormData) {
     "use server";
 
-    const name = String(formData.get("name") ?? "").trim();
+    const name = getFormString(formData, "name").trim();
 
     if (!name) {
       redirect(`/${tenantSlug}/admin/products?error=1`);
@@ -190,8 +191,8 @@ export default async function AdminProductsPage({
   async function updateCategoryAction(formData: FormData) {
     "use server";
 
-    const categoryId = String(formData.get("categoryId") ?? "").trim();
-    const name = String(formData.get("name") ?? "").trim();
+    const categoryId = getFormString(formData, "categoryId").trim();
+    const name = getFormString(formData, "name").trim();
 
     if (!categoryId || !name) {
       redirect(`/${tenantSlug}/admin/products?error=1`);
@@ -209,7 +210,7 @@ export default async function AdminProductsPage({
   async function deleteCategoryAction(formData: FormData) {
     "use server";
 
-    const categoryId = String(formData.get("categoryId") ?? "").trim();
+    const categoryId = getFormString(formData, "categoryId").trim();
 
     if (!categoryId) {
       redirect(`/${tenantSlug}/admin/products?error=1`);
@@ -754,7 +755,7 @@ function normalizeStatus(value: string | undefined): ProductStatus | null {
 function normalizeOptionalField(
   value: FormDataEntryValue | null,
 ): string | null {
-  const normalizedValue = String(value ?? "").trim();
+  const normalizedValue = typeof value === "string" ? value.trim() : "";
 
   return normalizedValue || null;
 }

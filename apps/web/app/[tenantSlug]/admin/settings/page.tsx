@@ -8,6 +8,7 @@ import {
   getAdminSettings,
   updateAdminSettings,
 } from "../../../../lib/api-client";
+import { getFormString } from "../../../../lib/form";
 
 type AdminSettingsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -32,9 +33,9 @@ export default async function AdminSettingsPage({
   async function updateSettingsAction(formData: FormData) {
     "use server";
 
-    const name = String(formData.get("name") ?? "").trim();
-    const timezone = String(formData.get("timezone") ?? "").trim();
-    const language = String(formData.get("language") ?? "").trim();
+    const name = getFormString(formData, "name").trim();
+    const timezone = getFormString(formData, "timezone").trim();
+    const language = getFormString(formData, "language").trim();
     const productsEnabled = formData.get("productsEnabled") === "on";
 
     if (!name || !timezone || !language) {

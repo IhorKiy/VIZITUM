@@ -17,6 +17,7 @@ import {
   normalizeFilterValue,
   statusTone,
 } from "../../../../lib/format";
+import { getFormString } from "../../../../lib/form";
 
 type AdminChainsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -59,7 +60,7 @@ export default async function AdminChainsPage({
   async function createChainAction(formData: FormData) {
     "use server";
 
-    const name = String(formData.get("name") ?? "").trim();
+    const name = getFormString(formData, "name").trim();
     const externalCode = normalizeOptionalField(formData.get("externalCode"));
     const notes = normalizeOptionalField(formData.get("notes"));
 
@@ -79,11 +80,11 @@ export default async function AdminChainsPage({
   async function updateChainAction(formData: FormData) {
     "use server";
 
-    const chainId = String(formData.get("chainId") ?? "").trim();
-    const name = String(formData.get("name") ?? "").trim();
+    const chainId = getFormString(formData, "chainId").trim();
+    const name = getFormString(formData, "name").trim();
     const externalCode = normalizeOptionalField(formData.get("externalCode"));
     const notes = normalizeOptionalField(formData.get("notes"));
-    const status = normalizeStatus(String(formData.get("status") ?? ""));
+    const status = normalizeStatus(getFormString(formData, "status"));
 
     if (!chainId || !name || !status) {
       redirect(`/${tenantSlug}/admin/chains?error=1`);
@@ -402,7 +403,7 @@ function normalizeStatus(value: string | undefined): ChainStatus | null {
 function normalizeOptionalField(
   value: FormDataEntryValue | null,
 ): string | null {
-  const normalizedValue = String(value ?? "").trim();
+  const normalizedValue = typeof value === "string" ? value.trim() : "";
 
   return normalizedValue || null;
 }

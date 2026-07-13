@@ -37,6 +37,7 @@ import { StatusChangeForm } from "./status-change-form";
 import { TenantAdminControls } from "./tenant-admin-controls";
 import { LanguageForm } from "./language-form";
 import { TimezoneForm } from "./timezone-form";
+import { getFormString } from "../../../lib/form";
 
 const SEGMENT_TEMPLATES: PlatformSegmentTemplate[] = [
   "distribution",
@@ -126,18 +127,19 @@ export default async function PlatformTenantsPage({
   async function createTenantAction(formData: FormData) {
     "use server";
 
-    const name = String(formData.get("name") ?? "").trim();
-    const slug = String(formData.get("slug") ?? "").trim();
-    const segmentTemplate = String(
-      formData.get("segmentTemplate") ?? "",
+    const name = getFormString(formData, "name").trim();
+    const slug = getFormString(formData, "slug").trim();
+    const segmentTemplate = getFormString(
+      formData,
+      "segmentTemplate",
     ) as PlatformSegmentTemplate;
-    const country = String(formData.get("country") ?? "").trim();
-    const timezone = String(formData.get("timezone") ?? "").trim();
-    const language = String(formData.get("language") ?? "").trim();
-    const contactName = String(formData.get("contactName") ?? "").trim();
-    const contactEmail = String(formData.get("contactEmail") ?? "").trim();
-    const contactPhone = String(formData.get("contactPhone") ?? "").trim();
-    const primaryDomain = String(formData.get("primaryDomain") ?? "").trim();
+    const country = getFormString(formData, "country").trim();
+    const timezone = getFormString(formData, "timezone").trim();
+    const language = getFormString(formData, "language").trim();
+    const contactName = getFormString(formData, "contactName").trim();
+    const contactEmail = getFormString(formData, "contactEmail").trim();
+    const contactPhone = getFormString(formData, "contactPhone").trim();
+    const primaryDomain = getFormString(formData, "primaryDomain").trim();
 
     if (
       !name ||
@@ -173,8 +175,8 @@ export default async function PlatformTenantsPage({
   async function updateStatusAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const status = String(formData.get("status") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const status = getFormString(formData, "status").trim();
 
     if (!tenantId || !ASSIGNABLE_STATUSES.includes(status)) {
       redirect("/platform/tenants?error=1");
@@ -188,8 +190,8 @@ export default async function PlatformTenantsPage({
   async function updateNameAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const name = String(formData.get("name") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const name = getFormString(formData, "name").trim();
 
     if (!tenantId || !name) {
       redirect("/platform/tenants?error=1");
@@ -203,7 +205,7 @@ export default async function PlatformTenantsPage({
   async function archiveAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
 
     if (!tenantId) {
       redirect("/platform/tenants?error=1");
@@ -217,7 +219,7 @@ export default async function PlatformTenantsPage({
   async function unarchiveAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
 
     if (!tenantId) {
       redirect("/platform/tenants?error=1");
@@ -231,8 +233,8 @@ export default async function PlatformTenantsPage({
   async function purgeAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const confirmSlug = String(formData.get("confirmSlug") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const confirmSlug = getFormString(formData, "confirmSlug").trim();
 
     if (!tenantId || !confirmSlug) {
       redirect("/platform/tenants?error=1");
@@ -248,9 +250,9 @@ export default async function PlatformTenantsPage({
   async function inviteSuperadminAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const tenantSlug = String(formData.get("tenantSlug") ?? "").trim();
-    const email = String(formData.get("email") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const tenantSlug = getFormString(formData, "tenantSlug").trim();
+    const email = getFormString(formData, "email").trim();
 
     if (!tenantId || !tenantSlug || !email) {
       redirect("/platform/tenants?error=invite");
@@ -284,8 +286,8 @@ export default async function PlatformTenantsPage({
   async function promoteSuperadminAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const userId = String(formData.get("userId") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const userId = getFormString(formData, "userId").trim();
 
     if (!tenantId || !userId) {
       redirect("/platform/tenants?error=1");
@@ -301,8 +303,8 @@ export default async function PlatformTenantsPage({
   async function updateCountryAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const country = String(formData.get("country") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const country = getFormString(formData, "country").trim();
 
     if (!tenantId || !country) {
       redirect("/platform/tenants?error=1");
@@ -316,8 +318,8 @@ export default async function PlatformTenantsPage({
   async function updateTimezoneAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const timezone = String(formData.get("timezone") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const timezone = getFormString(formData, "timezone").trim();
 
     if (!tenantId || !timezone) {
       redirect("/platform/tenants?error=1");
@@ -331,8 +333,8 @@ export default async function PlatformTenantsPage({
   async function updateLanguageAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const language = String(formData.get("language") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const language = getFormString(formData, "language").trim();
 
     if (!tenantId || !language) {
       redirect("/platform/tenants?error=1");
@@ -346,9 +348,9 @@ export default async function PlatformTenantsPage({
   async function updateContactAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
-    const field = String(formData.get("field") ?? "").trim();
-    const value = String(formData.get("value") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const field = getFormString(formData, "field").trim();
+    const value = getFormString(formData, "value").trim();
 
     if (!tenantId || !value) {
       redirect("/platform/tenants?error=1");
@@ -371,7 +373,7 @@ export default async function PlatformTenantsPage({
   async function updateAdminLimitAction(formData: FormData) {
     "use server";
 
-    const tenantId = String(formData.get("tenantId") ?? "").trim();
+    const tenantId = getFormString(formData, "tenantId").trim();
     if (!tenantId) {
       redirect("/platform/tenants?error=1");
     }

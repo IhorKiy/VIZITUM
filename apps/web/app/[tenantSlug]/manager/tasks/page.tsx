@@ -19,6 +19,7 @@ import {
   type FilterOption,
 } from "../../../../lib/filter-options";
 import { formatEnumLabel, type CommonTranslator } from "../../../../lib/format";
+import { getFormString } from "../../../../lib/form";
 
 type ManagerTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -99,8 +100,8 @@ export default async function ManagerTasksPage({
   async function updateTaskStatusAction(formData: FormData) {
     "use server";
 
-    const taskId = String(formData.get("taskId") ?? "").trim();
-    const status = normalizeTaskStatus(String(formData.get("status") ?? ""));
+    const taskId = getFormString(formData, "taskId").trim();
+    const status = normalizeTaskStatus(getFormString(formData, "status"));
 
     if (!taskId || !status) {
       redirect(`/${tenantSlug}/manager/tasks?error=update`);

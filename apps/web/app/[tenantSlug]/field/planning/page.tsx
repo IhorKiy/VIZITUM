@@ -15,6 +15,7 @@ import {
   type RoutePlan,
 } from "../../../../lib/api-client";
 import type { IntlFormatter } from "../../../../lib/format";
+import { getFormString } from "../../../../lib/form";
 
 type PlanningPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -44,8 +45,8 @@ export default async function PlanningPage({
   async function addStopAction(formData: FormData) {
     "use server";
 
-    const planDate = String(formData.get("planDate") ?? "").trim();
-    const locationId = String(formData.get("locationId") ?? "").trim();
+    const planDate = getFormString(formData, "planDate").trim();
+    const locationId = getFormString(formData, "locationId").trim();
     const sessionResult = await getCurrentSession();
 
     if (!isDateString(planDate) || !locationId || !sessionResult.ok) {
@@ -79,9 +80,9 @@ export default async function PlanningPage({
   async function moveStopAction(formData: FormData) {
     "use server";
 
-    const routePlanId = String(formData.get("routePlanId") ?? "").trim();
-    const routeItemId = String(formData.get("routeItemId") ?? "").trim();
-    const planDate = String(formData.get("planDate") ?? "").trim();
+    const routePlanId = getFormString(formData, "routePlanId").trim();
+    const routeItemId = getFormString(formData, "routeItemId").trim();
+    const planDate = getFormString(formData, "planDate").trim();
     const direction = formData.get("direction") === "up" ? "up" : "down";
     const backHref = planningHref(tenantSlug, planDate || selectedDate);
 
@@ -132,9 +133,9 @@ export default async function PlanningPage({
   async function removeStopAction(formData: FormData) {
     "use server";
 
-    const routePlanId = String(formData.get("routePlanId") ?? "").trim();
-    const routeItemId = String(formData.get("routeItemId") ?? "").trim();
-    const planDate = String(formData.get("planDate") ?? "").trim();
+    const routePlanId = getFormString(formData, "routePlanId").trim();
+    const routeItemId = getFormString(formData, "routeItemId").trim();
+    const planDate = getFormString(formData, "planDate").trim();
 
     if (!routePlanId || !routeItemId) {
       redirect(planningHref(tenantSlug, planDate || selectedDate, "remove"));

@@ -8,6 +8,7 @@ import {
   resolveZoneLanding,
   zoneHomePath,
 } from "../../../lib/navigation";
+import { getFormString } from "../../../lib/form";
 
 type LoginPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -28,8 +29,8 @@ export default async function LoginPage({
   async function loginAction(formData: FormData) {
     "use server";
 
-    const email = String(formData.get("email") ?? "");
-    const password = String(formData.get("password") ?? "");
+    const email = getFormString(formData, "email");
+    const password = getFormString(formData, "password");
     let response: Response;
 
     try {

@@ -17,6 +17,7 @@ import {
 } from "../../../../lib/api-client";
 import { formatDateTime } from "../../../../lib/format";
 import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
+import { getFormString } from "../../../../lib/form";
 
 type ImportsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -84,7 +85,7 @@ export default async function ImportsPage({
   async function validateImportAction(formData: FormData) {
     "use server";
 
-    const templateType = String(formData.get("templateType") ?? "").trim();
+    const templateType = getFormString(formData, "templateType").trim();
     const importFile = formData.get("importFile");
 
     if (
@@ -119,7 +120,7 @@ export default async function ImportsPage({
   async function confirmImportAction(formData: FormData) {
     "use server";
 
-    const importJobId = String(formData.get("importJobId") ?? "").trim();
+    const importJobId = getFormString(formData, "importJobId").trim();
 
     if (!importJobId) {
       redirect(`/${tenantSlug}/admin/imports?error=confirm`);

@@ -42,7 +42,11 @@ export default getRequestConfig(async () => {
       ? defaultMessages
       : mergeWithFallback(
           defaultMessages,
-          (await import(`../messages/${locale}.json`)).default as Messages,
+          (
+            (await import(`../messages/${locale}.json`)) as {
+              default: Messages;
+            }
+          ).default,
         );
 
   return { locale, timeZone, messages };
