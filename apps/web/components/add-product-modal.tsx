@@ -67,10 +67,6 @@ export function AddProductModal({ action, categories }: AddProductModalProps) {
               ))}
             </select>
           </label>
-          <label className="checkbox-inline">
-            <input name="notApplicable" type="checkbox" />
-            <span>{t("notApplicableCheckbox")}</span>
-          </label>
 
           <div className="modal-actions">
             <button

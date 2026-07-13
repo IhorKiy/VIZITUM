@@ -224,11 +224,8 @@ function buildChecklist(
     (location) => location.status === "active",
   ).length;
   const activeProductCount = products.filter(
-    (product) => product.status === "active" && !product.notApplicable,
+    (product) => product.status === "active",
   ).length;
-  const productNotApplicable = products.some(
-    (product) => product.notApplicable,
-  );
   const initialPlanTemplateReady = templates.some(
     (template) => template.type === "initial_visit_task_plan",
   );
@@ -268,15 +265,11 @@ function buildChecklist(
     {
       title: t("productsTitle"),
       detail:
-        activeProductCount > 0 || productNotApplicable
-          ? activeProductCount > 0
-            ? t("productsReady", { count: activeProductCount })
-            : t("productsNotApplicable")
+        activeProductCount > 0
+          ? t("productsReady", { count: activeProductCount })
           : t("productsNeedsWork"),
       status:
-        productsResult.ok && (activeProductCount > 0 || productNotApplicable)
-          ? "ready"
-          : "needs-work",
+        productsResult.ok && activeProductCount > 0 ? "ready" : "needs-work",
       actionLabel: t("reviewImports"),
       href: `/${tenantSlug}/admin/imports`,
     },
