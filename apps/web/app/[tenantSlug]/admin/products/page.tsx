@@ -68,7 +68,6 @@ export default async function AdminProductsPage({
     const name = String(formData.get("name") ?? "").trim();
     const sku = normalizeOptionalField(formData.get("sku"));
     const category = normalizeOptionalField(formData.get("category"));
-    const notApplicable = formData.get("notApplicable") === "on";
     const status = normalizeStatus(String(formData.get("status") ?? ""));
 
     if (!productId || !name || !status) {
@@ -79,7 +78,6 @@ export default async function AdminProductsPage({
       name,
       sku,
       category,
-      notApplicable,
       status,
     });
 
@@ -96,7 +94,6 @@ export default async function AdminProductsPage({
     const name = String(formData.get("name") ?? "").trim();
     const sku = normalizeOptionalField(formData.get("sku"));
     const category = normalizeOptionalField(formData.get("category"));
-    const notApplicable = formData.get("notApplicable") === "on";
 
     if (!name) {
       redirect(`/${tenantSlug}/admin/products?error=1`);
@@ -106,7 +103,6 @@ export default async function AdminProductsPage({
       name,
       sku,
       category,
-      notApplicable,
     });
 
     if (!result.ok) {
@@ -187,9 +183,6 @@ export default async function AdminProductsPage({
   const activeCount = products.filter(
     (product) => product.status === "active",
   ).length;
-  const notApplicableCount = products.filter(
-    (product) => product.notApplicable,
-  ).length;
 
   const categoriesResult = await listProductCategories();
   const categories: ProductCategory[] = categoriesResult.ok
@@ -268,14 +261,6 @@ export default async function AdminProductsPage({
           <p className="small-label">
             {t("activeCount", { count: activeCount })}
           </p>
-        </article>
-        <article className="metric-card">
-          <header>
-            <p className="metric-label">{t("notApplicable")}</p>
-            <span className="status-pill info">{t("flag")}</span>
-          </header>
-          <p className="metric-value">{notApplicableCount}</p>
-          <p className="small-label">{t("notApplicableDetail")}</p>
         </article>
       </section>
 
@@ -389,59 +374,65 @@ function ProductRow({
   const tCommon = useTranslations("common");
 
   return (
-    <article className="admin-user-row">
-      <header>
-        <div>
+    // Exclusive-accordion disclosure: the shared `name` keeps only one product
+    // expanded at a time; collapsed rows show just the name/SKU summary and the
+    // edit form stays hidden until a row is opened.
+    <details
+      className="admin-user-row admin-user-disclosure"
+      name="admin-product"
+    >
+      <summary className="admin-user-summary">
+        <div className="admin-user-summary-lead">
           <h3>{product.name}</h3>
           <p>
             {product.sku ? t("skuLabel", { sku: product.sku }) : t("noSku")}
           </p>
         </div>
-        <span className={`status-pill ${statusTone(product.status)}`}>
-          {formatEnumLabel(tCommon, product.status)}
-        </span>
-      </header>
+        <div className="admin-user-summary-meta">
+          <span className={`status-pill ${statusTone(product.status)}`}>
+            {formatEnumLabel(tCommon, product.status)}
+          </span>
+          <span className="disclosure-chevron" aria-hidden="true" />
+        </div>
+      </summary>
 
-      <form action={updateProductAction} className="visit-form compact">
-        <input name="productId" type="hidden" value={product.id} />
-        <label>
-          {t("name")}
-          <input defaultValue={product.name} name="name" required />
-        </label>
-        <label>
-          {t("sku")}
-          <input defaultValue={product.sku ?? ""} name="sku" />
-        </label>
-        <label>
-          {t("category")}
-          <input defaultValue={product.category ?? ""} name="category" />
-        </label>
-        <label className="checkbox-inline">
-          <input
-            defaultChecked={product.notApplicable}
-            name="notApplicable"
-            type="checkbox"
-          />
-          <span>{t("notApplicableCheckbox")}</span>
-        </label>
-        <label>
-          {t("status")}
-          <select defaultValue={product.status} name="status" required>
-            {productStatuses.map((status) => (
-              <option key={status} value={status}>
-                {formatEnumLabel(tCommon, status)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <PendingSubmitButton
-          className="secondary-button"
-          pendingLabel={tCommon("saving")}
+      <div className="admin-user-body">
+        <form
+          action={updateProductAction}
+          className="visit-form compact visit-form-2col"
         >
-          {t("saveProduct")}
-        </PendingSubmitButton>
-      </form>
-    </article>
+          <input name="productId" type="hidden" value={product.id} />
+          <label>
+            {t("name")}
+            <input defaultValue={product.name} name="name" required />
+          </label>
+          <label>
+            {t("sku")}
+            <input defaultValue={product.sku ?? ""} name="sku" />
+          </label>
+          <label>
+            {t("category")}
+            <input defaultValue={product.category ?? ""} name="category" />
+          </label>
+          <label>
+            {t("status")}
+            <select defaultValue={product.status} name="status" required>
+              {productStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {formatEnumLabel(tCommon, status)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <PendingSubmitButton
+            className="secondary-button visit-form-full"
+            pendingLabel={tCommon("saving")}
+          >
+            {t("saveProduct")}
+          </PendingSubmitButton>
+        </form>
+      </div>
+    </details>
   );
 }
 

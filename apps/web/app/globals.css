@@ -810,9 +810,15 @@ textarea {
   padding: 0;
 }
 
+/* Lift the open row off the list: an accent frame plus a soft shadow so the
+   expanded editor is clearly distinct from its collapsed siblings. */
 .admin-user-disclosure[open] {
   gap: 12px;
   padding: 14px;
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 10px 24px rgba(22, 30, 26, 0.08);
 }
 
 .admin-user-summary {
