@@ -2,15 +2,14 @@ import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import {
+  countActiveProducts,
   listAdminUsers,
   listImportTemplates,
   listLocations,
-  listProducts,
   type ApiResult,
   type ImportTemplateSummary,
   type Location,
   type PaginatedResponse,
-  type Product,
   type TenantUser,
 } from "../../../../lib/api-client";
 
@@ -41,7 +40,7 @@ export default async function AdminSetupPage({ params }: AdminSetupPageProps) {
     await Promise.all([
       listAdminUsers(),
       listLocations(),
-      listProducts(),
+      countActiveProducts(),
       listImportTemplates(),
     ]);
 
@@ -202,14 +201,13 @@ function buildChecklist(
     tenantSlug: string;
     usersResult: ApiResult<PaginatedResponse<TenantUser>>;
     locationsResult: ApiResult<PaginatedResponse<Location>>;
-    productsResult: ApiResult<PaginatedResponse<Product>>;
+    productsResult: ApiResult<number>;
     templatesResult: ApiResult<ImportTemplateSummary[]>;
   },
   t: SetupTranslator,
 ): ChecklistItem[] {
   const users = usersResult.ok ? usersResult.data.items : [];
   const locations = locationsResult.ok ? locationsResult.data.items : [];
-  const products = productsResult.ok ? productsResult.data.items : [];
   const templates = templatesResult.ok ? templatesResult.data : [];
   const hasAdmin = users.some((user) =>
     user.roleCodes.includes("company_admin"),
@@ -223,9 +221,7 @@ function buildChecklist(
   const activeLocationCount = locations.filter(
     (location) => location.status === "active",
   ).length;
-  const activeProductCount = products.filter(
-    (product) => product.status === "active",
-  ).length;
+  const activeProductCount = productsResult.ok ? productsResult.data : 0;
   const initialPlanTemplateReady = templates.some(
     (template) => template.type === "initial_visit_task_plan",
   );
