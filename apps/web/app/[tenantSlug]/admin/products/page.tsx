@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { AddProductModal } from "../../../../components/add-product-modal";
 import { AppShell } from "../../../../components/app-shell";
@@ -49,10 +49,11 @@ export default async function AdminProductsPage({
 }: AdminProductsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [t, tAdmin, tCommon] = await Promise.all([
+  const [t, tAdmin, tCommon, locale] = await Promise.all([
     getTranslations("admin.products"),
     getTranslations("admin"),
     getTranslations("common"),
+    getLocale(),
   ]);
   const selectedStatus = normalizeStatus(pageState.status);
   const selectedCategory = normalizeFilterValue(pageState.category);
@@ -275,7 +276,7 @@ export default async function AdminProductsPage({
       : categories;
 
   const productGroups = groupByCategory
-    ? buildProductGroups(products, t("noCategoryOption"))
+    ? buildProductGroups(products, t("noCategoryOption"), locale)
     : [];
 
   return (
@@ -706,6 +707,7 @@ function buildProductHref(
 function buildProductGroups(
   products: Product[],
   uncategorizedLabel: string,
+  locale: string,
 ): { key: string; label: string; items: Product[] }[] {
   const groups = new Map<
     string,
@@ -737,7 +739,7 @@ function buildProductGroups(
       return -1;
     }
 
-    return a.label.localeCompare(b.label);
+    return a.label.localeCompare(b.label, locale);
   });
 }
 
