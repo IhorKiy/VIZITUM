@@ -3,16 +3,14 @@
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
-import type { ProductCategory } from "../lib/api-client";
 import { PendingSubmitButton } from "./pending-submit-button";
 
-type AddProductModalProps = {
+type AddChainModalProps = {
   action: (formData: FormData) => Promise<void>;
-  categories: ProductCategory[];
 };
 
-export function AddProductModal({ action, categories }: AddProductModalProps) {
-  const t = useTranslations("admin.products");
+export function AddChainModal({ action }: AddChainModalProps) {
+  const t = useTranslations("admin.chains");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -24,17 +22,17 @@ export function AddProductModal({ action, categories }: AddProductModalProps) {
         onClick={() => dialogRef.current?.showModal()}
         type="button"
       >
-        {t("addProduct")}
+        {t("createChain")}
       </button>
 
       <dialog
-        aria-labelledby="add-product-title"
+        aria-labelledby="add-chain-title"
         className="modal-dialog"
         ref={dialogRef}
       >
         <div className="modal-header">
           <div>
-            <h2 id="add-product-title">{t("addProduct")}</h2>
+            <h2 id="add-chain-title">{t("createTitle")}</h2>
           </div>
           <button
             aria-label={tCommon("close")}
@@ -49,22 +47,15 @@ export function AddProductModal({ action, categories }: AddProductModalProps) {
         <form action={action} className="visit-form compact modal-form">
           <label>
             {t("name")}
-            <input name="name" placeholder={t("namePlaceholder")} required />
+            <input name="name" required />
           </label>
           <label>
-            {t("sku")}
-            <input name="sku" placeholder={t("skuPlaceholder")} />
+            {t("externalCode")}
+            <input name="externalCode" />
           </label>
           <label>
-            {t("category")}
-            <select defaultValue="" name="category">
-              <option value="">{t("noCategoryOption")}</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.name}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+            {t("notes")}
+            <input name="notes" />
           </label>
 
           <div className="modal-actions">
@@ -79,7 +70,7 @@ export function AddProductModal({ action, categories }: AddProductModalProps) {
               className="primary-button"
               pendingLabel={tCommon("saving")}
             >
-              {t("addProduct")}
+              {t("createChain")}
             </PendingSubmitButton>
           </div>
         </form>

@@ -7,9 +7,16 @@ import { CheckIcon, CloseIcon, PencilIcon } from "./icons";
 
 type Option = { value: string; label: string };
 
-type ProductFieldEditorProps = {
-  productId: string;
-  field: "name" | "sku" | "category" | "status";
+// Message namespaces wired to this editor; each must provide `editField` and
+// `cancelEdit`. Add a namespace here when a new screen adopts the editor.
+type EditorNamespace = "admin.products" | "admin.chains";
+
+type InlineFieldEditorProps = {
+  // Id of the entity being edited and the form field name it is submitted under
+  // (e.g. "productId" or "chainId"), so one editor works across screens.
+  entityId: string;
+  idFieldName: string;
+  field: string;
   label: string;
   // Raw value that drives the control (input text or option value).
   value: string;
@@ -19,11 +26,14 @@ type ProductFieldEditorProps = {
   options?: Option[];
   required?: boolean;
   placeholder?: string;
+  // Translation namespace that provides `editField` and `cancelEdit`.
+  namespace: EditorNamespace;
   updateAction: (formData: FormData) => Promise<void>;
 };
 
-export function ProductFieldEditor({
-  productId,
+export function InlineFieldEditor({
+  entityId,
+  idFieldName,
   field,
   label,
   value,
@@ -32,9 +42,10 @@ export function ProductFieldEditor({
   options,
   required = false,
   placeholder,
+  namespace,
   updateAction,
-}: ProductFieldEditorProps) {
-  const t = useTranslations("admin.products");
+}: InlineFieldEditorProps) {
+  const t = useTranslations(namespace);
   const tCommon = useTranslations("common");
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -79,7 +90,7 @@ export function ProductFieldEditor({
     }
 
     const formData = new FormData();
-    formData.set("productId", productId);
+    formData.set(idFieldName, entityId);
     formData.set(field, next);
     startTransition(() => {
       void updateAction(formData);

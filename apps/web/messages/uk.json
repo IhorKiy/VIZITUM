@@ -524,7 +524,6 @@
       "notes": "Нотатки",
       "saveLocation": "Зберегти точку",
       "addLocation": "Додати точку",
-      "createLocationBody": "Створіть нову точку для цього простору.",
       "createLocation": "Створити точку",
       "creating": "Створення...",
       "cancel": "Скасувати",
@@ -540,7 +539,6 @@
       "tenantChains": "Мережі тенанта",
       "activeCount": "Активних мереж: {count}",
       "createTitle": "Додати мережу",
-      "createBody": "Створіть мережу один раз, а потім призначайте їй точки на екрані точок або через імпорт.",
       "createdAria": "Статус мережі",
       "createdEyebrow": "Мережу додано",
       "createdTitle": "Мережу створено",
@@ -568,7 +566,11 @@
       "notes": "Нотатки",
       "status": "Статус",
       "createChain": "Додати мережу",
-      "saveChain": "Зберегти мережу"
+      "editField": "Редагувати: {field}",
+      "cancelEdit": "Скасувати",
+      "archiveChain": "Архівувати",
+      "archivingChain": "Архівування…",
+      "archiveChainPrompt": "Архівувати «{name}»? Мережа перейде до архівних."
     },
     "products": {
       "title": "Товари / SKU",
@@ -615,7 +617,6 @@
       "editField": "Редагувати: {field}",
       "cancelEdit": "Скасувати",
       "addProduct": "Додати товар",
-      "addProductBody": "Створіть новий товар для цього простору.",
       "namePlaceholder": "Назва товару",
       "skuPlaceholder": "Код SKU",
       "noCategoryOption": "Без категорії",
