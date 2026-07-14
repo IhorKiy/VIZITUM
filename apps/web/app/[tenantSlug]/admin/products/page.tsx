@@ -7,7 +7,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { CategoriesAccordion } from "../../../../components/categories-accordion";
 import { DeleteProductButton } from "../../../../components/delete-product-button";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
-import { ProductFieldEditor } from "../../../../components/product-field-editor";
+import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import {
   createAdminProduct,
   createProductCategory,
@@ -618,43 +618,51 @@ function ProductRow({
 
       <div className="admin-user-body">
         <div className="visit-form compact visit-form-2col">
-          <ProductFieldEditor
+          <InlineFieldEditor
+            entityId={product.id}
+            idFieldName="productId"
+            namespace="admin.products"
             field="name"
             kind="text"
             label={t("name")}
-            productId={product.id}
             required
             updateAction={updateProductAction}
             value={product.name}
             displayText={product.name}
           />
-          <ProductFieldEditor
+          <InlineFieldEditor
+            entityId={product.id}
+            idFieldName="productId"
+            namespace="admin.products"
             field="sku"
             kind="text"
             label={t("sku")}
             placeholder={t("noSku")}
-            productId={product.id}
             updateAction={updateProductAction}
             value={product.sku ?? ""}
             displayText={product.sku ?? ""}
           />
-          <ProductFieldEditor
+          <InlineFieldEditor
+            entityId={product.id}
+            idFieldName="productId"
+            namespace="admin.products"
             field="category"
             kind="select"
             label={t("category")}
             options={categorySelectOptions}
             placeholder={t("noCategoryOption")}
-            productId={product.id}
             updateAction={updateProductAction}
             value={product.category ?? ""}
             displayText={product.category ?? ""}
           />
-          <ProductFieldEditor
+          <InlineFieldEditor
+            entityId={product.id}
+            idFieldName="productId"
+            namespace="admin.products"
             field="status"
             kind="select"
             label={t("status")}
             options={statusSelectOptions}
-            productId={product.id}
             required
             updateAction={updateProductAction}
             value={product.status}

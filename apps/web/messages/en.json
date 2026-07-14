@@ -524,7 +524,6 @@
       "notes": "Notes",
       "saveLocation": "Save location",
       "addLocation": "Add location",
-      "createLocationBody": "Create a new location for this tenant.",
       "createLocation": "Create location",
       "creating": "Creating...",
       "cancel": "Cancel",
@@ -540,7 +539,6 @@
       "tenantChains": "Tenant chains",
       "activeCount": "{count} active chains",
       "createTitle": "Add a chain",
-      "createBody": "Create a chain once, then assign locations to it from the locations screen or an import.",
       "createdAria": "Chain status",
       "createdEyebrow": "Chain added",
       "createdTitle": "The chain was created",
@@ -568,7 +566,11 @@
       "notes": "Notes",
       "status": "Status",
       "createChain": "Add chain",
-      "saveChain": "Save chain"
+      "editField": "Edit {field}",
+      "cancelEdit": "Cancel",
+      "archiveChain": "Archive",
+      "archivingChain": "Archiving…",
+      "archiveChainPrompt": "Archive \"{name}\"? It will move to the archived list."
     },
     "products": {
       "title": "Products / SKUs",
@@ -615,7 +617,6 @@
       "editField": "Edit {field}",
       "cancelEdit": "Cancel",
       "addProduct": "Add product",
-      "addProductBody": "Create a new product for this tenant.",
       "namePlaceholder": "Product name",
       "skuPlaceholder": "SKU code",
       "noCategoryOption": "No category",

@@ -2,9 +2,11 @@ import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
+import { AddChainModal } from "../../../../components/add-chain-modal";
 import { AppShell } from "../../../../components/app-shell";
+import { ArchiveChainButton } from "../../../../components/archive-chain-button";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
-import { PendingSubmitButton } from "../../../../components/pending-submit-button";
+import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import {
   createAdminChain,
   listAdminChains,
@@ -81,21 +83,63 @@ export default async function AdminChainsPage({
     "use server";
 
     const chainId = getFormString(formData, "chainId").trim();
-    const name = getFormString(formData, "name").trim();
-    const externalCode = normalizeOptionalField(formData.get("externalCode"));
-    const notes = normalizeOptionalField(formData.get("notes"));
-    const status = normalizeStatus(getFormString(formData, "status"));
 
-    if (!chainId || !name || !status) {
+    if (!chainId) {
       redirect(`/${tenantSlug}/admin/chains?error=1`);
     }
 
-    const result = await updateAdminChain(chainId, {
-      name,
-      externalCode,
-      notes,
-      status,
-    });
+    // Each field editor saves on its own, so only patch the fields present in
+    // this submission rather than overwriting the whole chain.
+    const input: {
+      name?: string;
+      externalCode?: string | null;
+      notes?: string | null;
+      status?: ChainStatus;
+    } = {};
+
+    if (formData.has("name")) {
+      const name = getFormString(formData, "name").trim();
+      if (!name) {
+        redirect(`/${tenantSlug}/admin/chains?error=1`);
+      }
+      input.name = name;
+    }
+
+    if (formData.has("externalCode")) {
+      input.externalCode = normalizeOptionalField(formData.get("externalCode"));
+    }
+
+    if (formData.has("notes")) {
+      input.notes = normalizeOptionalField(formData.get("notes"));
+    }
+
+    if (formData.has("status")) {
+      const status = normalizeStatus(getFormString(formData, "status"));
+      if (!status) {
+        redirect(`/${tenantSlug}/admin/chains?error=1`);
+      }
+      input.status = status;
+    }
+
+    const result = await updateAdminChain(chainId, input);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/chains?error=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/chains?updated=1`);
+  }
+
+  async function archiveChainAction(formData: FormData) {
+    "use server";
+
+    const chainId = getFormString(formData, "chainId").trim();
+
+    if (!chainId) {
+      redirect(`/${tenantSlug}/admin/chains?error=1`);
+    }
+
+    const result = await updateAdminChain(chainId, { status: "archived" });
 
     if (!result.ok) {
       redirect(`/${tenantSlug}/admin/chains?error=1`);
@@ -147,6 +191,9 @@ export default async function AdminChainsPage({
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
           <h1>{t("title")}</h1>
         </div>
+        <div className="toolbar">
+          <AddChainModal action={createChainAction} />
+        </div>
       </header>
 
       {pageState.created ? (
@@ -193,33 +240,6 @@ export default async function AdminChainsPage({
             {t("activeCount", { count: activeCount })}
           </p>
         </article>
-      </section>
-
-      <section className="panel">
-        <div className="panel-title-stack">
-          <h2>{t("createTitle")}</h2>
-          <p>{t("createBody")}</p>
-        </div>
-        <form action={createChainAction} className="visit-form compact">
-          <label>
-            {t("name")}
-            <input name="name" required type="text" />
-          </label>
-          <label>
-            {t("externalCode")}
-            <input name="externalCode" type="text" />
-          </label>
-          <label>
-            {t("notes")}
-            <input name="notes" type="text" />
-          </label>
-          <PendingSubmitButton
-            className="primary-button"
-            pendingLabel={tCommon("saving")}
-          >
-            {t("createChain")}
-          </PendingSubmitButton>
-        </form>
       </section>
 
       <section className="panel drilldown-panel">
@@ -291,6 +311,7 @@ export default async function AdminChainsPage({
                 key={chain.id}
                 chain={chain}
                 updateChainAction={updateChainAction}
+                archiveChainAction={archiveChainAction}
               />
             ))}
           </div>
@@ -318,57 +339,101 @@ export default async function AdminChainsPage({
 function ChainRow({
   chain,
   updateChainAction,
+  archiveChainAction,
 }: {
   chain: Chain;
   updateChainAction: (formData: FormData) => Promise<void>;
+  archiveChainAction: (formData: FormData) => Promise<void>;
 }) {
   const t = useTranslations("admin.chains");
   const tCommon = useTranslations("common");
 
+  const statusSelectOptions = chainStatuses.map((status) => ({
+    value: status,
+    label: formatEnumLabel(tCommon, status),
+  }));
+
   return (
-    <article className="admin-user-row">
-      <header>
-        <div>
+    // Exclusive-accordion disclosure: the shared `name` keeps only one chain
+    // expanded at a time; collapsed rows show just the name/code summary and the
+    // edit form stays hidden until a row is opened.
+    <details
+      className="admin-user-row admin-user-disclosure"
+      name="admin-chain"
+    >
+      <summary className="admin-user-summary">
+        <div className="admin-user-summary-lead">
           <h3>{chain.name}</h3>
           {chain.externalCode ? <p>{chain.externalCode}</p> : null}
         </div>
-        <span className={`status-pill ${statusTone(chain.status)}`}>
-          {formatEnumLabel(tCommon, chain.status)}
-        </span>
-      </header>
+        <div className="admin-user-summary-meta">
+          <span className={`status-pill ${statusTone(chain.status)}`}>
+            {formatEnumLabel(tCommon, chain.status)}
+          </span>
+          <span className="disclosure-chevron" aria-hidden="true" />
+        </div>
+      </summary>
 
-      <form action={updateChainAction} className="visit-form compact">
-        <input name="chainId" type="hidden" value={chain.id} />
-        <label>
-          {t("name")}
-          <input defaultValue={chain.name} name="name" required />
-        </label>
-        <label>
-          {t("externalCode")}
-          <input defaultValue={chain.externalCode ?? ""} name="externalCode" />
-        </label>
-        <label>
-          {t("notes")}
-          <input defaultValue={chain.notes ?? ""} name="notes" />
-        </label>
-        <label>
-          {t("status")}
-          <select defaultValue={chain.status} name="status" required>
-            {chainStatuses.map((status) => (
-              <option key={status} value={status}>
-                {formatEnumLabel(tCommon, status)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <PendingSubmitButton
-          className="secondary-button"
-          pendingLabel={tCommon("saving")}
-        >
-          {t("saveChain")}
-        </PendingSubmitButton>
-      </form>
-    </article>
+      <div className="admin-user-body">
+        <div className="visit-form compact visit-form-2col">
+          <InlineFieldEditor
+            entityId={chain.id}
+            idFieldName="chainId"
+            namespace="admin.chains"
+            field="name"
+            kind="text"
+            label={t("name")}
+            required
+            updateAction={updateChainAction}
+            value={chain.name}
+            displayText={chain.name}
+          />
+          <InlineFieldEditor
+            entityId={chain.id}
+            idFieldName="chainId"
+            namespace="admin.chains"
+            field="externalCode"
+            kind="text"
+            label={t("externalCode")}
+            updateAction={updateChainAction}
+            value={chain.externalCode ?? ""}
+            displayText={chain.externalCode ?? ""}
+          />
+          <InlineFieldEditor
+            entityId={chain.id}
+            idFieldName="chainId"
+            namespace="admin.chains"
+            field="notes"
+            kind="text"
+            label={t("notes")}
+            updateAction={updateChainAction}
+            value={chain.notes ?? ""}
+            displayText={chain.notes ?? ""}
+          />
+          <InlineFieldEditor
+            entityId={chain.id}
+            idFieldName="chainId"
+            namespace="admin.chains"
+            field="status"
+            kind="select"
+            label={t("status")}
+            options={statusSelectOptions}
+            required
+            updateAction={updateChainAction}
+            value={chain.status}
+            displayText={formatEnumLabel(tCommon, chain.status)}
+          />
+        </div>
+        <div className="product-row-footer">
+          <ArchiveChainButton
+            archiveAction={archiveChainAction}
+            chainId={chain.id}
+            chainName={chain.name}
+            chainStatus={chain.status}
+          />
+        </div>
+      </div>
+    </details>
   );
 }
 

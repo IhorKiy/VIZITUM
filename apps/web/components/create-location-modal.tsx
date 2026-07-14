@@ -39,7 +39,6 @@ export function CreateLocationModal({
         <div className="modal-header">
           <div>
             <h2 id="create-location-title">{t("addLocation")}</h2>
-            <p className="small-label">{t("createLocationBody")}</p>
           </div>
           <button
             aria-label={t("cancel")}

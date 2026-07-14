@@ -1905,7 +1905,10 @@ textarea {
   margin: 2px 0 0;
 }
 
-.modal-form {
+/* Selector carries `.visit-form.compact` so its `padding-top: 0` reset does not
+   win over the modal form's own top padding; without this the first field hugs
+   the header divider with no breathing room. */
+.visit-form.compact.modal-form {
   padding: 20px;
 }
 
@@ -1952,6 +1955,11 @@ textarea {
 }
 
 /* Inline category manager (accordion on the products screen). */
+.category-accordion {
+  margin: 16px auto 0;
+  max-width: 1180px;
+}
+
 .category-accordion-body {
   display: grid;
   gap: 14px;
