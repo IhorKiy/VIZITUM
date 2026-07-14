@@ -130,34 +130,42 @@ export class ProductCategoriesService {
     });
 
     if (existing) {
-      throw new ConflictException({
-        code: "PRODUCT_CATEGORY_EXISTS",
-        message: "Category already exists.",
-        fieldErrors: {
-          name: ["Category already exists."],
-        },
-      });
+      throw categoryExistsConflict();
     }
 
     // `Product.category` is a free-text string (no FK), so cascade the rename to
     // every product tagged with the old name to keep the catalog consistent.
     // The match is case-insensitive so products stamped with any case variant of
     // the old label get relabelled to the new canonical display name.
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.productCategory.update({
-        where: { id: category.id },
-        data: { name },
-      }),
-      this.prisma.product.updateMany({
-        where: {
-          tenantId: context.tenantId,
-          category: { equals: category.name, mode: "insensitive" },
-        },
-        data: { category: name },
-      }),
-    ]);
+    try {
+      const [updated] = await this.prisma.$transaction([
+        this.prisma.productCategory.update({
+          where: { id: category.id },
+          data: { name },
+        }),
+        this.prisma.product.updateMany({
+          where: {
+            tenantId: context.tenantId,
+            category: { equals: category.name, mode: "insensitive" },
+          },
+          data: { category: name },
+        }),
+      ]);
 
-    return toProductCategoryResponse(updated);
+      return toProductCategoryResponse(updated);
+    } catch (error) {
+      // Same race as createCategory: a concurrent insert/rename can claim the
+      // name between the probe above and this update, tripping the unique
+      // index. Surface it as the same 409 the pre-check would have.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw categoryExistsConflict();
+      }
+
+      throw error;
+    }
   }
 
   private async renameCategoryRow(
