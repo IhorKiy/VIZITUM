@@ -629,7 +629,9 @@ describe("platform tenant management", () => {
       email: "next@example.com",
       roleCodes: ["tenant_superadmin"],
       status: "pending",
-      expiresAt: new Date("2026-07-14T00:00:00.000Z"),
+      // Relative so the invite stays in the future no matter when this runs —
+      // a hardcoded date here turned into a time bomb once the clock passed it.
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       acceptedAt: null,
       createdAt: new Date("2026-07-07T00:00:00.000Z"),
       createdBy: null,
@@ -794,7 +796,9 @@ function createPlatformService(store: ReturnType<typeof createStore>) {
         email,
         roleCodes: ["tenant_superadmin"],
         status: "pending",
-        expiresAt: new Date("2026-07-13T00:00:00.000Z").toISOString(),
+        expiresAt: new Date(
+          Date.now() + 7 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
         token: "invite-token",
       };
     },
