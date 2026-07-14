@@ -318,6 +318,34 @@ describe("product categories service", () => {
     );
   });
 
+  it("maps a concurrent unique-constraint violation on rename to a conflict", async () => {
+    const prisma = {
+      productCategory: {
+        // Uniqueness probe passes, but the rename transaction loses the race
+        // to a concurrent insert/rename claiming the same name.
+        findFirst: async (query: { where: Record<string, unknown> }) =>
+          "name" in query.where ? null : { id: "cat-1", name: "Beverages" },
+        update: () => ({}),
+      },
+      product: { updateMany: () => ({}) },
+      $transaction: async () => {
+        throw new Prisma.PrismaClientKnownRequestError(
+          "Unique constraint failed",
+          { code: "P2002", clientVersion: "test" },
+        );
+      },
+    };
+    const service = new ProductCategoriesService(prisma as never);
+
+    await assert.rejects(
+      () =>
+        service.updateCategory(createContext("tenant-1"), "cat-1", {
+          name: "Drinks",
+        }),
+      ConflictException,
+    );
+  });
+
   it("does not rename a category from another tenant", async () => {
     const prisma = {
       productCategory: {
