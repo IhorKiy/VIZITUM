@@ -55,8 +55,7 @@
       "field-general": "General",
       "field-history": "History",
       "admin-users": "Users",
-      "admin-locations": "Locations",
-      "admin-chains": "Chains",
+      "admin-locations": "Locations / Chains",
       "admin-products": "Products",
       "admin-pilot": "Pilot",
       "admin-settings": "Settings",
@@ -451,6 +450,10 @@
   },
   "admin": {
     "eyebrow": "Company admin",
+    "locationsChains": {
+      "title": "Locations / Chains",
+      "metricsAria": "Locations and chains metrics"
+    },
     "settings": {
       "title": "Company settings",
       "notConnectedTitle": "Tenant settings are not connected"
@@ -470,9 +473,10 @@
       "tenantLocations": "Tenant locations",
       "activeCount": "{count} active locations",
       "locationList": "Location list",
-      "showingAll": "Showing all locations{search}.",
-      "showingStatus": "Showing {status} locations{search}.",
+      "showingAll": "Showing all locations{chain}{search}.",
+      "showingStatus": "Showing {status} locations{chain}{search}.",
       "searchSuffix": " matching \"{search}\"",
+      "chainSuffix": " in chain \"{chain}\"",
       "statusFiltersAria": "Location status filters",
       "search": "Search",
       "searchPlaceholder": "Name or city",
@@ -488,6 +492,10 @@
       "category": "Category",
       "chain": "Chain",
       "chainNone": "No chain",
+      "allChains": "All chains",
+      "viewList": "List",
+      "viewByChain": "By chain",
+      "viewFiltersAria": "Locations view mode",
       "region": "Region",
       "territory": "Territory",
       "status": "Status",

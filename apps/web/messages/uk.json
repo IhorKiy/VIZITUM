@@ -55,8 +55,7 @@
       "field-general": "Загальне",
       "field-history": "Історія",
       "admin-users": "Користувачі",
-      "admin-locations": "Точки",
-      "admin-chains": "Мережі",
+      "admin-locations": "Точки/Мережі",
       "admin-products": "Товари",
       "admin-pilot": "Пілот",
       "admin-settings": "Налаштування",
@@ -451,6 +450,10 @@
   },
   "admin": {
     "eyebrow": "Адміністратор компанії",
+    "locationsChains": {
+      "title": "Точки/Мережі",
+      "metricsAria": "Показники точок і мереж"
+    },
     "settings": {
       "title": "Налаштування компанії",
       "notConnectedTitle": "Налаштування не підключені"
@@ -470,9 +473,10 @@
       "tenantLocations": "Точки робочого простору",
       "activeCount": "Активних точок: {count}",
       "locationList": "Список точок",
-      "showingAll": "Показано всі точки{search}.",
-      "showingStatus": "Показано точки «{status}»{search}.",
+      "showingAll": "Показано всі точки{chain}{search}.",
+      "showingStatus": "Показано точки «{status}»{chain}{search}.",
       "searchSuffix": " за запитом «{search}»",
+      "chainSuffix": " у мережі «{chain}»",
       "statusFiltersAria": "Фільтри статусу точок",
       "search": "Пошук",
       "searchPlaceholder": "Назва або місто",
@@ -488,6 +492,10 @@
       "category": "Категорія",
       "chain": "Мережа",
       "chainNone": "Без мережі",
+      "allChains": "Усі мережі",
+      "viewList": "Список",
+      "viewByChain": "За мережею",
+      "viewFiltersAria": "Режим перегляду точок",
       "region": "Регіон",
       "territory": "Територія",
       "status": "Статус",

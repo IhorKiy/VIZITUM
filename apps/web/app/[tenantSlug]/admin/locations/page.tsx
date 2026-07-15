@@ -1,12 +1,16 @@
 import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
+import { AddChainModal } from "../../../../components/add-chain-modal";
 import { AppShell } from "../../../../components/app-shell";
-import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { ArchiveChainButton } from "../../../../components/archive-chain-button";
 import { CreateLocationModal } from "../../../../components/create-location-modal";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
+  createAdminChain,
   createAdminLocation,
   createAdminLocationAssignment,
   createAdminLocationContact,
@@ -15,9 +19,11 @@ import {
   listAdminChains,
   listAdminLocations,
   listAdminUsers,
+  updateAdminChain,
   updateAdminLocation,
   updateAdminLocationContact,
   type Chain,
+  type ChainStatus,
   type Location,
   type LocationStatus,
   type TenantUser,
@@ -28,19 +34,35 @@ import {
   statusTone,
 } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import { buildEntityGroups } from "../../../../lib/grouping";
 
+// Locations / Chains — a single admin screen that merges the former Locations
+// and Chains sections into two collapsible accordions. Their filters and post-
+// action notices share the same route, so every query param is namespaced
+// (`loc*` vs `chain*`) to keep the two sections from stepping on each other,
+// and every filter link/form carries the other section's params along so using
+// one section never resets the other. `open` pins which accordion is expanded.
 type AdminLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
-    created?: string;
-    error?: string;
-    search?: string;
-    status?: string;
-    updated?: string;
+    open?: string;
+    locCreated?: string;
+    locUpdated?: string;
+    locError?: string;
+    locSearch?: string;
+    locStatus?: string;
+    locChain?: string;
+    locView?: string;
+    chainCreated?: string;
+    chainUpdated?: string;
+    chainError?: string;
+    chainSearch?: string;
+    chainStatus?: string;
   }>;
 };
 
 const locationStatuses: LocationStatus[] = ["active", "inactive", "archived"];
+const chainStatuses: ChainStatus[] = ["active", "archived"];
 
 export default async function AdminLocationsPage({
   params,
@@ -48,23 +70,41 @@ export default async function AdminLocationsPage({
 }: AdminLocationsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [t, tAdmin, tCommon] = await Promise.all([
+  const [t, tChains, tAdmin, tCommon, locale] = await Promise.all([
     getTranslations("admin.locations"),
+    getTranslations("admin.chains"),
     getTranslations("admin"),
     getTranslations("common"),
+    getLocale(),
   ]);
-  const selectedStatus = normalizeStatus(pageState.status);
-  const search = normalizeFilterValue(pageState.search);
-  const hasFilters = Boolean(selectedStatus || search);
 
-  const query = new URLSearchParams({ pageSize: "100" });
+  const locStatus = normalizeLocationStatus(pageState.locStatus);
+  const locSearch = normalizeFilterValue(pageState.locSearch);
+  const locChain = normalizeFilterValue(pageState.locChain);
+  const locGroupByChain = pageState.locView === "chain";
+  const locHasFilters = Boolean(locStatus || locSearch || locChain);
 
-  if (selectedStatus) {
-    query.set("status", selectedStatus);
+  const chainStatus = normalizeChainStatus(pageState.chainStatus);
+  const chainSearch = normalizeFilterValue(pageState.chainSearch);
+  const chainHasFilters = Boolean(chainStatus || chainSearch);
+
+  const locQuery = new URLSearchParams({ pageSize: "100" });
+  if (locStatus) {
+    locQuery.set("status", locStatus);
+  }
+  if (locSearch) {
+    locQuery.set("search", locSearch);
+  }
+  if (locChain) {
+    locQuery.set("chainId", locChain);
   }
 
-  if (search) {
-    query.set("search", search);
+  const chainQuery = new URLSearchParams({ pageSize: "100" });
+  if (chainStatus) {
+    chainQuery.set("status", chainStatus);
+  }
+  if (chainSearch) {
+    chainQuery.set("search", chainSearch);
   }
 
   async function createLocationAction(formData: FormData) {
@@ -75,7 +115,7 @@ export default async function AdminLocationsPage({
     const city = getFormString(formData, "city").trim();
 
     if (!name || !addressLine || !city) {
-      redirect(`/${tenantSlug}/admin/locations?error=1`);
+      redirect(`/${tenantSlug}/admin/locations?locError=1&open=locations`);
     }
 
     const result = await createAdminLocation({
@@ -91,7 +131,7 @@ export default async function AdminLocationsPage({
     });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?error=1`);
+      redirect(`/${tenantSlug}/admin/locations?locError=1&open=locations`);
     }
 
     // Assignment lives in its own table, so attach the chosen representative to
@@ -107,17 +147,17 @@ export default async function AdminLocationsPage({
       );
 
       if (!assignResult.ok) {
-        redirect(`/${tenantSlug}/admin/locations?error=1`);
+        redirect(`/${tenantSlug}/admin/locations?locError=1&open=locations`);
       }
     }
 
-    redirect(`/${tenantSlug}/admin/locations?created=1`);
+    redirect(`/${tenantSlug}/admin/locations?locCreated=1&open=locations`);
   }
 
   async function saveLocationAction(formData: FormData) {
     "use server";
 
-    const errorHref = `/${tenantSlug}/admin/locations?error=1`;
+    const errorHref = `/${tenantSlug}/admin/locations?locError=1&open=locations`;
     const locationId = getFormString(formData, "locationId").trim();
     const name = getFormString(formData, "name").trim();
     const addressLine = getFormString(formData, "addressLine").trim();
@@ -128,7 +168,7 @@ export default async function AdminLocationsPage({
     const chainId = normalizeOptionalField(formData.get("chainId"));
     const region = normalizeOptionalField(formData.get("region"));
     const notes = normalizeOptionalField(formData.get("notes"));
-    const status = normalizeStatus(getFormString(formData, "status"));
+    const status = normalizeLocationStatus(getFormString(formData, "status"));
 
     if (!locationId || !name || !addressLine || !city || !status) {
       redirect(errorHref);
@@ -218,15 +258,117 @@ export default async function AdminLocationsPage({
       }
     }
 
-    redirect(`/${tenantSlug}/admin/locations?updated=1`);
+    redirect(`/${tenantSlug}/admin/locations?locUpdated=1&open=locations`);
   }
 
-  const [locationsResult, chainsResult, usersResult] = await Promise.all([
-    listAdminLocations(query.toString()),
-    listAdminChains("pageSize=100&status=active"),
-    listAdminUsers(),
-  ]);
-  const chains = chainsResult.ok ? chainsResult.data.items : [];
+  async function createChainAction(formData: FormData) {
+    "use server";
+
+    const name = getFormString(formData, "name").trim();
+    const externalCode = normalizeOptionalField(formData.get("externalCode"));
+    const notes = normalizeOptionalField(formData.get("notes"));
+
+    if (!name) {
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
+    }
+
+    const result = await createAdminChain({ name, externalCode, notes });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?chainCreated=1&open=chains`);
+  }
+
+  async function updateChainAction(formData: FormData) {
+    "use server";
+
+    const chainId = getFormString(formData, "chainId").trim();
+
+    if (!chainId) {
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
+    }
+
+    // Each field editor saves on its own, so only patch the fields present in
+    // this submission rather than overwriting the whole chain.
+    const input: {
+      name?: string;
+      externalCode?: string | null;
+      notes?: string | null;
+      status?: ChainStatus;
+    } = {};
+
+    if (formData.has("name")) {
+      const name = getFormString(formData, "name").trim();
+      if (!name) {
+        redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
+      }
+      input.name = name;
+    }
+
+    if (formData.has("externalCode")) {
+      input.externalCode = normalizeOptionalField(formData.get("externalCode"));
+    }
+
+    if (formData.has("notes")) {
+      input.notes = normalizeOptionalField(formData.get("notes"));
+    }
+
+    if (formData.has("status")) {
+      const status = normalizeChainStatus(getFormString(formData, "status"));
+      if (!status) {
+        redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
+      }
+      input.status = status;
+    }
+
+    const result = await updateAdminChain(chainId, input);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?chainUpdated=1&open=chains`);
+  }
+
+  async function archiveChainAction(formData: FormData) {
+    "use server";
+
+    const chainId = getFormString(formData, "chainId").trim();
+
+    if (!chainId) {
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
+    }
+
+    const result = await updateAdminChain(chainId, { status: "archived" });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?chainUpdated=1&open=chains`);
+  }
+
+  const [locationsResult, chainsResult, pickerChainsResult, usersResult] =
+    await Promise.all([
+      listAdminLocations(locQuery.toString()),
+      listAdminChains(chainQuery.toString()),
+      // The location editor's chain picker always offers active chains,
+      // regardless of how the Chains section itself is currently filtered.
+      // When that section is unfiltered its (all-status, same page cap) result
+      // already contains them, so skip the second fetch and derive in memory.
+      chainHasFilters ? listAdminChains("pageSize=100&status=active") : null,
+      listAdminUsers(),
+    ]);
+
+  const pickerChains = pickerChainsResult
+    ? pickerChainsResult.ok
+      ? pickerChainsResult.data.items
+      : []
+    : chainsResult.ok
+      ? chainsResult.data.items.filter((chain) => chain.status === "active")
+      : [];
   // Only active field representatives can be assigned to a location (the API
   // rejects anyone else), so the picker offers exactly those.
   const representatives = usersResult.ok
@@ -237,106 +379,506 @@ export default async function AdminLocationsPage({
       )
     : [];
 
-  if (!locationsResult.ok) {
-    return (
-      <AppShell tenantSlug={tenantSlug} activeArea="admin-locations">
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">{tAdmin("eyebrow")}</p>
-            <h1>{t("title")}</h1>
-          </div>
-          <div className="toolbar">
-            <a className="primary-button" href={`/${tenantSlug}/login`}>
-              {tCommon("signIn")}
-            </a>
-          </div>
-        </header>
+  const locActive = Boolean(
+    pageState.locCreated ||
+    pageState.locUpdated ||
+    pageState.locError ||
+    locHasFilters ||
+    locGroupByChain,
+  );
+  const chainActive = Boolean(
+    pageState.chainCreated ||
+    pageState.chainUpdated ||
+    pageState.chainError ||
+    chainHasFilters,
+  );
+  // Which accordion is expanded: the `open` param pins the section the user is
+  // working in (every filter link/form and action redirect sets it, and it
+  // survives the success notices' auto-dismiss URL rewrite, which would
+  // otherwise collapse the section under the user ~5s after an action). On
+  // URLs without it (bookmarks, shared links) fall back to inferring the busy
+  // section from its params; Locations wins ties and is the default.
+  const openSection =
+    pageState.open === "locations" || pageState.open === "chains"
+      ? pageState.open
+      : null;
+  const locationsOpen = openSection
+    ? openSection === "locations"
+    : locActive || !chainActive;
+  const chainsOpen = openSection ? openSection === "chains" : chainActive;
 
-        <section
-          className="notice-panel"
-          aria-label={tCommon("notice.apiStatus")}
-        >
-          <div>
-            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
-            <h2>{t("notConnectedTitle")}</h2>
-            <p>{locationsResult.message}</p>
-          </div>
-        </section>
-      </AppShell>
-    );
+  // Each section's links/forms re-emit the other section's params so filtering
+  // one never silently resets the other.
+  const chainCarryParams: Record<string, string> = {};
+  if (chainStatus) {
+    chainCarryParams.chainStatus = chainStatus;
   }
-
-  const locations = locationsResult.data.items;
-  const activeCount = locations.filter(
-    (location) => location.status === "active",
-  ).length;
+  if (chainSearch) {
+    chainCarryParams.chainSearch = chainSearch;
+  }
+  const locCarryParams: Record<string, string> = {};
+  if (locStatus) {
+    locCarryParams.locStatus = locStatus;
+  }
+  if (locChain) {
+    locCarryParams.locChain = locChain;
+  }
+  if (locSearch) {
+    locCarryParams.locSearch = locSearch;
+  }
+  if (locGroupByChain) {
+    locCarryParams.locView = "chain";
+  }
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-locations">
       <header className="page-header">
         <div>
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
-          <h1>{t("title")}</h1>
-        </div>
-        <div className="toolbar">
-          <CreateLocationModal
-            action={createLocationAction}
-            chains={chains}
-            representatives={representatives}
-          />
+          <h1>{tAdmin("locationsChains.title")}</h1>
         </div>
       </header>
 
-      {pageState.created ? (
-        <DismissableNotice
-          ariaLabel={t("createdAria")}
-          body={t("createdBody")}
-          clearParams={["created"]}
-          eyebrow={t("createdEyebrow")}
-          title={t("createdTitle")}
-          tone="success"
-        />
-      ) : null}
-
-      {pageState.updated ? (
-        <DismissableNotice
-          ariaLabel={t("updatedAria")}
-          body={t("updatedBody")}
-          clearParams={["updated"]}
-          eyebrow={t("updatedEyebrow")}
-          title={t("updatedTitle")}
-          tone="success"
-        />
-      ) : null}
-
-      {pageState.error ? (
-        <DismissableNotice
-          ariaLabel={t("errorAria")}
-          body={t("errorBody")}
-          clearParams={["error"]}
-          eyebrow={t("errorEyebrow")}
-          title={t("errorTitle")}
-          tone="danger"
-        />
-      ) : null}
-
-      <section className="manager-grid" aria-label={t("metricsAria")}>
-        <article className="metric-card">
-          <header>
-            <p className="metric-label">{t("tenantLocations")}</p>
-            <span className="status-pill active">{tCommon("labels.live")}</span>
-          </header>
-          <p className="metric-value">{locationsResult.data.total}</p>
-          <p className="small-label">
-            {t("activeCount", { count: activeCount })}
-          </p>
-        </article>
+      <section
+        className="manager-grid"
+        aria-label={tAdmin("locationsChains.metricsAria")}
+      >
+        {locationsResult.ok ? (
+          <article className="metric-card">
+            <header>
+              <p className="metric-label">{t("tenantLocations")}</p>
+              <span className="status-pill active">
+                {tCommon("labels.live")}
+              </span>
+            </header>
+            <p className="metric-value">{locationsResult.data.total}</p>
+            <p className="small-label">
+              {t("activeCount", {
+                count: locationsResult.data.items.filter(
+                  (location) => location.status === "active",
+                ).length,
+              })}
+            </p>
+          </article>
+        ) : null}
+        {chainsResult.ok ? (
+          <article className="metric-card">
+            <header>
+              <p className="metric-label">{tChains("tenantChains")}</p>
+              <span className="status-pill active">
+                {tCommon("labels.live")}
+              </span>
+            </header>
+            <p className="metric-value">{chainsResult.data.total}</p>
+            <p className="small-label">
+              {tChains("activeCount", {
+                count: chainsResult.data.items.filter(
+                  (chain) => chain.status === "active",
+                ).length,
+              })}
+            </p>
+          </article>
+        ) : null}
       </section>
 
-      <section className="panel drilldown-panel">
+      <div className="section-stack">
+        <details className="panel panel-collapsible" open={locationsOpen}>
+          <summary className="panel-summary">
+            <h2>{t("title")}</h2>
+          </summary>
+
+          <div className="section-body">
+            <SectionNotices
+              clearPrefix="loc"
+              created={pageState.locCreated}
+              error={pageState.locError}
+              t={t}
+              updated={pageState.locUpdated}
+            />
+
+            {locationsResult.ok ? (
+              <LocationsSection
+                allChains={chainsResult.ok ? chainsResult.data.items : []}
+                carryParams={chainCarryParams}
+                chains={pickerChains}
+                createLocationAction={createLocationAction}
+                groupByChain={locGroupByChain}
+                hasFilters={locHasFilters}
+                locale={locale}
+                locations={locationsResult.data.items}
+                representatives={representatives}
+                saveLocationAction={saveLocationAction}
+                search={locSearch}
+                selectedChain={locChain}
+                selectedStatus={locStatus}
+                tenantSlug={tenantSlug}
+              />
+            ) : (
+              <div className="empty-state-panel">
+                <h2>{t("notConnectedTitle")}</h2>
+                <p>{locationsResult.message}</p>
+                <div className="toolbar">
+                  <a className="primary-button" href={`/${tenantSlug}/login`}>
+                    {tCommon("signIn")}
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </details>
+
+        <details className="panel panel-collapsible" open={chainsOpen}>
+          <summary className="panel-summary">
+            <h2>{tChains("title")}</h2>
+          </summary>
+
+          <div className="section-body">
+            <SectionNotices
+              clearPrefix="chain"
+              created={pageState.chainCreated}
+              error={pageState.chainError}
+              t={tChains}
+              updated={pageState.chainUpdated}
+            />
+
+            {chainsResult.ok ? (
+              <ChainsSection
+                archiveChainAction={archiveChainAction}
+                carryParams={locCarryParams}
+                chains={chainsResult.data.items}
+                createChainAction={createChainAction}
+                hasFilters={chainHasFilters}
+                search={chainSearch}
+                selectedStatus={chainStatus}
+                tenantSlug={tenantSlug}
+                updateChainAction={updateChainAction}
+              />
+            ) : (
+              <div className="empty-state-panel">
+                <h2>{tChains("notConnectedTitle")}</h2>
+                <p>{chainsResult.message}</p>
+                <div className="toolbar">
+                  <a className="primary-button" href={`/${tenantSlug}/login`}>
+                    {tCommon("signIn")}
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </details>
+      </div>
+    </AppShell>
+  );
+}
+
+function LocationsSection({
+  allChains,
+  carryParams,
+  chains,
+  createLocationAction,
+  groupByChain,
+  hasFilters,
+  locale,
+  locations,
+  representatives,
+  saveLocationAction,
+  search,
+  selectedChain,
+  selectedStatus,
+  tenantSlug,
+}: {
+  allChains: Chain[];
+  carryParams: Record<string, string>;
+  chains: Chain[];
+  createLocationAction: (formData: FormData) => Promise<void>;
+  groupByChain: boolean;
+  hasFilters: boolean;
+  locale: string;
+  locations: Location[];
+  representatives: TenantUser[];
+  saveLocationAction: (formData: FormData) => Promise<void>;
+  search: string | null;
+  selectedChain: string | null;
+  selectedStatus: LocationStatus | null;
+  tenantSlug: string;
+}) {
+  const t = useTranslations("admin.locations");
+  const tCommon = useTranslations("common");
+
+  const viewParam = groupByChain ? "chain" : null;
+  const baseParams = { ...carryParams, open: "locations" };
+
+  // Keep the active chain filter selectable even when it points at a chain the
+  // active-chain picker doesn't offer (e.g. an archived chain): recover its
+  // name from the Chains section's list, or failing that from any fetched
+  // location that belongs to it.
+  const chainFilterOptions =
+    selectedChain && !chains.some((chain) => chain.id === selectedChain)
+      ? [
+          {
+            id: selectedChain,
+            name:
+              allChains.find((chain) => chain.id === selectedChain)?.name ??
+              locations.find((location) => location.chainId === selectedChain)
+                ?.chain?.name ??
+              selectedChain,
+          },
+          ...chains,
+        ]
+      : chains;
+  const selectedChainName = selectedChain
+    ? (chainFilterOptions.find((chain) => chain.id === selectedChain)?.name ??
+      selectedChain)
+    : null;
+
+  const locationGroups = groupByChain
+    ? buildEntityGroups(
+        locations,
+        (location) => location.chainId,
+        (location) => location.chain?.name,
+        t("chainNone"),
+        locale,
+      )
+    : [];
+
+  return (
+    <>
+      <div className="toolbar">
+        <CreateLocationModal
+          action={createLocationAction}
+          chains={chains}
+          representatives={representatives}
+        />
+      </div>
+
+      <div className="panel drilldown-panel">
         <div className="panel-toolbar">
           <div className="panel-title-stack">
             <h2>{t("locationList")}</h2>
+            <p>
+              {selectedStatus
+                ? t("showingStatus", {
+                    status: formatEnumLabel(tCommon, selectedStatus),
+                    chain: selectedChainName
+                      ? t("chainSuffix", { chain: selectedChainName })
+                      : "",
+                    search: search ? t("searchSuffix", { search }) : "",
+                  })
+                : t("showingAll", {
+                    chain: selectedChainName
+                      ? t("chainSuffix", { chain: selectedChainName })
+                      : "",
+                    search: search ? t("searchSuffix", { search }) : "",
+                  })}
+            </p>
+          </div>
+          <div className="panel-toolbar-filters">
+            <div className="filter-pills" aria-label={t("statusFiltersAria")}>
+              <a
+                aria-current={!selectedStatus ? "page" : undefined}
+                href={buildFilterHref(tenantSlug, {
+                  ...baseParams,
+                  locChain: selectedChain,
+                  locSearch: search,
+                  locView: viewParam,
+                })}
+              >
+                {tCommon("all")}
+              </a>
+              {locationStatuses.map((status) => (
+                <a
+                  aria-current={selectedStatus === status ? "page" : undefined}
+                  href={buildFilterHref(tenantSlug, {
+                    ...baseParams,
+                    locStatus: status,
+                    locChain: selectedChain,
+                    locSearch: search,
+                    locView: viewParam,
+                  })}
+                  key={status}
+                >
+                  {formatEnumLabel(tCommon, status)}
+                </a>
+              ))}
+            </div>
+            <div className="filter-pills" aria-label={t("viewFiltersAria")}>
+              <a
+                aria-current={!groupByChain ? "page" : undefined}
+                href={buildFilterHref(tenantSlug, {
+                  ...baseParams,
+                  locStatus: selectedStatus,
+                  locChain: selectedChain,
+                  locSearch: search,
+                })}
+              >
+                {t("viewList")}
+              </a>
+              <a
+                aria-current={groupByChain ? "page" : undefined}
+                href={buildFilterHref(tenantSlug, {
+                  ...baseParams,
+                  locStatus: selectedStatus,
+                  locChain: selectedChain,
+                  locSearch: search,
+                  locView: "chain",
+                })}
+              >
+                {t("viewByChain")}
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <form
+          action={`/${tenantSlug}/admin/locations`}
+          className="filter-form location-filter-form"
+        >
+          <input name="open" type="hidden" value="locations" />
+          {Object.entries(carryParams).map(([name, value]) => (
+            <input key={name} name={name} type="hidden" value={value} />
+          ))}
+          {selectedStatus ? (
+            <input name="locStatus" type="hidden" value={selectedStatus} />
+          ) : null}
+          {groupByChain ? (
+            <input name="locView" type="hidden" value="chain" />
+          ) : null}
+          <label>
+            {t("chain")}
+            <select defaultValue={selectedChain ?? ""} name="locChain">
+              <option value="">{t("allChains")}</option>
+              {chainFilterOptions.map((chain) => (
+                <option key={chain.id} value={chain.id}>
+                  {chain.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t("search")}
+            <input
+              defaultValue={search ?? ""}
+              name="locSearch"
+              placeholder={t("searchPlaceholder")}
+              type="text"
+            />
+          </label>
+          <div className="filter-actions">
+            <button className="secondary-button" type="submit">
+              {tCommon("applyFilters")}
+            </button>
+            {hasFilters ? (
+              <a
+                className="secondary-button"
+                href={buildFilterHref(tenantSlug, baseParams)}
+              >
+                {tCommon("reset")}
+              </a>
+            ) : null}
+          </div>
+        </form>
+
+        {locations.length > 0 ? (
+          groupByChain ? (
+            <div className="entity-group-list">
+              {locationGroups.map((group) => (
+                <section className="entity-group" key={group.key}>
+                  <h3 className="entity-group-title">
+                    <span>{group.label}</span>
+                    <span className="entity-group-count">
+                      {group.items.length}
+                    </span>
+                  </h3>
+                  <div className="admin-user-list">
+                    {group.items.map((location) => (
+                      <LocationRow
+                        key={location.id}
+                        chains={chains}
+                        location={location}
+                        representatives={representatives}
+                        saveLocationAction={saveLocationAction}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="admin-user-list">
+              {locations.map((location) => (
+                <LocationRow
+                  key={location.id}
+                  chains={chains}
+                  location={location}
+                  representatives={representatives}
+                  saveLocationAction={saveLocationAction}
+                />
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="empty-state-panel">
+            <h2>{t("emptyTitle")}</h2>
+            <p>{t("emptyBody")}</p>
+            <div className="toolbar">
+              {hasFilters ? (
+                <a
+                  className="secondary-button"
+                  href={buildFilterHref(tenantSlug, baseParams)}
+                >
+                  {t("showAllLocations")}
+                </a>
+              ) : null}
+              <a
+                className="primary-button"
+                href={`/${tenantSlug}/admin/imports`}
+              >
+                {t("openImports")}
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function ChainsSection({
+  archiveChainAction,
+  carryParams,
+  chains,
+  createChainAction,
+  hasFilters,
+  search,
+  selectedStatus,
+  tenantSlug,
+  updateChainAction,
+}: {
+  archiveChainAction: (formData: FormData) => Promise<void>;
+  carryParams: Record<string, string>;
+  chains: Chain[];
+  createChainAction: (formData: FormData) => Promise<void>;
+  hasFilters: boolean;
+  search: string | null;
+  selectedStatus: ChainStatus | null;
+  tenantSlug: string;
+  updateChainAction: (formData: FormData) => Promise<void>;
+}) {
+  const t = useTranslations("admin.chains");
+  const tCommon = useTranslations("common");
+
+  const baseParams = { ...carryParams, open: "chains" };
+
+  return (
+    <>
+      <div className="toolbar">
+        <AddChainModal action={createChainAction} />
+      </div>
+
+      <div className="panel drilldown-panel">
+        <div className="panel-toolbar">
+          <div className="panel-title-stack">
+            <h2>{t("chainList")}</h2>
             <p>
               {selectedStatus
                 ? t("showingStatus", {
@@ -351,14 +893,21 @@ export default async function AdminLocationsPage({
           <div className="filter-pills" aria-label={t("statusFiltersAria")}>
             <a
               aria-current={!selectedStatus ? "page" : undefined}
-              href={buildLocationFilterHref(tenantSlug, null, search)}
+              href={buildFilterHref(tenantSlug, {
+                ...baseParams,
+                chainSearch: search,
+              })}
             >
               {tCommon("all")}
             </a>
-            {locationStatuses.map((status) => (
+            {chainStatuses.map((status) => (
               <a
                 aria-current={selectedStatus === status ? "page" : undefined}
-                href={buildLocationFilterHref(tenantSlug, status, search)}
+                href={buildFilterHref(tenantSlug, {
+                  ...baseParams,
+                  chainStatus: status,
+                  chainSearch: search,
+                })}
                 key={status}
               >
                 {formatEnumLabel(tCommon, status)}
@@ -367,15 +916,22 @@ export default async function AdminLocationsPage({
           </div>
         </div>
 
-        <form action={`/${tenantSlug}/admin/locations`} className="filter-form">
+        <form
+          action={`/${tenantSlug}/admin/locations`}
+          className="filter-form locations-chains-filter-form"
+        >
+          <input name="open" type="hidden" value="chains" />
+          {Object.entries(carryParams).map(([name, value]) => (
+            <input key={name} name={name} type="hidden" value={value} />
+          ))}
           {selectedStatus ? (
-            <input name="status" type="hidden" value={selectedStatus} />
+            <input name="chainStatus" type="hidden" value={selectedStatus} />
           ) : null}
           <label>
             {t("search")}
             <input
               defaultValue={search ?? ""}
-              name="search"
+              name="chainSearch"
               placeholder={t("searchPlaceholder")}
               type="text"
             />
@@ -387,7 +943,7 @@ export default async function AdminLocationsPage({
             {hasFilters ? (
               <a
                 className="secondary-button"
-                href={`/${tenantSlug}/admin/locations`}
+                href={buildFilterHref(tenantSlug, baseParams)}
               >
                 {tCommon("reset")}
               </a>
@@ -395,15 +951,14 @@ export default async function AdminLocationsPage({
           </div>
         </form>
 
-        {locations.length > 0 ? (
+        {chains.length > 0 ? (
           <div className="admin-user-list">
-            {locations.map((location) => (
-              <LocationRow
-                key={location.id}
-                chains={chains}
-                location={location}
-                representatives={representatives}
-                saveLocationAction={saveLocationAction}
+            {chains.map((chain) => (
+              <ChainRow
+                key={chain.id}
+                chain={chain}
+                updateChainAction={updateChainAction}
+                archiveChainAction={archiveChainAction}
               />
             ))}
           </div>
@@ -411,26 +966,20 @@ export default async function AdminLocationsPage({
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
             <p>{t("emptyBody")}</p>
-            <div className="toolbar">
-              {hasFilters ? (
+            {hasFilters ? (
+              <div className="toolbar">
                 <a
                   className="secondary-button"
-                  href={`/${tenantSlug}/admin/locations`}
+                  href={buildFilterHref(tenantSlug, baseParams)}
                 >
-                  {t("showAllLocations")}
+                  {t("showAllChains")}
                 </a>
-              ) : null}
-              <a
-                className="primary-button"
-                href={`/${tenantSlug}/admin/imports`}
-              >
-                {t("openImports")}
-              </a>
-            </div>
+              </div>
+            ) : null}
           </div>
         )}
-      </section>
-    </AppShell>
+      </div>
+    </>
   );
 }
 
@@ -634,19 +1183,119 @@ function LocationRow({
   );
 }
 
-function buildLocationFilterHref(
+function ChainRow({
+  chain,
+  updateChainAction,
+  archiveChainAction,
+}: {
+  chain: Chain;
+  updateChainAction: (formData: FormData) => Promise<void>;
+  archiveChainAction: (formData: FormData) => Promise<void>;
+}) {
+  const t = useTranslations("admin.chains");
+  const tCommon = useTranslations("common");
+
+  const statusSelectOptions = chainStatuses.map((status) => ({
+    value: status,
+    label: formatEnumLabel(tCommon, status),
+  }));
+
+  return (
+    // Exclusive-accordion disclosure: the shared `name` keeps only one chain
+    // expanded at a time; collapsed rows show just the name/code summary and the
+    // edit form stays hidden until a row is opened.
+    <details
+      className="admin-user-row admin-user-disclosure"
+      name="admin-chain"
+    >
+      <summary className="admin-user-summary">
+        <div className="admin-user-summary-lead">
+          <h3>{chain.name}</h3>
+          {chain.externalCode ? <p>{chain.externalCode}</p> : null}
+        </div>
+        <div className="admin-user-summary-meta">
+          <span className={`status-pill ${statusTone(chain.status)}`}>
+            {formatEnumLabel(tCommon, chain.status)}
+          </span>
+          <span className="disclosure-chevron" aria-hidden="true" />
+        </div>
+      </summary>
+
+      <div className="admin-user-body">
+        <div className="visit-form compact visit-form-2col">
+          <InlineFieldEditor
+            entityId={chain.id}
+            idFieldName="chainId"
+            namespace="admin.chains"
+            field="name"
+            kind="text"
+            label={t("name")}
+            required
+            updateAction={updateChainAction}
+            value={chain.name}
+            displayText={chain.name}
+          />
+          <InlineFieldEditor
+            entityId={chain.id}
+            idFieldName="chainId"
+            namespace="admin.chains"
+            field="externalCode"
+            kind="text"
+            label={t("externalCode")}
+            updateAction={updateChainAction}
+            value={chain.externalCode ?? ""}
+            displayText={chain.externalCode ?? ""}
+          />
+          <InlineFieldEditor
+            entityId={chain.id}
+            idFieldName="chainId"
+            namespace="admin.chains"
+            field="notes"
+            kind="text"
+            label={t("notes")}
+            updateAction={updateChainAction}
+            value={chain.notes ?? ""}
+            displayText={chain.notes ?? ""}
+          />
+          <InlineFieldEditor
+            entityId={chain.id}
+            idFieldName="chainId"
+            namespace="admin.chains"
+            field="status"
+            kind="select"
+            label={t("status")}
+            options={statusSelectOptions}
+            required
+            updateAction={updateChainAction}
+            value={chain.status}
+            displayText={formatEnumLabel(tCommon, chain.status)}
+          />
+        </div>
+        <div className="product-row-footer">
+          <ArchiveChainButton
+            archiveAction={archiveChainAction}
+            chainId={chain.id}
+            chainName={chain.name}
+            chainStatus={chain.status}
+          />
+        </div>
+      </div>
+    </details>
+  );
+}
+
+// One href builder for both sections: callers pass already-namespaced params
+// (`loc*`, `chain*`, `open`); empty values are dropped.
+function buildFilterHref(
   tenantSlug: string,
-  status: LocationStatus | null,
-  search: string | null,
+  params: Record<string, string | null | undefined>,
 ): string {
   const query = new URLSearchParams();
 
-  if (status) {
-    query.set("status", status);
-  }
-
-  if (search) {
-    query.set("search", search);
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      query.set(key, value);
+    }
   }
 
   const suffix = query.toString();
@@ -654,8 +1303,86 @@ function buildLocationFilterHref(
   return `/${tenantSlug}/admin/locations${suffix ? `?${suffix}` : ""}`;
 }
 
-function normalizeStatus(value: string | undefined): LocationStatus | null {
+// The created/updated/error notice triad both sections render above their
+// content; `t` is the section's namespace translator (admin.locations /
+// admin.chains — both define the same notice keys).
+function SectionNotices({
+  clearPrefix,
+  created,
+  error,
+  t,
+  updated,
+}: {
+  clearPrefix: "loc" | "chain";
+  created?: string;
+  error?: string;
+  t: (
+    key:
+      | "createdAria"
+      | "createdBody"
+      | "createdEyebrow"
+      | "createdTitle"
+      | "updatedAria"
+      | "updatedBody"
+      | "updatedEyebrow"
+      | "updatedTitle"
+      | "errorAria"
+      | "errorBody"
+      | "errorEyebrow"
+      | "errorTitle",
+  ) => string;
+  updated?: string;
+}) {
+  return (
+    <>
+      {created ? (
+        <DismissableNotice
+          ariaLabel={t("createdAria")}
+          body={t("createdBody")}
+          clearParams={[`${clearPrefix}Created`]}
+          eyebrow={t("createdEyebrow")}
+          title={t("createdTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      {updated ? (
+        <DismissableNotice
+          ariaLabel={t("updatedAria")}
+          body={t("updatedBody")}
+          clearParams={[`${clearPrefix}Updated`]}
+          eyebrow={t("updatedEyebrow")}
+          title={t("updatedTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      {error ? (
+        <DismissableNotice
+          ariaLabel={t("errorAria")}
+          body={t("errorBody")}
+          clearParams={[`${clearPrefix}Error`]}
+          eyebrow={t("errorEyebrow")}
+          title={t("errorTitle")}
+          tone="danger"
+        />
+      ) : null}
+    </>
+  );
+}
+
+function normalizeLocationStatus(
+  value: string | undefined,
+): LocationStatus | null {
   if (value === "active" || value === "inactive" || value === "archived") {
+    return value;
+  }
+
+  return null;
+}
+
+function normalizeChainStatus(value: string | undefined): ChainStatus | null {
+  if (value === "active" || value === "archived") {
     return value;
   }
 
