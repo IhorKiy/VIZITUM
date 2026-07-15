@@ -9,7 +9,6 @@ export type RoleArea =
   | "admin-review"
   | "admin-settings"
   | "admin-locations"
-  | "admin-chains"
   | "admin-products"
   | "manager-overview"
   | "manager-visits"
@@ -115,13 +114,6 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     area: "admin-locations",
     zone: "admin",
     icon: "L",
-    requiredPermissions: ["locations.manage"],
-  },
-  {
-    path: "/admin/chains",
-    area: "admin-chains",
-    zone: "admin",
-    icon: "C",
     requiredPermissions: ["locations.manage"],
   },
   {

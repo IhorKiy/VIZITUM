@@ -57,8 +57,7 @@
       "admin-setup": "Setup",
       "admin-users": "Users",
       "admin-imports": "Imports",
-      "admin-locations": "Locations",
-      "admin-chains": "Chains",
+      "admin-locations": "Locations / Chains",
       "admin-products": "Products",
       "admin-review": "Review",
       "admin-settings": "Settings",
@@ -453,6 +452,10 @@
   },
   "admin": {
     "eyebrow": "Company admin",
+    "locationsChains": {
+      "title": "Locations / Chains",
+      "metricsAria": "Locations and chains metrics"
+    },
     "settings": {
       "title": "Company settings",
       "notConnectedTitle": "Tenant settings are not connected",
@@ -512,6 +515,10 @@
       "category": "Category",
       "chain": "Chain",
       "chainNone": "No chain",
+      "allChains": "All chains",
+      "viewList": "List",
+      "viewByChain": "By chain",
+      "viewFiltersAria": "Locations view mode",
       "region": "Region",
       "territory": "Territory",
       "status": "Status",

@@ -57,8 +57,7 @@
       "admin-setup": "Запуск",
       "admin-users": "Користувачі",
       "admin-imports": "Імпорт",
-      "admin-locations": "Точки",
-      "admin-chains": "Мережі",
+      "admin-locations": "Точки/Мережі",
       "admin-products": "Товари",
       "admin-review": "Огляд",
       "admin-settings": "Налаштування",
@@ -453,6 +452,10 @@
   },
   "admin": {
     "eyebrow": "Адміністратор компанії",
+    "locationsChains": {
+      "title": "Точки/Мережі",
+      "metricsAria": "Показники точок і мереж"
+    },
     "settings": {
       "title": "Налаштування компанії",
       "notConnectedTitle": "Налаштування не підключені",
@@ -512,6 +515,10 @@
       "category": "Категорія",
       "chain": "Мережа",
       "chainNone": "Без мережі",
+      "allChains": "Усі мережі",
+      "viewList": "Список",
+      "viewByChain": "За мережею",
+      "viewFiltersAria": "Режим перегляду точок",
       "region": "Регіон",
       "territory": "Територія",
       "status": "Статус",

@@ -458,6 +458,31 @@ textarea {
   transform: rotate(90deg);
 }
 
+/* Vertical stack of section-level accordions (the Locations / Chains screen),
+   so the two collapsed blocks don't sit flush against each other — and the
+   stack itself clears the metrics row above it. */
+.section-stack {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* Body of a section-level accordion (e.g. the Locations / Chains screen): a
+   <details> wraps everything after <summary> in one anonymous box, so give the
+   body its own grid to space the toolbar, metrics and drilldown panel. */
+.section-body {
+  display: grid;
+  gap: 16px;
+}
+
+/* The drilldown panel centers itself as a page-width column by default
+   (max-width + auto margins). Inside an accordion it's already the section
+   body, so drop that so its content sits flush-left and spans the full width. */
+.section-body > .drilldown-panel {
+  margin: 0;
+  max-width: none;
+}
+
 .panel-title-stack {
   display: grid;
   gap: 6px;
@@ -1034,18 +1059,21 @@ textarea {
   gap: 8px;
 }
 
-/* Products grouped under category headings. */
-.product-category-groups {
+/* Rows grouped under a heading — products by category, locations by chain. */
+.product-category-groups,
+.entity-group-list {
   display: grid;
   gap: 20px;
 }
 
-.product-category-group {
+.product-category-group,
+.entity-group {
   display: grid;
   gap: 10px;
 }
 
-.product-category-group-title {
+.product-category-group-title,
+.entity-group-title {
   align-items: center;
   color: var(--ink);
   display: flex;
@@ -1054,7 +1082,8 @@ textarea {
   gap: 8px;
 }
 
-.product-category-group-count {
+.product-category-group-count,
+.entity-group-count {
   background: var(--surface-muted);
   border-radius: 999px;
   color: var(--muted);
@@ -2054,6 +2083,21 @@ textarea {
 
 .representatives-filter-form {
   grid-template-columns: minmax(220px, 1fr) auto;
+}
+
+/* Locations / Chains sections filter just by a single search field, so pack the
+   input and the action buttons to the left with the normal grid gap between
+   them instead of stretching across the 5-column default template. */
+.locations-chains-filter-form {
+  grid-template-columns: minmax(200px, 320px) auto;
+  justify-content: start;
+}
+
+/* The Locations section adds a chain filter next to search — chain, search then
+   actions, left-packed. */
+.location-filter-form {
+  grid-template-columns: minmax(180px, 240px) minmax(200px, 320px) auto;
+  justify-content: start;
 }
 
 .field-history-filter-form {

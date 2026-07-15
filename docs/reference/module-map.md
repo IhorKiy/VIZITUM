@@ -77,8 +77,7 @@ Persisting a zone choice (`User.lastSelectedZone`, see [data-model.md](data-mode
 | `/[tenantSlug]/admin/setup` | `admin/setup/page.tsx` | Admin | Onboarding checklist (settings, users, imports reads) |
 | `/[tenantSlug]/admin/users` | `admin/users/page.tsx` | Admin | `/admin/users*` |
 | `/[tenantSlug]/admin/imports` | `admin/imports/page.tsx` | Admin | `/imports/*` |
-| `/[tenantSlug]/admin/locations` | `admin/locations/page.tsx` | Admin | `/locations*`, `/chains` (chain picker on each location) |
-| `/[tenantSlug]/admin/chains` | `admin/chains/page.tsx` | Admin | `/chains*` — create/edit retail chains; gated on `locations.manage` |
+| `/[tenantSlug]/admin/locations` | `admin/locations/page.tsx` | Admin | Combined **Locations / Chains** screen — two collapsible accordions over `/locations*` and `/chains*` (create/edit locations and retail chains, chain picker on each location); gated on `locations.manage` |
 | `/[tenantSlug]/admin/products` | `admin/products/page.tsx` | Admin | `/products*` |
 | `/[tenantSlug]/admin/review` | `admin/review/page.tsx` | Admin | Pilot review summary from `/pilot-review/summary`; records a dashboard view via `/pilot-review/dashboard-views` |
 | `/[tenantSlug]/admin/settings` | `admin/settings/page.tsx` | Admin | `/admin/settings` — company name, IANA timezone, workspace UI language (`en`/`uk`) and products flag |
