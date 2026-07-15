@@ -67,6 +67,7 @@ export default async function LoginPage({
       sessionResult.ok ? sessionResult.data.permissions : undefined,
       sessionResult.ok ? sessionResult.data.productsEnabled : true,
       sessionResult.ok ? sessionResult.data.user.lastSelectedZone : null,
+      sessionResult.ok ? sessionResult.data.pilotActive : true,
     );
 
     if (landing.kind === "zone") {

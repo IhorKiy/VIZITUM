@@ -26,6 +26,7 @@ export default async function NoAccessPage({ params }: NoAccessPageProps) {
     sessionResult.data.permissions,
     sessionResult.data.productsEnabled,
     sessionResult.data.user.lastSelectedZone,
+    sessionResult.data.pilotActive,
   );
 
   if (landing.kind === "zone") {

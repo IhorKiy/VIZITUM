@@ -65,7 +65,7 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 | `imports.confirm` | | x | x | | |
 | `ai.use_reporting` | | | | | x |
 | `dashboard.manager.read` | | | | x | |
-| `pilot_review.read` | | | | x | |
+| `pilot_review.read` | | x | x | x | |
 | `audit.read` | | x | x | | |
 
 ## Ownership-scoped permissions
@@ -78,4 +78,4 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 
 - `visits.cancel_own` is defined and granted but no controller currently requires it.
 - `platform.tenants.read`/`platform.tenants.manage` are enforced by `platform.controller.ts`, `platform-tenant-users.controller.ts` (read-only tenant user listing) and `platform-tenant-superadmin.controller.ts` (superadmin invite/replace/promote) across tenant lifecycle — including the purge-marking endpoint `POST /platform/tenants/:tenantId/purge`, which uses the same `platform.tenants.manage` gate as archive/unarchive plus a slug-echo confirmation payload. These are reachable via a `platform_owner` session (`POST /platform/auth/login`). The platform bearer token no longer grants these — it is limited to `platform.operations.read`. There is no purge surface anywhere under tenant routes: the destructive work itself runs only in the `purge` worker, not behind any HTTP endpoint.
-- `pilot_review.read` and `dashboard.manager.read` are granted only to `team_manager`, but the frontend Review nav item (`admin/review`) and `GET /pilot-review/summary`/`POST /pilot-review/dashboard-views` require one of them — so the review screen and its data are reachable by managers, not by `company_admin`/`tenant_superadmin` without also holding the manager role.
+- `pilot_review.read` is granted to `company_admin`/`tenant_superadmin` (they run onboarding, and the `/admin/pilot` section hosting the readiness checklist + pilot review is nav-gated on it) as well as `team_manager`. `dashboard.manager.read` stays manager-only; `GET /pilot-review/summary` requires `pilot_review.read` and `POST /pilot-review/dashboard-views` accepts either (`@RequireAnyPermissions`). Because `team_manager` holds `pilot_review.read`, the admin zone stays available to plain managers while the tenant is on the pilot plan — see the "Known cross-zone overlap" note in [module-map.md](module-map.md); the frontend hides the whole `admin/pilot` area (and drops it from zone availability) once the tenant graduates off the pilot plan (`pilotActive` from `GET /auth/me`).

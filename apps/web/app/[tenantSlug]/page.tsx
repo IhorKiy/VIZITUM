@@ -22,6 +22,7 @@ export default async function TenantHomePage({ params }: TenantHomePageProps) {
     sessionResult.data.permissions,
     sessionResult.data.productsEnabled,
     sessionResult.data.user.lastSelectedZone,
+    sessionResult.data.pilotActive,
   );
 
   if (landing.kind === "zone") {

@@ -139,7 +139,16 @@ export default async function AdminSettingsPage({
     );
   }
 
-  const templatesResult = await listImportTemplates();
+  // All three reads are independent (the validation-preview id comes from the
+  // query string), so batch them instead of paying serial round-trips.
+  const [templatesResult, importJobsFetch, validationPreviewResult] =
+    await Promise.all([
+      listImportTemplates(),
+      listImportJobs(),
+      validationState.importJobId
+        ? getImportValidationJob(validationState.importJobId)
+        : Promise.resolve(null),
+    ]);
   const demoFallbackEnabled = isDemoFallbackEnabled();
 
   if (!templatesResult.ok && !demoFallbackEnabled) {
@@ -172,14 +181,14 @@ export default async function AdminSettingsPage({
   }
 
   const templates = templatesResult.ok ? templatesResult.data : demoTemplates;
-  const importJobsResult = templatesResult.ok ? await listImportJobs() : null;
+  // Preserve the pre-batching demo-mode behavior: when the templates read
+  // failed (API down), the history panel shows its empty state rather than a
+  // second "unavailable" error for the jobs read that failed the same way.
+  const importJobsResult = templatesResult.ok ? importJobsFetch : null;
   const importJobs = importJobsResult?.ok ? importJobsResult.data : [];
   const selectedTemplate =
     templates.find((template) => template.type === validationState.template) ??
     templates[0];
-  const validationPreviewResult = validationState.importJobId
-    ? await getImportValidationJob(validationState.importJobId)
-    : null;
   const validationPreview =
     validationPreviewResult?.ok === true ? validationPreviewResult.data : null;
   const canConfirmImport =

@@ -240,9 +240,12 @@ export function zoneForArea(area: RoleArea): Zone {
 export function availableZones(
   permissions?: string[],
   productsEnabled = true,
+  pilotActive = true,
 ): Zone[] {
   const presentZones = new Set(
-    filterNavItemDefs(permissions, productsEnabled).map((item) => item.zone),
+    filterNavItemDefs(permissions, productsEnabled, pilotActive).map(
+      (item) => item.zone,
+    ),
   );
 
   return ZONE_ORDER.filter((zone) => presentZones.has(zone));
@@ -279,8 +282,9 @@ export function resolveZoneLanding(
   permissions: string[] | undefined,
   productsEnabled: boolean,
   lastSelectedZone: string | null | undefined,
+  pilotActive = true,
 ): ZoneLanding {
-  const zones = availableZones(permissions, productsEnabled);
+  const zones = availableZones(permissions, productsEnabled, pilotActive);
 
   if (zones.length === 0) {
     return { kind: "no-access" };

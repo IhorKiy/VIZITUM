@@ -1,8 +1,10 @@
+import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import {
   countActiveProducts,
+  getCurrentSession,
   getPilotReviewSummary,
   listAdminUsers,
   listImportTemplates,
@@ -25,7 +27,10 @@ type AdminPilotPageProps = {
 type ChecklistItem = {
   title: string;
   detail: string;
-  status: "ready" | "needs-work" | "blocked";
+  // "unavailable" marks a check whose source fetch failed (e.g. the viewer
+  // lacks the permission behind it); it is excluded from the readiness math
+  // instead of being miscounted as needs-work.
+  status: "ready" | "needs-work" | "blocked" | "unavailable";
 };
 
 type SetupTranslator = Awaited<
@@ -46,21 +51,30 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
     getFormatter(),
   ]);
 
-  await recordDashboardView("admin_review").catch(() => undefined);
-
   const [
+    sessionResult,
     usersResult,
     locationsResult,
     productsResult,
     templatesResult,
     summaryResult,
   ] = await Promise.all([
+    getCurrentSession(),
     listAdminUsers(),
     listLocations(),
     countActiveProducts(),
     listImportTemplates(),
     getPilotReviewSummary(),
   ]);
+
+  // Page-level twin of AppShell's pilot guard, run *before* the dashboard
+  // view is recorded so graduated-tenant visitors who get redirected away
+  // don't inflate the pilot-review usage metric.
+  if (sessionResult.ok && !sessionResult.data.pilotActive) {
+    redirect(`/${tenantSlug}/admin/settings`);
+  }
+
+  await recordDashboardView("admin_review").catch(() => undefined);
 
   if (
     !usersResult.ok &&
@@ -97,14 +111,33 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
   }
 
   const checklist = buildChecklist(
-    { usersResult, locationsResult, productsResult, templatesResult },
+    {
+      usersResult,
+      locationsResult,
+      productsResult,
+      templatesResult,
+      productsEnabled: sessionResult.ok
+        ? sessionResult.data.productsEnabled
+        : true,
+    },
     t,
   );
-  const readyCount = checklist.filter((item) => item.status === "ready").length;
-  const blockedCount = checklist.filter(
+  // Checks whose data source failed are left out of the readiness math so a
+  // viewer without e.g. users.read doesn't see a fully configured tenant as
+  // "not ready".
+  const applicableChecks = checklist.filter(
+    (item) => item.status !== "unavailable",
+  );
+  const readyCount = applicableChecks.filter(
+    (item) => item.status === "ready",
+  ).length;
+  const blockedCount = applicableChecks.filter(
     (item) => item.status === "blocked",
   ).length;
-  const readinessPercent = Math.round((readyCount / checklist.length) * 100);
+  const readinessPercent =
+    applicableChecks.length > 0
+      ? Math.round((readyCount / applicableChecks.length) * 100)
+      : 0;
   const activeUserCount = usersResult.ok
     ? usersResult.data.items.filter((user) => user.status === "active").length
     : null;
@@ -149,7 +182,7 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
               <span className="setup-metric-label">
                 {t("checksReady", {
                   ready: readyCount,
-                  total: checklist.length,
+                  total: applicableChecks.length,
                 })}
               </span>
             </div>
@@ -161,7 +194,7 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
             </div>
             <div className="setup-metric">
               <span className="setup-metric-value">
-                {checklist.length - readyCount}
+                {applicableChecks.length - readyCount}
               </span>
               <span className="setup-metric-label">
                 {blockedCount > 0 ? t("openSetupItems") : t("itemsLeft")}
@@ -287,11 +320,13 @@ function buildChecklist(
     locationsResult,
     productsResult,
     templatesResult,
+    productsEnabled,
   }: {
     usersResult: ApiResult<PaginatedResponse<TenantUser>>;
     locationsResult: ApiResult<PaginatedResponse<Location>>;
     productsResult: ApiResult<number>;
     templatesResult: ApiResult<ImportTemplateSummary[]>;
+    productsEnabled: boolean;
   },
   t: SetupTranslator,
 ): ChecklistItem[] {
@@ -314,62 +349,101 @@ function buildChecklist(
   const initialPlanTemplateReady = templates.some(
     (template) => template.type === "initial_visit_task_plan",
   );
+  const unavailable = (): Pick<ChecklistItem, "detail" | "status"> => ({
+    detail: t("sourceUnavailable"),
+    status: "unavailable",
+  });
 
   return [
     {
       title: t("adminAccessTitle"),
-      detail: hasAdmin ? t("adminAccessReady") : t("adminAccessNeedsWork"),
-      status: usersResult.ok && hasAdmin ? "ready" : "needs-work",
+      ...(usersResult.ok
+        ? {
+            detail: hasAdmin
+              ? t("adminAccessReady")
+              : t("adminAccessNeedsWork"),
+            status: hasAdmin ? ("ready" as const) : ("needs-work" as const),
+          }
+        : unavailable()),
     },
     {
       title: t("rolesTitle"),
-      detail:
-        hasManager && fieldRepCount > 0
-          ? t("rolesReady", { count: fieldRepCount })
-          : t("rolesNeedsWork"),
-      status:
-        usersResult.ok && hasManager && fieldRepCount > 0
-          ? "ready"
-          : "needs-work",
+      ...(usersResult.ok
+        ? {
+            detail:
+              hasManager && fieldRepCount > 0
+                ? t("rolesReady", { count: fieldRepCount })
+                : t("rolesNeedsWork"),
+            status:
+              hasManager && fieldRepCount > 0
+                ? ("ready" as const)
+                : ("needs-work" as const),
+          }
+        : unavailable()),
     },
     {
       title: t("locationsTitle"),
-      detail:
-        activeLocationCount > 0
-          ? t("locationsReady", { count: activeLocationCount })
-          : t("locationsNeedsWork"),
-      status:
-        locationsResult.ok && activeLocationCount > 0 ? "ready" : "needs-work",
+      ...(locationsResult.ok
+        ? {
+            detail:
+              activeLocationCount > 0
+                ? t("locationsReady", { count: activeLocationCount })
+                : t("locationsNeedsWork"),
+            status:
+              activeLocationCount > 0
+                ? ("ready" as const)
+                : ("needs-work" as const),
+          }
+        : unavailable()),
     },
-    {
-      title: t("productsTitle"),
-      detail:
-        activeProductCount > 0
-          ? t("productsReady", { count: activeProductCount })
-          : t("productsNeedsWork"),
-      status:
-        productsResult.ok && activeProductCount > 0 ? "ready" : "needs-work",
-    },
+    // Tenants with product tracking disabled by the owner have no products
+    // by design — the check would otherwise cap readiness below 100% forever.
+    ...(productsEnabled
+      ? [
+          {
+            title: t("productsTitle"),
+            ...(productsResult.ok
+              ? {
+                  detail:
+                    activeProductCount > 0
+                      ? t("productsReady", { count: activeProductCount })
+                      : t("productsNeedsWork"),
+                  status:
+                    activeProductCount > 0
+                      ? ("ready" as const)
+                      : ("needs-work" as const),
+                }
+              : unavailable()),
+          },
+        ]
+      : []),
     {
       title: t("planTitle"),
-      detail: initialPlanTemplateReady ? t("planReady") : t("planBlocked"),
-      status:
-        templatesResult.ok && initialPlanTemplateReady ? "ready" : "blocked",
+      ...(templatesResult.ok
+        ? {
+            detail: initialPlanTemplateReady
+              ? t("planReady")
+              : t("planBlocked"),
+            status: initialPlanTemplateReady
+              ? ("ready" as const)
+              : ("blocked" as const),
+          }
+        : unavailable()),
     },
     {
       title: t("baselineTitle"),
-      detail:
-        hasManager && fieldRepCount > 0 && activeLocationCount > 0
-          ? t("baselineReady")
-          : t("baselineNeedsWork"),
-      status:
-        usersResult.ok &&
-        locationsResult.ok &&
-        hasManager &&
-        fieldRepCount > 0 &&
-        activeLocationCount > 0
-          ? "ready"
-          : "needs-work",
+      ...(usersResult.ok && locationsResult.ok
+        ? {
+            detail:
+              hasManager && fieldRepCount > 0 && activeLocationCount > 0
+                ? t("baselineReady")
+                : t("baselineNeedsWork"),
+            status:
+              hasManager && fieldRepCount > 0 && activeLocationCount > 0
+                ? ("ready" as const)
+                : ("needs-work" as const),
+          }
+        : unavailable()),
     },
   ];
 }
@@ -385,6 +459,8 @@ function formatStatus(
       return t("statusNeedsWork");
     case "blocked":
       return t("statusBlocked");
+    case "unavailable":
+      return t("statusUnavailable");
   }
 }
 
@@ -396,6 +472,8 @@ function statusTone(status: ChecklistItem["status"]): string {
       return "warning";
     case "blocked":
       return "danger";
+    case "unavailable":
+      return "info";
   }
 }
 

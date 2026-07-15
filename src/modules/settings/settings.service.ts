@@ -4,6 +4,10 @@ import { normalizeTimezone } from "../../common/normalize";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
+  productsEnabledFromSetting,
+  upsertProductsEnabledSetting,
+} from "./products-enabled";
+import {
   PRODUCTS_ENABLED_SETTING_KEY,
   SUPPORTED_TENANT_LANGUAGES,
   type TenantLanguage,
@@ -36,9 +40,7 @@ export class SettingsService {
       timezone: tenant.timezone,
       language: tenant.language,
       productMode: tenant.productMode,
-      productsEnabled: productsEnabledSetting
-        ? productsEnabledSetting.value === true
-        : true,
+      productsEnabled: productsEnabledFromSetting(productsEnabledSetting),
       updatedAt: tenant.updatedAt.toISOString(),
     };
   }
@@ -99,24 +101,12 @@ export class SettingsService {
       });
 
       if (productsEnabled !== null && productsEnabled !== undefined) {
-        await tx.tenantSetting.upsert({
-          where: {
-            tenantId_key: {
-              tenantId: context.tenantId,
-              key: PRODUCTS_ENABLED_SETTING_KEY,
-            },
-          },
-          create: {
-            tenantId: context.tenantId,
-            key: PRODUCTS_ENABLED_SETTING_KEY,
-            value: productsEnabled,
-            updatedByUserId: context.userId ?? null,
-          },
-          update: {
-            value: productsEnabled,
-            updatedByUserId: context.userId ?? null,
-          },
-        });
+        await upsertProductsEnabledSetting(
+          tx,
+          context.tenantId,
+          productsEnabled,
+          context.userId ?? null,
+        );
       }
     });
 

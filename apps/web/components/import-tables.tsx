@@ -4,7 +4,7 @@ import type {
   ImportJobHistoryItem,
   ImportValidationIssue,
 } from "../lib/api-client";
-import { formatDateTime } from "../lib/format";
+import { formatDateTime, formatLabel } from "../lib/format";
 
 type ImportsTranslator = ReturnType<typeof useTranslations<"admin.imports">>;
 
@@ -35,7 +35,7 @@ export function ImportHistoryTable({
         {jobs.map((job) => (
           <tr key={job.id}>
             <td>
-              <strong>{formatImportTemplate(job.templateType)}</strong>
+              <strong>{formatLabel(job.templateType)}</strong>
               <span>{job.id}</span>
             </td>
             <td>
@@ -121,13 +121,6 @@ export function ImportIssuesTable({
       </tbody>
     </table>
   );
-}
-
-function formatImportTemplate(templateType: string): string {
-  return templateType
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function formatImportStatus(

@@ -26,6 +26,7 @@ import type {
   SwitchZoneRequestBody,
 } from "./auth.types";
 import { isValidZone, isZoneAvailable } from "./zones";
+import { productsEnabledFromSetting } from "../settings/products-enabled";
 import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
 import { DEFAULT_ADMIN_LIMIT, resolveAdminCap } from "../users/users.types";
 
@@ -447,9 +448,7 @@ export class AuthService {
       },
       roleCodes,
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
-      productsEnabled: productsEnabledSetting
-        ? productsEnabledSetting.value === true
-        : true,
+      productsEnabled: productsEnabledFromSetting(productsEnabledSetting),
       tenantTimezone: tenant?.timezone ?? "UTC",
       pilotActive: tenant?.status === "pilot",
     };

@@ -14,7 +14,10 @@ import {
 } from "../../common/normalize";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
+import {
+  readProductsEnabledByTenantId,
+  upsertProductsEnabledSetting,
+} from "../settings/products-enabled";
 import type { RequestContext } from "../tenancy/request-context";
 import { resolveInviteStatus, UsersService } from "../users/users.service";
 import { adminCapForStatus, resolveAdminCap } from "../users/users.types";
@@ -90,7 +93,7 @@ export class PlatformService {
       locationCounts,
       activeSuperadmins,
       pendingSuperadminInvites,
-      productsEnabledSettings,
+      productsEnabledByTenantId,
     ] = await Promise.all([
       this.prisma.userRole.groupBy({
         by: ["tenantId", "roleCode"],
@@ -146,21 +149,8 @@ export class PlatformService {
             orderBy: { createdAt: "desc" },
           })
         : Promise.resolve([]),
-      this.prisma.tenantSetting.findMany({
-        where: {
-          tenantId: { in: tenantIds },
-          key: PRODUCTS_ENABLED_SETTING_KEY,
-        },
-        select: { tenantId: true, value: true },
-      }),
+      readProductsEnabledByTenantId(this.prisma, tenantIds),
     ]);
-
-    // Absence of the setting means products are enabled (default), mirroring
-    // SettingsService.getSettings.
-    const productsEnabledByTenantId = new Map<string, boolean>();
-    for (const setting of productsEnabledSettings) {
-      productsEnabledByTenantId.set(setting.tenantId, setting.value === true);
-    }
 
     const metricsByTenantId = new Map<
       string,
@@ -610,20 +600,9 @@ export class PlatformService {
           });
 
       if (productsEnabled !== undefined) {
-        await tx.tenantSetting.upsert({
-          where: {
-            tenantId_key: { tenantId, key: PRODUCTS_ENABLED_SETTING_KEY },
-          },
-          // The platform owner is not a tenant user, so `updatedByUserId`
-          // (a tenant-User FK) stays null here.
-          create: {
-            tenantId,
-            key: PRODUCTS_ENABLED_SETTING_KEY,
-            value: productsEnabled,
-            updatedByUserId: null,
-          },
-          update: { value: productsEnabled, updatedByUserId: null },
-        });
+        // The platform owner is not a tenant user, so `updatedByUserId`
+        // (a tenant-User FK) stays null here.
+        await upsertProductsEnabledSetting(tx, tenantId, productsEnabled, null);
       }
 
       await tx.platformOperationEvent.create({

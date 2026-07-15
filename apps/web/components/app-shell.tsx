@@ -47,6 +47,7 @@ export async function AppShell({
     const zones = availableZones(
       sessionResult.data.permissions,
       sessionResult.data.productsEnabled,
+      sessionResult.data.pilotActive,
     );
 
     if (!zones.includes(currentZone)) {
@@ -54,6 +55,7 @@ export async function AppShell({
         sessionResult.data.permissions,
         sessionResult.data.productsEnabled,
         sessionResult.data.user.lastSelectedZone,
+        sessionResult.data.pilotActive,
       );
 
       if (landing.kind === "zone") {

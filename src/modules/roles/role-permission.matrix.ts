@@ -26,6 +26,9 @@ const COMPANY_ADMIN_PERMISSIONS = [
   PERMISSIONS.IMPORTS_UPLOAD,
   PERMISSIONS.IMPORTS_CONFIRM,
   PERMISSIONS.AUDIT_READ,
+  // Company admins run onboarding, so they need the pilot readiness/review
+  // screen (/admin/pilot) and its GET /pilot-review/summary data.
+  PERMISSIONS.PILOT_REVIEW_READ,
 ] as const satisfies readonly PermissionCode[];
 
 export const ROLE_PERMISSION_MATRIX = {
