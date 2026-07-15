@@ -479,6 +479,10 @@ textarea {
   gap: 12px;
 }
 
+.import-template-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .visit-card,
 .import-row {
   padding: 14px;
@@ -1533,6 +1537,90 @@ textarea {
   white-space: nowrap;
 }
 
+.admin-accordion-stack {
+  display: grid;
+  gap: 16px;
+  margin: 16px auto 0;
+  max-width: 1180px;
+}
+
+.setup-metrics-strip {
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+  margin: 16px auto 0;
+  max-width: 1180px;
+  padding: 14px 18px;
+}
+
+.setup-metric {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+}
+
+.setup-metric-value {
+  font-size: 22px;
+  font-weight: 850;
+}
+
+.setup-metric-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pilot-metrics {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+}
+
+.pilot-handoff {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.setup-subsection {
+  margin-top: 16px;
+}
+
+.setup-subsection h3 {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+
+.setup-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.setup-card > header {
+  align-items: flex-start;
+}
+
+.setup-card-title {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 0;
+  min-width: 0;
+}
+
+.setup-card > header > .status-pill {
+  flex-shrink: 0;
+}
+
+.setup-card .small-label {
+  margin-top: 10px;
+}
+
 .setup-checklist {
   display: grid;
   gap: 10px;
@@ -2247,6 +2335,10 @@ textarea {
   background: var(--blue);
 }
 
+.status-pill.danger {
+  background: var(--danger);
+}
+
 .notice-panel {
   align-items: center;
   background: #fff9e8;
@@ -2505,7 +2597,8 @@ textarea {
   .admin-users-grid,
   .setup-grid,
   .review-grid,
-  .user-actions-grid {
+  .user-actions-grid,
+  .import-template-grid {
     grid-template-columns: 1fr;
   }
 

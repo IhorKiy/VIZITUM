@@ -7,5 +7,5 @@ type AdminIndexPageProps = {
 export default async function AdminIndexPage({ params }: AdminIndexPageProps) {
   const { tenantSlug } = await params;
 
-  redirect(`/${tenantSlug}/admin/setup`);
+  redirect(`/${tenantSlug}/admin/settings`);
 }

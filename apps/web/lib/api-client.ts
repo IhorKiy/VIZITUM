@@ -13,6 +13,9 @@ export type AuthSession = {
   permissions: string[];
   productsEnabled: boolean;
   tenantTimezone: string;
+  // Tenant is still on the pilot plan (status "pilot"); gates the temporary
+  // "Pilot" admin nav area.
+  pilotActive: boolean;
 };
 
 export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";
@@ -924,6 +927,9 @@ export type PlatformTenant = {
   contactPhone: string | null;
   status: string;
   productMode: string;
+  // Whether the tenant tracks products/SKUs (gates the admin "Products" area).
+  // Owner-controlled; populated by the tenant list, not the update response.
+  productsEnabled?: boolean;
   segmentTemplate: PlatformSegmentTemplate;
   primaryDomain: string | null;
   // Effective Company Admin cap (owner override if set, otherwise plan-derived).
@@ -1009,6 +1015,8 @@ export type UpdatePlatformTenantInput = {
   // A positive integer sets a per-tenant override; null clears it so the cap
   // follows the plan tier.
   adminLimit?: number | null;
+  // Toggles the tenant's product/SKU tracking (owner-only).
+  productsEnabled?: boolean;
 };
 
 export async function updatePlatformTenant(

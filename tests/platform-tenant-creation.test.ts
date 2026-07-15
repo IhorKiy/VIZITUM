@@ -294,6 +294,9 @@ function createPrismaStub(options: { existingTenant?: { id: string } } = {}) {
     location: {
       groupBy: async () => [],
     },
+    tenantSetting: {
+      findMany: async () => [],
+    },
     user: {
       findMany: async ({
         where,

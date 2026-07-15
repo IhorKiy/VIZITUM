@@ -64,6 +64,7 @@ const COMPANY_ADMIN_PERMISSIONS = [
   "imports.upload",
   "imports.confirm",
   "audit.read",
+  "pilot_review.read",
 ];
 
 describe("navigation zones", () => {
@@ -73,7 +74,7 @@ describe("navigation zones", () => {
 
     assert.equal(byArea.get("field"), "field");
     assert.equal(byArea.get("field-planning"), "field");
-    assert.equal(byArea.get("admin-review"), "admin");
+    assert.equal(byArea.get("admin-pilot"), "admin");
     assert.equal(byArea.get("manager-overview"), "manager");
     assert.equal(byArea.get("operations"), "operations");
   });
@@ -114,12 +115,27 @@ describe("navigation zones", () => {
     // Deriving zone availability from each item's existing
     // requiredPermissions (not a parallel mapping) means team_manager's
     // visits.read_team/routes.read also satisfy the field-zone "field" and
-    // "field-planning" items, and pilot_review.read (granted only to
-    // team_manager — see the "Known gaps" note in permissions.md) satisfies
-    // admin-review. See module-map.md's "Known cross-zone overlap" note.
+    // "field-planning" items, and pilot_review.read (shared with admins —
+    // see the pilot_review.read note in permissions.md) satisfies
+    // admin-pilot. See module-map.md's "Known cross-zone overlap" note.
     assert.deepEqual(availableZones(TEAM_MANAGER_PERMISSIONS), [
       "field",
       "manager",
+      "admin",
+    ]);
+  });
+
+  it("a plain team manager loses the admin zone once the tenant leaves the pilot plan", () => {
+    // admin-pilot is the only admin-zone item a plain team_manager can see,
+    // and it is filtered out when pilotActive is false — the zone must
+    // disappear with it rather than offering an empty admin sidebar.
+    assert.deepEqual(availableZones(TEAM_MANAGER_PERMISSIONS, true, false), [
+      "field",
+      "manager",
+    ]);
+    // Admins keep the admin zone either way: their other permissions still
+    // satisfy admin-zone items after the Pilot section retires.
+    assert.deepEqual(availableZones(COMPANY_ADMIN_PERMISSIONS, true, false), [
       "admin",
     ]);
   });
@@ -182,10 +198,10 @@ describe("navigation zones", () => {
   });
 
   it("resolveZoneLanding: multiple zones, no stored choice -> choose", () => {
-    assert.deepEqual(
-      resolveZoneLanding(TEAM_MANAGER_PERMISSIONS, true, null),
-      { kind: "choose", zones: ["field", "manager", "admin"] },
-    );
+    assert.deepEqual(resolveZoneLanding(TEAM_MANAGER_PERMISSIONS, true, null), {
+      kind: "choose",
+      zones: ["field", "manager", "admin"],
+    });
   });
 
   it("resolveZoneLanding: a stale stored zone falls through silently, no write side effect", () => {

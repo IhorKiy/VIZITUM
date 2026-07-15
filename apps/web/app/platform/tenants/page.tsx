@@ -36,6 +36,7 @@ import { SingleFieldForm } from "./single-field-form";
 import { StatusChangeForm } from "./status-change-form";
 import { TenantAdminControls } from "./tenant-admin-controls";
 import { LanguageForm } from "./language-form";
+import { ProductsForm } from "./products-form";
 import { TimezoneForm } from "./timezone-form";
 import { getFormString } from "../../../lib/form";
 
@@ -345,6 +346,23 @@ export default async function PlatformTenantsPage({
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }
 
+  async function updateProductsAction(formData: FormData) {
+    "use server";
+
+    const tenantId = getFormString(formData, "tenantId").trim();
+    const raw = getFormString(formData, "productsEnabled").trim();
+
+    if (!tenantId || (raw !== "true" && raw !== "false")) {
+      redirect("/platform/tenants?error=1");
+    }
+
+    const result = await updatePlatformTenant(tenantId, {
+      productsEnabled: raw === "true",
+    });
+
+    redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
+  }
+
   async function updateContactAction(formData: FormData) {
     "use server";
 
@@ -544,6 +562,22 @@ export default async function PlatformTenantsPage({
                     <LanguageForm
                       action={updateLanguageAction}
                       currentLanguage={tenant.language}
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                    />
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Product tracking</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {(tenant.productsEnabled ?? true) ? "Enabled" : "Disabled"}
+                  </span>
+                  {isArchived ? null : (
+                    <ProductsForm
+                      action={updateProductsAction}
+                      currentEnabled={tenant.productsEnabled ?? true}
                       tenantId={tenant.id}
                       tenantName={tenant.name}
                     />
