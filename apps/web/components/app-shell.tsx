@@ -65,6 +65,13 @@ export async function AppShell({
       }
     }
 
+    // The "Pilot" area is only reachable while the tenant is on the pilot plan.
+    // The nav already hides it; this guards a direct URL after the tenant has
+    // graduated so the retired section can't be opened by an old link.
+    if (activeArea === "admin-pilot" && !sessionResult.data.pilotActive) {
+      redirect(`/${tenantSlug}/admin/settings`);
+    }
+
     otherZones = zones.filter((zone) => zone !== currentZone);
   }
 
@@ -72,6 +79,7 @@ export async function AppShell({
     tenantSlug,
     sessionResult.ok ? sessionResult.data.permissions : undefined,
     sessionResult.ok ? sessionResult.data.productsEnabled : true,
+    sessionResult.ok ? sessionResult.data.pilotActive : true,
   ).filter((item) => item.zone === currentZone);
 
   const currentUser = sessionResult.ok ? sessionResult.data.user : null;

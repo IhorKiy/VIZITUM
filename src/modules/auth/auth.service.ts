@@ -386,10 +386,15 @@ export class AuthService {
     };
   }
 
-  async getCurrentUser(
-    request: Request,
-  ): Promise<
-    LoginResponse & { productsEnabled: boolean; tenantTimezone: string }
+  async getCurrentUser(request: Request): Promise<
+    LoginResponse & {
+      productsEnabled: boolean;
+      tenantTimezone: string;
+      // Tenant is still on the pilot plan tier (status "pilot"). Drives the
+      // temporary "Pilot" admin nav area, which disappears once the owner
+      // graduates the tenant to team/business.
+      pilotActive: boolean;
+    }
   > {
     const token = readSessionToken(request);
 
@@ -421,7 +426,7 @@ export class AuthService {
       }),
       this.prisma.platformTenant.findUnique({
         where: { id: session.tenantId },
-        select: { timezone: true },
+        select: { timezone: true, status: true },
       }),
     ]);
 
@@ -446,6 +451,7 @@ export class AuthService {
         ? productsEnabledSetting.value === true
         : true,
       tenantTimezone: tenant?.timezone ?? "UTC",
+      pilotActive: tenant?.status === "pilot",
     };
   }
 

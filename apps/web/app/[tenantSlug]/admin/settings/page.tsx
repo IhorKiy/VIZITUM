@@ -2,69 +2,153 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
-import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { DownloadIcon } from "../../../../components/icons";
+import {
+  ImportHistoryTable,
+  ImportIssuesTable,
+} from "../../../../components/import-tables";
+import { ImportUploadModal } from "../../../../components/import-upload-modal";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
-  getAdminSettings,
-  updateAdminSettings,
+  confirmImportJob,
+  getImportValidationJob,
+  listImportJobs,
+  listImportTemplates,
+  validateCsvImport,
+  type ImportTemplateSummary,
 } from "../../../../lib/api-client";
+import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
 import { getFormString } from "../../../../lib/form";
 
 type AdminSettingsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    applied?: string;
+    canConfirm?: string;
+    errors?: string;
+    importJobId?: string;
+    status?: string;
+    template?: string;
+    rows?: string;
+    valid?: string;
+    warnings?: string;
     error?: string;
-    saved?: string;
   }>;
 };
+
+const demoTemplates: ImportTemplateSummary[] = [
+  {
+    type: "users",
+    label: "Users",
+    fileName: "users.csv",
+    downloadPath: "/api/imports/templates/users.csv",
+    requiredColumns: ["email", "name", "role_code"],
+    optionalColumns: ["phone", "external_id"],
+  },
+  {
+    type: "locations",
+    label: "Locations",
+    fileName: "locations.csv",
+    downloadPath: "/api/imports/templates/locations.csv",
+    requiredColumns: ["name", "address_line", "city"],
+    optionalColumns: ["external_id", "channel"],
+  },
+  {
+    type: "products",
+    label: "Products",
+    fileName: "products.csv",
+    downloadPath: "/api/imports/templates/products.csv",
+    requiredColumns: ["sku", "name"],
+    optionalColumns: ["brand", "category"],
+  },
+  {
+    type: "initial_visit_task_plan",
+    label: "Initial plan",
+    fileName: "initial_visit_task_plan.csv",
+    downloadPath: "/api/imports/templates/initial_visit_task_plan.csv",
+    requiredColumns: ["location_reference", "planned_date"],
+    optionalColumns: ["task_title", "task_due_date"],
+  },
+];
 
 export default async function AdminSettingsPage({
   params,
   searchParams,
 }: AdminSettingsPageProps) {
   const { tenantSlug } = await params;
-  const pageState = await searchParams;
-  const [t, tAdmin, tCommon] = await Promise.all([
+  const validationState = await searchParams;
+  const [tSettings, tImports, tAdmin, tCommon] = await Promise.all([
     getTranslations("admin.settings"),
+    getTranslations("admin.imports"),
     getTranslations("admin"),
     getTranslations("common"),
   ]);
 
-  async function updateSettingsAction(formData: FormData) {
+  async function validateImportAction(formData: FormData) {
     "use server";
 
-    const name = getFormString(formData, "name").trim();
-    const timezone = getFormString(formData, "timezone").trim();
-    const language = getFormString(formData, "language").trim();
-    const productsEnabled = formData.get("productsEnabled") === "on";
+    const templateType = getFormString(formData, "templateType").trim();
+    const importFile = formData.get("importFile");
 
-    if (!name || !timezone || !language) {
-      redirect(`/${tenantSlug}/admin/settings?error=1`);
+    if (
+      !templateType ||
+      !(importFile instanceof File) ||
+      importFile.size === 0
+    ) {
+      redirect(`/${tenantSlug}/admin/settings?error=upload`);
     }
 
-    const result = await updateAdminSettings({
-      name,
-      timezone,
-      language,
-      productsEnabled,
-    });
+    const csvText = await importFile.text();
+    const result = await validateCsvImport(templateType, csvText);
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/settings?error=1`);
+      redirect(`/${tenantSlug}/admin/settings?error=validation`);
     }
 
-    redirect(`/${tenantSlug}/admin/settings?saved=1`);
+    const query = new URLSearchParams({
+      canConfirm: String(result.data.canConfirm),
+      errors: String(result.data.errorRowCount),
+      importJobId: result.data.importJobId,
+      rows: String(result.data.rowCount),
+      status: result.data.status,
+      template: result.data.templateType,
+      valid: String(result.data.validRowCount),
+      warnings: String(result.data.warningRowCount),
+    });
+
+    redirect(`/${tenantSlug}/admin/settings?${query.toString()}`);
   }
 
-  const settingsResult = await getAdminSettings();
+  async function confirmImportAction(formData: FormData) {
+    "use server";
 
-  if (!settingsResult.ok) {
+    const importJobId = getFormString(formData, "importJobId").trim();
+
+    if (!importJobId) {
+      redirect(`/${tenantSlug}/admin/settings?error=confirm`);
+    }
+
+    const result = await confirmImportJob(importJobId);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/settings?error=confirm`);
+    }
+
+    redirect(
+      `/${tenantSlug}/admin/settings?applied=${result.data.appliedRowCount}`,
+    );
+  }
+
+  const templatesResult = await listImportTemplates();
+  const demoFallbackEnabled = isDemoFallbackEnabled();
+
+  if (!templatesResult.ok && !demoFallbackEnabled) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="admin-settings">
         <header className="page-header">
           <div>
             <p className="eyebrow">{tAdmin("eyebrow")}</p>
-            <h1>{t("title")}</h1>
+            <h1>{tSettings("title")}</h1>
           </div>
           <div className="toolbar">
             <a className="primary-button" href={`/${tenantSlug}/login`}>
@@ -79,120 +163,230 @@ export default async function AdminSettingsPage({
         >
           <div>
             <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
-            <h2>{t("notConnectedTitle")}</h2>
-            <p>{settingsResult.message}</p>
+            <h2>{tSettings("notConnectedTitle")}</h2>
+            <p>{templatesResult.message}</p>
           </div>
         </section>
       </AppShell>
     );
   }
 
-  const settings = settingsResult.data;
+  const templates = templatesResult.ok ? templatesResult.data : demoTemplates;
+  const importJobsResult = templatesResult.ok ? await listImportJobs() : null;
+  const importJobs = importJobsResult?.ok ? importJobsResult.data : [];
+  const selectedTemplate =
+    templates.find((template) => template.type === validationState.template) ??
+    templates[0];
+  const validationPreviewResult = validationState.importJobId
+    ? await getImportValidationJob(validationState.importJobId)
+    : null;
+  const validationPreview =
+    validationPreviewResult?.ok === true ? validationPreviewResult.data : null;
+  const canConfirmImport =
+    Boolean(validationPreview?.canConfirm) ||
+    (validationState.canConfirm === "true" && validationState.importJobId);
+  const importIssues = validationPreview?.issues ?? [];
+  // Only auto-expand the validation accordion when the user just ran a
+  // validation (query params carry its outcome); otherwise it stays folded.
+  const hasValidationActivity = Boolean(
+    validationState.importJobId || validationState.status,
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-settings">
       <header className="page-header">
         <div>
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
-          <h1>{t("title")}</h1>
+          <h1>{tSettings("title")}</h1>
+        </div>
+        <div className="toolbar">
+          <ImportUploadModal
+            action={validateImportAction}
+            defaultTemplateType={selectedTemplate?.type}
+            templates={templates}
+          />
         </div>
       </header>
 
-      {pageState.saved ? (
-        <DismissableNotice
-          ariaLabel={t("savedAria")}
-          body={t("savedBody")}
-          clearParams={["saved"]}
-          eyebrow={t("savedEyebrow")}
-          title={t("savedTitle")}
-          tone="success"
-        />
-      ) : null}
-
-      {pageState.error ? (
-        <DismissableNotice
-          ariaLabel={t("errorAria")}
-          body={t("errorBody")}
-          clearParams={["error"]}
-          eyebrow={t("errorEyebrow")}
-          title={t("errorTitle")}
-          tone="danger"
-        />
-      ) : null}
-
-      <section className="manager-grid" aria-label={t("identityAria")}>
-        <article className="metric-card">
-          <header>
-            <p className="metric-label">{t("productMode")}</p>
-            <span className="status-pill info">{t("fixed")}</span>
-          </header>
-          <p className="metric-value">
-            {formatProductMode(settings.productMode)}
-          </p>
-          <p className="small-label">{t("productModeHint")}</p>
-        </article>
-      </section>
-
-      <section className="admin-users-grid">
-        <div className="panel">
-          <div className="panel-title-stack">
-            <h2>{t("companyIdentity")}</h2>
-            <p>{t("companyIdentityBody")}</p>
+      {validationState.applied ? (
+        <section
+          className="notice-panel success"
+          aria-label={tImports("appliedAria")}
+        >
+          <div>
+            <p className="eyebrow">{tImports("appliedEyebrow")}</p>
+            <h2>{tImports("appliedTitle")}</h2>
+            <p>{tImports("appliedBody", { count: validationState.applied })}</p>
           </div>
-          <form action={updateSettingsAction} className="visit-form compact">
-            <label>
-              {t("companyName")}
+        </section>
+      ) : null}
+
+      {validationState.error ? (
+        <section
+          className="notice-panel danger"
+          aria-label={tImports("errorAria")}
+        >
+          <div>
+            <p className="eyebrow">{tImports("errorEyebrow")}</p>
+            <h2>{tImports("errorTitle")}</h2>
+            <p>{tImports("errorBody")}</p>
+          </div>
+          <div className="notice-actions">
+            <a className="secondary-button" href="#templates">
+              {tImports("downloadTemplate")}
+            </a>
+          </div>
+        </section>
+      ) : null}
+
+      {!templatesResult.ok && demoFallbackEnabled ? (
+        <section
+          className="notice-panel"
+          aria-label={tCommon("notice.apiStatus")}
+        >
+          <div>
+            <p className="eyebrow">{tCommon("notice.demoMode")}</p>
+            <h2>{tImports("notConnectedTitle")}</h2>
+            <p>{tImports("demoBody", { reason: templatesResult.message })}</p>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="admin-accordion-stack">
+        <details
+          className="panel panel-collapsible"
+          open={hasValidationActivity}
+        >
+          <summary className="panel-summary">
+            <h2>{tImports("validationResult")}</h2>
+          </summary>
+          <table className="table">
+            <tbody>
+              <tr>
+                <th scope="row">{tImports("rowStatus")}</th>
+                <td>
+                  {validationPreview?.status ??
+                    validationState.status ??
+                    tImports("noFileValidated")}
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">{tImports("rowRows")}</th>
+                <td>
+                  {validationPreview?.rowCount ?? validationState.rows ?? "0"}
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">{tImports("rowValid")}</th>
+                <td>
+                  {validationPreview?.validRowCount ??
+                    validationState.valid ??
+                    "0"}
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">{tImports("rowErrors")}</th>
+                <td>
+                  {validationPreview?.errorRowCount ??
+                    validationState.errors ??
+                    "0"}
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">{tImports("rowWarnings")}</th>
+                <td>
+                  {validationPreview?.warningRowCount ??
+                    validationState.warnings ??
+                    "0"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {canConfirmImport ? (
+            <form action={confirmImportAction} className="confirm-inline-form">
               <input
-                defaultValue={settings.name}
-                maxLength={200}
-                name="name"
-                required
-                type="text"
+                name="importJobId"
+                type="hidden"
+                value={
+                  validationPreview?.importJobId ?? validationState.importJobId
+                }
               />
-            </label>
-            <label>
-              {t("timezone")}
-              <input
-                defaultValue={settings.timezone}
-                name="timezone"
-                placeholder="Europe/Kiev"
-                required
-                type="text"
-              />
-            </label>
-            <label>
-              {t("language")}
-              <select defaultValue={settings.language} name="language" required>
-                <option value="en">{t("languageEnglish")}</option>
-                <option value="uk">{t("languageUkrainian")}</option>
-              </select>
-              <span className="form-hint">{t("languageHint")}</span>
-            </label>
-            <label className="checkbox-inline">
-              <input
-                defaultChecked={settings.productsEnabled}
-                name="productsEnabled"
-                type="checkbox"
-              />
-              <span>{t("productsEnabled")}</span>
-            </label>
-            <PendingSubmitButton
-              className="primary-button"
-              pendingLabel={tCommon("saving")}
-            >
-              {t("saveSettings")}
-            </PendingSubmitButton>
-          </form>
-        </div>
+              <PendingSubmitButton
+                className="primary-button"
+                pendingLabel={tImports("applying")}
+              >
+                {tImports("confirmImport")}
+              </PendingSubmitButton>
+            </form>
+          ) : null}
+
+          <div className="setup-subsection">
+            <h3>{tImports("rowIssues")}</h3>
+            {importIssues.length > 0 ? (
+              <ImportIssuesTable issues={importIssues} />
+            ) : (
+              <p className="empty-state">
+                {validationPreview || validationState.importJobId
+                  ? tImports("noRowIssues")
+                  : tImports("validateToReview")}
+              </p>
+            )}
+          </div>
+        </details>
+
+        <details className="panel panel-collapsible" id="templates">
+          <summary className="panel-summary">
+            <h2>{tImports("approvedTemplates")}</h2>
+          </summary>
+          <div className="field-stack import-template-grid">
+            {templates.map((template) => (
+              <article className="import-row" key={template.type}>
+                <div>
+                  <h2>{template.label}</h2>
+                  <p>
+                    {tImports("templateColumns", {
+                      fileName: template.fileName,
+                      required: template.requiredColumns.length,
+                      optional: template.optionalColumns.length,
+                    })}
+                  </p>
+                </div>
+                <a
+                  aria-label={tImports("downloadTemplateTitle", {
+                    label: template.label,
+                  })}
+                  className="icon-button"
+                  href={`/${tenantSlug}/admin/imports/templates/${template.type}.csv`}
+                  title={tImports("downloadTemplateTitle", {
+                    label: template.label,
+                  })}
+                >
+                  <DownloadIcon />
+                </a>
+              </article>
+            ))}
+          </div>
+        </details>
+
+        <details className="panel panel-collapsible">
+          <summary className="panel-summary">
+            <h2>{tImports("importHistory")}</h2>
+          </summary>
+          <p className="empty-state">{tImports("importHistoryBody")}</p>
+          {importJobsResult && !importJobsResult.ok ? (
+            <p className="empty-state">
+              {tImports("historyUnavailable", {
+                message: importJobsResult.message,
+              })}
+            </p>
+          ) : null}
+          {importJobs.length > 0 ? (
+            <ImportHistoryTable jobs={importJobs} tenantSlug={tenantSlug} />
+          ) : importJobsResult?.ok === false ? null : (
+            <p className="empty-state">{tImports("historyEmpty")}</p>
+          )}
+        </details>
       </section>
     </AppShell>
   );
-}
-
-function formatProductMode(productMode: string): string {
-  return productMode
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
 }

@@ -73,7 +73,7 @@ describe("navigation zones", () => {
 
     assert.equal(byArea.get("field"), "field");
     assert.equal(byArea.get("field-planning"), "field");
-    assert.equal(byArea.get("admin-review"), "admin");
+    assert.equal(byArea.get("admin-pilot"), "admin");
     assert.equal(byArea.get("manager-overview"), "manager");
     assert.equal(byArea.get("operations"), "operations");
   });
@@ -116,7 +116,7 @@ describe("navigation zones", () => {
     // visits.read_team/routes.read also satisfy the field-zone "field" and
     // "field-planning" items, and pilot_review.read (granted only to
     // team_manager — see the "Known gaps" note in permissions.md) satisfies
-    // admin-review. See module-map.md's "Known cross-zone overlap" note.
+    // admin-pilot. See module-map.md's "Known cross-zone overlap" note.
     assert.deepEqual(availableZones(TEAM_MANAGER_PERMISSIONS), [
       "field",
       "manager",

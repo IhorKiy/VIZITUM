@@ -14,6 +14,7 @@ import {
 } from "../../common/normalize";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
 import type { RequestContext } from "../tenancy/request-context";
 import { resolveInviteStatus, UsersService } from "../users/users.service";
 import { adminCapForStatus, resolveAdminCap } from "../users/users.types";
@@ -89,6 +90,7 @@ export class PlatformService {
       locationCounts,
       activeSuperadmins,
       pendingSuperadminInvites,
+      productsEnabledSettings,
     ] = await Promise.all([
       this.prisma.userRole.groupBy({
         by: ["tenantId", "roleCode"],
@@ -144,7 +146,21 @@ export class PlatformService {
             orderBy: { createdAt: "desc" },
           })
         : Promise.resolve([]),
+      this.prisma.tenantSetting.findMany({
+        where: {
+          tenantId: { in: tenantIds },
+          key: PRODUCTS_ENABLED_SETTING_KEY,
+        },
+        select: { tenantId: true, value: true },
+      }),
     ]);
+
+    // Absence of the setting means products are enabled (default), mirroring
+    // SettingsService.getSettings.
+    const productsEnabledByTenantId = new Map<string, boolean>();
+    for (const setting of productsEnabledSettings) {
+      productsEnabledByTenantId.set(setting.tenantId, setting.value === true);
+    }
 
     const metricsByTenantId = new Map<
       string,
@@ -236,6 +252,7 @@ export class PlatformService {
 
     return tenants.map((tenant) => ({
       ...withEffectiveAdminLimit(tenant),
+      productsEnabled: productsEnabledByTenantId.get(tenant.id) ?? true,
       metrics: metricsByTenantId.get(tenant.id),
       // When the worker may purge this tenant on retention alone. Display
       // hint for the platform console — the worker recomputes eligibility
@@ -554,6 +571,17 @@ export class PlatformService {
       }
     }
 
+    // Stored in tenantSetting rather than on the platformTenant row, so it is
+    // tracked separately from `data` below.
+    let productsEnabled: boolean | undefined;
+    if (input.productsEnabled !== undefined) {
+      if (typeof input.productsEnabled !== "boolean") {
+        fieldErrors.productsEnabled = ["Products enabled must be a boolean."];
+      } else {
+        productsEnabled = input.productsEnabled;
+      }
+    }
+
     if (Object.keys(fieldErrors).length) {
       throw new BadRequestException({
         code: "TENANT_UPDATE_INVALID",
@@ -562,25 +590,48 @@ export class PlatformService {
       });
     }
 
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0 && productsEnabled === undefined) {
       throw new BadRequestException({
         code: "TENANT_UPDATE_EMPTY",
         message: "No updatable fields were provided.",
       });
     }
 
+    const updatedFields = [
+      ...Object.keys(data),
+      ...(productsEnabled === undefined ? [] : ["productsEnabled"]),
+    ];
+
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.platformTenant.update({
-        where: { id: tenantId },
-        data,
-      });
+      const updated = Object.keys(data).length
+        ? await tx.platformTenant.update({ where: { id: tenantId }, data })
+        : await tx.platformTenant.findUniqueOrThrow({
+            where: { id: tenantId },
+          });
+
+      if (productsEnabled !== undefined) {
+        await tx.tenantSetting.upsert({
+          where: {
+            tenantId_key: { tenantId, key: PRODUCTS_ENABLED_SETTING_KEY },
+          },
+          // The platform owner is not a tenant user, so `updatedByUserId`
+          // (a tenant-User FK) stays null here.
+          create: {
+            tenantId,
+            key: PRODUCTS_ENABLED_SETTING_KEY,
+            value: productsEnabled,
+            updatedByUserId: null,
+          },
+          update: { value: productsEnabled, updatedByUserId: null },
+        });
+      }
 
       await tx.platformOperationEvent.create({
         data: {
           tenantId,
           actorUserId: input.actorUserId,
           eventType: "tenant.updated",
-          metadata: { fields: Object.keys(data) },
+          metadata: { fields: updatedFields },
           requestId: input.requestId,
         },
       });
