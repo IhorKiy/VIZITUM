@@ -14,6 +14,10 @@ import {
 } from "../../common/normalize";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  readProductsEnabledByTenantId,
+  upsertProductsEnabledSetting,
+} from "../settings/products-enabled";
 import type { RequestContext } from "../tenancy/request-context";
 import { resolveInviteStatus, UsersService } from "../users/users.service";
 import { adminCapForStatus, resolveAdminCap } from "../users/users.types";
@@ -89,6 +93,7 @@ export class PlatformService {
       locationCounts,
       activeSuperadmins,
       pendingSuperadminInvites,
+      productsEnabledByTenantId,
     ] = await Promise.all([
       this.prisma.userRole.groupBy({
         by: ["tenantId", "roleCode"],
@@ -144,6 +149,7 @@ export class PlatformService {
             orderBy: { createdAt: "desc" },
           })
         : Promise.resolve([]),
+      readProductsEnabledByTenantId(this.prisma, tenantIds),
     ]);
 
     const metricsByTenantId = new Map<
@@ -236,6 +242,7 @@ export class PlatformService {
 
     return tenants.map((tenant) => ({
       ...withEffectiveAdminLimit(tenant),
+      productsEnabled: productsEnabledByTenantId.get(tenant.id) ?? true,
       metrics: metricsByTenantId.get(tenant.id),
       // When the worker may purge this tenant on retention alone. Display
       // hint for the platform console — the worker recomputes eligibility
@@ -554,6 +561,17 @@ export class PlatformService {
       }
     }
 
+    // Stored in tenantSetting rather than on the platformTenant row, so it is
+    // tracked separately from `data` below.
+    let productsEnabled: boolean | undefined;
+    if (input.productsEnabled !== undefined) {
+      if (typeof input.productsEnabled !== "boolean") {
+        fieldErrors.productsEnabled = ["Products enabled must be a boolean."];
+      } else {
+        productsEnabled = input.productsEnabled;
+      }
+    }
+
     if (Object.keys(fieldErrors).length) {
       throw new BadRequestException({
         code: "TENANT_UPDATE_INVALID",
@@ -562,25 +580,37 @@ export class PlatformService {
       });
     }
 
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0 && productsEnabled === undefined) {
       throw new BadRequestException({
         code: "TENANT_UPDATE_EMPTY",
         message: "No updatable fields were provided.",
       });
     }
 
+    const updatedFields = [
+      ...Object.keys(data),
+      ...(productsEnabled === undefined ? [] : ["productsEnabled"]),
+    ];
+
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.platformTenant.update({
-        where: { id: tenantId },
-        data,
-      });
+      const updated = Object.keys(data).length
+        ? await tx.platformTenant.update({ where: { id: tenantId }, data })
+        : await tx.platformTenant.findUniqueOrThrow({
+            where: { id: tenantId },
+          });
+
+      if (productsEnabled !== undefined) {
+        // The platform owner is not a tenant user, so `updatedByUserId`
+        // (a tenant-User FK) stays null here.
+        await upsertProductsEnabledSetting(tx, tenantId, productsEnabled, null);
+      }
 
       await tx.platformOperationEvent.create({
         data: {
           tenantId,
           actorUserId: input.actorUserId,
           eventType: "tenant.updated",
-          metadata: { fields: Object.keys(data) },
+          metadata: { fields: updatedFields },
           requestId: input.requestId,
         },
       });

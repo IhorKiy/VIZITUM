@@ -3,10 +3,8 @@ export type RoleArea =
   | "field-planning"
   | "field-general"
   | "field-history"
-  | "admin-setup"
   | "admin-users"
-  | "admin-imports"
-  | "admin-review"
+  | "admin-pilot"
   | "admin-settings"
   | "admin-locations"
   | "admin-products"
@@ -26,7 +24,7 @@ export const ZONE_ORDER: readonly Zone[] = [
   "operations",
 ];
 
-// Fixed per-zone entry point. `/admin` self-redirects to `/admin/setup`
+// Fixed per-zone entry point. `/admin` self-redirects to `/admin/settings`
 // (apps/web/app/[tenantSlug]/admin/page.tsx), so this needs no permission
 // awareness — every zone's bare path is always a safe landing spot for
 // anyone who has that zone available.
@@ -89,11 +87,14 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     requiredPermissions: ["visits.read_own"],
   },
   {
-    path: "/admin/setup",
-    area: "admin-setup",
+    // Temporary onboarding section: readiness checklist + pilot review. Shown
+    // only while the tenant is on the pilot plan (filtered out via pilotActive
+    // in filterNavItemDefs), so it disappears once the tenant graduates.
+    path: "/admin/pilot",
+    area: "admin-pilot",
     zone: "admin",
-    icon: "S",
-    requiredPermissions: ["tenant.settings.read", "users.read", "imports.read"],
+    icon: "P",
+    requiredPermissions: ["pilot_review.read"],
   },
   {
     path: "/admin/users",
@@ -101,13 +102,6 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     zone: "admin",
     icon: "U",
     requiredPermissions: ["users.read"],
-  },
-  {
-    path: "/admin/imports",
-    area: "admin-imports",
-    zone: "admin",
-    icon: "I",
-    requiredPermissions: ["imports.read"],
   },
   {
     path: "/admin/locations",
@@ -124,18 +118,15 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     requiredPermissions: ["products.manage"],
   },
   {
-    path: "/admin/review",
-    area: "admin-review",
-    zone: "admin",
-    icon: "P",
-    requiredPermissions: ["pilot_review.read"],
-  },
-  {
     path: "/admin/settings",
     area: "admin-settings",
     zone: "admin",
     icon: "G",
-    requiredPermissions: ["tenant.settings.read"],
+    // Also carries imports.read because the settings page hosts the CSV import
+    // tooling (templates/validate/history). Keeping it here preserves the
+    // admin-zone permission union the backend mirror (src/modules/auth/zones.ts)
+    // expects — see zone-permission-mirror.
+    requiredPermissions: ["tenant.settings.read", "imports.read"],
   },
   {
     path: "/manager",
@@ -184,10 +175,13 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
 function filterNavItemDefs(
   permissions?: string[],
   productsEnabled = true,
+  pilotActive = true,
 ): NavItemDef[] {
-  const visibleItems = productsEnabled
-    ? NAV_ITEM_DEFS
-    : NAV_ITEM_DEFS.filter((item) => item.area !== "admin-products");
+  const visibleItems = NAV_ITEM_DEFS.filter(
+    (item) =>
+      (productsEnabled || item.area !== "admin-products") &&
+      (pilotActive || item.area !== "admin-pilot"),
+  );
 
   if (!permissions) {
     return visibleItems;
@@ -206,14 +200,17 @@ export function buildTenantNav(
   tenantSlug: string,
   permissions?: string[],
   productsEnabled = true,
+  pilotActive = true,
 ): NavItem[] {
-  return filterNavItemDefs(permissions, productsEnabled).map((item) => ({
-    href: `/${tenantSlug}${item.path}`,
-    area: item.area,
-    zone: item.zone,
-    icon: item.icon,
-    requiredPermissions: item.requiredPermissions,
-  }));
+  return filterNavItemDefs(permissions, productsEnabled, pilotActive).map(
+    (item) => ({
+      href: `/${tenantSlug}${item.path}`,
+      area: item.area,
+      zone: item.zone,
+      icon: item.icon,
+      requiredPermissions: item.requiredPermissions,
+    }),
+  );
 }
 
 // Derived once from NAV_ITEM_DEFS (single source of truth) rather than
@@ -235,9 +232,12 @@ export function zoneForArea(area: RoleArea): Zone {
 export function availableZones(
   permissions?: string[],
   productsEnabled = true,
+  pilotActive = true,
 ): Zone[] {
   const presentZones = new Set(
-    filterNavItemDefs(permissions, productsEnabled).map((item) => item.zone),
+    filterNavItemDefs(permissions, productsEnabled, pilotActive).map(
+      (item) => item.zone,
+    ),
   );
 
   return ZONE_ORDER.filter((zone) => presentZones.has(zone));
@@ -274,8 +274,9 @@ export function resolveZoneLanding(
   permissions: string[] | undefined,
   productsEnabled: boolean,
   lastSelectedZone: string | null | undefined,
+  pilotActive = true,
 ): ZoneLanding {
-  const zones = availableZones(permissions, productsEnabled);
+  const zones = availableZones(permissions, productsEnabled, pilotActive);
 
   if (zones.length === 0) {
     return { kind: "no-access" };
