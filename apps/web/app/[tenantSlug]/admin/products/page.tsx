@@ -27,6 +27,7 @@ import {
   statusTone,
 } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import { buildEntityGroups } from "../../../../lib/grouping";
 
 type AdminProductsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -277,7 +278,13 @@ export default async function AdminProductsPage({
       : categories;
 
   const productGroups = groupByCategory
-    ? buildProductGroups(products, t("noCategoryOption"), locale)
+    ? buildEntityGroups(
+        products,
+        (product) => product.category,
+        (product) => product.category,
+        t("noCategoryOption"),
+        locale,
+      )
     : [];
 
   return (
@@ -495,12 +502,12 @@ export default async function AdminProductsPage({
 
         {products.length > 0 ? (
           groupByCategory ? (
-            <div className="product-category-groups">
+            <div className="entity-group-list">
               {productGroups.map((group) => (
-                <section className="product-category-group" key={group.key}>
-                  <h3 className="product-category-group-title">
+                <section className="entity-group" key={group.key}>
+                  <h3 className="entity-group-title">
                     <span>{group.label}</span>
-                    <span className="product-category-group-count">
+                    <span className="entity-group-count">
                       {group.items.length}
                     </span>
                   </h3>
@@ -711,45 +718,6 @@ function buildProductHref(
   const suffix = query.toString();
 
   return `/${tenantSlug}/admin/products${suffix ? `?${suffix}` : ""}`;
-}
-
-function buildProductGroups(
-  products: Product[],
-  uncategorizedLabel: string,
-  locale: string,
-): { key: string; label: string; items: Product[] }[] {
-  const groups = new Map<
-    string,
-    { key: string; label: string; items: Product[] }
-  >();
-
-  for (const product of products) {
-    const key = product.category ?? "";
-    const group = groups.get(key);
-
-    if (group) {
-      group.items.push(product);
-    } else {
-      groups.set(key, {
-        key,
-        label: product.category ?? uncategorizedLabel,
-        items: [product],
-      });
-    }
-  }
-
-  // Named categories first (alphabetical), the uncategorized bucket last.
-  return [...groups.values()].sort((a, b) => {
-    if (a.key === "") {
-      return 1;
-    }
-
-    if (b.key === "") {
-      return -1;
-    }
-
-    return a.label.localeCompare(b.label, locale);
-  });
 }
 
 function normalizeStatus(value: string | undefined): ProductStatus | null {

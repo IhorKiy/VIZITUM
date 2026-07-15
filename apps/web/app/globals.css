@@ -1064,19 +1064,16 @@ textarea {
 }
 
 /* Rows grouped under a heading — products by category, locations by chain. */
-.product-category-groups,
 .entity-group-list {
   display: grid;
   gap: 20px;
 }
 
-.product-category-group,
 .entity-group {
   display: grid;
   gap: 10px;
 }
 
-.product-category-group-title,
 .entity-group-title {
   align-items: center;
   color: var(--ink);
@@ -1086,7 +1083,6 @@ textarea {
   gap: 8px;
 }
 
-.product-category-group-count,
 .entity-group-count {
   background: var(--surface-muted);
   border-radius: 999px;

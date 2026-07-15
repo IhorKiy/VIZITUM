@@ -34,14 +34,18 @@ import {
   statusTone,
 } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import { buildEntityGroups } from "../../../../lib/grouping";
 
 // Locations / Chains — a single admin screen that merges the former Locations
 // and Chains sections into two collapsible accordions. Their filters and post-
 // action notices share the same route, so every query param is namespaced
-// (`loc*` vs `chain*`) to keep the two sections from stepping on each other.
+// (`loc*` vs `chain*`) to keep the two sections from stepping on each other,
+// and every filter link/form carries the other section's params along so using
+// one section never resets the other. `open` pins which accordion is expanded.
 type AdminLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    open?: string;
     locCreated?: string;
     locUpdated?: string;
     locError?: string;
@@ -111,7 +115,7 @@ export default async function AdminLocationsPage({
     const city = getFormString(formData, "city").trim();
 
     if (!name || !addressLine || !city) {
-      redirect(`/${tenantSlug}/admin/locations?locError=1`);
+      redirect(`/${tenantSlug}/admin/locations?locError=1&open=locations`);
     }
 
     const result = await createAdminLocation({
@@ -127,7 +131,7 @@ export default async function AdminLocationsPage({
     });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?locError=1`);
+      redirect(`/${tenantSlug}/admin/locations?locError=1&open=locations`);
     }
 
     // Assignment lives in its own table, so attach the chosen representative to
@@ -143,17 +147,17 @@ export default async function AdminLocationsPage({
       );
 
       if (!assignResult.ok) {
-        redirect(`/${tenantSlug}/admin/locations?locError=1`);
+        redirect(`/${tenantSlug}/admin/locations?locError=1&open=locations`);
       }
     }
 
-    redirect(`/${tenantSlug}/admin/locations?locCreated=1`);
+    redirect(`/${tenantSlug}/admin/locations?locCreated=1&open=locations`);
   }
 
   async function saveLocationAction(formData: FormData) {
     "use server";
 
-    const errorHref = `/${tenantSlug}/admin/locations?locError=1`;
+    const errorHref = `/${tenantSlug}/admin/locations?locError=1&open=locations`;
     const locationId = getFormString(formData, "locationId").trim();
     const name = getFormString(formData, "name").trim();
     const addressLine = getFormString(formData, "addressLine").trim();
@@ -254,7 +258,7 @@ export default async function AdminLocationsPage({
       }
     }
 
-    redirect(`/${tenantSlug}/admin/locations?locUpdated=1`);
+    redirect(`/${tenantSlug}/admin/locations?locUpdated=1&open=locations`);
   }
 
   async function createChainAction(formData: FormData) {
@@ -265,16 +269,16 @@ export default async function AdminLocationsPage({
     const notes = normalizeOptionalField(formData.get("notes"));
 
     if (!name) {
-      redirect(`/${tenantSlug}/admin/locations?chainError=1`);
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
     }
 
     const result = await createAdminChain({ name, externalCode, notes });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?chainError=1`);
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
     }
 
-    redirect(`/${tenantSlug}/admin/locations?chainCreated=1`);
+    redirect(`/${tenantSlug}/admin/locations?chainCreated=1&open=chains`);
   }
 
   async function updateChainAction(formData: FormData) {
@@ -283,7 +287,7 @@ export default async function AdminLocationsPage({
     const chainId = getFormString(formData, "chainId").trim();
 
     if (!chainId) {
-      redirect(`/${tenantSlug}/admin/locations?chainError=1`);
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
     }
 
     // Each field editor saves on its own, so only patch the fields present in
@@ -298,7 +302,7 @@ export default async function AdminLocationsPage({
     if (formData.has("name")) {
       const name = getFormString(formData, "name").trim();
       if (!name) {
-        redirect(`/${tenantSlug}/admin/locations?chainError=1`);
+        redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
       }
       input.name = name;
     }
@@ -314,7 +318,7 @@ export default async function AdminLocationsPage({
     if (formData.has("status")) {
       const status = normalizeChainStatus(getFormString(formData, "status"));
       if (!status) {
-        redirect(`/${tenantSlug}/admin/locations?chainError=1`);
+        redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
       }
       input.status = status;
     }
@@ -322,10 +326,10 @@ export default async function AdminLocationsPage({
     const result = await updateAdminChain(chainId, input);
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?chainError=1`);
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
     }
 
-    redirect(`/${tenantSlug}/admin/locations?chainUpdated=1`);
+    redirect(`/${tenantSlug}/admin/locations?chainUpdated=1&open=chains`);
   }
 
   async function archiveChainAction(formData: FormData) {
@@ -334,31 +338,37 @@ export default async function AdminLocationsPage({
     const chainId = getFormString(formData, "chainId").trim();
 
     if (!chainId) {
-      redirect(`/${tenantSlug}/admin/locations?chainError=1`);
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
     }
 
     const result = await updateAdminChain(chainId, { status: "archived" });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?chainError=1`);
+      redirect(`/${tenantSlug}/admin/locations?chainError=1&open=chains`);
     }
 
-    redirect(`/${tenantSlug}/admin/locations?chainUpdated=1`);
+    redirect(`/${tenantSlug}/admin/locations?chainUpdated=1&open=chains`);
   }
 
   const [locationsResult, chainsResult, pickerChainsResult, usersResult] =
     await Promise.all([
       listAdminLocations(locQuery.toString()),
       listAdminChains(chainQuery.toString()),
-      listAdminChains("pageSize=100&status=active"),
+      // The location editor's chain picker always offers active chains,
+      // regardless of how the Chains section itself is currently filtered.
+      // When that section is unfiltered its (all-status, same page cap) result
+      // already contains them, so skip the second fetch and derive in memory.
+      chainHasFilters ? listAdminChains("pageSize=100&status=active") : null,
       listAdminUsers(),
     ]);
 
-  // The location editor's chain picker always offers active chains, regardless
-  // of how the Chains section itself is currently filtered.
-  const pickerChains = pickerChainsResult.ok
-    ? pickerChainsResult.data.items
-    : [];
+  const pickerChains = pickerChainsResult
+    ? pickerChainsResult.ok
+      ? pickerChainsResult.data.items
+      : []
+    : chainsResult.ok
+      ? chainsResult.data.items.filter((chain) => chain.status === "active")
+      : [];
   // Only active field representatives can be assigned to a location (the API
   // rejects anyone else), so the picker offers exactly those.
   const representatives = usersResult.ok
@@ -382,10 +392,43 @@ export default async function AdminLocationsPage({
     pageState.chainError ||
     chainHasFilters,
   );
-  // Locations stay open by default; a chain action collapses them in favor of
-  // the Chains section so the relevant feedback is the one on screen.
-  const locationsOpen = locActive || !chainActive;
-  const chainsOpen = chainActive;
+  // Which accordion is expanded: the `open` param pins the section the user is
+  // working in (every filter link/form and action redirect sets it, and it
+  // survives the success notices' auto-dismiss URL rewrite, which would
+  // otherwise collapse the section under the user ~5s after an action). On
+  // URLs without it (bookmarks, shared links) fall back to inferring the busy
+  // section from its params; Locations wins ties and is the default.
+  const openSection =
+    pageState.open === "locations" || pageState.open === "chains"
+      ? pageState.open
+      : null;
+  const locationsOpen = openSection
+    ? openSection === "locations"
+    : locActive || !chainActive;
+  const chainsOpen = openSection ? openSection === "chains" : chainActive;
+
+  // Each section's links/forms re-emit the other section's params so filtering
+  // one never silently resets the other.
+  const chainCarryParams: Record<string, string> = {};
+  if (chainStatus) {
+    chainCarryParams.chainStatus = chainStatus;
+  }
+  if (chainSearch) {
+    chainCarryParams.chainSearch = chainSearch;
+  }
+  const locCarryParams: Record<string, string> = {};
+  if (locStatus) {
+    locCarryParams.locStatus = locStatus;
+  }
+  if (locChain) {
+    locCarryParams.locChain = locChain;
+  }
+  if (locSearch) {
+    locCarryParams.locSearch = locSearch;
+  }
+  if (locGroupByChain) {
+    locCarryParams.locView = "chain";
+  }
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-locations">
@@ -445,41 +488,18 @@ export default async function AdminLocationsPage({
           </summary>
 
           <div className="section-body">
-            {pageState.locCreated ? (
-              <DismissableNotice
-                ariaLabel={t("createdAria")}
-                body={t("createdBody")}
-                clearParams={["locCreated"]}
-                eyebrow={t("createdEyebrow")}
-                title={t("createdTitle")}
-                tone="success"
-              />
-            ) : null}
-
-            {pageState.locUpdated ? (
-              <DismissableNotice
-                ariaLabel={t("updatedAria")}
-                body={t("updatedBody")}
-                clearParams={["locUpdated"]}
-                eyebrow={t("updatedEyebrow")}
-                title={t("updatedTitle")}
-                tone="success"
-              />
-            ) : null}
-
-            {pageState.locError ? (
-              <DismissableNotice
-                ariaLabel={t("errorAria")}
-                body={t("errorBody")}
-                clearParams={["locError"]}
-                eyebrow={t("errorEyebrow")}
-                title={t("errorTitle")}
-                tone="danger"
-              />
-            ) : null}
+            <SectionNotices
+              clearPrefix="loc"
+              created={pageState.locCreated}
+              error={pageState.locError}
+              t={t}
+              updated={pageState.locUpdated}
+            />
 
             {locationsResult.ok ? (
               <LocationsSection
+                allChains={chainsResult.ok ? chainsResult.data.items : []}
+                carryParams={chainCarryParams}
                 chains={pickerChains}
                 createLocationAction={createLocationAction}
                 groupByChain={locGroupByChain}
@@ -497,6 +517,11 @@ export default async function AdminLocationsPage({
               <div className="empty-state-panel">
                 <h2>{t("notConnectedTitle")}</h2>
                 <p>{locationsResult.message}</p>
+                <div className="toolbar">
+                  <a className="primary-button" href={`/${tenantSlug}/login`}>
+                    {tCommon("signIn")}
+                  </a>
+                </div>
               </div>
             )}
           </div>
@@ -508,42 +533,18 @@ export default async function AdminLocationsPage({
           </summary>
 
           <div className="section-body">
-            {pageState.chainCreated ? (
-              <DismissableNotice
-                ariaLabel={tChains("createdAria")}
-                body={tChains("createdBody")}
-                clearParams={["chainCreated"]}
-                eyebrow={tChains("createdEyebrow")}
-                title={tChains("createdTitle")}
-                tone="success"
-              />
-            ) : null}
-
-            {pageState.chainUpdated ? (
-              <DismissableNotice
-                ariaLabel={tChains("updatedAria")}
-                body={tChains("updatedBody")}
-                clearParams={["chainUpdated"]}
-                eyebrow={tChains("updatedEyebrow")}
-                title={tChains("updatedTitle")}
-                tone="success"
-              />
-            ) : null}
-
-            {pageState.chainError ? (
-              <DismissableNotice
-                ariaLabel={tChains("errorAria")}
-                body={tChains("errorBody")}
-                clearParams={["chainError"]}
-                eyebrow={tChains("errorEyebrow")}
-                title={tChains("errorTitle")}
-                tone="danger"
-              />
-            ) : null}
+            <SectionNotices
+              clearPrefix="chain"
+              created={pageState.chainCreated}
+              error={pageState.chainError}
+              t={tChains}
+              updated={pageState.chainUpdated}
+            />
 
             {chainsResult.ok ? (
               <ChainsSection
                 archiveChainAction={archiveChainAction}
+                carryParams={locCarryParams}
                 chains={chainsResult.data.items}
                 createChainAction={createChainAction}
                 hasFilters={chainHasFilters}
@@ -556,6 +557,11 @@ export default async function AdminLocationsPage({
               <div className="empty-state-panel">
                 <h2>{tChains("notConnectedTitle")}</h2>
                 <p>{chainsResult.message}</p>
+                <div className="toolbar">
+                  <a className="primary-button" href={`/${tenantSlug}/login`}>
+                    {tCommon("signIn")}
+                  </a>
+                </div>
               </div>
             )}
           </div>
@@ -566,6 +572,8 @@ export default async function AdminLocationsPage({
 }
 
 function LocationsSection({
+  allChains,
+  carryParams,
   chains,
   createLocationAction,
   groupByChain,
@@ -579,6 +587,8 @@ function LocationsSection({
   selectedStatus,
   tenantSlug,
 }: {
+  allChains: Chain[];
+  carryParams: Record<string, string>;
   chains: Chain[];
   createLocationAction: (formData: FormData) => Promise<void>;
   groupByChain: boolean;
@@ -596,30 +606,44 @@ function LocationsSection({
   const tCommon = useTranslations("common");
 
   const viewParam = groupByChain ? "chain" : null;
+  const baseParams = { ...carryParams, open: "locations" };
 
   // Keep the active chain filter selectable even when it points at a chain the
-  // active-chain picker doesn't offer (e.g. an archived chain): recover its name
-  // from any location that belongs to it.
+  // active-chain picker doesn't offer (e.g. an archived chain): recover its
+  // name from the Chains section's list, or failing that from any fetched
+  // location that belongs to it.
   const chainFilterOptions =
     selectedChain && !chains.some((chain) => chain.id === selectedChain)
       ? [
           {
             id: selectedChain,
             name:
+              allChains.find((chain) => chain.id === selectedChain)?.name ??
               locations.find((location) => location.chainId === selectedChain)
-                ?.chain?.name ?? selectedChain,
+                ?.chain?.name ??
+              selectedChain,
           },
           ...chains,
         ]
       : chains;
+  const selectedChainName = selectedChain
+    ? (chainFilterOptions.find((chain) => chain.id === selectedChain)?.name ??
+      selectedChain)
+    : null;
 
   const locationGroups = groupByChain
-    ? buildLocationGroups(locations, t("chainNone"), locale)
+    ? buildEntityGroups(
+        locations,
+        (location) => location.chainId,
+        (location) => location.chain?.name,
+        t("chainNone"),
+        locale,
+      )
     : [];
 
   return (
     <>
-      <div className="toolbar section-toolbar">
+      <div className="toolbar">
         <CreateLocationModal
           action={createLocationAction}
           chains={chains}
@@ -635,9 +659,15 @@ function LocationsSection({
               {selectedStatus
                 ? t("showingStatus", {
                     status: formatEnumLabel(tCommon, selectedStatus),
+                    chain: selectedChainName
+                      ? t("chainSuffix", { chain: selectedChainName })
+                      : "",
                     search: search ? t("searchSuffix", { search }) : "",
                   })
                 : t("showingAll", {
+                    chain: selectedChainName
+                      ? t("chainSuffix", { chain: selectedChainName })
+                      : "",
                     search: search ? t("searchSuffix", { search }) : "",
                   })}
             </p>
@@ -646,10 +676,11 @@ function LocationsSection({
             <div className="filter-pills" aria-label={t("statusFiltersAria")}>
               <a
                 aria-current={!selectedStatus ? "page" : undefined}
-                href={buildLocationFilterHref(tenantSlug, {
-                  chain: selectedChain,
-                  search,
-                  view: viewParam,
+                href={buildFilterHref(tenantSlug, {
+                  ...baseParams,
+                  locChain: selectedChain,
+                  locSearch: search,
+                  locView: viewParam,
                 })}
               >
                 {tCommon("all")}
@@ -657,11 +688,12 @@ function LocationsSection({
               {locationStatuses.map((status) => (
                 <a
                   aria-current={selectedStatus === status ? "page" : undefined}
-                  href={buildLocationFilterHref(tenantSlug, {
-                    status,
-                    chain: selectedChain,
-                    search,
-                    view: viewParam,
+                  href={buildFilterHref(tenantSlug, {
+                    ...baseParams,
+                    locStatus: status,
+                    locChain: selectedChain,
+                    locSearch: search,
+                    locView: viewParam,
                   })}
                   key={status}
                 >
@@ -672,21 +704,23 @@ function LocationsSection({
             <div className="filter-pills" aria-label={t("viewFiltersAria")}>
               <a
                 aria-current={!groupByChain ? "page" : undefined}
-                href={buildLocationFilterHref(tenantSlug, {
-                  status: selectedStatus,
-                  chain: selectedChain,
-                  search,
+                href={buildFilterHref(tenantSlug, {
+                  ...baseParams,
+                  locStatus: selectedStatus,
+                  locChain: selectedChain,
+                  locSearch: search,
                 })}
               >
                 {t("viewList")}
               </a>
               <a
                 aria-current={groupByChain ? "page" : undefined}
-                href={buildLocationFilterHref(tenantSlug, {
-                  status: selectedStatus,
-                  chain: selectedChain,
-                  search,
-                  view: "chain",
+                href={buildFilterHref(tenantSlug, {
+                  ...baseParams,
+                  locStatus: selectedStatus,
+                  locChain: selectedChain,
+                  locSearch: search,
+                  locView: "chain",
                 })}
               >
                 {t("viewByChain")}
@@ -699,6 +733,10 @@ function LocationsSection({
           action={`/${tenantSlug}/admin/locations`}
           className="filter-form location-filter-form"
         >
+          <input name="open" type="hidden" value="locations" />
+          {Object.entries(carryParams).map(([name, value]) => (
+            <input key={name} name={name} type="hidden" value={value} />
+          ))}
           {selectedStatus ? (
             <input name="locStatus" type="hidden" value={selectedStatus} />
           ) : null}
@@ -732,7 +770,7 @@ function LocationsSection({
             {hasFilters ? (
               <a
                 className="secondary-button"
-                href={`/${tenantSlug}/admin/locations`}
+                href={buildFilterHref(tenantSlug, baseParams)}
               >
                 {tCommon("reset")}
               </a>
@@ -786,7 +824,7 @@ function LocationsSection({
               {hasFilters ? (
                 <a
                   className="secondary-button"
-                  href={`/${tenantSlug}/admin/locations`}
+                  href={buildFilterHref(tenantSlug, baseParams)}
                 >
                   {t("showAllLocations")}
                 </a>
@@ -807,6 +845,7 @@ function LocationsSection({
 
 function ChainsSection({
   archiveChainAction,
+  carryParams,
   chains,
   createChainAction,
   hasFilters,
@@ -816,6 +855,7 @@ function ChainsSection({
   updateChainAction,
 }: {
   archiveChainAction: (formData: FormData) => Promise<void>;
+  carryParams: Record<string, string>;
   chains: Chain[];
   createChainAction: (formData: FormData) => Promise<void>;
   hasFilters: boolean;
@@ -827,9 +867,11 @@ function ChainsSection({
   const t = useTranslations("admin.chains");
   const tCommon = useTranslations("common");
 
+  const baseParams = { ...carryParams, open: "chains" };
+
   return (
     <>
-      <div className="toolbar section-toolbar">
+      <div className="toolbar">
         <AddChainModal action={createChainAction} />
       </div>
 
@@ -851,14 +893,21 @@ function ChainsSection({
           <div className="filter-pills" aria-label={t("statusFiltersAria")}>
             <a
               aria-current={!selectedStatus ? "page" : undefined}
-              href={buildChainFilterHref(tenantSlug, null, search)}
+              href={buildFilterHref(tenantSlug, {
+                ...baseParams,
+                chainSearch: search,
+              })}
             >
               {tCommon("all")}
             </a>
             {chainStatuses.map((status) => (
               <a
                 aria-current={selectedStatus === status ? "page" : undefined}
-                href={buildChainFilterHref(tenantSlug, status, search)}
+                href={buildFilterHref(tenantSlug, {
+                  ...baseParams,
+                  chainStatus: status,
+                  chainSearch: search,
+                })}
                 key={status}
               >
                 {formatEnumLabel(tCommon, status)}
@@ -871,6 +920,10 @@ function ChainsSection({
           action={`/${tenantSlug}/admin/locations`}
           className="filter-form locations-chains-filter-form"
         >
+          <input name="open" type="hidden" value="chains" />
+          {Object.entries(carryParams).map(([name, value]) => (
+            <input key={name} name={name} type="hidden" value={value} />
+          ))}
           {selectedStatus ? (
             <input name="chainStatus" type="hidden" value={selectedStatus} />
           ) : null}
@@ -890,7 +943,7 @@ function ChainsSection({
             {hasFilters ? (
               <a
                 className="secondary-button"
-                href={`/${tenantSlug}/admin/locations`}
+                href={buildFilterHref(tenantSlug, baseParams)}
               >
                 {tCommon("reset")}
               </a>
@@ -917,7 +970,7 @@ function ChainsSection({
               <div className="toolbar">
                 <a
                   className="secondary-button"
-                  href={`/${tenantSlug}/admin/locations`}
+                  href={buildFilterHref(tenantSlug, baseParams)}
                 >
                   {t("showAllChains")}
                 </a>
@@ -1231,31 +1284,18 @@ function ChainRow({
   );
 }
 
-function buildLocationFilterHref(
+// One href builder for both sections: callers pass already-namespaced params
+// (`loc*`, `chain*`, `open`); empty values are dropped.
+function buildFilterHref(
   tenantSlug: string,
-  filters: {
-    status?: LocationStatus | null;
-    chain?: string | null;
-    search?: string | null;
-    view?: string | null;
-  },
+  params: Record<string, string | null | undefined>,
 ): string {
   const query = new URLSearchParams();
 
-  if (filters.status) {
-    query.set("locStatus", filters.status);
-  }
-
-  if (filters.chain) {
-    query.set("locChain", filters.chain);
-  }
-
-  if (filters.search) {
-    query.set("locSearch", filters.search);
-  }
-
-  if (filters.view) {
-    query.set("locView", filters.view);
+  for (const [key, value] of Object.entries(params)) {
+    if (value) {
+      query.set(key, value);
+    }
   }
 
   const suffix = query.toString();
@@ -1263,65 +1303,72 @@ function buildLocationFilterHref(
   return `/${tenantSlug}/admin/locations${suffix ? `?${suffix}` : ""}`;
 }
 
-// Group locations by their chain for the "by chain" view: named chains first
-// (alphabetical), the no-chain bucket last — mirrors buildProductGroups on the
-// products screen.
-function buildLocationGroups(
-  locations: Location[],
-  noChainLabel: string,
-  locale: string,
-): { key: string; label: string; items: Location[] }[] {
-  const groups = new Map<
-    string,
-    { key: string; label: string; items: Location[] }
-  >();
+// The created/updated/error notice triad both sections render above their
+// content; `t` is the section's namespace translator (admin.locations /
+// admin.chains — both define the same notice keys).
+function SectionNotices({
+  clearPrefix,
+  created,
+  error,
+  t,
+  updated,
+}: {
+  clearPrefix: "loc" | "chain";
+  created?: string;
+  error?: string;
+  t: (
+    key:
+      | "createdAria"
+      | "createdBody"
+      | "createdEyebrow"
+      | "createdTitle"
+      | "updatedAria"
+      | "updatedBody"
+      | "updatedEyebrow"
+      | "updatedTitle"
+      | "errorAria"
+      | "errorBody"
+      | "errorEyebrow"
+      | "errorTitle",
+  ) => string;
+  updated?: string;
+}) {
+  return (
+    <>
+      {created ? (
+        <DismissableNotice
+          ariaLabel={t("createdAria")}
+          body={t("createdBody")}
+          clearParams={[`${clearPrefix}Created`]}
+          eyebrow={t("createdEyebrow")}
+          title={t("createdTitle")}
+          tone="success"
+        />
+      ) : null}
 
-  for (const location of locations) {
-    const key = location.chainId ?? "";
-    const group = groups.get(key);
+      {updated ? (
+        <DismissableNotice
+          ariaLabel={t("updatedAria")}
+          body={t("updatedBody")}
+          clearParams={[`${clearPrefix}Updated`]}
+          eyebrow={t("updatedEyebrow")}
+          title={t("updatedTitle")}
+          tone="success"
+        />
+      ) : null}
 
-    if (group) {
-      group.items.push(location);
-    } else {
-      groups.set(key, {
-        key,
-        label: location.chain?.name ?? noChainLabel,
-        items: [location],
-      });
-    }
-  }
-
-  return [...groups.values()].sort((a, b) => {
-    if (a.key === "") {
-      return 1;
-    }
-
-    if (b.key === "") {
-      return -1;
-    }
-
-    return a.label.localeCompare(b.label, locale);
-  });
-}
-
-function buildChainFilterHref(
-  tenantSlug: string,
-  status: ChainStatus | null,
-  search: string | null,
-): string {
-  const query = new URLSearchParams();
-
-  if (status) {
-    query.set("chainStatus", status);
-  }
-
-  if (search) {
-    query.set("chainSearch", search);
-  }
-
-  const suffix = query.toString();
-
-  return `/${tenantSlug}/admin/locations${suffix ? `?${suffix}` : ""}`;
+      {error ? (
+        <DismissableNotice
+          ariaLabel={t("errorAria")}
+          body={t("errorBody")}
+          clearParams={[`${clearPrefix}Error`]}
+          eyebrow={t("errorEyebrow")}
+          title={t("errorTitle")}
+          tone="danger"
+        />
+      ) : null}
+    </>
+  );
 }
 
 function normalizeLocationStatus(
