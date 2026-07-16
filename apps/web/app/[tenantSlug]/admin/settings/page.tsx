@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { DownloadIcon } from "../../../../components/icons";
@@ -18,6 +18,7 @@ import {
   type ImportTemplateSummary,
 } from "../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
+import { formatDateTime, formatLabel } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 
 type AdminSettingsPageProps = {
@@ -77,11 +78,12 @@ export default async function AdminSettingsPage({
 }: AdminSettingsPageProps) {
   const { tenantSlug } = await params;
   const validationState = await searchParams;
-  const [tSettings, tImports, tAdmin, tCommon] = await Promise.all([
+  const [tSettings, tImports, tAdmin, tCommon, format] = await Promise.all([
     getTranslations("admin.settings"),
     getTranslations("admin.imports"),
     getTranslations("admin"),
     getTranslations("common"),
+    getFormatter(),
   ]);
 
   async function validateImportAction(formData: FormData) {
@@ -99,7 +101,11 @@ export default async function AdminSettingsPage({
     }
 
     const csvText = await importFile.text();
-    const result = await validateCsvImport(templateType, csvText);
+    const result = await validateCsvImport(
+      templateType,
+      csvText,
+      importFile.name,
+    );
 
     if (!result.ok) {
       redirect(`/${tenantSlug}/admin/settings?error=validation`);
@@ -195,6 +201,11 @@ export default async function AdminSettingsPage({
     Boolean(validationPreview?.canConfirm) ||
     (validationState.canConfirm === "true" && validationState.importJobId);
   const importIssues = validationPreview?.issues ?? [];
+  // Surface what was validated (template) and when (timestamp) so the result
+  // card is self-explanatory, not just a bag of counts.
+  const validatedTemplate =
+    validationPreview?.templateType ?? validationState.template ?? null;
+  const validatedAt = validationPreview?.validatedAt ?? null;
   // Only auto-expand the validation accordion when the user just ran a
   // validation (query params carry its outcome); otherwise it stays folded.
   const hasValidationActivity = Boolean(
@@ -272,6 +283,18 @@ export default async function AdminSettingsPage({
           <table className="table">
             <tbody>
               <tr>
+                <th scope="row">{tImports("rowTemplate")}</th>
+                <td>
+                  {validatedTemplate
+                    ? formatLabel(validatedTemplate)
+                    : tImports("noFileValidated")}
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">{tImports("rowFile")}</th>
+                <td>{validationPreview?.sourceFileName || "-"}</td>
+              </tr>
+              <tr>
                 <th scope="row">{tImports("rowStatus")}</th>
                 <td>
                   {validationPreview?.status ??
@@ -308,6 +331,10 @@ export default async function AdminSettingsPage({
                     validationState.warnings ??
                     "0"}
                 </td>
+              </tr>
+              <tr>
+                <th scope="row">{tImports("rowValidatedAt")}</th>
+                <td>{formatDateTime(format, validatedAt)}</td>
               </tr>
             </tbody>
           </table>

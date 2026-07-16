@@ -739,6 +739,7 @@ model ImportJob {
   type               ImportType
   status             ImportStatus @default(uploaded)
   sourceFileObjectId String?
+  sourceFileName     String?
   uploadedByUserId   String
   confirmedByUserId  String?
   rowCount           Int          @default(0)

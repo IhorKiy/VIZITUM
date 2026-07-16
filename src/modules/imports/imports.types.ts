@@ -61,16 +61,20 @@ export type ImportValidationPreview = {
 
 export type CreateImportValidationJobOptions = {
   sourceFileObjectId?: string;
+  sourceFileName?: string;
 };
 
 export type CreateImportValidationJobRequestBody = {
   templateType?: unknown;
   csvText?: unknown;
+  fileName?: unknown;
 };
 
 export type StoredImportValidationPreview = ImportValidationPreview & {
   importJobId: string;
   status: "validated" | "validation_failed";
+  validatedAt: string | null;
+  sourceFileName: string | null;
 };
 
 export type ImportJobHistoryItem = {
