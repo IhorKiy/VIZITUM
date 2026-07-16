@@ -445,7 +445,7 @@ function TasksTable({
   const format = useFormatter();
 
   return (
-    <table className="table drilldown-table">
+    <table className="table drilldown-table stacked-table">
       <thead>
         <tr>
           <th>{t("tableTask")}</th>
@@ -460,11 +460,11 @@ function TasksTable({
       <tbody>
         {tasks.map((task) => (
           <tr key={task.id}>
-            <td>
+            <td data-label={t("tableTask")}>
               <strong>{task.title}</strong>
               <span>{task.description ?? t("noTaskDetails")}</span>
             </td>
-            <td>
+            <td data-label={t("tableLocation")}>
               {task.location ? (
                 <>
                   <strong>{task.location.name}</strong>
@@ -474,15 +474,21 @@ function TasksTable({
                 t("noLocation")
               )}
             </td>
-            <td>{task.assignedTo?.name ?? t("unassigned")}</td>
-            <td>
+            <td data-label={t("tableAssignee")}>
+              {task.assignedTo?.name ?? t("unassigned")}
+            </td>
+            <td data-label={t("tableStatus")}>
               <span className={`status-pill ${taskStatusTone(task.status)}`}>
                 {formatEnumLabel(tCommon, task.status)}
               </span>
             </td>
-            <td>{formatEnumLabel(tCommon, task.priority)}</td>
-            <td>{formatDate(format, task.dueDate)}</td>
-            <td>
+            <td data-label={t("tablePriority")}>
+              {formatEnumLabel(tCommon, task.priority)}
+            </td>
+            <td className="nowrap-cell" data-label={t("tableDue")}>
+              {formatDate(format, task.dueDate)}
+            </td>
+            <td className="stacked-actions-cell" data-label={t("tableUpdate")}>
               <form
                 action={updateTaskStatusAction}
                 className="inline-control-form"
