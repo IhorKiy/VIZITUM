@@ -7,6 +7,12 @@
   --line: #d8ded8;
   --accent: #176b5f;
   --accent-strong: #0d4f47;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --sidebar-bg: #11251f;
+  --sidebar-ink: #f7fbf8;
+  --sidebar-text: #dce9e2;
+  --sidebar-muted: #9fb6ac;
+  --sidebar-soft: #bed3cb;
   --blue: #315f96;
   --gold: #a66b10;
   --danger: #9f3a3a;
@@ -58,8 +64,8 @@ textarea {
 }
 
 .sidebar {
-  background: #11251f;
-  color: #f7fbf8;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-ink);
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -77,6 +83,11 @@ textarea {
 }
 
 .mobile-topbar .brand-mark {
+  height: 32px;
+  width: 32px;
+}
+
+.mobile-topbar .brand-logo {
   height: 32px;
   width: 32px;
 }
@@ -150,6 +161,14 @@ textarea {
   width: 36px;
 }
 
+.brand-logo {
+  border-radius: 8px;
+  flex: 0 0 auto;
+  height: 36px;
+  object-fit: contain;
+  width: 36px;
+}
+
 .brand-name,
 .tenant-name,
 .eyebrow,
@@ -164,7 +183,7 @@ textarea {
 }
 
 .tenant-name {
-  color: #bed3cb;
+  color: var(--sidebar-soft);
   font-size: 13px;
   margin-top: 2px;
 }
@@ -177,14 +196,14 @@ textarea {
 }
 
 .current-user-name {
-  color: #f7fbf8;
+  color: var(--sidebar-ink);
   font-size: 14px;
   font-weight: 700;
   margin: 0;
 }
 
 .current-user-email {
-  color: #9fb6ac;
+  color: var(--sidebar-muted);
   font-size: 12px;
   margin: 0;
   overflow: hidden;
@@ -200,7 +219,7 @@ textarea {
 .nav-link {
   align-items: center;
   border-radius: 8px;
-  color: #dce9e2;
+  color: var(--sidebar-text);
   display: flex;
   gap: 10px;
   min-height: 46px;
@@ -218,7 +237,7 @@ textarea {
 }
 
 .zone-switcher-label {
-  color: #9fb6ac;
+  color: var(--sidebar-muted);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -236,7 +255,7 @@ textarea {
   background: transparent;
   border: none;
   border-radius: 8px;
-  color: #dce9e2;
+  color: var(--sidebar-text);
   cursor: pointer;
   display: flex;
   gap: 10px;
@@ -252,7 +271,7 @@ textarea {
 
 .zone-switcher-icon {
   align-items: center;
-  color: #9fb6ac;
+  color: var(--sidebar-muted);
   display: inline-flex;
   flex: 0 0 auto;
   justify-content: center;
@@ -631,7 +650,7 @@ textarea {
 .visit-form select:focus,
 .visit-form textarea:focus {
   border-color: var(--accent);
-  outline: 2px solid rgba(23, 107, 95, 0.16);
+  outline: 2px solid var(--accent-soft);
 }
 
 .form-row {
@@ -2533,6 +2552,12 @@ textarea {
   width: 100%;
 }
 
+/* .tenant-name is tinted for the dark sidebar; on the white login panel it
+   needs the regular muted ink to stay readable. */
+.login-panel .tenant-name {
+  color: var(--muted);
+}
+
 .login-panel h1 {
   font-size: 32px;
   margin: 4px 0 0;
@@ -2836,7 +2861,7 @@ textarea {
 
 .route-stop-index {
   align-items: center;
-  background: rgba(23, 107, 95, 0.12);
+  background: var(--accent-soft);
   border-radius: 999px;
   color: var(--accent);
   display: flex;
@@ -3182,4 +3207,89 @@ textarea {
 
 .calendar-cell.selected .calendar-dot {
   background: #f7fbf8;
+}
+
+/* Tenant branding settings (admin/settings): color-scheme picker + logo. */
+
+.scheme-swatch-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.scheme-swatch {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.scheme-swatch:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.scheme-swatch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scheme-swatch-chips {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.scheme-swatch-chip {
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  display: inline-block;
+  height: 22px;
+  width: 22px;
+}
+
+.scheme-swatch-chip + .scheme-swatch-chip {
+  margin-left: -8px;
+}
+
+.scheme-swatch-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.logo-preview-row {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.logo-preview {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  height: 64px;
+  object-fit: contain;
+  padding: 6px;
+  width: 64px;
+}
+
+.logo-preview-empty {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  display: flex;
+  font-size: 11px;
+  height: 64px;
+  justify-content: center;
+  text-align: center;
+  width: 64px;
 }
