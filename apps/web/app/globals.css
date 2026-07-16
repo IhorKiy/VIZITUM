@@ -2904,6 +2904,24 @@ textarea {
   margin: 12px 0 0;
 }
 
+.landing-topbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.landing-lang {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.landing-lang:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
 .landing-badge {
   background: var(--accent-soft);
   border-radius: 999px;
