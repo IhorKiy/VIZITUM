@@ -64,7 +64,7 @@ export function ImportHistoryTable({
               job.status === "validation_failed" ? (
                 <a
                   className="secondary-button"
-                  href={`/${tenantSlug}/admin/settings?importJobId=${job.id}&template=${job.templateType}`}
+                  href={`/${tenantSlug}/admin/imports?importJobId=${job.id}&template=${job.templateType}`}
                 >
                   {t("review")}
                 </a>

@@ -1,163 +1,141 @@
 import { redirect } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
-import { DownloadIcon } from "../../../../components/icons";
-import {
-  ImportHistoryTable,
-  ImportIssuesTable,
-} from "../../../../components/import-tables";
-import { ImportUploadModal } from "../../../../components/import-upload-modal";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
-  confirmImportJob,
-  getImportValidationJob,
-  listImportJobs,
-  listImportTemplates,
-  validateCsvImport,
-  type ImportTemplateSummary,
+  deleteTenantLogo,
+  getAdminSettings,
+  updateAdminSettings,
+  uploadTenantLogo,
 } from "../../../../lib/api-client";
-import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
-import { formatDateTime, formatLabel } from "../../../../lib/format";
+import {
+  SCHEME_SWATCHES,
+  TENANT_COLOR_SCHEMES,
+} from "../../../../lib/branding";
 import { getFormString } from "../../../../lib/form";
 
 type AdminSettingsPageProps = {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{
-    applied?: string;
-    canConfirm?: string;
-    errors?: string;
-    importJobId?: string;
-    status?: string;
-    template?: string;
-    rows?: string;
-    valid?: string;
-    warnings?: string;
-    error?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const demoTemplates: ImportTemplateSummary[] = [
-  {
-    type: "users",
-    label: "Users",
-    fileName: "users.csv",
-    downloadPath: "/api/imports/templates/users.csv",
-    requiredColumns: ["email", "name", "role_code"],
-    optionalColumns: ["phone", "external_id"],
-  },
-  {
-    type: "locations",
-    label: "Locations",
-    fileName: "locations.csv",
-    downloadPath: "/api/imports/templates/locations.csv",
-    requiredColumns: ["name", "address_line", "city"],
-    optionalColumns: ["external_id", "channel"],
-  },
-  {
-    type: "products",
-    label: "Products",
-    fileName: "products.csv",
-    downloadPath: "/api/imports/templates/products.csv",
-    requiredColumns: ["sku", "name"],
-    optionalColumns: ["brand", "category"],
-  },
-  {
-    type: "initial_visit_task_plan",
-    label: "Initial plan",
-    fileName: "initial_visit_task_plan.csv",
-    downloadPath: "/api/imports/templates/initial_visit_task_plan.csv",
-    requiredColumns: ["location_reference", "planned_date"],
-    optionalColumns: ["task_title", "task_due_date"],
-  },
+// Query params the imports flow used while it lived on this page. Old
+// bookmarks and import-history links carry them — forward those requests to
+// the dedicated imports page (the exact inverse of the redirect stub that
+// used to live at admin/imports).
+const IMPORT_FLOW_PARAMS = [
+  "applied",
+  "canConfirm",
+  "importJobId",
+  "rows",
+  "status",
+  "template",
+  "valid",
+  "warnings",
 ];
+const IMPORT_FLOW_ERRORS = new Set(["upload", "validation", "confirm"]);
+
+function buildImportRedirectQuery(
+  query: Record<string, string | string[] | undefined>,
+): string | null {
+  const single = (value: string | string[] | undefined) =>
+    typeof value === "string"
+      ? value
+      : Array.isArray(value) && value.length > 0
+        ? value[value.length - 1]
+        : undefined;
+
+  const errorValue = single(query.error);
+  const isImportRequest =
+    IMPORT_FLOW_PARAMS.some((param) => single(query[param]) !== undefined) ||
+    (errorValue !== undefined && IMPORT_FLOW_ERRORS.has(errorValue));
+
+  if (!isImportRequest) {
+    return null;
+  }
+
+  const forwarded = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    const resolved = single(value);
+    if (resolved !== undefined) {
+      forwarded.set(key, resolved);
+    }
+  }
+
+  return forwarded.toString();
+}
 
 export default async function AdminSettingsPage({
   params,
   searchParams,
 }: AdminSettingsPageProps) {
   const { tenantSlug } = await params;
-  const validationState = await searchParams;
-  const [tSettings, tImports, tAdmin, tCommon, format] = await Promise.all([
-    getTranslations("admin.settings"),
-    getTranslations("admin.imports"),
-    getTranslations("admin"),
-    getTranslations("common"),
-    getFormatter(),
-  ]);
+  const query = await searchParams;
 
-  async function validateImportAction(formData: FormData) {
-    "use server";
-
-    const templateType = getFormString(formData, "templateType").trim();
-    const importFile = formData.get("importFile");
-
-    if (
-      !templateType ||
-      !(importFile instanceof File) ||
-      importFile.size === 0
-    ) {
-      redirect(`/${tenantSlug}/admin/settings?error=upload`);
-    }
-
-    const csvText = await importFile.text();
-    const result = await validateCsvImport(
-      templateType,
-      csvText,
-      importFile.name,
+  const importRedirectQuery = buildImportRedirectQuery(query);
+  if (importRedirectQuery !== null) {
+    redirect(
+      `/${tenantSlug}/admin/imports${importRedirectQuery ? `?${importRedirectQuery}` : ""}`,
     );
-
-    if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/settings?error=validation`);
-    }
-
-    const query = new URLSearchParams({
-      canConfirm: String(result.data.canConfirm),
-      errors: String(result.data.errorRowCount),
-      importJobId: result.data.importJobId,
-      rows: String(result.data.rowCount),
-      status: result.data.status,
-      template: result.data.templateType,
-      valid: String(result.data.validRowCount),
-      warnings: String(result.data.warningRowCount),
-    });
-
-    redirect(`/${tenantSlug}/admin/settings?${query.toString()}`);
   }
 
-  async function confirmImportAction(formData: FormData) {
+  const saved = typeof query.saved === "string" ? query.saved : undefined;
+  const error = typeof query.error === "string" ? query.error : undefined;
+
+  const [tSettings, tBranding, tSchemes, tAdmin, tCommon, settingsResult] =
+    await Promise.all([
+      getTranslations("admin.settings"),
+      getTranslations("admin.branding"),
+      getTranslations("admin.branding.schemes"),
+      getTranslations("admin"),
+      getTranslations("common"),
+      getAdminSettings(),
+    ]);
+
+  async function updateColorSchemeAction(formData: FormData) {
     "use server";
 
-    const importJobId = getFormString(formData, "importJobId").trim();
+    const colorScheme = getFormString(formData, "colorScheme").trim();
 
-    if (!importJobId) {
-      redirect(`/${tenantSlug}/admin/settings?error=confirm`);
+    if (!colorScheme) {
+      redirect(`/${tenantSlug}/admin/settings?error=colors`);
     }
 
-    const result = await confirmImportJob(importJobId);
-
-    if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/settings?error=confirm`);
-    }
+    const result = await updateAdminSettings({ colorScheme });
 
     redirect(
-      `/${tenantSlug}/admin/settings?applied=${result.data.appliedRowCount}`,
+      `/${tenantSlug}/admin/settings?${result.ok ? "saved=colors" : "error=colors"}`,
     );
   }
 
-  // All three reads are independent (the validation-preview id comes from the
-  // query string), so batch them instead of paying serial round-trips.
-  const [templatesResult, importJobsFetch, validationPreviewResult] =
-    await Promise.all([
-      listImportTemplates(),
-      listImportJobs(),
-      validationState.importJobId
-        ? getImportValidationJob(validationState.importJobId)
-        : Promise.resolve(null),
-    ]);
-  const demoFallbackEnabled = isDemoFallbackEnabled();
+  async function uploadLogoAction(formData: FormData) {
+    "use server";
 
-  if (!templatesResult.ok && !demoFallbackEnabled) {
+    const logoFile = formData.get("logoFile");
+
+    if (!(logoFile instanceof File) || logoFile.size === 0) {
+      redirect(`/${tenantSlug}/admin/settings?error=logo`);
+    }
+
+    const result = await uploadTenantLogo(logoFile);
+
+    redirect(
+      `/${tenantSlug}/admin/settings?${result.ok ? "saved=logo" : "error=logo"}`,
+    );
+  }
+
+  async function removeLogoAction() {
+    "use server";
+
+    const result = await deleteTenantLogo();
+
+    redirect(
+      `/${tenantSlug}/admin/settings?${result.ok ? "saved=logoRemoved" : "error=logo"}`,
+    );
+  }
+
+  if (!settingsResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="admin-settings">
         <header className="page-header">
@@ -179,38 +157,29 @@ export default async function AdminSettingsPage({
           <div>
             <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
             <h2>{tSettings("notConnectedTitle")}</h2>
-            <p>{templatesResult.message}</p>
+            <p>{settingsResult.message}</p>
           </div>
         </section>
       </AppShell>
     );
   }
 
-  const templates = templatesResult.ok ? templatesResult.data : demoTemplates;
-  // Preserve the pre-batching demo-mode behavior: when the templates read
-  // failed (API down), the history panel shows its empty state rather than a
-  // second "unavailable" error for the jobs read that failed the same way.
-  const importJobsResult = templatesResult.ok ? importJobsFetch : null;
-  const importJobs = importJobsResult?.ok ? importJobsResult.data : [];
-  const selectedTemplate =
-    templates.find((template) => template.type === validationState.template) ??
-    templates[0];
-  const validationPreview =
-    validationPreviewResult?.ok === true ? validationPreviewResult.data : null;
-  const canConfirmImport =
-    Boolean(validationPreview?.canConfirm) ||
-    (validationState.canConfirm === "true" && validationState.importJobId);
-  const importIssues = validationPreview?.issues ?? [];
-  // Surface what was validated (template) and when (timestamp) so the result
-  // card is self-explanatory, not just a bag of counts.
-  const validatedTemplate =
-    validationPreview?.templateType ?? validationState.template ?? null;
-  const validatedAt = validationPreview?.validatedAt ?? null;
-  // Only auto-expand the validation accordion when the user just ran a
-  // validation (query params carry its outcome); otherwise it stays folded.
-  const hasValidationActivity = Boolean(
-    validationState.importJobId || validationState.status,
-  );
+  const settings = settingsResult.data;
+  const savedMessages: Record<string, { title: string; body: string }> = {
+    colors: {
+      title: tBranding("savedColorsTitle"),
+      body: tBranding("savedColorsBody"),
+    },
+    logo: {
+      title: tBranding("savedLogoTitle"),
+      body: tBranding("savedLogoBody"),
+    },
+    logoRemoved: {
+      title: tBranding("removedLogoTitle"),
+      body: tBranding("removedLogoBody"),
+    },
+  };
+  const savedMessage = saved ? savedMessages[saved] : undefined;
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-settings">
@@ -219,209 +188,115 @@ export default async function AdminSettingsPage({
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
           <h1>{tSettings("title")}</h1>
         </div>
-        <div className="toolbar">
-          <ImportUploadModal
-            action={validateImportAction}
-            defaultTemplateType={selectedTemplate?.type}
-            templates={templates}
-          />
-        </div>
       </header>
 
-      {validationState.applied ? (
+      {savedMessage ? (
         <section
           className="notice-panel success"
-          aria-label={tImports("appliedAria")}
+          aria-label={tBranding("savedAria")}
         >
           <div>
-            <p className="eyebrow">{tImports("appliedEyebrow")}</p>
-            <h2>{tImports("appliedTitle")}</h2>
-            <p>{tImports("appliedBody", { count: validationState.applied })}</p>
+            <p className="eyebrow">{tCommon("notice.updated")}</p>
+            <h2>{savedMessage.title}</h2>
+            <p>{savedMessage.body}</p>
           </div>
         </section>
       ) : null}
 
-      {validationState.error ? (
+      {error ? (
         <section
           className="notice-panel danger"
-          aria-label={tImports("errorAria")}
+          aria-label={tBranding("errorAria")}
         >
           <div>
-            <p className="eyebrow">{tImports("errorEyebrow")}</p>
-            <h2>{tImports("errorTitle")}</h2>
-            <p>{tImports("errorBody")}</p>
-          </div>
-          <div className="notice-actions">
-            <a className="secondary-button" href="#templates">
-              {tImports("downloadTemplate")}
-            </a>
+            <p className="eyebrow">{tBranding("errorEyebrow")}</p>
+            <h2>{tBranding("errorTitle")}</h2>
+            <p>{tBranding("errorBody")}</p>
           </div>
         </section>
       ) : null}
 
-      {!templatesResult.ok && demoFallbackEnabled ? (
-        <section
-          className="notice-panel"
-          aria-label={tCommon("notice.apiStatus")}
-        >
-          <div>
-            <p className="eyebrow">{tCommon("notice.demoMode")}</p>
-            <h2>{tImports("notConnectedTitle")}</h2>
-            <p>{tImports("demoBody", { reason: templatesResult.message })}</p>
+      <section className="panel">
+        <h2>{tBranding("colorTitle")}</h2>
+        <p className="form-hint">{tBranding("colorHint")}</p>
+        <form action={updateColorSchemeAction} className="field-stack">
+          <div className="scheme-swatch-grid">
+            {TENANT_COLOR_SCHEMES.map((scheme) => (
+              <label className="scheme-swatch" key={scheme}>
+                <input
+                  defaultChecked={settings.colorScheme === scheme}
+                  name="colorScheme"
+                  type="radio"
+                  value={scheme}
+                />
+                <span aria-hidden="true" className="scheme-swatch-chips">
+                  <span
+                    className="scheme-swatch-chip"
+                    style={{ background: SCHEME_SWATCHES[scheme].accent }}
+                  />
+                  <span
+                    className="scheme-swatch-chip"
+                    style={{ background: SCHEME_SWATCHES[scheme].sidebar }}
+                  />
+                </span>
+                <span className="scheme-swatch-name">{tSchemes(scheme)}</span>
+              </label>
+            ))}
           </div>
-        </section>
-      ) : null}
+          <div>
+            <PendingSubmitButton
+              className="primary-button"
+              pendingLabel={tBranding("saving")}
+            >
+              {tBranding("saveColors")}
+            </PendingSubmitButton>
+          </div>
+        </form>
+      </section>
 
-      <section className="admin-accordion-stack">
-        <details
-          className="panel panel-collapsible"
-          open={hasValidationActivity}
-        >
-          <summary className="panel-summary">
-            <h2>{tImports("validationResult")}</h2>
-          </summary>
-          <table className="table">
-            <tbody>
-              <tr>
-                <th scope="row">{tImports("rowTemplate")}</th>
-                <td>
-                  {validatedTemplate
-                    ? formatLabel(validatedTemplate)
-                    : tImports("noFileValidated")}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">{tImports("rowFile")}</th>
-                <td>{validationPreview?.sourceFileName || "-"}</td>
-              </tr>
-              <tr>
-                <th scope="row">{tImports("rowStatus")}</th>
-                <td>
-                  {validationPreview?.status ??
-                    validationState.status ??
-                    tImports("noFileValidated")}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">{tImports("rowRows")}</th>
-                <td>
-                  {validationPreview?.rowCount ?? validationState.rows ?? "0"}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">{tImports("rowValid")}</th>
-                <td>
-                  {validationPreview?.validRowCount ??
-                    validationState.valid ??
-                    "0"}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">{tImports("rowErrors")}</th>
-                <td>
-                  {validationPreview?.errorRowCount ??
-                    validationState.errors ??
-                    "0"}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">{tImports("rowWarnings")}</th>
-                <td>
-                  {validationPreview?.warningRowCount ??
-                    validationState.warnings ??
-                    "0"}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">{tImports("rowValidatedAt")}</th>
-                <td>{formatDateTime(format, validatedAt)}</td>
-              </tr>
-            </tbody>
-          </table>
-          {canConfirmImport ? (
-            <form action={confirmImportAction} className="confirm-inline-form">
-              <input
-                name="importJobId"
-                type="hidden"
-                value={
-                  validationPreview?.importJobId ?? validationState.importJobId
-                }
-              />
+      <section className="panel">
+        <h2>{tBranding("logoTitle")}</h2>
+        <p className="form-hint">{tBranding("logoHint")}</p>
+        <div className="logo-preview-row">
+          {settings.logo ? (
+            <img
+              alt={tBranding("logoAlt")}
+              className="logo-preview"
+              src={settings.logo.url}
+            />
+          ) : (
+            <span className="logo-preview-empty">{tBranding("noLogo")}</span>
+          )}
+          <form action={uploadLogoAction} className="field-stack">
+            <input
+              accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg"
+              aria-label={tBranding("logoFileLabel")}
+              name="logoFile"
+              required
+              type="file"
+            />
+            <div>
               <PendingSubmitButton
                 className="primary-button"
-                pendingLabel={tImports("applying")}
+                pendingLabel={tBranding("uploading")}
               >
-                {tImports("confirmImport")}
+                {settings.logo
+                  ? tBranding("replaceLogo")
+                  : tBranding("uploadLogo")}
+              </PendingSubmitButton>
+            </div>
+          </form>
+          {settings.logo ? (
+            <form action={removeLogoAction}>
+              <PendingSubmitButton
+                className="secondary-button"
+                pendingLabel={tBranding("removing")}
+              >
+                {tBranding("removeLogo")}
               </PendingSubmitButton>
             </form>
           ) : null}
-
-          <div className="setup-subsection">
-            <h3>{tImports("rowIssues")}</h3>
-            {importIssues.length > 0 ? (
-              <ImportIssuesTable issues={importIssues} />
-            ) : (
-              <p className="empty-state">
-                {validationPreview || validationState.importJobId
-                  ? tImports("noRowIssues")
-                  : tImports("validateToReview")}
-              </p>
-            )}
-          </div>
-        </details>
-
-        <details className="panel panel-collapsible" id="templates">
-          <summary className="panel-summary">
-            <h2>{tImports("approvedTemplates")}</h2>
-          </summary>
-          <div className="field-stack import-template-grid">
-            {templates.map((template) => (
-              <article className="import-row" key={template.type}>
-                <div>
-                  <h2>{template.label}</h2>
-                  <p>
-                    {tImports("templateColumns", {
-                      fileName: template.fileName,
-                      required: template.requiredColumns.length,
-                      optional: template.optionalColumns.length,
-                    })}
-                  </p>
-                </div>
-                <a
-                  aria-label={tImports("downloadTemplateTitle", {
-                    label: template.label,
-                  })}
-                  className="icon-button"
-                  href={`/${tenantSlug}/admin/imports/templates/${template.type}.csv`}
-                  title={tImports("downloadTemplateTitle", {
-                    label: template.label,
-                  })}
-                >
-                  <DownloadIcon />
-                </a>
-              </article>
-            ))}
-          </div>
-        </details>
-
-        <details className="panel panel-collapsible">
-          <summary className="panel-summary">
-            <h2>{tImports("importHistory")}</h2>
-          </summary>
-          <p className="empty-state">{tImports("importHistoryBody")}</p>
-          {importJobsResult && !importJobsResult.ok ? (
-            <p className="empty-state">
-              {tImports("historyUnavailable", {
-                message: importJobsResult.message,
-              })}
-            </p>
-          ) : null}
-          {importJobs.length > 0 ? (
-            <ImportHistoryTable jobs={importJobs} tenantSlug={tenantSlug} />
-          ) : importJobsResult?.ok === false ? null : (
-            <p className="empty-state">{tImports("historyEmpty")}</p>
-          )}
-        </details>
+        </div>
       </section>
     </AppShell>
   );

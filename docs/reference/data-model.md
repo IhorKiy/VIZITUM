@@ -28,7 +28,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 | `UserRole` | `user_roles` | Role assignment (`roleCode`: tenant_superadmin / company_admin / team_manager / field_representative), unique per (tenant, user, role). Users can hold multiple roles, but a `tenant_superadmin` holds only that single role — see [permissions.md](permissions.md). |
 | `Invite` | `invites` | Invite with `tokenHash` (raw token never stored), `roleCodes[]`, status (pending/accepted/expired/revoked), `expiresAt`. |
 | `Session` | `sessions` | Backend session: `sessionTokenHash` (unique), `expiresAt`, `revokedAt`, hashed user agent/IP. |
-| `TenantSetting` | `tenant_settings` | Key-value JSON settings per tenant (e.g. `products_enabled` used by the settings module). |
+| `TenantSetting` | `tenant_settings` | Key-value JSON settings per tenant: `products_enabled`, plus the branding keys `branding_color_scheme` (one of the four presets, absent = `emerald`) and `branding_logo_object_id` (pointer to the tenant's `branding_logo` StorageObject, JSON `null` when cleared) — see `src/modules/settings/branding.ts`. |
 | `ProductCapability` | `product_capabilities` | Per-tenant feature flags (`capabilityCode`, `enabled`). |
 
 ## Field data group
@@ -69,7 +69,7 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 | Model | Table | Purpose |
 | --- | --- | --- |
 | `AiJob` | `ai_jobs` | Transcription or extraction job (AiJobStatus), provider/model/prompt/schema versions, input object, temporary transcript object, `temporaryDraft` JSON, error fields, `expiresAt` for cleanup. |
-| `StorageObject` | `storage_objects` | S3/R2 object metadata: `bucket` + `objectKey` (unique pair), purpose (temporary_audio / temporary_transcript / import_file / export_file / attachment), status (active/deleted/expired), `expiresAt` for temporary objects. |
+| `StorageObject` | `storage_objects` | S3/R2 object metadata: `bucket` + `objectKey` (unique pair), purpose (temporary_audio / temporary_transcript / import_file / export_file / attachment / branding_logo), status (active/deleted/expired), `expiresAt` for temporary objects (`branding_logo` is persistent — no `expiresAt`, cleaned by logo replace/remove and tenant purge). |
 
 ## Audit group
 

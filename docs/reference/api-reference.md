@@ -52,6 +52,7 @@ Legend: **all** = `@RequirePermissions` (every permission required); **any** = `
 | Method & path               | Body | Returns                                                                                                                                                                                       |
 | --------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /tenants/:slug/locale` | —    | `{ slug, language, timezone }` — pre-auth lookup used by the web frontend to resolve the UI locale (next-intl) for a tenant workspace, including the login and invite-accept pages; works regardless of tenant status (a suspended tenant's login page still renders in its language); 404 `TENANT_NOT_FOUND` |
+| `GET /tenants/:slug/branding` | —    | `{ slug, colorScheme, logoUrl }` — pre-auth branding lookup (same permissive stance as `/locale`): `colorScheme` is one of the four presets (`emerald`, `indigo`, `plum`, `terracotta`; default `emerald`), `logoUrl` is a short-lived presigned GET URL for the tenant logo or `null`; 404 `TENANT_NOT_FOUND` |
 
 ### Health — `/health` (public, `health.controller.ts`)
 
@@ -237,8 +238,11 @@ Admin-management actions — inviting, suspending/reactivating, deleting or role
 
 | Method & path           | Permissions                   | Body                                                                                                                                 | Returns                                                                 |
 | ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `GET /admin/settings`   | all: `tenant.settings.read`   | —                                                                                                                                    | `{ tenantId, name, timezone, language, productMode, productsEnabled, updatedAt }` |
-| `PATCH /admin/settings` | all: `tenant.settings.manage` | `{ name?, timezone?, language?, productsEnabled? }` — timezone must be a valid IANA zone; language must be one of the supported UI languages (`en`, `uk` — drives the next-intl locale of the whole tenant workspace); errors use code `SETTINGS_INVALID` with `fieldErrors` | updated settings                                                        |
+| `GET /admin/settings`   | all: `tenant.settings.read`   | —                                                                                                                                    | `{ tenantId, name, timezone, language, productMode, productsEnabled, colorScheme, logo, updatedAt }` — `logo` is `{ storageObjectId, contentType, url, urlExpiresAt }` (presigned GET for the admin preview) or `null` |
+| `PATCH /admin/settings` | all: `tenant.settings.manage` | `{ name?, timezone?, language?, productsEnabled?, colorScheme? }` — timezone must be a valid IANA zone; language must be one of the supported UI languages (`en`, `uk` — drives the next-intl locale of the whole tenant workspace); colorScheme must be one of the four presets; errors use code `SETTINGS_INVALID` with `fieldErrors` | updated settings                                                        |
+| `POST /admin/settings/logo/register` | all: `tenant.settings.manage` | `{ fileName, contentType?, sizeBytes? }` — contentType allowlist `image/png`, `image/jpeg`, `image/webp`, `image/svg+xml` (falls back to the file extension); size cap 1 MB; errors `BRANDING_LOGO_INVALID` / `BRANDING_LOGO_SIZE_INVALID` | `{ storageObject, uploadUrl }` — creates a persistent `branding_logo` StorageObject (also sweeps abandoned unconfirmed branding uploads) and returns a presigned PUT |
+| `POST /admin/settings/logo/confirm` | all: `tenant.settings.manage` | `{ storageObjectId }` — must be this tenant's active `branding_logo` object (404 `STORAGE_OBJECT_NOT_FOUND`, 400 `BRANDING_LOGO_INVALID` otherwise) | updated settings — swaps the logo pointer and best-effort deletes the previous logo object (R2 + row) |
+| `DELETE /admin/settings/logo` | all: `tenant.settings.manage` | — | updated settings — clears the logo pointer and best-effort deletes the object; idempotent (200 with no logo configured) |
 
 ### Storage — `/storage/objects` (`storage.controller.ts`)
 
@@ -248,6 +252,8 @@ Admin-management actions — inviting, suspending/reactivating, deleting or role
 | `POST /storage/objects/:storageObjectId/upload-url`   | any: `visits.update_own`, `imports.upload`                 | `{ expiresInSeconds? }` | `{ url, method: "PUT", expiresAt, headers }` |
 | `POST /storage/objects/:storageObjectId/download-url` | any: `visits.read_own`, `visits.read_team`, `imports.read` | `{ expiresInSeconds? }` | `{ url, method: "GET", expiresAt, headers }` |
 
+Purpose-level access checks inside `StorageService` are stricter than the guard-level permission union: `import_file` needs `imports.*`, `temporary_audio`/`temporary_transcript` need `visits.*` (+ ownership for own-scope), and `branding_logo` needs `tenant.settings.manage` to write / `tenant.settings.read` to read.
+
 ## Endpoint count
 
-83 endpoints across 19 controllers (auth 5, tenancy 1, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 3, locations 11, chains 4, products 4, routes 6, imports 6, admin users 8, admin settings 2, storage 3).
+87 endpoints across 19 controllers (auth 5, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 3, locations 11, chains 4, products 4, routes 6, imports 6, admin users 8, admin settings 6, storage 3).

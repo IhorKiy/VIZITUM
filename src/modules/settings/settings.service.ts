@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma, StorageObject } from "@prisma/client";
+import type { StorageObject } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
 import { normalizeTimezone } from "../../common/normalize";
@@ -199,7 +199,9 @@ export class SettingsService {
           fileName: fileName ? [] : ["File name is required."],
           contentType: contentType
             ? []
-            : ["Supported image content type is required (PNG, JPEG, WebP or SVG)."],
+            : [
+                "Supported image content type is required (PNG, JPEG, WebP or SVG).",
+              ],
         },
       });
     }
