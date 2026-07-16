@@ -938,6 +938,7 @@ export async function updateTask(
     status?: TaskStatus;
     priority?: TaskPriority;
     dueDate?: string | null;
+    description?: string | null;
   },
 ): Promise<ApiResult<Task>> {
   return apiPatch<Task>(`/tasks/${taskId}`, input);
