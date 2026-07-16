@@ -26,6 +26,7 @@ export function AssignTaskModal({
   const t = useTranslations("manager.overview");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const searchParams = useSearchParams();
 
   // Keep the dialog in sync with the URL on every navigation (not a static
@@ -43,18 +44,27 @@ export function AssignTaskModal({
     const shouldOpen = searchParams.get("assign") === "1";
 
     if (shouldOpen && !dialog.open) {
-      dialog.showModal();
+      openDialog();
     } else if (!shouldOpen && dialog.open) {
       dialog.close();
     }
   }, [searchParams]);
+
+  // The dialog is only hidden on close, never unmounted, so opening always
+  // starts from a blank form — otherwise "Assign another" would show the
+  // previous task's input. Resetting on open (not on close) keeps the entered
+  // values when a failed create redirects back with the dialog still open.
+  function openDialog() {
+    formRef.current?.reset();
+    dialogRef.current?.showModal();
+  }
 
   return (
     <>
       <button
         aria-haspopup="dialog"
         className="primary-button"
-        onClick={() => dialogRef.current?.showModal()}
+        onClick={openDialog}
         type="button"
       >
         {t("assignTask")}
@@ -79,7 +89,11 @@ export function AssignTaskModal({
           </button>
         </div>
 
-        <form action={action} className="visit-form compact modal-form">
+        <form
+          action={action}
+          className="visit-form compact modal-form"
+          ref={formRef}
+        >
           <label>
             {t("formTitle")}
             <textarea

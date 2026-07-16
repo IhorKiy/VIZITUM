@@ -27,6 +27,11 @@ export function TaskStatusEditor({
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const selectRef = useRef<HTMLSelectElement>(null);
+  // True while the user is arrowing through options: a closed select fires
+  // `change` on every arrow press, and saving each one would commit every
+  // intermediate status. Keyboard changes commit on Enter/blur instead; mouse
+  // picks (the flag resets on mousedown) still save immediately.
+  const keyboardNavRef = useRef(false);
 
   useEffect(() => {
     if (editing) {
@@ -80,15 +85,30 @@ export function TaskStatusEditor({
       disabled={pending}
       onBlur={() => {
         if (!pending) {
-          setEditing(false);
+          // Saves an uncommitted keyboard change; save() falls through to
+          // plain close when the value is unchanged.
+          save(selectRef.current?.value ?? status);
         }
       }}
-      onChange={(event) => save(event.target.value)}
+      onChange={(event) => {
+        if (!keyboardNavRef.current) {
+          save(event.target.value);
+        }
+      }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.preventDefault();
           setEditing(false);
+        } else if (event.key === "Enter") {
+          // Commit through the blur path so Enter and click-away match.
+          event.preventDefault();
+          selectRef.current?.blur();
+        } else {
+          keyboardNavRef.current = true;
         }
+      }}
+      onMouseDown={() => {
+        keyboardNavRef.current = false;
       }}
       ref={selectRef}
     >
