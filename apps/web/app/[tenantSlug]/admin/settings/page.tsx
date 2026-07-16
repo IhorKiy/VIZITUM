@@ -101,7 +101,11 @@ export default async function AdminSettingsPage({
     }
 
     const csvText = await importFile.text();
-    const result = await validateCsvImport(templateType, csvText, importFile.name);
+    const result = await validateCsvImport(
+      templateType,
+      csvText,
+      importFile.name,
+    );
 
     if (!result.ok) {
       redirect(`/${tenantSlug}/admin/settings?error=validation`);
