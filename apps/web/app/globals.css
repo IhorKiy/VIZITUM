@@ -454,6 +454,12 @@ textarea {
   margin: 0 0 14px;
 }
 
+/* A lead-in hint sitting directly under a panel heading needs breathing room
+   before the controls below it (it is not inside a gapped field-stack). */
+.panel > .form-hint {
+  margin: 0 0 16px;
+}
+
 .panel-collapsible > .panel-summary {
   align-items: center;
   cursor: pointer;
@@ -3265,9 +3271,23 @@ textarea {
 }
 
 .logo-preview-row {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.logo-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logo-upload-form {
   align-items: center;
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .logo-preview {

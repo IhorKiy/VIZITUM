@@ -229,88 +229,90 @@ export default async function AdminSettingsPage({
         />
       ) : null}
 
-      <section className="panel">
-        <h2>{tBranding("colorTitle")}</h2>
-        <p className="form-hint">{tBranding("colorHint")}</p>
-        <form action={updateColorSchemeAction} className="field-stack">
-          <div className="scheme-swatch-grid">
-            {TENANT_COLOR_SCHEMES.map((scheme) => (
-              <label className="scheme-swatch" key={scheme}>
-                <input
-                  defaultChecked={settings.colorScheme === scheme}
-                  name="colorScheme"
-                  type="radio"
-                  value={scheme}
-                />
-                <span aria-hidden="true" className="scheme-swatch-chips">
-                  <span
-                    className="scheme-swatch-chip"
-                    style={{ background: SCHEME_SWATCHES[scheme].accent }}
+      <div className="admin-accordion-stack">
+        <section className="panel">
+          <h2>{tBranding("colorTitle")}</h2>
+          <p className="form-hint">{tBranding("colorHint")}</p>
+          <form action={updateColorSchemeAction} className="field-stack">
+            <div className="scheme-swatch-grid">
+              {TENANT_COLOR_SCHEMES.map((scheme) => (
+                <label className="scheme-swatch" key={scheme}>
+                  <input
+                    defaultChecked={settings.colorScheme === scheme}
+                    name="colorScheme"
+                    type="radio"
+                    value={scheme}
                   />
-                  <span
-                    className="scheme-swatch-chip"
-                    style={{ background: SCHEME_SWATCHES[scheme].sidebar }}
-                  />
-                </span>
-                <span className="scheme-swatch-name">{tSchemes(scheme)}</span>
-              </label>
-            ))}
-          </div>
-          <div>
-            <PendingSubmitButton
-              className="primary-button"
-              pendingLabel={tBranding("saving")}
-            >
-              {tBranding("saveColors")}
-            </PendingSubmitButton>
-          </div>
-        </form>
-      </section>
-
-      <section className="panel">
-        <h2>{tBranding("logoTitle")}</h2>
-        <p className="form-hint">{tBranding("logoHint")}</p>
-        <div className="logo-preview-row">
-          {settings.logo ? (
-            <img
-              alt={tBranding("logoAlt")}
-              className="logo-preview"
-              src={settings.logo.url}
-            />
-          ) : (
-            <span className="logo-preview-empty">{tBranding("noLogo")}</span>
-          )}
-          <form action={uploadLogoAction} className="field-stack">
-            <input
-              accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg"
-              aria-label={tBranding("logoFileLabel")}
-              name="logoFile"
-              required
-              type="file"
-            />
+                  <span aria-hidden="true" className="scheme-swatch-chips">
+                    <span
+                      className="scheme-swatch-chip"
+                      style={{ background: SCHEME_SWATCHES[scheme].accent }}
+                    />
+                    <span
+                      className="scheme-swatch-chip"
+                      style={{ background: SCHEME_SWATCHES[scheme].sidebar }}
+                    />
+                  </span>
+                  <span className="scheme-swatch-name">{tSchemes(scheme)}</span>
+                </label>
+              ))}
+            </div>
             <div>
               <PendingSubmitButton
                 className="primary-button"
-                pendingLabel={tBranding("uploading")}
+                pendingLabel={tBranding("saving")}
               >
-                {settings.logo
-                  ? tBranding("replaceLogo")
-                  : tBranding("uploadLogo")}
+                {tBranding("saveColors")}
               </PendingSubmitButton>
             </div>
           </form>
-          {settings.logo ? (
-            <form action={removeLogoAction}>
-              <PendingSubmitButton
-                className="secondary-button"
-                pendingLabel={tBranding("removing")}
-              >
-                {tBranding("removeLogo")}
-              </PendingSubmitButton>
-            </form>
-          ) : null}
-        </div>
-      </section>
+        </section>
+
+        <section className="panel">
+          <h2>{tBranding("logoTitle")}</h2>
+          <p className="form-hint">{tBranding("logoHint")}</p>
+          <div className="logo-preview-row">
+            {settings.logo ? (
+              <img
+                alt={tBranding("logoAlt")}
+                className="logo-preview"
+                src={settings.logo.url}
+              />
+            ) : (
+              <span className="logo-preview-empty">{tBranding("noLogo")}</span>
+            )}
+            <div className="logo-controls">
+              <form action={uploadLogoAction} className="logo-upload-form">
+                <input
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg"
+                  aria-label={tBranding("logoFileLabel")}
+                  name="logoFile"
+                  required
+                  type="file"
+                />
+                <PendingSubmitButton
+                  className="primary-button"
+                  pendingLabel={tBranding("uploading")}
+                >
+                  {settings.logo
+                    ? tBranding("replaceLogo")
+                    : tBranding("uploadLogo")}
+                </PendingSubmitButton>
+              </form>
+              {settings.logo ? (
+                <form action={removeLogoAction}>
+                  <PendingSubmitButton
+                    className="secondary-button"
+                    pendingLabel={tBranding("removing")}
+                  >
+                    {tBranding("removeLogo")}
+                  </PendingSubmitButton>
+                </form>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      </div>
     </AppShell>
   );
 }
