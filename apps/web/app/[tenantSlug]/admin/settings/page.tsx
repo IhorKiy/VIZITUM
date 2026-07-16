@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   deleteTenantLogo,
@@ -207,29 +208,25 @@ export default async function AdminSettingsPage({
       </header>
 
       {savedMessage ? (
-        <section
-          className="notice-panel success"
-          aria-label={tBranding("savedAria")}
-        >
-          <div>
-            <p className="eyebrow">{tCommon("notice.updated")}</p>
-            <h2>{savedMessage.title}</h2>
-            <p>{savedMessage.body}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={tBranding("savedAria")}
+          body={savedMessage.body}
+          clearParams={["saved"]}
+          eyebrow={tCommon("notice.updated")}
+          title={savedMessage.title}
+          tone="success"
+        />
       ) : null}
 
       {error ? (
-        <section
-          className="notice-panel danger"
-          aria-label={tBranding("errorAria")}
-        >
-          <div>
-            <p className="eyebrow">{tBranding("errorEyebrow")}</p>
-            <h2>{tBranding("errorTitle")}</h2>
-            <p>{tBranding("errorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={tBranding("errorAria")}
+          body={tBranding("errorBody")}
+          clearParams={["error"]}
+          eyebrow={tBranding("errorEyebrow")}
+          title={tBranding("errorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       <section className="panel">
