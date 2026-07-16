@@ -12,7 +12,10 @@ export type ResolvedTenantLocale = {
   timeZone: string;
 };
 
-const NON_TENANT_SEGMENTS = new Set(["platform", "api"]);
+// "en" is the English marketing landing (app/en/page.tsx), which shadows the
+// [tenantSlug] route anyway — excluding it here just skips a doomed tenant
+// locale lookup on every request to it.
+const NON_TENANT_SEGMENTS = new Set(["platform", "api", "en"]);
 const TENANT_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 // Shared slug-shape check: also guards redirect paths built from
