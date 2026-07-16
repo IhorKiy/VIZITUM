@@ -196,6 +196,7 @@ enum StorageObjectPurpose {
   import_file
   export_file
   attachment
+  branding_logo
 }
 
 model PlatformTenant {
