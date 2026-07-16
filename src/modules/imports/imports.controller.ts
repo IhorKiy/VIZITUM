@@ -57,6 +57,7 @@ export class ImportsController {
   ) {
     const templateType = parseImportTemplateType(body.templateType);
     const csvText = parseCsvText(body.csvText);
+    const sourceFileName = parseFileName(body.fileName);
     const parsedFile = this.importsService.parseApprovedCsvTemplate(
       templateType,
       csvText,
@@ -65,6 +66,7 @@ export class ImportsController {
     return this.importsService.createImportValidationJob(
       getRequestContext(request),
       parsedFile,
+      { sourceFileName },
     );
   }
 
@@ -131,6 +133,18 @@ function parseCsvText(value: unknown): string {
       csvText: ["CSV file content is required."],
     },
   });
+}
+
+function parseFileName(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+
+  // Keep the original name for display, but cap it so an oversized client value
+  // can't bloat the row; the column is nullable and purely informational.
+  return trimmed ? trimmed.slice(0, 255) : undefined;
 }
 
 function getRequestContext(request: Request): RequestContext {
