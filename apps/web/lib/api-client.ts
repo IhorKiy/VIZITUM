@@ -316,6 +316,8 @@ export type StoredImportValidationPreview = {
   issues: ImportValidationIssue[];
   importJobId: string;
   status: "validated" | "validation_failed";
+  validatedAt: string | null;
+  sourceFileName: string | null;
 };
 
 export type ImportApplyResult = {
@@ -873,10 +875,12 @@ export async function listImportTemplates(): Promise<
 export async function validateCsvImport(
   templateType: string,
   csvText: string,
+  fileName?: string,
 ): Promise<ApiResult<StoredImportValidationPreview>> {
   return apiPost<StoredImportValidationPreview>("/imports/jobs/validate", {
     templateType,
     csvText,
+    fileName,
   });
 }
 

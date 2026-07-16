@@ -371,6 +371,7 @@ export class ImportsService {
     const prisma = this.getPrisma();
     const preview = await this.validateImportPreview(context, parsedFile);
     const status = preview.canConfirm ? "validated" : "validation_failed";
+    const validatedAt = new Date();
 
     const importJob = await prisma.$transaction(async (transaction) => {
       const createdJob = await transaction.importJob.create({
@@ -379,6 +380,7 @@ export class ImportsService {
           type: parsedFile.templateType,
           status,
           sourceFileObjectId: options.sourceFileObjectId,
+          sourceFileName: options.sourceFileName,
           uploadedByUserId,
           rowCount: preview.rowCount,
           validRowCount: preview.validRowCount,
@@ -390,7 +392,7 @@ export class ImportsService {
             rows: parsedFile.rows,
             canConfirm: preview.canConfirm,
           },
-          validatedAt: new Date(),
+          validatedAt,
         } satisfies Prisma.ImportJobUncheckedCreateInput,
         select: { id: true },
       });
@@ -417,6 +419,8 @@ export class ImportsService {
       ...preview,
       importJobId: importJob.id,
       status,
+      validatedAt: validatedAt.toISOString(),
+      sourceFileName: options.sourceFileName ?? null,
     };
   }
 
@@ -472,6 +476,10 @@ export class ImportsService {
       })),
       importJobId: importJob.id,
       status: importJob.status,
+      validatedAt: importJob.validatedAt
+        ? importJob.validatedAt.toISOString()
+        : null,
+      sourceFileName: importJob.sourceFileName ?? null,
     };
   }
 
