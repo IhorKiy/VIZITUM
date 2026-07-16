@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
@@ -27,14 +28,23 @@ import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
 import { TENANT_ROLES } from "../../../../lib/tenant-roles";
 import { getFormString } from "../../../../lib/form";
 
+// The invite token is a secret share-link, so it is passed to the confirmation
+// render through a short-lived httpOnly cookie instead of the URL (which would
+// leak it into browser history, the Referer header and server access logs).
+const INVITE_FLASH_COOKIE = "admin_invite_flash";
+const INVITE_FLASH_MAX_AGE_SECONDS = 120;
+
+type InviteFlash = {
+  email: string;
+  token: string;
+  emailStatus?: string;
+};
+
 type AdminUsersPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     error?: string;
     message?: string;
-    inviteEmail?: string;
-    inviteToken?: string;
-    inviteEmailStatus?: string;
     invited?: string;
     role?: string;
     status?: string;
@@ -74,14 +84,13 @@ export default async function AdminUsersPage({
       );
     }
 
-    const query = new URLSearchParams({
-      inviteEmail: result.data.email,
-      inviteToken: result.data.token,
-      inviteEmailStatus: result.data.emailStatus,
-      invited: "1",
+    await setInviteFlash(tenantSlug, {
+      email: result.data.email,
+      token: result.data.token,
+      emailStatus: result.data.emailStatus,
     });
 
-    redirect(`/${tenantSlug}/admin/users?${query.toString()}`);
+    redirect(`/${tenantSlug}/admin/users?invited=1`);
   }
 
   async function resendInviteAction(formData: FormData) {
@@ -101,14 +110,13 @@ export default async function AdminUsersPage({
       );
     }
 
-    const query = new URLSearchParams({
-      inviteEmail: result.data.email,
-      inviteToken: result.data.token,
-      inviteEmailStatus: result.data.emailStatus,
-      invited: "resent",
+    await setInviteFlash(tenantSlug, {
+      email: result.data.email,
+      token: result.data.token,
+      emailStatus: result.data.emailStatus,
     });
 
-    redirect(`/${tenantSlug}/admin/users?${query.toString()}`);
+    redirect(`/${tenantSlug}/admin/users?invited=resent`);
   }
 
   async function updateUserStatusAction(formData: FormData) {
@@ -223,9 +231,10 @@ export default async function AdminUsersPage({
   const permissions = sessionResult.ok ? sessionResult.data.permissions : [];
   const canInviteAdmins = permissions.includes("admins.invite");
   const canManageAdmins = permissions.includes("admins.manage");
-  const inviteLink = pageState.inviteToken
+  const inviteFlash = pageState.invited ? await readInviteFlash() : null;
+  const inviteLink = inviteFlash
     ? `/${tenantSlug}/invites/accept?token=${encodeURIComponent(
-        pageState.inviteToken,
+        inviteFlash.token,
       )}`
     : null;
 
@@ -318,14 +327,14 @@ export default async function AdminUsersPage({
             <h2>{t("inviteReadyTitle")}</h2>
             <p>
               {t(
-                pageState.inviteEmailStatus === "sent"
+                inviteFlash?.emailStatus === "sent"
                   ? "inviteEmailSentBody"
-                  : pageState.inviteEmailStatus === "failed"
+                  : inviteFlash?.emailStatus === "failed"
                     ? "inviteEmailFailedBody"
                     : "inviteReadyBody",
                 {
-                  forEmail: pageState.inviteEmail
-                    ? t("inviteForEmail", { email: pageState.inviteEmail })
+                  forEmail: inviteFlash?.email
+                    ? t("inviteForEmail", { email: inviteFlash.email })
                     : "",
                 },
               )}
@@ -692,6 +701,47 @@ function UserRow({
       </div>
     </details>
   );
+}
+
+async function setInviteFlash(
+  tenantSlug: string,
+  flash: InviteFlash,
+): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(INVITE_FLASH_COOKIE, JSON.stringify(flash), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: `/${tenantSlug}/admin/users`,
+    maxAge: INVITE_FLASH_MAX_AGE_SECONDS,
+  });
+}
+
+async function readInviteFlash(): Promise<InviteFlash | null> {
+  const raw = (await cookies()).get(INVITE_FLASH_COOKIE)?.value;
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<InviteFlash>;
+
+    if (typeof parsed.email === "string" && typeof parsed.token === "string") {
+      return {
+        email: parsed.email,
+        token: parsed.token,
+        emailStatus:
+          typeof parsed.emailStatus === "string"
+            ? parsed.emailStatus
+            : undefined,
+      };
+    }
+  } catch {
+    // Ignore a malformed or tampered flash cookie and fall back to no link.
+  }
+
+  return null;
 }
 
 function normalizeRoleCode(
