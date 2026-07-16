@@ -119,4 +119,72 @@ describe("storage service", () => {
       },
     ]);
   });
+
+  it("gates branding_logo objects on tenant settings permissions", async () => {
+    const brandingLogoRow = {
+      id: "storage-logo",
+      tenantId: "tenant-a",
+      bucket: "vizitum",
+      objectKey: "tenants/tenant-a/branding/logo/uuid/logo.png",
+      purpose: "branding_logo",
+      contentType: "image/png",
+      sizeBytes: BigInt(2048),
+      checksum: null,
+      status: "active",
+      expiresAt: null,
+      createdByUserId: "admin-a",
+      createdAt,
+      deletedAt: null,
+    };
+    const prisma = {
+      storageObject: {
+        findFirst: async () => brandingLogoRow,
+      },
+    };
+    const s3Storage = {
+      createPresignedObjectUrl: (input: Record<string, unknown>) => ({
+        url: `https://storage.example/${input.objectKey as string}`,
+        method: input.method,
+        expiresAt: new Date("2026-06-30T10:05:00.000Z"),
+        headers: {},
+      }),
+    };
+    const service = new StorageService(
+      prisma as never,
+      { getDefaultBucket: () => "vizitum" } as never,
+      s3Storage as never,
+    );
+
+    const adminContext = {
+      ...context,
+      userId: "admin-a",
+      roleCodes: ["company_admin"],
+      permissions: ["tenant.settings.read", "tenant.settings.manage"],
+    };
+
+    const upload = await service.createPresignedUploadUrl(
+      adminContext as never,
+      "storage-logo",
+    );
+    assert.equal(upload.method, "PUT");
+
+    const download = await service.createPresignedDownloadUrl(
+      adminContext as never,
+      "storage-logo",
+    );
+    assert.equal(download.method, "GET");
+
+    // A field representative holds neither tenant settings permission.
+    await assert.rejects(
+      () => service.createPresignedUploadUrl(context as never, "storage-logo"),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "MISSING_PERMISSION",
+    );
+    await assert.rejects(
+      () =>
+        service.createPresignedDownloadUrl(context as never, "storage-logo"),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "MISSING_PERMISSION",
+    );
+  });
 });

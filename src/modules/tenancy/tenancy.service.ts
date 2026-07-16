@@ -6,15 +6,25 @@ import {
 import type { PlatformTenant } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
+import { readBrandingSettings } from "../settings/branding";
+import { S3StorageClient } from "../storage/s3-storage.client";
 import type {
+  PublicTenantBranding,
   PublicTenantLocale,
   TenantResolutionInput,
   TenantResolutionResult,
 } from "./tenant-resolution.types";
 
+// The pre-auth login page renders with `cache: "no-store"`, so every render
+// mints a fresh logo URL; the long TTL only has to survive a slow page load.
+const PUBLIC_LOGO_URL_TTL_SECONDS = 900;
+
 @Injectable()
 export class TenancyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3Storage?: S3StorageClient,
+  ) {}
 
   async resolveTenant(
     input: TenantResolutionInput,
@@ -65,6 +75,63 @@ export class TenancyService {
       language: tenant.language,
       timezone: tenant.timezone,
     };
+  }
+
+  // Deliberately as permissive as getPublicTenantLocale: no status gating, so
+  // even a suspended/archived tenant's login page renders with its branding.
+  async getPublicTenantBranding(slug: string): Promise<PublicTenantBranding> {
+    const normalizedSlug = normalizeSlug(slug);
+    const tenant = normalizedSlug
+      ? await this.prisma.platformTenant.findUnique({
+          where: { slug: normalizedSlug },
+          select: { id: true, slug: true },
+        })
+      : null;
+
+    if (!tenant) {
+      throw new NotFoundException({
+        code: "TENANT_NOT_FOUND",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    const branding = await readBrandingSettings(this.prisma, tenant.id);
+
+    return {
+      slug: tenant.slug,
+      colorScheme: branding.colorScheme,
+      logoUrl: await this.buildPublicLogoUrl(tenant.id, branding.logoObjectId),
+    };
+  }
+
+  private async buildPublicLogoUrl(
+    tenantId: string,
+    logoObjectId: string | null,
+  ): Promise<string | null> {
+    if (!logoObjectId || !this.s3Storage) {
+      return null;
+    }
+
+    const storageObject = await this.prisma.storageObject.findFirst({
+      where: {
+        id: logoObjectId,
+        tenantId,
+        purpose: "branding_logo",
+        status: "active",
+      },
+      select: { bucket: true, objectKey: true },
+    });
+
+    if (!storageObject) {
+      return null;
+    }
+
+    return this.s3Storage.createPresignedObjectUrl({
+      bucket: storageObject.bucket,
+      objectKey: storageObject.objectKey,
+      method: "GET",
+      expiresInSeconds: PUBLIC_LOGO_URL_TTL_SECONDS,
+    }).url;
   }
 
   private assertTenantCanServeRequests(tenant: PlatformTenant): void {
