@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { getCurrentSession } from "../lib/api-client";
 import { resolveTenantBranding } from "../lib/tenant-branding";
 import { BrandMark } from "./brand-mark";
+import { NavIcon } from "./nav-icon";
 import {
   availableZones,
   buildTenantNav,
@@ -89,8 +90,13 @@ export async function AppShell({
 
   const currentUser = sessionResult.ok ? sessionResult.data.user : null;
 
+  // The field (representative) zone is phone-only: it always renders the
+  // mobile layout, framed in a centered phone-width column on wider screens.
+  const shellClassName =
+    currentZone === "field" ? "app-shell app-shell--mobile-only" : "app-shell";
+
   return (
-    <div className="app-shell">
+    <div className={shellClassName}>
       <header className="mobile-topbar" aria-label={tNav("ariaBrand")}>
         <div className="brand-block">
           <BrandMark logoUrl={branding.logoUrl} />
@@ -102,7 +108,9 @@ export async function AppShell({
           </div>
         </div>
 
-        {currentUser ? (
+        {currentUser && currentZone !== "field" ? (
+          // The field zone shows the signed-in name in its page greeting
+          // ("Hi, {firstName}!"), so the topbar name would just duplicate it.
           <p className="topbar-user-name">{currentUser.name}</p>
         ) : null}
 
@@ -182,7 +190,7 @@ export async function AppShell({
               key={item.href}
             >
               <span aria-hidden="true" className="nav-icon">
-                {item.icon}
+                <NavIcon name={item.icon} />
               </span>
               <span>{tNav(item.area)}</span>
             </Link>
@@ -200,7 +208,7 @@ export async function AppShell({
             href={item.href}
             key={item.href}
           >
-            <span aria-hidden="true">{item.icon}</span>
+            <NavIcon name={item.icon} />
             <span>{tNav(item.area)}</span>
           </Link>
         ))}

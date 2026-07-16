@@ -161,6 +161,11 @@ textarea {
   width: 36px;
 }
 
+.nav-icon .nav-glyph {
+  height: 20px;
+  width: 20px;
+}
+
 .brand-logo {
   border-radius: 8px;
   flex: 0 0 auto;
@@ -2840,6 +2845,55 @@ textarea {
 
   .mobile-nav {
     display: flex;
+  }
+}
+
+/* The field (representative) zone is phone-only: force the mobile layout at
+   every viewport width and frame it in a centered phone-width column so it
+   reads as a mobile app rather than a stretched desktop page. */
+.app-shell--mobile-only {
+  display: block;
+  margin-inline: auto;
+  max-width: 430px;
+  min-height: 100vh;
+  position: relative;
+}
+
+.app-shell--mobile-only .sidebar {
+  display: none;
+}
+
+.app-shell--mobile-only .mobile-topbar {
+  display: block;
+}
+
+.app-shell--mobile-only .main-surface {
+  padding: 18px 14px 84px;
+}
+
+/* Multi-column content grids can't share a 430px column — collapse them to a
+   single column throughout the phone-only zone, the same way the shared
+   mobile breakpoint does at narrow viewports. */
+.app-shell--mobile-only .dashboard-grid,
+.app-shell--mobile-only .manager-grid,
+.app-shell--mobile-only .visit-actions {
+  grid-template-columns: 1fr;
+}
+
+.app-shell--mobile-only .mobile-nav {
+  display: flex;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(430px, 100%);
+}
+
+/* On screens wider than the phone frame, add a subtle device outline so the
+   column reads as an intentional mobile surface sitting on the page. */
+@media (min-width: 921px) {
+  .app-shell--mobile-only {
+    border-inline: 1px solid var(--line);
+    box-shadow: var(--shadow);
   }
 }
 
