@@ -239,6 +239,7 @@ export type PilotReviewSummary = {
   firstVisitAt: string | null;
   windowStart: string | null;
   windowEnd: string | null;
+  hasInitialPlan: boolean;
   thresholds: PilotReviewThreshold[];
   generatedAt: string;
 };

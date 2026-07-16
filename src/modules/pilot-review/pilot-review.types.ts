@@ -12,6 +12,10 @@ export type PilotReviewSummaryResponse = {
   firstVisitAt: string | null;
   windowStart: string | null;
   windowEnd: string | null;
+  // Tenant-wide: at least one route plan exists, i.e. an initial
+  // visit/task plan has actually been created (not just the import template
+  // shipping in code). Drives the pre-pilot readiness checklist.
+  hasInitialPlan: boolean;
   thresholds: PilotReviewThreshold[];
   generatedAt: string;
 };

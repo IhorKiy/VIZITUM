@@ -7,11 +7,9 @@ import {
   getCurrentSession,
   getPilotReviewSummary,
   listAdminUsers,
-  listImportTemplates,
   listLocations,
   recordDashboardView,
   type ApiResult,
-  type ImportTemplateSummary,
   type Location,
   type PaginatedResponse,
   type PilotReviewSummary,
@@ -30,7 +28,7 @@ type ChecklistItem = {
   // "unavailable" marks a check whose source fetch failed (e.g. the viewer
   // lacks the permission behind it); it is excluded from the readiness math
   // instead of being miscounted as needs-work.
-  status: "ready" | "needs-work" | "blocked" | "unavailable";
+  status: "ready" | "needs-work" | "unavailable";
 };
 
 type SetupTranslator = Awaited<
@@ -56,14 +54,12 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
     usersResult,
     locationsResult,
     productsResult,
-    templatesResult,
     summaryResult,
   ] = await Promise.all([
     getCurrentSession(),
     listAdminUsers(),
     listLocations(),
     countActiveProducts(),
-    listImportTemplates(),
     getPilotReviewSummary(),
   ]);
 
@@ -76,12 +72,7 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
 
   await recordDashboardView("admin_review").catch(() => undefined);
 
-  if (
-    !usersResult.ok &&
-    !locationsResult.ok &&
-    !templatesResult.ok &&
-    !summaryResult.ok
-  ) {
+  if (!usersResult.ok && !locationsResult.ok && !summaryResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="admin-pilot">
         <header className="page-header">
@@ -115,7 +106,7 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
       usersResult,
       locationsResult,
       productsResult,
-      templatesResult,
+      summaryResult,
       productsEnabled: sessionResult.ok
         ? sessionResult.data.productsEnabled
         : true,
@@ -130,9 +121,6 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
   );
   const readyCount = applicableChecks.filter(
     (item) => item.status === "ready",
-  ).length;
-  const blockedCount = applicableChecks.filter(
-    (item) => item.status === "blocked",
   ).length;
   const readinessPercent =
     applicableChecks.length > 0
@@ -164,11 +152,6 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
           <p className="eyebrow">{tAdmin("eyebrow")}</p>
           <h1>{tPilot("title")}</h1>
         </div>
-        <div className="toolbar">
-          <a className="primary-button" href={`/${tenantSlug}/manager`}>
-            {tReview("managerView")}
-          </a>
-        </div>
       </header>
 
       <section className="admin-accordion-stack">
@@ -196,9 +179,7 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
               <span className="setup-metric-value">
                 {applicableChecks.length - readyCount}
               </span>
-              <span className="setup-metric-label">
-                {blockedCount > 0 ? t("openSetupItems") : t("itemsLeft")}
-              </span>
+              <span className="setup-metric-label">{t("itemsLeft")}</span>
             </div>
           </div>
           <div className="setup-subsection">
@@ -319,20 +300,19 @@ function buildChecklist(
     usersResult,
     locationsResult,
     productsResult,
-    templatesResult,
+    summaryResult,
     productsEnabled,
   }: {
     usersResult: ApiResult<PaginatedResponse<TenantUser>>;
     locationsResult: ApiResult<PaginatedResponse<Location>>;
     productsResult: ApiResult<number>;
-    templatesResult: ApiResult<ImportTemplateSummary[]>;
+    summaryResult: ApiResult<PilotReviewSummary>;
     productsEnabled: boolean;
   },
   t: SetupTranslator,
 ): ChecklistItem[] {
   const users = usersResult.ok ? usersResult.data.items : [];
   const locations = locationsResult.ok ? locationsResult.data.items : [];
-  const templates = templatesResult.ok ? templatesResult.data : [];
   const hasAdmin = users.some((user) =>
     user.roleCodes.includes("company_admin"),
   );
@@ -346,9 +326,6 @@ function buildChecklist(
     (location) => location.status === "active",
   ).length;
   const activeProductCount = productsResult.ok ? productsResult.data : 0;
-  const initialPlanTemplateReady = templates.some(
-    (template) => template.type === "initial_visit_task_plan",
-  );
   const unavailable = (): Pick<ChecklistItem, "detail" | "status"> => ({
     detail: t("sourceUnavailable"),
     status: "unavailable",
@@ -417,31 +394,20 @@ function buildChecklist(
           },
         ]
       : []),
+    // Real signal: has an initial visit/task plan actually been created
+    // (route plans exist), not merely "does the import template ship in code".
+    // Sourced from the pilot-review summary because company admins — the
+    // primary viewers here — hold pilot_review.read but not routes.read.
     {
       title: t("planTitle"),
-      ...(templatesResult.ok
+      ...(summaryResult.ok
         ? {
-            detail: initialPlanTemplateReady
+            detail: summaryResult.data.hasInitialPlan
               ? t("planReady")
-              : t("planBlocked"),
-            status: initialPlanTemplateReady
+              : t("planNeedsWork"),
+            status: summaryResult.data.hasInitialPlan
               ? ("ready" as const)
-              : ("blocked" as const),
-          }
-        : unavailable()),
-    },
-    {
-      title: t("baselineTitle"),
-      ...(usersResult.ok && locationsResult.ok
-        ? {
-            detail:
-              hasManager && fieldRepCount > 0 && activeLocationCount > 0
-                ? t("baselineReady")
-                : t("baselineNeedsWork"),
-            status:
-              hasManager && fieldRepCount > 0 && activeLocationCount > 0
-                ? ("ready" as const)
-                : ("needs-work" as const),
+              : ("needs-work" as const),
           }
         : unavailable()),
     },
@@ -457,8 +423,6 @@ function formatStatus(
       return t("statusReady");
     case "needs-work":
       return t("statusNeedsWork");
-    case "blocked":
-      return t("statusBlocked");
     case "unavailable":
       return t("statusUnavailable");
   }
@@ -470,8 +434,6 @@ function statusTone(status: ChecklistItem["status"]): string {
       return "active";
     case "needs-work":
       return "warning";
-    case "blocked":
-      return "danger";
     case "unavailable":
       return "info";
   }

@@ -137,6 +137,39 @@ export async function AppShell({
           </div>
         ) : null}
 
+        {otherZones.length > 0 ? (
+          <div
+            aria-label={tZoneSwitcher("ariaLabel")}
+            className="zone-switcher"
+          >
+            <p className="zone-switcher-label">{tZoneSwitcher("label")}</p>
+            {otherZones.map((zone) => (
+              <form action={selectZoneAction} key={zone}>
+                <input name="tenantSlug" type="hidden" value={tenantSlug} />
+                <input name="zone" type="hidden" value={zone} />
+                <button className="zone-switcher-link" type="submit">
+                  <span aria-hidden="true" className="zone-switcher-icon">
+                    <svg
+                      fill="none"
+                      height="16"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 16 16"
+                      width="16"
+                    >
+                      <path d="M3 8h9" />
+                      <path d="M8.5 4.5 12 8l-3.5 3.5" />
+                    </svg>
+                  </span>
+                  <span>{tZoneNames(zone)}</span>
+                </button>
+              </form>
+            ))}
+          </div>
+        ) : null}
+
         <nav className="nav-list">
           {navItems.map((item) => (
             <Link
@@ -152,24 +185,6 @@ export async function AppShell({
             </Link>
           ))}
         </nav>
-
-        {otherZones.length > 0 ? (
-          <div
-            aria-label={tZoneSwitcher("ariaLabel")}
-            className="zone-switcher"
-          >
-            <p className="zone-switcher-label">{tZoneSwitcher("label")}</p>
-            {otherZones.map((zone) => (
-              <form action={selectZoneAction} key={zone}>
-                <input name="tenantSlug" type="hidden" value={tenantSlug} />
-                <input name="zone" type="hidden" value={zone} />
-                <button className="zone-switcher-link" type="submit">
-                  {tZoneNames(zone)}
-                </button>
-              </form>
-            ))}
-          </div>
-        ) : null}
       </aside>
 
       <main className="main-surface">{children}</main>

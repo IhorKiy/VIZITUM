@@ -37,6 +37,9 @@ describe("pilot review summary", () => {
       visit: {
         findFirst: async () => null,
       },
+      routePlan: {
+        count: async () => 0,
+      },
     };
     const service = new PilotReviewService(prisma as never);
 
@@ -44,7 +47,36 @@ describe("pilot review summary", () => {
 
     assert.equal(summary.firstVisitAt, null);
     assert.equal(summary.windowStart, null);
+    assert.equal(summary.hasInitialPlan, false);
     assert.equal(summary.thresholds.length, 6);
+    assert.ok(
+      summary.thresholds.every((threshold) => threshold.status === "na"),
+    );
+  });
+
+  it("reports an initial plan even before the first visit exists", async () => {
+    let capturedRoutePlanWhere: unknown;
+    const prisma = {
+      visit: {
+        findFirst: async () => null,
+      },
+      routePlan: {
+        count: async (query: { where: unknown }) => {
+          capturedRoutePlanWhere = query.where;
+
+          return 4;
+        },
+      },
+    };
+    const service = new PilotReviewService(prisma as never);
+
+    const summary = await service.getSummary(managerContext as never);
+
+    // Plans are created before any visit, so the check is window-independent
+    // and stays true even while every threshold is still not-started.
+    assert.equal(summary.hasInitialPlan, true);
+    assert.equal(summary.firstVisitAt, null);
+    assert.deepEqual(capturedRoutePlanWhere, { tenantId: "tenant-a" });
     assert.ok(
       summary.thresholds.every((threshold) => threshold.status === "na"),
     );
@@ -90,6 +122,9 @@ describe("pilot review summary", () => {
           },
         ],
       },
+      routePlan: {
+        count: async () => 3,
+      },
       routeItem: {
         count: async (query: { where: unknown }) => {
           capturedRouteItemWhere = query.where;
@@ -117,6 +152,7 @@ describe("pilot review summary", () => {
 
     assert.equal(summary.firstVisitAt, firstVisitCreatedAt.toISOString());
     assert.equal(summary.windowStart, firstVisitCreatedAt.toISOString());
+    assert.equal(summary.hasInitialPlan, true);
     assert.equal(
       summary.windowEnd,
       new Date("2026-06-08T00:00:00.000Z").toISOString(),
@@ -227,6 +263,7 @@ describe("pilot review summary", () => {
             report: { id: `report-${index}` },
           })),
       },
+      routePlan: { count: async () => 2 },
       routeItem: { count: async () => 50 },
       task: { count: async () => 0 },
       importJob: { findMany: async () => [] },
@@ -261,6 +298,7 @@ describe("pilot review summary", () => {
           { status: "draft", representativeUserId: "rep-1", report: null },
         ],
       },
+      routePlan: { count: async () => 0 },
       routeItem: { count: async () => 0 },
       task: { count: async () => 0 },
       importJob: { findMany: async () => [{ rowCount: 10, validRowCount: 8 }] },
