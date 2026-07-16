@@ -28,7 +28,7 @@ type ChecklistItem = {
   // "unavailable" marks a check whose source fetch failed (e.g. the viewer
   // lacks the permission behind it); it is excluded from the readiness math
   // instead of being miscounted as needs-work.
-  status: "ready" | "needs-work" | "blocked" | "unavailable";
+  status: "ready" | "needs-work" | "unavailable";
 };
 
 type SetupTranslator = Awaited<
@@ -122,9 +122,6 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
   const readyCount = applicableChecks.filter(
     (item) => item.status === "ready",
   ).length;
-  const blockedCount = applicableChecks.filter(
-    (item) => item.status === "blocked",
-  ).length;
   const readinessPercent =
     applicableChecks.length > 0
       ? Math.round((readyCount / applicableChecks.length) * 100)
@@ -182,9 +179,7 @@ export default async function AdminPilotPage({ params }: AdminPilotPageProps) {
               <span className="setup-metric-value">
                 {applicableChecks.length - readyCount}
               </span>
-              <span className="setup-metric-label">
-                {blockedCount > 0 ? t("openSetupItems") : t("itemsLeft")}
-              </span>
+              <span className="setup-metric-label">{t("itemsLeft")}</span>
             </div>
           </div>
           <div className="setup-subsection">
@@ -428,8 +423,6 @@ function formatStatus(
       return t("statusReady");
     case "needs-work":
       return t("statusNeedsWork");
-    case "blocked":
-      return t("statusBlocked");
     case "unavailable":
       return t("statusUnavailable");
   }
@@ -441,8 +434,6 @@ function statusTone(status: ChecklistItem["status"]): string {
       return "active";
     case "needs-work":
       return "warning";
-    case "blocked":
-      return "danger";
     case "unavailable":
       return "info";
   }
