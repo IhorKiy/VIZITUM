@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../components/app-shell";
-import { PendingSubmitButton } from "../../../components/pending-submit-button";
+import { AssignTaskModal } from "../../../components/assign-task-modal";
 import {
   createTask,
   listHighPriorityTasks,
@@ -25,6 +25,7 @@ type ManagerPageProps = {
   searchParams: Promise<{
     task?: string;
     error?: string;
+    assign?: string;
   }>;
 };
 
@@ -134,7 +135,7 @@ export default async function ManagerPage({
     const dueDate = getFormString(formData, "dueDate").trim();
 
     if (!title) {
-      redirect(`/${tenantSlug}/manager?error=task`);
+      redirect(`/${tenantSlug}/manager?error=task&assign=1`);
     }
 
     const result = await createTask({
@@ -147,7 +148,7 @@ export default async function ManagerPage({
     });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/manager?error=task`);
+      redirect(`/${tenantSlug}/manager?error=task&assign=1`);
     }
 
     redirect(`/${tenantSlug}/manager?task=created`);
@@ -262,9 +263,11 @@ export default async function ManagerPage({
           >
             {t("export")}
           </a>
-          <a className="primary-button" href="#assign-task">
-            {t("assignTask")}
-          </a>
+          <AssignTaskModal
+            action={createManagerTaskAction}
+            assigneeOptions={assigneeOptions}
+            locationOptions={locationOptions}
+          />
         </div>
       </header>
 
@@ -279,7 +282,10 @@ export default async function ManagerPage({
             <p>{t("taskCreatedBody")}</p>
           </div>
           <div className="notice-actions">
-            <a className="secondary-button" href="#assign-task">
+            <a
+              className="secondary-button"
+              href={`/${tenantSlug}/manager?assign=1`}
+            >
               {t("assignAnother")}
             </a>
             <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
@@ -300,7 +306,10 @@ export default async function ManagerPage({
             <p>{t("taskErrorBody")}</p>
           </div>
           <div className="notice-actions">
-            <a className="primary-button" href="#assign-task">
+            <a
+              className="primary-button"
+              href={`/${tenantSlug}/manager?assign=1`}
+            >
               {t("returnToTaskForm")}
             </a>
           </div>
@@ -382,81 +391,6 @@ export default async function ManagerPage({
               </article>
             ))}
           </div>
-        </div>
-
-        <div className="panel" id="assign-task">
-          <h2>{t("assignTask")}</h2>
-          <form action={createManagerTaskAction} className="visit-form compact">
-            <label>
-              {t("formTitle")}
-              <textarea
-                name="title"
-                placeholder={t("formTitlePlaceholder")}
-                required
-                rows={2}
-              />
-            </label>
-            <label>
-              {t("formDetails")}
-              <textarea
-                name="description"
-                placeholder={t("formDetailsPlaceholder")}
-                rows={3}
-              />
-            </label>
-            <label>
-              {t("formAssignee")}
-              <select name="assignedToUserId">
-                <option value="">{t("formUnassigned")}</option>
-                {assigneeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {assigneeOptions.length === 0 ? (
-                <span className="form-hint">{t("formAssigneeHint")}</span>
-              ) : null}
-            </label>
-            <label>
-              {t("formLocation")}
-              <select name="locationId">
-                <option value="">{t("formNoLocation")}</option>
-                {locationOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {locationOptions.length === 0 ? (
-                <span className="form-hint">{t("formLocationHint")}</span>
-              ) : null}
-            </label>
-            <div className="form-row">
-              <label>
-                {t("formPriority")}
-                <select name="priority" defaultValue="normal" required>
-                  <option value="normal">
-                    {formatEnumLabel(tCommon, "normal")}
-                  </option>
-                  <option value="high">
-                    {formatEnumLabel(tCommon, "high")}
-                  </option>
-                  <option value="low">{formatEnumLabel(tCommon, "low")}</option>
-                </select>
-              </label>
-              <label>
-                {t("formDueDate")}
-                <input name="dueDate" type="date" />
-              </label>
-            </div>
-            <PendingSubmitButton
-              className="primary-button"
-              pendingLabel={t("creating")}
-            >
-              {t("createTask")}
-            </PendingSubmitButton>
-          </form>
         </div>
       </section>
     </AppShell>

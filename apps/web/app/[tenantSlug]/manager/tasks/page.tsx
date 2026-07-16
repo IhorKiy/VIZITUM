@@ -3,7 +3,15 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import {
+  CalendarIcon,
+  FlagIcon,
+  MapPinIcon,
+  UserIcon,
+} from "../../../../components/icons";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
+import { TaskDetailsEditor } from "../../../../components/task-details-editor";
+import { TaskStatusEditor } from "../../../../components/task-status-editor";
 import {
   listAdminLocations,
   listTodayRoutes,
@@ -20,6 +28,7 @@ import {
 } from "../../../../lib/filter-options";
 import { formatEnumLabel, type CommonTranslator } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import { taskStatuses, taskStatusTone } from "../../../../lib/task-status";
 
 type ManagerTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -36,7 +45,6 @@ type ManagerTasksPageProps = {
   }>;
 };
 
-const taskStatuses: TaskStatus[] = ["open", "in_progress", "done", "cancelled"];
 const taskPriorities: TaskPriority[] = ["high", "normal", "low"];
 
 export default async function ManagerTasksPage({
@@ -108,6 +116,27 @@ export default async function ManagerTasksPage({
     }
 
     const result = await updateTask(taskId, { status });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/manager/tasks?error=update`);
+    }
+
+    redirect(`/${tenantSlug}/manager/tasks?updated=1`);
+  }
+
+  async function updateTaskDetailsAction(formData: FormData) {
+    "use server";
+
+    const taskId = getFormString(formData, "taskId").trim();
+
+    if (!taskId) {
+      redirect(`/${tenantSlug}/manager/tasks?error=update`);
+    }
+
+    const description = getFormString(formData, "description").trim();
+    const result = await updateTask(taskId, {
+      description: description || null,
+    });
 
     if (!result.ok) {
       redirect(`/${tenantSlug}/manager/tasks?error=update`);
@@ -193,14 +222,6 @@ export default async function ManagerTasksPage({
         <div>
           <p className="eyebrow">{tManager("eyebrow")}</p>
           <h1>{t("title")}</h1>
-        </div>
-        <div className="toolbar">
-          <a className="secondary-button" href={`/${tenantSlug}/manager`}>
-            {t("overview")}
-          </a>
-          <a className="primary-button" href={`/${tenantSlug}/manager/visits`}>
-            {t("visits")}
-          </a>
         </div>
       </header>
 
@@ -319,76 +340,88 @@ export default async function ManagerTasksPage({
           </div>
         </div>
 
-        <form action={`/${tenantSlug}/manager/tasks`} className="filter-form">
-          {selectedStatus ? (
-            <input name="status" type="hidden" value={selectedStatus} />
-          ) : null}
-          {selectedPriority ? (
-            <input name="priority" type="hidden" value={selectedPriority} />
-          ) : null}
-          <label>
-            {t("route")}
-            <select defaultValue={selectedRoutePlanId ?? ""} name="routePlanId">
-              <option value="">{t("anyRoute")}</option>
-              {routeOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("location")}
-            <select defaultValue={selectedLocationId ?? ""} name="locationId">
-              <option value="">{t("anyLocation")}</option>
-              {locationOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("assignee")}
-            <select
-              defaultValue={selectedAssigneeId ?? ""}
-              name="assignedToUserId"
-            >
-              <option value="">{t("anyAssignee")}</option>
-              {assigneeOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("dueFrom")}
-            <input defaultValue={dueFrom ?? ""} name="dueFrom" type="date" />
-          </label>
-          <label>
-            {t("dueTo")}
-            <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
-          </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
+        <details className="filter-disclosure" open={hasFilters}>
+          <summary className="filter-disclosure-summary">
+            {t("filtersLabel")}
             {hasFilters ? (
-              <a
-                className="secondary-button"
-                href={`/${tenantSlug}/manager/tasks`}
-              >
-                {tCommon("reset")}
-              </a>
+              <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
-          </div>
-        </form>
+          </summary>
+          <form action={`/${tenantSlug}/manager/tasks`} className="filter-form">
+            {selectedStatus ? (
+              <input name="status" type="hidden" value={selectedStatus} />
+            ) : null}
+            {selectedPriority ? (
+              <input name="priority" type="hidden" value={selectedPriority} />
+            ) : null}
+            <label>
+              {t("route")}
+              <select
+                defaultValue={selectedRoutePlanId ?? ""}
+                name="routePlanId"
+              >
+                <option value="">{t("anyRoute")}</option>
+                {routeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("location")}
+              <select defaultValue={selectedLocationId ?? ""} name="locationId">
+                <option value="">{t("anyLocation")}</option>
+                {locationOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("assignee")}
+              <select
+                defaultValue={selectedAssigneeId ?? ""}
+                name="assignedToUserId"
+              >
+                <option value="">{t("anyAssignee")}</option>
+                {assigneeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("dueFrom")}
+              <input defaultValue={dueFrom ?? ""} name="dueFrom" type="date" />
+            </label>
+            <label>
+              {t("dueTo")}
+              <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
+            </label>
+            <div className="filter-actions">
+              <button className="secondary-button" type="submit">
+                {tCommon("applyFilters")}
+              </button>
+              {hasFilters ? (
+                <a
+                  className="secondary-button"
+                  href={`/${tenantSlug}/manager/tasks`}
+                >
+                  {tCommon("reset")}
+                </a>
+              ) : null}
+            </div>
+          </form>
+        </details>
 
         {tasks.length > 0 ? (
           <TasksTable
             tasks={tasks}
             updateTaskStatusAction={updateTaskStatusAction}
+            updateTaskDetailsAction={updateTaskDetailsAction}
           />
         ) : (
           <div className="empty-state-panel">
@@ -436,87 +469,167 @@ function buildAssigneeOptions(tasks: Task[], locale: string): FilterOption[] {
 function TasksTable({
   tasks,
   updateTaskStatusAction,
+  updateTaskDetailsAction,
 }: {
   tasks: Task[];
   updateTaskStatusAction: (formData: FormData) => Promise<void>;
+  updateTaskDetailsAction: (formData: FormData) => Promise<void>;
 }) {
   const t = useTranslations("manager.tasks");
   const tCommon = useTranslations("common");
   const format = useFormatter();
 
   return (
-    <table className="table drilldown-table stacked-table">
-      <thead>
-        <tr>
-          <th>{t("tableTask")}</th>
-          <th>{t("tableLocation")}</th>
-          <th>{t("tableAssignee")}</th>
-          <th>{t("tableStatus")}</th>
-          <th>{t("tablePriority")}</th>
-          <th>{t("tableDue")}</th>
-          <th>{t("tableUpdate")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tasks.map((task) => (
-          <tr key={task.id}>
-            <td data-label={t("tableTask")}>
-              <strong>{task.title}</strong>
-              <span>{task.description ?? t("noTaskDetails")}</span>
-            </td>
-            <td data-label={t("tableLocation")}>
-              {task.location ? (
-                <>
-                  <strong>{task.location.name}</strong>
-                  <span>{task.location.city}</span>
-                </>
-              ) : (
-                t("noLocation")
-              )}
-            </td>
-            <td data-label={t("tableAssignee")}>
-              {task.assignedTo?.name ?? t("unassigned")}
-            </td>
-            <td data-label={t("tableStatus")}>
-              <span className={`status-pill ${taskStatusTone(task.status)}`}>
-                {formatEnumLabel(tCommon, task.status)}
-              </span>
-            </td>
-            <td data-label={t("tablePriority")}>
-              {formatEnumLabel(tCommon, task.priority)}
-            </td>
-            <td className="nowrap-cell" data-label={t("tableDue")}>
-              {formatDate(format, task.dueDate)}
-            </td>
-            <td className="stacked-actions-cell" data-label={t("tableUpdate")}>
-              <form
-                action={updateTaskStatusAction}
-                className="inline-control-form"
-              >
-                <input name="taskId" type="hidden" value={task.id} />
-                <select
-                  aria-label={t("updateTaskStatusAria", { title: task.title })}
-                  defaultValue={task.status}
-                  name="status"
-                >
-                  {taskStatuses.map((status) => (
-                    <option key={status} value={status}>
-                      {formatEnumLabel(tCommon, status)}
-                    </option>
-                  ))}
-                </select>
-                <PendingSubmitButton
-                  className="secondary-button"
-                  pendingLabel={tCommon("saving")}
-                >
-                  {tCommon("save")}
-                </PendingSubmitButton>
-              </form>
-            </td>
+    <>
+      {/* Wide screens: the full data table. Narrow screens (<= 1080px, where a
+          sidebar-reduced panel can't fit 7 columns) hide it and show the card
+          list below instead. */}
+      <table className="table drilldown-table manager-task-table">
+        <thead>
+          <tr>
+            <th>{t("tableTask")}</th>
+            <th>{t("tableLocation")}</th>
+            <th>{t("tableAssignee")}</th>
+            <th>{t("tableStatus")}</th>
+            <th>{t("tablePriority")}</th>
+            <th>{t("tableDue")}</th>
+            <th>{t("tableUpdate")}</th>
           </tr>
+        </thead>
+        <tbody>
+          {tasks.map((task) => (
+            <tr key={task.id}>
+              <td>
+                <strong>{task.title}</strong>
+                <span>{task.description ?? t("noTaskDetails")}</span>
+              </td>
+              <td>
+                {task.location ? (
+                  <>
+                    <strong>{task.location.name}</strong>
+                    <span>{task.location.city}</span>
+                  </>
+                ) : (
+                  t("noLocation")
+                )}
+              </td>
+              <td>{task.assignedTo?.name ?? t("unassigned")}</td>
+              <td>
+                <span className={`status-pill ${taskStatusTone(task.status)}`}>
+                  {formatEnumLabel(tCommon, task.status)}
+                </span>
+              </td>
+              <td>{formatEnumLabel(tCommon, task.priority)}</td>
+              <td className="nowrap-cell">
+                {formatDate(format, task.dueDate)}
+              </td>
+              <td>
+                <TaskStatusForm
+                  task={task}
+                  updateTaskStatusAction={updateTaskStatusAction}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <ul className="task-cards">
+        {tasks.map((task) => (
+          <li className="task-card" key={task.id}>
+            <div className="task-card-top">
+              <h3 className="task-card-title">{task.title}</h3>
+              <TaskStatusEditor
+                taskId={task.id}
+                status={task.status}
+                ariaLabel={t("updateTaskStatusAria", { title: task.title })}
+                updateAction={updateTaskStatusAction}
+              />
+            </div>
+            <dl className="task-card-facts">
+              <div className="task-fact">
+                <dt>
+                  <UserIcon />
+                  <span className="sr-only">{t("tableAssignee")}</span>
+                </dt>
+                <dd>{task.assignedTo?.name ?? t("unassigned")}</dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <MapPinIcon />
+                  <span className="sr-only">{t("tableLocation")}</span>
+                </dt>
+                <dd>
+                  {task.location
+                    ? `${task.location.name}, ${task.location.city}`
+                    : t("noLocation")}
+                </dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <FlagIcon />
+                  <span className="sr-only">{t("tablePriority")}</span>
+                </dt>
+                <dd>{formatEnumLabel(tCommon, task.priority)}</dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <CalendarIcon />
+                  <span className="sr-only">{t("tableDue")}</span>
+                </dt>
+                <dd>{formatDate(format, task.dueDate)}</dd>
+              </div>
+            </dl>
+            <details className="task-card-more">
+              <summary className="task-card-more-summary">
+                {t("cardDetails")}
+              </summary>
+              <div className="task-card-more-body">
+                <TaskDetailsEditor
+                  taskId={task.id}
+                  value={task.description ?? ""}
+                  updateAction={updateTaskDetailsAction}
+                />
+              </div>
+            </details>
+          </li>
         ))}
-      </tbody>
-    </table>
+      </ul>
+    </>
+  );
+}
+
+function TaskStatusForm({
+  task,
+  updateTaskStatusAction,
+}: {
+  task: Task;
+  updateTaskStatusAction: (formData: FormData) => Promise<void>;
+}) {
+  const t = useTranslations("manager.tasks");
+  const tCommon = useTranslations("common");
+
+  return (
+    <form action={updateTaskStatusAction} className="inline-control-form">
+      <input name="taskId" type="hidden" value={task.id} />
+      <select
+        aria-label={t("updateTaskStatusAria", { title: task.title })}
+        defaultValue={task.status}
+        name="status"
+      >
+        {taskStatuses.map((status) => (
+          <option key={status} value={status}>
+            {formatEnumLabel(tCommon, status)}
+          </option>
+        ))}
+      </select>
+      <PendingSubmitButton
+        className="secondary-button"
+        pendingLabel={tCommon("saving")}
+      >
+        {tCommon("save")}
+      </PendingSubmitButton>
+    </form>
   );
 }
 
@@ -689,18 +802,6 @@ function normalizeTaskPriority(value: string | undefined): TaskPriority | null {
   }
 
   return null;
-}
-
-function taskStatusTone(status: TaskStatus): "active" | "info" | "warning" {
-  if (status === "done") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
 }
 
 function formatDate(

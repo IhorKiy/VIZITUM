@@ -2177,21 +2177,68 @@ textarea {
   justify-items: end;
 }
 
+/* Collapsible wrapper for the tasks filter form: the disclosure owns the
+   bottom separator so a collapsed filter row still divides cleanly from the
+   list below. */
+.filter-disclosure {
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 14px;
+  padding-bottom: 6px;
+}
+
+.filter-disclosure > summary {
+  align-items: center;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 8px;
+  list-style: none;
+  padding: 6px 0;
+  width: fit-content;
+}
+
+.filter-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-disclosure > summary::after {
+  color: var(--muted);
+  content: "›";
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.filter-disclosure[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.filter-active-dot {
+  background: var(--accent);
+  border-radius: 999px;
+  height: 8px;
+  width: 8px;
+}
+
+.filter-disclosure .filter-form {
+  border-bottom: 0;
+  margin: 6px 0 0;
+  padding-bottom: 8px;
+}
+
 .filter-form {
   align-items: end;
   border-bottom: 1px solid var(--line);
   display: grid;
   gap: 12px;
-  /* Three selects then two date inputs (route, location, assignee/rep,
-     due-from, due-to). The third column holds the longest placeholder
-     ("Будь-який виконавець" / "Будь-який представник"), so it gets the widest
-     floor; the date inputs only need room for dd.mm.yyyy + the picker icon.
-     Total floor matches the old template, so this doesn't add overflow. */
-  grid-template-columns:
-    minmax(155px, 1fr)
-    minmax(150px, 0.9fr)
-    minmax(210px, 1.2fr)
-    repeat(2, minmax(140px, 0.7fr));
+  /* Route, location, assignee/rep, due-from, due-to, then the actions. Auto-fit
+     equal columns so the controls reflow onto extra rows when the panel is
+     narrower than all of them in a row (e.g. a sidebar-reduced desktop panel
+     ~770px) instead of forcing a horizontal scrollbar. Wide panels still lay
+     them out on a single row. */
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   margin: 0 0 14px;
   padding-bottom: 14px;
 }
@@ -2256,6 +2303,10 @@ textarea {
   border-radius: 8px;
   color: var(--ink);
   min-height: 40px;
+  /* Let a select shrink below its longest option's intrinsic width inside its
+     grid column instead of blowing the column (and the panel) wider — the long
+     "Будь-який виконавець" placeholder otherwise overflows a narrow column. */
+  min-width: 0;
   padding: 9px 10px;
 }
 
@@ -2309,35 +2360,260 @@ textarea {
   gap: 8px;
 }
 
-/* Keep a data-dense drilldown table from squishing on narrow desktop
-   windows: give it a floor width so the panel scrolls horizontally
-   (the panel already sets overflow-x: auto) instead of wrapping every
-   cell to one word per line. On mobile (<= 920px) the rows become
-   stacked cards below, so this floor is lifted there. */
-.stacked-table {
-  min-width: 820px;
+.sr-only {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
-.stacked-table .nowrap-cell {
+/* Manager task list: a real table on desktop, a compact card list below 1080px
+   (where a sidebar-reduced panel can't hold 7 columns). Both are rendered; the
+   media query at the bottom of this file toggles which one shows. */
+.manager-task-table {
+  min-width: 640px;
+}
+
+.manager-task-table .nowrap-cell {
   white-space: nowrap;
 }
 
-/* The "update status" cell holds a select + Save button. Give both a firm
-   floor so a tight column can't crush the select down to a couple of glyphs
-   or wrap the button under it; the table would rather scroll (the panel is
-   overflow-x: auto) than squash this control. Reset on mobile, where the
-   row becomes a full-width stacked card. */
-.stacked-table .inline-control-form {
-  flex-wrap: nowrap;
+/* Stack the status select over its Save button so the update column stays
+   narrow (~120px) and the 7-column table fits the desktop panel. */
+.manager-task-table .inline-control-form {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.stacked-table .inline-control-form select {
-  min-width: 108px;
+.manager-task-table .inline-control-form select {
+  min-width: 0;
+  width: 100%;
 }
 
-.stacked-table .inline-control-form .secondary-button {
+.manager-task-table .inline-control-form .secondary-button {
+  white-space: nowrap;
+  width: 100%;
+}
+
+/* Card list is hidden on desktop; the 1080px media query reveals it. */
+.task-cards {
+  display: none;
+}
+
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.task-card-top {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.task-card-title {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.task-card-top .status-pill {
   flex-shrink: 0;
-  white-space: nowrap;
+}
+
+/* The status pill doubles as an edit affordance: a chevron next to it hints the
+   status is changeable; clicking swaps it for a select that auto-saves. */
+.task-status-trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 4px;
+  padding: 0;
+}
+
+.task-status-trigger > svg {
+  color: var(--muted);
+  transition: color 0.12s ease;
+}
+
+.task-status-trigger:hover > svg {
+  color: var(--accent-strong);
+}
+
+.task-status-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.task-status-trigger:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.task-status-select {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 13px;
+  min-height: 36px;
+  padding: 4px 8px;
+}
+
+.task-status-select:focus-visible {
+  border-color: var(--accent-strong);
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
+/* Icon-labelled facts (assignee, location, priority, due) wrap onto as many
+   rows as the width allows — the icon replaces a verbose text label. */
+.task-card-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 10px 0 0;
+}
+
+.task-fact {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.task-fact dt {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+}
+
+.task-fact dd {
+  margin: 0;
+}
+
+.task-card-more {
+  margin-top: 12px;
+}
+
+.task-card-more > summary {
+  align-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+  letter-spacing: 0.02em;
+  list-style: none;
+  text-transform: uppercase;
+}
+
+.task-card-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.task-card-more > summary::after {
+  content: "›";
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.task-card-more[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.task-card-more-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.task-card-desc {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Inline editor for a task's details: read-only text with a pencil, or a
+   textarea with save/cancel while editing. */
+.task-details {
+  align-items: flex-start;
+  display: flex;
+  gap: 6px;
+}
+
+.task-details .task-card-desc {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-card-desc.is-empty {
+  color: var(--muted);
+}
+
+.task-details.is-editing {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-details-input {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.task-details-input:focus-visible {
+  border-color: var(--accent-strong);
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
+.task-details-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.task-card-more-body .inline-control-form {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+/* Size the status select to its content (with a sensible floor) rather than
+   stretching it across the card — overrides the base rule's width: 100%. */
+.task-card-more-body .inline-control-form select {
+  flex: 0 1 auto;
+  min-width: 150px;
+  width: auto;
 }
 
 .report-detail-list {
@@ -2672,6 +2948,24 @@ textarea {
   padding: 10px 12px;
 }
 
+/* The 7-column tasks table needs ~720px of content width. On desktop the 248px
+   sidebar leaves the panel below that until the viewport is ~1080px wide, so
+   swap the table for the card list up to 1080px — decoupled from the 920px
+   shell breakpoint so the desktop sidebar stays put. */
+@media (max-width: 1080px) {
+  .manager-task-table {
+    display: none;
+  }
+
+  .task-cards {
+    display: grid;
+    gap: 12px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+}
+
 @media (max-width: 920px) {
   .app-shell {
     display: block;
@@ -2767,67 +3061,6 @@ textarea {
 
   .inline-control-form {
     display: grid;
-  }
-
-  /* On phones the 7-column task table can't fit, so present each row as a
-     stacked card: hide the header row and label every cell inline via its
-     data-label. No horizontal scroll, every field readable. */
-  .stacked-table {
-    min-width: 0;
-  }
-
-  .stacked-table thead {
-    border: 0;
-    clip: rect(0 0 0 0);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    padding: 0;
-    position: absolute;
-    width: 1px;
-  }
-
-  .stacked-table,
-  .stacked-table tbody,
-  .stacked-table tr,
-  .stacked-table td {
-    display: block;
-    width: 100%;
-  }
-
-  .stacked-table tr {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    margin-bottom: 12px;
-    padding: 14px 16px;
-  }
-
-  .stacked-table td {
-    align-items: baseline;
-    border: 0;
-    display: grid;
-    gap: 4px 12px;
-    grid-template-columns: minmax(88px, 34%) 1fr;
-    padding: 6px 0;
-  }
-
-  .stacked-table td::before {
-    color: var(--muted);
-    content: attr(data-label);
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  .stacked-table .stacked-actions-cell {
-    display: block;
-    margin-top: 6px;
-  }
-
-  .stacked-table .stacked-actions-cell::before {
-    display: block;
-    margin-bottom: 6px;
   }
 
   .visit-actions {
