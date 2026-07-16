@@ -213,11 +213,8 @@ textarea {
 }
 
 .zone-switcher {
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
   display: grid;
-  gap: 6px;
-  margin-top: auto;
-  padding-top: 16px;
+  gap: 2px;
 }
 
 .zone-switcher-label {
@@ -225,7 +222,8 @@ textarea {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  margin: 0 0 2px;
+  margin: 0 0 4px;
+  padding: 0 8px;
   text-transform: uppercase;
 }
 
@@ -234,26 +232,39 @@ textarea {
 }
 
 .zone-switcher-link {
+  align-items: center;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: none;
   border-radius: 8px;
   color: #dce9e2;
   cursor: pointer;
-  font-weight: 700;
-  min-height: 38px;
-  padding: 6px 10px;
+  display: flex;
+  gap: 10px;
+  font-weight: 500;
+  min-height: 40px;
+  padding: 6px 8px;
   text-align: left;
   transition:
     background 160ms ease,
-    border-color 160ms ease,
     color 160ms ease;
   width: 100%;
 }
 
+.zone-switcher-icon {
+  align-items: center;
+  color: #9fb6ac;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+}
+
 .zone-switcher-link:hover {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
   color: #ffffff;
+}
+
+.zone-switcher-link:hover .zone-switcher-icon {
+  color: inherit;
 }
 
 .main-surface {

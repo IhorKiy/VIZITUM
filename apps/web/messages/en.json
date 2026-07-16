@@ -668,11 +668,8 @@
       "productsReady": "{count, plural, one {# active product/SKU record is available.} other {# active product/SKU records are available.}}",
       "productsNeedsWork": "Import or create active products/SKUs for the pilot.",
       "planTitle": "Initial route/task plan",
-      "planReady": "Initial visit/task plan template is available for upload.",
-      "planBlocked": "Initial plan template is unavailable; check import templates.",
-      "baselineTitle": "Pilot review baseline",
-      "baselineReady": "Core data is ready to generate pilot usage metrics after field work.",
-      "baselineNeedsWork": "Manager, field and location data are required before pilot review can be meaningful."
+      "planReady": "An initial visit/task plan has been created.",
+      "planNeedsWork": "No initial visit/task plan has been created yet — import or create one."
     },
     "review": {
       "title": "Pilot review",

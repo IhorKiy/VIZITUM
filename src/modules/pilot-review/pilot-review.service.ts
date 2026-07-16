@@ -21,17 +21,24 @@ export class PilotReviewService {
     context: RequestContext,
   ): Promise<PilotReviewSummaryResponse> {
     const now = new Date();
-    const firstVisit = await this.prisma.visit.findFirst({
-      where: { tenantId: context.tenantId },
-      orderBy: { createdAt: "asc" },
-      select: { createdAt: true },
-    });
+    const [firstVisit, routePlanCount] = await Promise.all([
+      this.prisma.visit.findFirst({
+        where: { tenantId: context.tenantId },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true },
+      }),
+      // Tenant-wide, window-independent: an initial plan can be created before
+      // any visit exists, so this must be counted outside the visit window.
+      this.prisma.routePlan.count({ where: { tenantId: context.tenantId } }),
+    ]);
+    const hasInitialPlan = routePlanCount > 0;
 
     if (!firstVisit) {
       return {
         firstVisitAt: null,
         windowStart: null,
         windowEnd: null,
+        hasInitialPlan,
         thresholds: buildNotStartedThresholds(),
         generatedAt: now.toISOString(),
       };
@@ -143,6 +150,7 @@ export class PilotReviewService {
       firstVisitAt: windowStart.toISOString(),
       windowStart: windowStart.toISOString(),
       windowEnd: windowEnd.toISOString(),
+      hasInitialPlan,
       thresholds,
       generatedAt: now.toISOString(),
     };

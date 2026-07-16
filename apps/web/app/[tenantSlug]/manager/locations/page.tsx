@@ -204,7 +204,6 @@ export default async function ManagerLocationsPage({
         <div>
           <p className="eyebrow">{tManager("eyebrow")}</p>
           <h1>{t("title")}</h1>
-          <p>{t("body")}</p>
         </div>
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/manager`}>
