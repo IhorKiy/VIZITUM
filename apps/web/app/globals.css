@@ -2880,6 +2880,41 @@ textarea {
   grid-template-columns: 1fr;
 }
 
+/* Mirror the rest of the shared mobile breakpoint for the layout primitives
+   the field zone actually uses, so the phone frame renders the same at every
+   viewport width: headers/notices stack instead of sitting side by side,
+   toolbars and filter pills pack left, filter forms collapse to one column
+   (the history date filter is wider than 430px otherwise) and panels scroll
+   horizontally rather than blowing the column open. */
+.app-shell--mobile-only .page-header,
+.app-shell--mobile-only .notice-panel {
+  display: grid;
+}
+
+.app-shell--mobile-only .toolbar,
+.app-shell--mobile-only .filter-pills {
+  justify-content: flex-start;
+}
+
+.app-shell--mobile-only .panel {
+  overflow-x: auto;
+}
+
+.app-shell--mobile-only .panel-toolbar,
+.app-shell--mobile-only .filter-form {
+  display: grid;
+  justify-items: stretch;
+}
+
+.app-shell--mobile-only .filter-form,
+.app-shell--mobile-only .field-history-filter-form {
+  grid-template-columns: 1fr;
+}
+
+.app-shell--mobile-only .inline-control-form {
+  display: grid;
+}
+
 .app-shell--mobile-only .mobile-nav {
   display: flex;
   left: 50%;
