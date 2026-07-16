@@ -2883,6 +2883,68 @@ textarea {
   margin: 8px 0 0;
 }
 
+/* Root marketing landing: same card language as the login panel, a bit
+   wider to hold a paragraph of copy comfortably. */
+.landing-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 24px;
+  margin: 0 auto;
+  max-width: 560px;
+  padding: 32px;
+  width: 100%;
+}
+
+.landing-panel h1 {
+  font-size: 32px;
+  line-height: 1.2;
+  margin: 12px 0 0;
+}
+
+.landing-badge {
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0;
+  padding: 4px 12px;
+}
+
+.landing-signin {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding-top: 20px;
+}
+
+.landing-hint {
+  color: var(--muted);
+  margin: 0;
+}
+
+.landing-cta {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 8px;
+  color: #ffffff;
+  display: inline-flex;
+  font-weight: 700;
+  height: 40px;
+  padding: 0 18px;
+}
+
+.landing-cta:hover {
+  background: var(--accent-strong);
+}
+
 .form-stack {
   display: grid;
   gap: 14px;
