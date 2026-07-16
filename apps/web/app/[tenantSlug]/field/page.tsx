@@ -130,11 +130,6 @@ export default async function FieldPage({
           <h1>{t("home.greeting", { firstName })}</h1>
           <p className="greeting-date">{formatGreetingDate(format)}</p>
         </div>
-        <div className="toolbar" aria-label={t("home.visitActions")}>
-          <a className="secondary-button" href={`/${tenantSlug}/field/history`}>
-            {t("home.history")}
-          </a>
-        </div>
       </header>
 
       {report === "confirmed" ? (

@@ -18,6 +18,25 @@ export type RoleArea =
 
 export type Zone = "field" | "manager" | "admin" | "operations";
 
+// Semantic icon names for nav items; each maps to an SVG in
+// components/nav-icon.tsx. Kept as a union so a missing/mistyped icon fails
+// typecheck rather than silently rendering nothing.
+export type NavIconName =
+  | "home"
+  | "route"
+  | "grid"
+  | "clock"
+  | "flag"
+  | "users"
+  | "pin"
+  | "box"
+  | "upload"
+  | "settings"
+  | "layout"
+  | "clipboard"
+  | "check"
+  | "activity";
+
 export const ZONE_ORDER: readonly Zone[] = [
   "field",
   "manager",
@@ -40,7 +59,7 @@ export type NavItem = {
   href: string;
   area: RoleArea;
   zone: Zone;
-  icon: string;
+  icon: NavIconName;
   requiredPermissions: string[];
 };
 
@@ -48,7 +67,7 @@ type NavItemDef = {
   path: string;
   area: RoleArea;
   zone: Zone;
-  icon: string;
+  icon: NavIconName;
   requiredPermissions: string[];
 };
 
@@ -63,28 +82,28 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     path: "/field",
     area: "field",
     zone: "field",
-    icon: "V",
+    icon: "home",
     requiredPermissions: ["visits.read_own", "visits.read_team"],
   },
   {
     path: "/field/planning",
     area: "field-planning",
     zone: "field",
-    icon: "N",
+    icon: "route",
     requiredPermissions: ["routes.read"],
   },
   {
     path: "/field/general",
     area: "field-general",
     zone: "field",
-    icon: "G",
+    icon: "grid",
     requiredPermissions: ["routes.manage_own"],
   },
   {
     path: "/field/history",
     area: "field-history",
     zone: "field",
-    icon: "H",
+    icon: "clock",
     requiredPermissions: ["visits.read_own"],
   },
   {
@@ -94,84 +113,84 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     path: "/admin/pilot",
     area: "admin-pilot",
     zone: "admin",
-    icon: "P",
+    icon: "flag",
     requiredPermissions: ["pilot_review.read"],
   },
   {
     path: "/admin/users",
     area: "admin-users",
     zone: "admin",
-    icon: "U",
+    icon: "users",
     requiredPermissions: ["users.read"],
   },
   {
     path: "/admin/locations",
     area: "admin-locations",
     zone: "admin",
-    icon: "L",
+    icon: "pin",
     requiredPermissions: ["locations.manage"],
   },
   {
     path: "/admin/products",
     area: "admin-products",
     zone: "admin",
-    icon: "K",
+    icon: "box",
     requiredPermissions: ["products.manage"],
   },
   {
     path: "/admin/imports",
     area: "admin-imports",
     zone: "admin",
-    icon: "I",
+    icon: "upload",
     requiredPermissions: ["imports.read"],
   },
   {
     path: "/admin/settings",
     area: "admin-settings",
     zone: "admin",
-    icon: "G",
+    icon: "settings",
     requiredPermissions: ["tenant.settings.read"],
   },
   {
     path: "/manager",
     area: "manager-overview",
     zone: "manager",
-    icon: "M",
+    icon: "layout",
     requiredPermissions: ["dashboard.manager.read"],
   },
   {
     path: "/manager/visits",
     area: "manager-visits",
     zone: "manager",
-    icon: "R",
+    icon: "clipboard",
     requiredPermissions: ["visits.read_team"],
   },
   {
     path: "/manager/tasks",
     area: "manager-tasks",
     zone: "manager",
-    icon: "T",
+    icon: "check",
     requiredPermissions: ["tasks.read_team"],
   },
   {
     path: "/manager/locations",
     area: "manager-locations",
     zone: "manager",
-    icon: "C",
+    icon: "pin",
     requiredPermissions: ["dashboard.manager.read"],
   },
   {
     path: "/manager/representatives",
     area: "manager-representatives",
     zone: "manager",
-    icon: "E",
+    icon: "users",
     requiredPermissions: ["dashboard.manager.read"],
   },
   {
     path: "/operations",
     area: "operations",
     zone: "operations",
-    icon: "O",
+    icon: "activity",
     requiredPermissions: ["platform.operations.read"],
   },
 ];
