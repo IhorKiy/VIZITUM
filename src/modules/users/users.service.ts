@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import {
   Prisma,
+  type InviteEmailStatus,
   type RoleCode,
   type User,
   type UserRole,
@@ -26,6 +27,7 @@ import { MILLISECONDS_PER_DAY } from "../../common/time";
 import { AuditService } from "../audit/audit.service";
 import { hashValue } from "../auth/auth-crypto";
 import { SessionService } from "../auth/session.service";
+import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
@@ -53,6 +55,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly sessionService: SessionService,
     private readonly auditService: AuditService,
+    private readonly emailService: EmailService,
   ) {}
 
   async listUsers(
@@ -198,6 +201,8 @@ export class UsersService {
       email: invite.email,
       roleCodes: invite.roleCodes,
       status: resolveInviteStatus(invite.status, invite.expiresAt),
+      emailStatus: invite.emailStatus,
+      emailSentAt: invite.emailSentAt?.toISOString() ?? null,
       expiresAt: invite.expiresAt.toISOString(),
       acceptedAt: invite.acceptedAt?.toISOString() ?? null,
       createdAt: invite.createdAt.toISOString(),
@@ -882,14 +887,74 @@ export class UsersService {
       },
     });
 
+    const emailStatus = await this.dispatchInviteEmail(
+      context,
+      invite.id,
+      email,
+      token,
+      expiresAt,
+    );
+
     return {
       id: invite.id,
       email: invite.email,
       roleCodes: invite.roleCodes,
       status: invite.status,
+      emailStatus,
       expiresAt: invite.expiresAt.toISOString(),
       token,
     };
+  }
+
+  /**
+   * Best-effort invite email: never throws, so an unreachable or
+   * misconfigured email provider can't break invite creation — the accept
+   * link shown in the UI stays the guaranteed fallback. The outcome is
+   * persisted on the invite row (`skipped` is the column default, so only
+   * real attempts write).
+   */
+  private async dispatchInviteEmail(
+    context: RequestContext,
+    inviteId: string,
+    email: string,
+    token: string,
+    expiresAt: Date,
+  ): Promise<InviteEmailStatus> {
+    if (!this.emailService.isEnabled()) {
+      return "skipped";
+    }
+
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: context.tenantId },
+      select: { name: true, slug: true, language: true, timezone: true },
+    });
+
+    if (!tenant) {
+      return "skipped";
+    }
+
+    const emailStatus = await this.emailService.sendInviteEmail({
+      to: email,
+      tenantName: tenant.name,
+      tenantSlug: tenant.slug,
+      language: tenant.language,
+      timezone: tenant.timezone,
+      token,
+      expiresAt,
+      requestId: context.requestId,
+    });
+
+    if (emailStatus !== "skipped") {
+      await this.prisma.invite.update({
+        where: { id: inviteId },
+        data: {
+          emailStatus,
+          emailSentAt: emailStatus === "sent" ? new Date() : null,
+        },
+      });
+    }
+
+    return emailStatus;
   }
 }
 

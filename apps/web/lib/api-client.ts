@@ -276,11 +276,16 @@ export type InviteUserInput = {
   roleCodes: TenantRoleCode[];
 };
 
+// Delivery outcome of the invite email; `skipped` means sending is disabled
+// for the environment and the link must be shared manually.
+export type InviteEmailStatus = "skipped" | "sent" | "failed";
+
 export type InviteUserResult = {
   id: string;
   email: string;
   roleCodes: TenantRoleCode[];
   status: string;
+  emailStatus: InviteEmailStatus;
   expiresAt: string;
   token: string;
 };
@@ -290,6 +295,8 @@ export type InviteHistoryItem = {
   email: string;
   roleCodes: TenantRoleCode[];
   status: "pending" | "accepted" | "expired" | "revoked";
+  emailStatus: InviteEmailStatus;
+  emailSentAt: string | null;
   expiresAt: string;
   acceptedAt: string | null;
   createdAt: string;

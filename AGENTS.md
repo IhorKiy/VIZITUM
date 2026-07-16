@@ -21,7 +21,7 @@ The MVP is intended to move small and medium field teams from Excel, Google Shee
 - Frontend: Next.js app in `apps/web/`.
 - Database: PostgreSQL via Prisma in `prisma/`.
 - Jobs/workers: cleanup worker entrypoint in `src/worker.ts`.
-- Auth: tenant-aware backend sessions and invite links.
+- Auth: tenant-aware backend sessions and invite links; invite emails go out best-effort via `src/modules/email` (Resend) with the share-link as guaranteed manual fallback.
 - Tenant model: shared DB for MVP; every tenant-owned query must use tenant context.
 - Storage: S3-compatible abstraction, currently configured for Cloudflare R2 in staging.
 - Observability: structured JSON logs, Sentry configuration, readiness and operations summary endpoints.

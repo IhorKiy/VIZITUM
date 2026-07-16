@@ -1,4 +1,9 @@
-import type { RoleCode, TenantStatus, UserStatus } from "@prisma/client";
+import type {
+  InviteEmailStatus,
+  RoleCode,
+  TenantStatus,
+  UserStatus,
+} from "@prisma/client";
 
 // The number of active Company Admins a tenant may have derives from its plan
 // tier (PlatformTenant.status doubles as the plan). The platform owner manages
@@ -57,6 +62,7 @@ export type InviteUserResponse = {
   email: string;
   roleCodes: RoleCode[];
   status: string;
+  emailStatus: InviteEmailStatus;
   expiresAt: string;
   token: string;
 };
@@ -66,6 +72,8 @@ export type InviteHistoryItem = {
   email: string;
   roleCodes: RoleCode[];
   status: string;
+  emailStatus: InviteEmailStatus;
+  emailSentAt: string | null;
   expiresAt: string;
   acceptedAt: string | null;
   createdAt: string;

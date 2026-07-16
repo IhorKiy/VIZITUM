@@ -63,7 +63,7 @@ npm run seed:staging-admin
 
 **Implemented-state reference docs** live in `docs/reference/`: [module-map.md](docs/reference/module-map.md) (modules, frontend routes), [api-reference.md](docs/reference/api-reference.md) (all endpoints with permissions), plus [data-model.md](docs/reference/data-model.md), [permissions.md](docs/reference/permissions.md) and [environment.md](docs/reference/environment.md). Check these before re-deriving how something works from code, and update them in the same change when you touch controllers, schema, permissions or env vars.
 
-**Backend module layout** (`src/modules/*`): each feature is a self-contained Nest module (`*.module.ts`, `*.service.ts`, `*.controller.ts`, `*.types.ts`). Key modules: `tenancy`, `auth`, `users`, `roles`, `settings`, `visits`, `tasks`, `locations`, `products`, `routes`, `imports`, `ai`, `storage`, `audit`, `operations`, `platform`, `health`, `prisma`.
+**Backend module layout** (`src/modules/*`): each feature is a self-contained Nest module (`*.module.ts`, `*.service.ts`, `*.controller.ts`, `*.types.ts`). Key modules: `tenancy`, `auth`, `users`, `roles`, `settings`, `visits`, `tasks`, `locations`, `products`, `routes`, `imports`, `ai`, `storage`, `email`, `audit`, `operations`, `platform`, `health`, `prisma`.
 
 **Tenancy is the load-bearing concern.** `src/modules/tenancy/request-context.ts` carries the resolved tenant through a request; `tenancy.service.ts` resolves it. Every module that touches tenant-owned data must read tenant id from this request context, never from a request body/param supplied by the client. This is the single most important invariant in the backend — see the "Agent Working Rules" section of [AGENTS.md](AGENTS.md) for the reasoning.
 

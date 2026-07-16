@@ -34,6 +34,7 @@ type AdminUsersPageProps = {
     message?: string;
     inviteEmail?: string;
     inviteToken?: string;
+    inviteEmailStatus?: string;
     invited?: string;
     role?: string;
     status?: string;
@@ -76,6 +77,7 @@ export default async function AdminUsersPage({
     const query = new URLSearchParams({
       inviteEmail: result.data.email,
       inviteToken: result.data.token,
+      inviteEmailStatus: result.data.emailStatus,
       invited: "1",
     });
 
@@ -102,6 +104,7 @@ export default async function AdminUsersPage({
     const query = new URLSearchParams({
       inviteEmail: result.data.email,
       inviteToken: result.data.token,
+      inviteEmailStatus: result.data.emailStatus,
       invited: "resent",
     });
 
@@ -314,11 +317,18 @@ export default async function AdminUsersPage({
             </p>
             <h2>{t("inviteReadyTitle")}</h2>
             <p>
-              {t("inviteReadyBody", {
-                forEmail: pageState.inviteEmail
-                  ? t("inviteForEmail", { email: pageState.inviteEmail })
-                  : "",
-              })}
+              {t(
+                pageState.inviteEmailStatus === "sent"
+                  ? "inviteEmailSentBody"
+                  : pageState.inviteEmailStatus === "failed"
+                    ? "inviteEmailFailedBody"
+                    : "inviteReadyBody",
+                {
+                  forEmail: pageState.inviteEmail
+                    ? t("inviteForEmail", { email: pageState.inviteEmail })
+                    : "",
+                },
+              )}
             </p>
             {inviteLink ? (
               <code className="copyable-value">{inviteLink}</code>

@@ -65,6 +65,16 @@ enum InviteStatus {
   revoked
 }
 
+// Delivery outcome of the invite email. `skipped` means sending was never
+// attempted (email disabled or tenant row missing), `failed` means an attempt
+// errored — in both cases the invite itself is valid and the accept link shown
+// in the UI remains the manual fallback channel.
+enum InviteEmailStatus {
+  skipped
+  sent
+  failed
+}
+
 enum RoleCode {
   tenant_superadmin
   company_admin
@@ -277,16 +287,16 @@ model PlatformSession {
 }
 
 model PlatformProvisioningJob {
-  id           String     @id @default(cuid())
+  id           String    @id @default(cuid())
   tenantId     String
-  status       JobStatus  @default(queued)
+  status       JobStatus @default(queued)
   step         String?
   errorCode    String?
   errorMessage String?
   startedAt    DateTime?
   finishedAt   DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   tenant PlatformTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -326,26 +336,26 @@ model User {
   updatedAt            DateTime   @updatedAt
   deletedAt            DateTime?
 
-  roles                    UserRole[]                @relation("UserRoles")
-  assignedRoles            UserRole[]                @relation("AssignedUserRoles")
-  createdInvites           Invite[]                  @relation("CreatedInvites")
-  acceptedInvites          Invite[]                  @relation("AcceptedInvites")
-  sessions                 Session[]
-  updatedSettings          TenantSetting[]           @relation("UpdatedTenantSettings")
-  createdLocationAssignments LocationAssignment[]    @relation("CreatedLocationAssignments")
-  assignedLocations        LocationAssignment[]      @relation("RepresentativeLocationAssignments")
-  routePlans               RoutePlan[]               @relation("RepresentativeRoutePlans")
-  createdRoutePlans        RoutePlan[]               @relation("CreatedRoutePlans")
-  visits                   Visit[]                   @relation("RepresentativeVisits")
-  visitNotes               VisitNote[]               @relation("CreatedVisitNotes")
-  confirmedReports         Report[]                  @relation("ConfirmedReports")
-  reports                  Report[]                  @relation("RepresentativeReports")
-  assignedTasks            Task[]                    @relation("AssignedTasks")
-  createdTasks             Task[]                    @relation("CreatedTasks")
-  uploadedImports          ImportJob[]               @relation("UploadedImports")
-  confirmedImports         ImportJob[]               @relation("ConfirmedImports")
-  createdStorageObjects    StorageObject[]           @relation("CreatedStorageObjects")
-  auditEvents              AuditEvent[]              @relation("ActorAuditEvents")
+  roles                      UserRole[]           @relation("UserRoles")
+  assignedRoles              UserRole[]           @relation("AssignedUserRoles")
+  createdInvites             Invite[]             @relation("CreatedInvites")
+  acceptedInvites            Invite[]             @relation("AcceptedInvites")
+  sessions                   Session[]
+  updatedSettings            TenantSetting[]      @relation("UpdatedTenantSettings")
+  createdLocationAssignments LocationAssignment[] @relation("CreatedLocationAssignments")
+  assignedLocations          LocationAssignment[] @relation("RepresentativeLocationAssignments")
+  routePlans                 RoutePlan[]          @relation("RepresentativeRoutePlans")
+  createdRoutePlans          RoutePlan[]          @relation("CreatedRoutePlans")
+  visits                     Visit[]              @relation("RepresentativeVisits")
+  visitNotes                 VisitNote[]          @relation("CreatedVisitNotes")
+  confirmedReports           Report[]             @relation("ConfirmedReports")
+  reports                    Report[]             @relation("RepresentativeReports")
+  assignedTasks              Task[]               @relation("AssignedTasks")
+  createdTasks               Task[]               @relation("CreatedTasks")
+  uploadedImports            ImportJob[]          @relation("UploadedImports")
+  confirmedImports           ImportJob[]          @relation("ConfirmedImports")
+  createdStorageObjects      StorageObject[]      @relation("CreatedStorageObjects")
+  auditEvents                AuditEvent[]         @relation("ActorAuditEvents")
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
@@ -371,18 +381,20 @@ model UserRole {
 }
 
 model Invite {
-  id               String       @id @default(cuid())
+  id               String            @id @default(cuid())
   tenantId         String
   email            String
   roleCodes        RoleCode[]
-  tokenHash        String       @unique
-  status           InviteStatus @default(pending)
+  tokenHash        String            @unique
+  status           InviteStatus      @default(pending)
+  emailStatus      InviteEmailStatus @default(skipped)
+  emailSentAt      DateTime?
   expiresAt        DateTime
   acceptedAt       DateTime?
   acceptedByUserId String?
   createdByUserId  String?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   acceptedBy User? @relation("AcceptedInvites", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
   createdBy  User? @relation("CreatedInvites", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -674,20 +686,20 @@ model VisitNote {
 }
 
 model Report {
-  id                   String       @id @default(cuid())
+  id                   String          @id @default(cuid())
   tenantId             String
-  visitId              String       @unique
+  visitId              String          @unique
   locationId           String
   representativeUserId String
   templateCode         SegmentTemplate
   schemaVersion        String
-  status               ReportStatus @default(confirmed)
+  status               ReportStatus    @default(confirmed)
   confirmedData        Json
   confirmedByUserId    String
   confirmedAt          DateTime
   aiMetadata           Json?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
   visit          Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
   location       Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
@@ -830,11 +842,11 @@ model StorageObject {
   createdAt       DateTime             @default(now())
   deletedAt       DateTime?
 
-  createdBy                  User?       @relation("CreatedStorageObjects", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  visitNotesAsTemporaryAudio VisitNote[] @relation("VisitNoteTemporaryAudio")
-  importJobsAsSourceFile     ImportJob[] @relation("ImportSourceFile")
-  aiJobsAsInputObject        AiJob[]     @relation("AiJobInputObject")
-  aiJobsAsTemporaryTranscript AiJob[]    @relation("AiJobTemporaryTranscript")
+  createdBy                   User?       @relation("CreatedStorageObjects", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  visitNotesAsTemporaryAudio  VisitNote[] @relation("VisitNoteTemporaryAudio")
+  importJobsAsSourceFile      ImportJob[] @relation("ImportSourceFile")
+  aiJobsAsInputObject         AiJob[]     @relation("AiJobInputObject")
+  aiJobsAsTemporaryTranscript AiJob[]     @relation("AiJobTemporaryTranscript")
 
   @@unique([bucket, objectKey])
   @@index([tenantId, purpose])

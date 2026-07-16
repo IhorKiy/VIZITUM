@@ -22,15 +22,21 @@ function noopAuditService() {
   return { recordEvent: async () => {} };
 }
 
+function disabledEmailService() {
+  return { isEnabled: () => false, sendInviteEmail: async () => "skipped" };
+}
+
 function createService(
   client: Record<string, unknown>,
   sessionService: unknown = noopSessionService(),
   auditService: unknown = noopAuditService(),
+  emailService: unknown = disabledEmailService(),
 ) {
   return new UsersService(
     client as never,
     sessionService as never,
     auditService as never,
+    emailService as never,
   );
 }
 
