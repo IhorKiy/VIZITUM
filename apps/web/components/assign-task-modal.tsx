@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { formatEnumLabel } from "../lib/format";
@@ -15,24 +16,38 @@ type AssignTaskModalProps = {
   action: (formData: FormData) => Promise<void>;
   assigneeOptions: AssignTaskOption[];
   locationOptions: AssignTaskOption[];
-  defaultOpen?: boolean;
 };
 
 export function AssignTaskModal({
   action,
   assigneeOptions,
   locationOptions,
-  defaultOpen = false,
 }: AssignTaskModalProps) {
   const t = useTranslations("manager.overview");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const searchParams = useSearchParams();
 
+  // Keep the dialog in sync with the URL on every navigation (not a static
+  // prop): `?assign=1` opens it, anything else closes it. This closes the
+  // modal after a successful create (which redirects to `?task=created`) and
+  // reopens it from the success/error notices even when `assign` was already
+  // "1" on the previous URL — a boolean prop would not re-fire in that case.
   useEffect(() => {
-    if (defaultOpen && !dialogRef.current?.open) {
-      dialogRef.current?.showModal();
+    const dialog = dialogRef.current;
+
+    if (!dialog) {
+      return;
     }
-  }, [defaultOpen]);
+
+    const shouldOpen = searchParams.get("assign") === "1";
+
+    if (shouldOpen && !dialog.open) {
+      dialog.showModal();
+    } else if (!shouldOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [searchParams]);
 
   return (
     <>

@@ -2364,41 +2364,6 @@ textarea {
   gap: 8px;
 }
 
-/* Keep a data-dense drilldown table from squishing on narrow desktop
-   windows: give it a floor width so the panel scrolls horizontally
-   (the panel already sets overflow-x: auto) instead of wrapping every
-   cell to one word per line. The floor is kept below the content width a
-   sidebar-reduced desktop panel actually offers (~770px at 1100px viewport)
-   so the table fits without a horizontal scrollbar; on mobile (<= 920px) the
-   rows become stacked cards and this floor is lifted. */
-.stacked-table {
-  min-width: 640px;
-}
-
-.stacked-table .nowrap-cell {
-  white-space: nowrap;
-}
-
-/* The "update status" cell holds a select + Save button. Stack them so this
-   action column stays narrow (~120px) instead of ~240px side-by-side, which
-   is what pushed the 7-column table past the panel and forced a horizontal
-   scrollbar on desktop. On mobile the row becomes a full-width stacked card. */
-.stacked-table .inline-control-form {
-  align-items: stretch;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.stacked-table .inline-control-form select {
-  min-width: 0;
-  width: 100%;
-}
-
-.stacked-table .inline-control-form .secondary-button {
-  white-space: nowrap;
-  width: 100%;
-}
-
 .sr-only {
   border: 0;
   clip: rect(0 0 0 0);
@@ -2987,11 +2952,10 @@ textarea {
   padding: 10px 12px;
 }
 
-/* The 7-column task/visit tables need ~720px of content width. On desktop the
-   248px sidebar leaves the panel below that until the viewport is ~1080px wide,
-   so switch the rows to stacked cards up to 1080px — decoupled from the 920px
-   shell breakpoint so the desktop sidebar stays put. Below 920px the shell also
-   collapses (see below); the card rules here still apply there. */
+/* The 7-column tasks table needs ~720px of content width. On desktop the 248px
+   sidebar leaves the panel below that until the viewport is ~1080px wide, so
+   swap the table for the card list up to 1080px — decoupled from the 920px
+   shell breakpoint so the desktop sidebar stays put. */
 @media (max-width: 1080px) {
   .manager-task-table {
     display: none;
@@ -3003,64 +2967,6 @@ textarea {
     list-style: none;
     margin: 0;
     padding: 0;
-  }
-
-  .stacked-table {
-    min-width: 0;
-  }
-
-  .stacked-table thead {
-    border: 0;
-    clip: rect(0 0 0 0);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    padding: 0;
-    position: absolute;
-    width: 1px;
-  }
-
-  .stacked-table,
-  .stacked-table tbody,
-  .stacked-table tr,
-  .stacked-table td {
-    display: block;
-    width: 100%;
-  }
-
-  .stacked-table tr {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    margin-bottom: 12px;
-    padding: 14px 16px;
-  }
-
-  .stacked-table td {
-    align-items: baseline;
-    border: 0;
-    display: grid;
-    gap: 4px 12px;
-    grid-template-columns: minmax(88px, 34%) 1fr;
-    padding: 6px 0;
-  }
-
-  .stacked-table td::before {
-    color: var(--muted);
-    content: attr(data-label);
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  .stacked-table .stacked-actions-cell {
-    display: block;
-    margin-top: 6px;
-  }
-
-  .stacked-table .stacked-actions-cell::before {
-    display: block;
-    margin-bottom: 6px;
   }
 }
 

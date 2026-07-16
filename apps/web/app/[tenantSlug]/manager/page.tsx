@@ -114,7 +114,7 @@ export default async function ManagerPage({
   searchParams,
 }: ManagerPageProps) {
   const { tenantSlug } = await params;
-  const { task, error, assign } = await searchParams;
+  const { task, error } = await searchParams;
   const [locale, t, tManager, tCommon] = await Promise.all([
     getLocale(),
     getTranslations("manager.overview"),
@@ -267,7 +267,6 @@ export default async function ManagerPage({
             action={createManagerTaskAction}
             assigneeOptions={assigneeOptions}
             locationOptions={locationOptions}
-            defaultOpen={assign === "1"}
           />
         </div>
       </header>

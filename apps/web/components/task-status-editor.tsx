@@ -5,21 +5,8 @@ import { useTranslations } from "next-intl";
 
 import type { TaskStatus } from "../lib/api-client";
 import { formatEnumLabel } from "../lib/format";
+import { taskStatuses, taskStatusTone } from "../lib/task-status";
 import { ChevronDownIcon } from "./icons";
-
-const STATUSES: TaskStatus[] = ["open", "in_progress", "done", "cancelled"];
-
-function statusTone(status: TaskStatus): "active" | "info" | "warning" {
-  if (status === "done") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
-}
 
 type TaskStatusEditorProps = {
   taskId: string;
@@ -77,7 +64,7 @@ export function TaskStatusEditor({
         title={t("editStatus")}
         type="button"
       >
-        <span className={`status-pill ${statusTone(status)}`}>
+        <span className={`status-pill ${taskStatusTone(status)}`}>
           {formatEnumLabel(tCommon, status)}
         </span>
         <ChevronDownIcon />
@@ -105,7 +92,7 @@ export function TaskStatusEditor({
       }}
       ref={selectRef}
     >
-      {STATUSES.map((option) => (
+      {taskStatuses.map((option) => (
         <option key={option} value={option}>
           {formatEnumLabel(tCommon, option)}
         </option>

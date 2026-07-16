@@ -28,6 +28,7 @@ import {
 } from "../../../../lib/filter-options";
 import { formatEnumLabel, type CommonTranslator } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import { taskStatuses, taskStatusTone } from "../../../../lib/task-status";
 
 type ManagerTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -44,7 +45,6 @@ type ManagerTasksPageProps = {
   }>;
 };
 
-const taskStatuses: TaskStatus[] = ["open", "in_progress", "done", "cancelled"];
 const taskPriorities: TaskPriority[] = ["high", "normal", "low"];
 
 export default async function ManagerTasksPage({
@@ -802,18 +802,6 @@ function normalizeTaskPriority(value: string | undefined): TaskPriority | null {
   }
 
   return null;
-}
-
-function taskStatusTone(status: TaskStatus): "active" | "info" | "warning" {
-  if (status === "done") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
 }
 
 function formatDate(
