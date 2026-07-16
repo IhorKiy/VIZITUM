@@ -243,6 +243,7 @@ describe("tenant superadmin replacement", () => {
       } as never,
       { revokeUserSessions: async () => {} } as never,
       { recordEvent: async () => {} } as never,
+      { isEnabled: () => false, sendInviteEmail: async () => "skipped" } as never,
     );
 
     const context = {
@@ -338,6 +339,7 @@ describe("tenant superadmin replacement", () => {
         },
       } as never,
       { recordEvent: async () => {} } as never,
+      { isEnabled: () => false, sendInviteEmail: async () => "skipped" } as never,
     );
 
     await usersService.promoteToSuperadmin(
@@ -409,6 +411,7 @@ describe("tenant superadmin replacement", () => {
       } as never,
       { revokeUserSessions: async () => {} } as never,
       { recordEvent: async () => {} } as never,
+      { isEnabled: () => false, sendInviteEmail: async () => "skipped" } as never,
     );
 
     await assert.rejects(

@@ -20,6 +20,7 @@ function createService(client: Record<string, unknown>) {
     client as never,
     { revokeUserSessions: async () => {} } as never,
     { recordEvent: async () => {} } as never,
+    { isEnabled: () => false, sendInviteEmail: async () => "skipped" } as never,
   );
 }
 

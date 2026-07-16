@@ -1079,6 +1079,8 @@ function formatSuperadminSummary(
             email: pendingInvite.email,
             roleCodes: pendingInvite.roleCodes,
             status: pendingInvite.status,
+            emailStatus: pendingInvite.emailStatus,
+            emailSentAt: pendingInvite.emailSentAt?.toISOString() ?? null,
             expiresAt: pendingInvite.expiresAt.toISOString(),
             acceptedAt: pendingInvite.acceptedAt?.toISOString() ?? null,
             createdAt: pendingInvite.createdAt.toISOString(),

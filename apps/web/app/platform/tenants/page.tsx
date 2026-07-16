@@ -73,6 +73,7 @@ type InviteFlash = {
   email: string;
   tenantSlug: string;
   token: string;
+  emailStatus?: string;
 };
 
 type PlatformTenantsPageProps = {
@@ -271,6 +272,7 @@ export default async function PlatformTenantsPage({
       email: result.data.email,
       tenantSlug,
       token: result.data.token,
+      emailStatus: result.data.emailStatus,
     };
     const cookieStore = await cookies();
     cookieStore.set(INVITE_FLASH_COOKIE, JSON.stringify(flash), {
@@ -434,6 +436,13 @@ export default async function PlatformTenantsPage({
         inviteFlash.token,
       )}`
     : null;
+  const inviteCreatedText = `The invite was created${inviteFlash?.email ? ` for ${inviteFlash.email}` : ""}`;
+  const inviteBody =
+    inviteFlash?.emailStatus === "sent"
+      ? `${inviteCreatedText} and the invite email was sent. The link below can still be shared manually if needed.`
+      : inviteFlash?.emailStatus === "failed"
+        ? `${inviteCreatedText}, but the invite email could not be sent. Share this link through a trusted channel.`
+        : `${inviteCreatedText}. Share this link through a trusted channel.`;
 
   function renderTenantCard(tenant: PlatformTenant) {
     const isArchived = tenant.status === "archived";
@@ -818,11 +827,7 @@ export default async function PlatformTenantsPage({
           <div>
             <p className="eyebrow">Invite created</p>
             <h2>Tenant superadmin invite is ready</h2>
-            <p>
-              The invite was created
-              {inviteFlash?.email ? ` for ${inviteFlash.email}` : ""}. Share
-              this link through a trusted channel.
-            </p>
+            <p>{inviteBody}</p>
             {inviteLink ? (
               <code className="copyable-value">{inviteLink}</code>
             ) : null}
@@ -922,6 +927,10 @@ async function readInviteFlash(): Promise<InviteFlash | null> {
         email: parsed.email,
         tenantSlug: parsed.tenantSlug,
         token: parsed.token,
+        emailStatus:
+          typeof parsed.emailStatus === "string"
+            ? parsed.emailStatus
+            : undefined,
       };
     }
   } catch {

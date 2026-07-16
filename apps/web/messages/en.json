@@ -728,6 +728,8 @@
       "inviteCreated": "Invite created",
       "inviteReadyTitle": "User invite is ready",
       "inviteReadyBody": "The invite was created{forEmail}. Share this link with the user through a trusted channel.",
+      "inviteEmailSentBody": "The invite was created{forEmail} and the invite email was sent. The link below can still be shared manually if needed.",
+      "inviteEmailFailedBody": "The invite was created{forEmail}, but the invite email could not be sent. Share this link with the user through a trusted channel.",
       "inviteForEmail": " for {email}",
       "userUpdateAria": "User update",
       "userUpdatedEyebrow": "User updated",
