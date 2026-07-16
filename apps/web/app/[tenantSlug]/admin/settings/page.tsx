@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
@@ -104,6 +105,13 @@ export default async function AdminSettingsPage({
 
     const result = await updateAdminSettings({ colorScheme });
 
+    if (result.ok) {
+      // The color-scheme <style> lives in the tenant layout, which the App
+      // Router caches across soft navigations — without this the new palette
+      // only shows up after a hard reload.
+      revalidatePath(`/${tenantSlug}`, "layout");
+    }
+
     redirect(
       `/${tenantSlug}/admin/settings?${result.ok ? "saved=colors" : "error=colors"}`,
     );
@@ -120,6 +128,10 @@ export default async function AdminSettingsPage({
 
     const result = await uploadTenantLogo(logoFile);
 
+    if (result.ok) {
+      revalidatePath(`/${tenantSlug}`, "layout");
+    }
+
     redirect(
       `/${tenantSlug}/admin/settings?${result.ok ? "saved=logo" : "error=logo"}`,
     );
@@ -129,6 +141,10 @@ export default async function AdminSettingsPage({
     "use server";
 
     const result = await deleteTenantLogo();
+
+    if (result.ok) {
+      revalidatePath(`/${tenantSlug}`, "layout");
+    }
 
     redirect(
       `/${tenantSlug}/admin/settings?${result.ok ? "saved=logoRemoved" : "error=logo"}`,
