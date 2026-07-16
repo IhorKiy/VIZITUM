@@ -6,6 +6,7 @@ export type RoleArea =
   | "admin-users"
   | "admin-pilot"
   | "admin-settings"
+  | "admin-imports"
   | "admin-locations"
   | "admin-products"
   | "manager-overview"
@@ -118,15 +119,18 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     requiredPermissions: ["products.manage"],
   },
   {
+    path: "/admin/imports",
+    area: "admin-imports",
+    zone: "admin",
+    icon: "I",
+    requiredPermissions: ["imports.read"],
+  },
+  {
     path: "/admin/settings",
     area: "admin-settings",
     zone: "admin",
     icon: "G",
-    // Also carries imports.read because the settings page hosts the CSV import
-    // tooling (templates/validate/history). Keeping it here preserves the
-    // admin-zone permission union the backend mirror (src/modules/auth/zones.ts)
-    // expects — see zone-permission-mirror.
-    requiredPermissions: ["tenant.settings.read", "imports.read"],
+    requiredPermissions: ["tenant.settings.read"],
   },
   {
     path: "/manager",

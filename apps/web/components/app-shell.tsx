@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { getCurrentSession } from "../lib/api-client";
+import { resolveTenantBranding } from "../lib/tenant-branding";
+import { BrandMark } from "./brand-mark";
 import {
   availableZones,
   buildTenantNav,
@@ -26,9 +28,10 @@ export async function AppShell({
   activeArea,
   children,
 }: AppShellProps) {
-  const [sessionResult, tNav, tCommon, tZoneNames, tZoneSwitcher] =
+  const [sessionResult, branding, tNav, tCommon, tZoneNames, tZoneSwitcher] =
     await Promise.all([
       getCurrentSession(),
+      resolveTenantBranding(tenantSlug),
       getTranslations("common.nav"),
       getTranslations("common"),
       getTranslations("common.zone.names"),
@@ -90,7 +93,7 @@ export async function AppShell({
     <div className="app-shell">
       <header className="mobile-topbar" aria-label={tNav("ariaBrand")}>
         <div className="brand-block">
-          <div className="brand-mark">V</div>
+          <BrandMark logoUrl={branding.logoUrl} />
           <div>
             <p className="topbar-company-name">
               {normalizeTenantName(tenantSlug)}
@@ -123,7 +126,7 @@ export async function AppShell({
 
       <aside className="sidebar" aria-label={tNav("ariaPrimary")}>
         <div className="brand-block">
-          <div className="brand-mark">V</div>
+          <BrandMark logoUrl={branding.logoUrl} />
           <div>
             <p className="brand-name">{tCommon("appName")}</p>
             <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>

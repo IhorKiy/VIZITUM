@@ -30,7 +30,7 @@ describe("settings service", () => {
         findUniqueOrThrow: async () => baseTenant,
       },
       tenantSetting: {
-        findUnique: async () => null,
+        findMany: async () => [],
       },
     } as never);
 
@@ -48,7 +48,7 @@ describe("settings service", () => {
         findUniqueOrThrow: async () => baseTenant,
       },
       tenantSetting: {
-        findUnique: async () => ({ value: false }),
+        findMany: async () => [{ key: "products_enabled", value: false }],
       },
     } as never);
 
@@ -65,7 +65,7 @@ describe("settings service", () => {
         findUniqueOrThrow: async () => baseTenant,
       },
       tenantSetting: {
-        findUnique: async () => ({ value: false }),
+        findMany: async () => [{ key: "products_enabled", value: false }],
       },
       $transaction: async (
         callback: (tx: {
@@ -130,7 +130,7 @@ describe("settings service", () => {
         findUniqueOrThrow: async () => baseTenant,
       },
       tenantSetting: {
-        findUnique: async () => null,
+        findMany: async () => [],
       },
       $transaction: async (
         callback: (tx: {
@@ -163,7 +163,7 @@ describe("settings service", () => {
         findUniqueOrThrow: async () => baseTenant,
       },
       tenantSetting: {
-        findUnique: async () => null,
+        findMany: async () => [],
       },
       $transaction: async (
         callback: (tx: {
@@ -255,6 +255,147 @@ describe("settings service", () => {
       (error: { response?: { code?: string } }) =>
         error.response?.code === "SETTINGS_INVALID",
     );
+  });
+
+  it("defaults colorScheme to emerald and logo to null when nothing is stored", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+      tenantSetting: {
+        findMany: async () => [],
+      },
+    } as never);
+
+    const settings = await service.getSettings(context as never);
+
+    assert.equal(settings.colorScheme, "emerald");
+    assert.equal(settings.logo, null);
+  });
+
+  it("returns a persisted color scheme", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+      tenantSetting: {
+        findMany: async () => [
+          { key: "branding_color_scheme", value: "plum" },
+        ],
+      },
+    } as never);
+
+    const settings = await service.getSettings(context as never);
+
+    assert.equal(settings.colorScheme, "plum");
+  });
+
+  it("falls back to emerald for an unrecognized stored color scheme", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+      tenantSetting: {
+        findMany: async () => [
+          { key: "branding_color_scheme", value: "hotpink" },
+        ],
+      },
+    } as never);
+
+    const settings = await service.getSettings(context as never);
+
+    assert.equal(settings.colorScheme, "emerald");
+  });
+
+  it("persists a color scheme via the settings transaction", async () => {
+    const settingUpserts: { where?: { tenantId_key?: { key?: string } } }[] =
+      [];
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+        update: async () => undefined,
+      },
+      tenantSetting: {
+        findMany: async () => [
+          { key: "branding_color_scheme", value: "indigo" },
+        ],
+      },
+      $transaction: async (
+        callback: (tx: {
+          platformTenant: { update: (query: unknown) => Promise<void> };
+          tenantSetting: { upsert: (query: unknown) => Promise<void> };
+        }) => Promise<void>,
+      ) =>
+        callback({
+          platformTenant: {
+            update: async () => undefined,
+          },
+          tenantSetting: {
+            upsert: async (query: unknown) => {
+              settingUpserts.push(query as never);
+            },
+          },
+        }),
+    } as never);
+
+    const settings = await service.updateSettings(context as never, {
+      colorScheme: "indigo",
+    });
+
+    assert.equal(settings.colorScheme, "indigo");
+    assert.equal(settingUpserts.length, 1);
+    assert.equal(
+      settingUpserts[0].where?.tenantId_key?.key,
+      "branding_color_scheme",
+    );
+  });
+
+  it("rejects a color scheme outside the four presets", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+    } as never);
+
+    await assert.rejects(
+      () =>
+        service.updateSettings(context as never, {
+          colorScheme: "hotpink",
+        }),
+      (error: {
+        response?: { code?: string; fieldErrors?: { colorScheme?: string[] } };
+      }) =>
+        error.response?.code === "SETTINGS_INVALID" &&
+        (error.response?.fieldErrors?.colorScheme?.length ?? 0) > 0,
+    );
+  });
+
+  it("returns logo null when the pointer references a missing or inactive object", async () => {
+    const service = new SettingsService(
+      {
+        platformTenant: {
+          findUniqueOrThrow: async () => baseTenant,
+        },
+        tenantSetting: {
+          findMany: async () => [
+            { key: "branding_logo_object_id", value: "object-gone" },
+          ],
+        },
+        storageObject: {
+          findFirst: async () => null,
+        },
+      } as never,
+      {
+        getDefaultBucket: () => "vizitum",
+        createPresignedDownloadUrl: async () => {
+          throw new Error("should not be called for a missing object");
+        },
+      } as never,
+    );
+
+    const settings = await service.getSettings(context as never);
+
+    assert.equal(settings.logo, null);
   });
 
   it("grants tenant settings permissions only to company_admin", () => {

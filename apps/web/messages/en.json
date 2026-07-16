@@ -59,6 +59,7 @@
       "admin-products": "Products",
       "admin-pilot": "Pilot",
       "admin-settings": "Settings",
+      "admin-imports": "Imports",
       "manager-overview": "Manager",
       "manager-visits": "Visits",
       "manager-tasks": "Tasks",
@@ -452,6 +453,39 @@
     "settings": {
       "title": "Company settings",
       "notConnectedTitle": "Tenant settings are not connected"
+    },
+    "branding": {
+      "colorTitle": "Color scheme",
+      "colorHint": "The chosen palette recolors the whole workspace for everyone, including the sign-in page.",
+      "saveColors": "Save color scheme",
+      "saving": "Saving...",
+      "schemes": {
+        "emerald": "Emerald",
+        "indigo": "Indigo",
+        "plum": "Plum",
+        "terracotta": "Terracotta"
+      },
+      "logoTitle": "Company logo",
+      "logoHint": "Shown in the sidebar and on the sign-in page. PNG, JPEG, WebP or SVG, up to 1 MB.",
+      "logoFileLabel": "Logo file",
+      "logoAlt": "Current company logo",
+      "noLogo": "No logo",
+      "uploadLogo": "Upload logo",
+      "replaceLogo": "Replace logo",
+      "removeLogo": "Remove logo",
+      "uploading": "Uploading...",
+      "removing": "Removing...",
+      "savedAria": "Branding saved",
+      "savedColorsTitle": "Color scheme updated",
+      "savedColorsBody": "The new palette is live for everyone in this workspace.",
+      "savedLogoTitle": "Logo updated",
+      "savedLogoBody": "The new logo now appears across the workspace and on the sign-in page.",
+      "removedLogoTitle": "Logo removed",
+      "removedLogoBody": "The workspace is back to the default mark.",
+      "errorAria": "Branding error",
+      "errorEyebrow": "Something went wrong",
+      "errorTitle": "The change was not saved",
+      "errorBody": "Check the file type and size (up to 1 MB) and try again."
     },
     "locations": {
       "title": "Locations",

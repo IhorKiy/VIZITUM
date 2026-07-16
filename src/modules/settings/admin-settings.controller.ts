@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import type { Request } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
@@ -6,7 +15,11 @@ import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { SettingsService } from "./settings.service";
-import type { UpdateTenantSettingsRequestBody } from "./settings.types";
+import type {
+  ConfirmLogoUploadRequestBody,
+  RegisterLogoUploadRequestBody,
+  UpdateTenantSettingsRequestBody,
+} from "./settings.types";
 
 @Controller("admin/settings")
 @UseGuards(PermissionGuard)
@@ -29,6 +42,36 @@ export class AdminSettingsController {
       getRequestContext(request),
       body,
     );
+  }
+
+  @Post("logo/register")
+  @RequirePermissions(PERMISSIONS.TENANT_SETTINGS_MANAGE)
+  registerLogoUpload(
+    @Req() request: Request,
+    @Body() body: RegisterLogoUploadRequestBody,
+  ) {
+    return this.settingsService.registerLogoUpload(
+      getRequestContext(request),
+      body,
+    );
+  }
+
+  @Post("logo/confirm")
+  @RequirePermissions(PERMISSIONS.TENANT_SETTINGS_MANAGE)
+  confirmLogoUpload(
+    @Req() request: Request,
+    @Body() body: ConfirmLogoUploadRequestBody,
+  ) {
+    return this.settingsService.confirmLogoUpload(
+      getRequestContext(request),
+      body,
+    );
+  }
+
+  @Delete("logo")
+  @RequirePermissions(PERMISSIONS.TENANT_SETTINGS_MANAGE)
+  removeLogo(@Req() request: Request) {
+    return this.settingsService.removeLogo(getRequestContext(request));
   }
 }
 

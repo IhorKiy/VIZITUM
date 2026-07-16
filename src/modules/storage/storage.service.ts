@@ -249,8 +249,15 @@ export class StorageService {
       context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) &&
       (!storageObject.createdByUserId ||
         storageObject.createdByUserId === context.userId);
+    const canManageBrandingLogo =
+      storageObject.purpose === "branding_logo" &&
+      context.permissions.includes(PERMISSIONS.TENANT_SETTINGS_MANAGE);
 
-    if (!canUploadImport && !canUpdateOwnVisitArtifact) {
+    if (
+      !canUploadImport &&
+      !canUpdateOwnVisitArtifact &&
+      !canManageBrandingLogo
+    ) {
       throwMissingStoragePermission();
     }
   }
@@ -273,11 +280,15 @@ export class StorageService {
       ["temporary_audio", "temporary_transcript"].includes(
         storageObject.purpose,
       ) && context.permissions.includes(PERMISSIONS.VISITS_READ_TEAM);
+    const canReadBrandingLogo =
+      storageObject.purpose === "branding_logo" &&
+      context.permissions.includes(PERMISSIONS.TENANT_SETTINGS_READ);
 
     if (
       !canReadImport &&
       !canReadOwnVisitArtifact &&
-      !canReadTeamVisitArtifact
+      !canReadTeamVisitArtifact &&
+      !canReadBrandingLogo
     ) {
       throwMissingStoragePermission();
     }

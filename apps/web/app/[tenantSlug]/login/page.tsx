@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
+import { BrandMark } from "../../../components/brand-mark";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
 import { buildApiUrl, getCurrentSession } from "../../../lib/api-client";
+import { resolveTenantBranding } from "../../../lib/tenant-branding";
 import {
   normalizeTenantName,
   resolveZoneLanding,
@@ -21,9 +23,10 @@ export default async function LoginPage({
 }: LoginPageProps) {
   const { tenantSlug } = await params;
   const { error } = await searchParams;
-  const [t, tCommon] = await Promise.all([
+  const [t, tCommon, branding] = await Promise.all([
     getTranslations("auth"),
     getTranslations("common"),
+    resolveTenantBranding(tenantSlug),
   ]);
 
   async function loginAction(formData: FormData) {
@@ -85,7 +88,7 @@ export default async function LoginPage({
     <main className="login-surface">
       <section className="login-panel" aria-labelledby="login-title">
         <div className="brand-block">
-          <div className="brand-mark">V</div>
+          <BrandMark logoUrl={branding.logoUrl} />
           <div>
             <p className="brand-name">Vizitum</p>
             <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>

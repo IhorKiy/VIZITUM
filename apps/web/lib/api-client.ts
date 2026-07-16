@@ -215,6 +215,13 @@ export type TenantUser = {
   updatedAt: string;
 };
 
+export type TenantLogo = {
+  storageObjectId: string;
+  contentType: string;
+  url: string;
+  urlExpiresAt: string;
+};
+
 export type TenantSettings = {
   tenantId: string;
   name: string;
@@ -222,7 +229,25 @@ export type TenantSettings = {
   language: string;
   productMode: string;
   productsEnabled: boolean;
+  colorScheme: string;
+  logo: TenantLogo | null;
   updatedAt: string;
+};
+
+export type RegisteredLogoUpload = {
+  storageObject: {
+    id: string;
+    bucket: string;
+    objectKey: string;
+    contentType: string;
+    sizeBytes: string | null;
+  };
+  uploadUrl?: {
+    url: string;
+    method: "PUT";
+    expiresAt: string;
+    headers: Record<string, string>;
+  };
 };
 
 export type PilotReviewThresholdStatus = "met" | "not_met" | "na";
@@ -757,8 +782,66 @@ export async function updateAdminSettings(input: {
   timezone?: string;
   language?: string;
   productsEnabled?: boolean;
+  colorScheme?: string;
 }): Promise<ApiResult<TenantSettings>> {
   return apiPatch<TenantSettings>("/admin/settings", input);
+}
+
+export async function deleteTenantLogo(): Promise<ApiResult<TenantSettings>> {
+  return apiDelete<TenantSettings>("/admin/settings/logo");
+}
+
+// Register -> presigned PUT -> confirm, mirroring uploadAudioVisitNote: the
+// API never sees the bytes, they go straight to object storage.
+export async function uploadTenantLogo(
+  logoFile: File,
+): Promise<ApiResult<TenantSettings>> {
+  const registrationResult = await apiPost<RegisteredLogoUpload>(
+    "/admin/settings/logo/register",
+    {
+      fileName: logoFile.name || "logo.png",
+      contentType: logoFile.type || undefined,
+      sizeBytes: logoFile.size,
+    },
+  );
+
+  if (!registrationResult.ok) {
+    return registrationResult;
+  }
+
+  if (!registrationResult.data.uploadUrl) {
+    return {
+      ok: false,
+      status: 0,
+      message: "Logo upload is not available.",
+    };
+  }
+
+  try {
+    const uploadResponse = await fetch(registrationResult.data.uploadUrl.url, {
+      method: registrationResult.data.uploadUrl.method,
+      headers: registrationResult.data.uploadUrl.headers,
+      body: logoFile,
+    });
+
+    if (!uploadResponse.ok) {
+      return {
+        ok: false,
+        status: uploadResponse.status,
+        message: `Logo upload failed with ${uploadResponse.status}.`,
+      };
+    }
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      status: 0,
+      message: error instanceof Error ? error.message : "Logo upload failed.",
+    };
+  }
+
+  return apiPost<TenantSettings>("/admin/settings/logo/confirm", {
+    storageObjectId: registrationResult.data.storageObject.id,
+  });
 }
 
 export async function getPilotReviewSummary(): Promise<
