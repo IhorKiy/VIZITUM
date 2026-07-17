@@ -7,6 +7,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { CategoriesAccordion } from "../../../../components/categories-accordion";
 import { DeleteProductButton } from "../../../../components/delete-product-button";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { FilterForm } from "../../../../components/filter-form";
 import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import {
   createAdminProduct,
@@ -455,7 +456,7 @@ export default async function AdminProductsPage({
           </div>
         </div>
 
-        <form
+        <FilterForm
           action={`/${tenantSlug}/admin/products`}
           className="filter-form products-filter-form"
         >
@@ -485,20 +486,17 @@ export default async function AdminProductsPage({
               type="text"
             />
           </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
-            {hasFilters ? (
+          {hasFilters ? (
+            <div className="filter-actions">
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/admin/products`}
               >
                 {tCommon("reset")}
               </a>
-            ) : null}
-          </div>
-        </form>
+            </div>
+          ) : null}
+        </FilterForm>
 
         {products.length > 0 ? (
           groupByCategory ? (

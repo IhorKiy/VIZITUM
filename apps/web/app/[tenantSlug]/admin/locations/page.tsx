@@ -7,6 +7,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { ArchiveChainButton } from "../../../../components/archive-chain-button";
 import { CreateLocationModal } from "../../../../components/create-location-modal";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { FilterForm } from "../../../../components/filter-form";
 import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
@@ -729,7 +730,7 @@ function LocationsSection({
           </div>
         </div>
 
-        <form
+        <FilterForm
           action={`/${tenantSlug}/admin/locations`}
           className="filter-form location-filter-form"
         >
@@ -763,20 +764,17 @@ function LocationsSection({
               type="text"
             />
           </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
-            {hasFilters ? (
+          {hasFilters ? (
+            <div className="filter-actions">
               <a
                 className="secondary-button"
                 href={buildFilterHref(tenantSlug, baseParams)}
               >
                 {tCommon("reset")}
               </a>
-            ) : null}
-          </div>
-        </form>
+            </div>
+          ) : null}
+        </FilterForm>
 
         {locations.length > 0 ? (
           groupByChain ? (
@@ -916,7 +914,7 @@ function ChainsSection({
           </div>
         </div>
 
-        <form
+        <FilterForm
           action={`/${tenantSlug}/admin/locations`}
           className="filter-form locations-chains-filter-form"
         >
@@ -936,20 +934,17 @@ function ChainsSection({
               type="text"
             />
           </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
-            {hasFilters ? (
+          {hasFilters ? (
+            <div className="filter-actions">
               <a
                 className="secondary-button"
                 href={buildFilterHref(tenantSlug, baseParams)}
               >
                 {tCommon("reset")}
               </a>
-            ) : null}
-          </div>
-        </form>
+            </div>
+          ) : null}
+        </FilterForm>
 
         {chains.length > 0 ? (
           <div className="admin-user-list">

@@ -2,6 +2,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
+import { FilterForm } from "../../../../components/filter-form";
 import {
   CalendarIcon,
   FlagIcon,
@@ -276,7 +277,7 @@ export default async function ManagerLocationsPage({
           hasFilters={hasFilters}
           label={tCommon("filtersLabel")}
         >
-          <form
+          <FilterForm
             action={`/${tenantSlug}/manager/locations`}
             className="filter-form locations-filter-form"
           >
@@ -321,20 +322,17 @@ export default async function ManagerLocationsPage({
                 ))}
               </select>
             </FilterField>
-            <div className="filter-actions">
-              <button className="secondary-button" type="submit">
-                {tCommon("applyFilters")}
-              </button>
-              {hasFilters ? (
+            {hasFilters ? (
+              <div className="filter-actions">
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/locations`}
                 >
                   {tCommon("reset")}
                 </a>
-              ) : null}
-            </div>
-          </form>
+              </div>
+            ) : null}
+          </FilterForm>
         </FilterDisclosure>
 
         {locations.length > 0 ? (

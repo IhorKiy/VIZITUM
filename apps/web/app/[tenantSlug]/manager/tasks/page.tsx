@@ -6,6 +6,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
+import { FilterForm } from "../../../../components/filter-form";
 import {
   CalendarIcon,
   FlagIcon,
@@ -363,7 +364,10 @@ export default async function ManagerTasksPage({
           hasFilters={hasFilters}
           label={tCommon("filtersLabel")}
         >
-          <form action={`/${tenantSlug}/manager/tasks`} className="filter-form">
+          <FilterForm
+            action={`/${tenantSlug}/manager/tasks`}
+            className="filter-form"
+          >
             {selectedStatus ? (
               <input name="status" type="hidden" value={selectedStatus} />
             ) : null}
@@ -412,20 +416,17 @@ export default async function ManagerTasksPage({
             <FilterField icon={<CalendarIcon />} label={t("dueTo")}>
               <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
             </FilterField>
-            <div className="filter-actions">
-              <button className="secondary-button" type="submit">
-                {tCommon("applyFilters")}
-              </button>
-              {hasFilters ? (
+            {hasFilters ? (
+              <div className="filter-actions">
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/tasks`}
                 >
                   {tCommon("reset")}
                 </a>
-              ) : null}
-            </div>
-          </form>
+              </div>
+            ) : null}
+          </FilterForm>
         </FilterDisclosure>
 
         {tasks.length > 0 ? (

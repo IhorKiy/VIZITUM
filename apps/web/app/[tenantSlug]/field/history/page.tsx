@@ -2,6 +2,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { FilterForm } from "../../../../components/filter-form";
 import {
   getCurrentSession,
   listVisits,
@@ -204,7 +205,7 @@ export default async function FieldHistoryPage({
           </div>
         </div>
 
-        <form
+        <FilterForm
           action={`/${tenantSlug}/field/history`}
           className="filter-form field-history-filter-form"
         >
@@ -227,20 +228,17 @@ export default async function FieldHistoryPage({
               type="date"
             />
           </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
-            {hasFilters ? (
+          {hasFilters ? (
+            <div className="filter-actions">
               <a
                 className="secondary-button"
                 href={`/${tenantSlug}/field/history`}
               >
                 {tCommon("reset")}
               </a>
-            ) : null}
-          </div>
-        </form>
+            </div>
+          ) : null}
+        </FilterForm>
 
         {visits.length > 0 ? (
           <HistoryTable visits={visits} />
