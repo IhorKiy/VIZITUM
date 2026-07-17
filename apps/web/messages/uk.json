@@ -105,7 +105,8 @@
       "updated": "Оновлено",
       "error": "Помилка"
     },
-    "anyOption": "—"
+    "anyOption": "—",
+    "datePlaceholder": "__.__.____"
   },
   "auth": {
     "eyebrow": "Доступ до робочого простору",

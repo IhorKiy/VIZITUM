@@ -2358,6 +2358,25 @@ textarea {
   display: none;
 }
 
+/* An empty date input renders the browser's own format hint, which no attribute
+   can replace, so hide it and paint our mask over it (see FilterDateRange).
+   Focus restores the hint: typed segments only reach `value` once the date is
+   complete, so a hidden hint would mean typing into an invisible field. */
+.filter-form input[type="date"][data-empty]:not(:focus)::-webkit-datetime-edit {
+  color: transparent;
+}
+
+.filter-date-placeholder {
+  color: var(--muted);
+  left: 34px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.filter-field-control:focus-within .filter-date-placeholder {
+  display: none;
+}
+
 .filter-footer {
   align-items: center;
   border-top: 1px solid var(--line);

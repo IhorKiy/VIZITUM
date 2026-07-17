@@ -420,6 +420,7 @@ export default async function ManagerTasksPage({
               fromName="dueFrom"
               fromValue={dueFrom ?? ""}
               label={t("duePeriod")}
+              placeholder={tCommon("datePlaceholder")}
               toLabel={t("dueTo")}
               toName="dueTo"
               toValue={dueTo ?? ""}

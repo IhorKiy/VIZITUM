@@ -105,7 +105,8 @@
       "updated": "Updated",
       "error": "Error"
     },
-    "anyOption": "—"
+    "anyOption": "—",
+    "datePlaceholder": "__.__.____"
   },
   "auth": {
     "eyebrow": "Workspace access",

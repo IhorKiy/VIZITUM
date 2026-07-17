@@ -227,6 +227,7 @@ export default async function FieldHistoryPage({
               fromName="startedFrom"
               fromValue={startedFrom ?? ""}
               label={t("visitPeriod")}
+              placeholder={tCommon("datePlaceholder")}
               toLabel={t("startedTo")}
               toName="startedTo"
               toValue={startedTo ?? ""}
