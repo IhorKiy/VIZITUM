@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { DownloadIcon } from "../../../../components/icons";
 import {
   ImportHistoryTable,
@@ -228,34 +229,30 @@ export default async function AdminImportsPage({
       </header>
 
       {validationState.applied ? (
-        <section
-          className="notice-panel success"
-          aria-label={tImports("appliedAria")}
-        >
-          <div>
-            <p className="eyebrow">{tImports("appliedEyebrow")}</p>
-            <h2>{tImports("appliedTitle")}</h2>
-            <p>{tImports("appliedBody", { count: validationState.applied })}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={tImports("appliedAria")}
+          body={tImports("appliedBody", { count: validationState.applied })}
+          clearParams={["applied"]}
+          eyebrow={tImports("appliedEyebrow")}
+          title={tImports("appliedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {validationState.error ? (
-        <section
-          className="notice-panel danger"
-          aria-label={tImports("errorAria")}
-        >
-          <div>
-            <p className="eyebrow">{tImports("errorEyebrow")}</p>
-            <h2>{tImports("errorTitle")}</h2>
-            <p>{tImports("errorBody")}</p>
-          </div>
-          <div className="notice-actions">
+        <DismissableNotice
+          actions={
             <a className="secondary-button" href="#templates">
               {tImports("downloadTemplate")}
             </a>
-          </div>
-        </section>
+          }
+          ariaLabel={tImports("errorAria")}
+          body={tImports("errorBody")}
+          clearParams={["error"]}
+          eyebrow={tImports("errorEyebrow")}
+          title={tImports("errorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       {!templatesResult.ok && demoFallbackEnabled ? (
