@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -71,6 +72,16 @@ export class TasksController {
       taskId,
       body,
     );
+  }
+
+  // Deletion is for tasks that should never have existed; a task that was
+  // real and is no longer wanted gets the `cancelled` status instead, which
+  // keeps it in the history. Only team scope may delete: an assignee removing
+  // their own task would take it out of the manager's list with no trace.
+  @Delete(":taskId")
+  @RequirePermissions(PERMISSIONS.TASKS_UPDATE_TEAM)
+  deleteTask(@Req() request: Request, @Param("taskId") taskId: string) {
+    return this.tasksService.deleteTask(getRequestContext(request), taskId);
   }
 }
 
