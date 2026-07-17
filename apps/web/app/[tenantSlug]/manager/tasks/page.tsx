@@ -3,7 +3,10 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
-import { AssignTaskModal } from "../../../../components/assign-task-modal";
+import {
+  AssignTaskModal,
+  type AssignTaskActionResult,
+} from "../../../../components/assign-task-modal";
 import { CardFact } from "../../../../components/card-fact";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDateRange } from "../../../../components/filter-date-range";
@@ -138,7 +141,9 @@ export default async function ManagerTasksPage({
     query.set("dueTo", dueTo);
   }
 
-  async function createTaskAction(formData: FormData) {
+  async function createTaskAction(
+    formData: FormData,
+  ): Promise<AssignTaskActionResult> {
     "use server";
 
     const title = getFormString(formData, "title").trim();
@@ -148,8 +153,10 @@ export default async function ManagerTasksPage({
     const locationId = getFormString(formData, "locationId").trim();
     const dueDate = getFormString(formData, "dueDate").trim();
 
+    // Failures return instead of redirecting: a redirect would remount the
+    // page tree and throw away everything typed into the assign-task modal.
     if (!title) {
-      redirect(`/${tenantSlug}/manager/tasks?error=task&assign=1`);
+      return { ok: false };
     }
 
     const result = await createTask({
@@ -162,7 +169,7 @@ export default async function ManagerTasksPage({
     });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/manager/tasks?error=task&assign=1`);
+      return { ok: false };
     }
 
     // Drops any active filter: the new task is the thing to look at, and it may
@@ -341,24 +348,7 @@ export default async function ManagerTasksPage({
         />
       ) : null}
 
-      {pageState.error === "task" ? (
-        <DismissableNotice
-          actions={
-            <a
-              className="primary-button"
-              href={`/${tenantSlug}/manager/tasks?assign=1`}
-            >
-              {tOverview("returnToTaskForm")}
-            </a>
-          }
-          ariaLabel={tOverview("taskErrorAria")}
-          body={tOverview("taskErrorBody")}
-          clearParams={["error"]}
-          eyebrow={tOverview("taskErrorEyebrow")}
-          title={tOverview("taskErrorTitle")}
-          tone="danger"
-        />
-      ) : pageState.error ? (
+      {pageState.error ? (
         <DismissableNotice
           ariaLabel={t("errorAria")}
           body={t("errorBody")}
