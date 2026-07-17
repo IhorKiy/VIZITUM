@@ -55,6 +55,20 @@ export function FilterForm({ action, className, children }: FilterFormProps) {
         clearTimeout(debounceRef.current);
         applyFilters();
       }}
+      onClick={(event) => {
+        // Date fields hide the native picker indicator and show one icon of
+        // their own, so the whole input has to be what opens the picker.
+        // showPicker throws without user activation or where unsupported —
+        // typing the date still works either way.
+        const target = event.target;
+        if (target instanceof HTMLInputElement && target.type === "date") {
+          try {
+            target.showPicker();
+          } catch {
+            // No picker to show; the field stays typeable.
+          }
+        }
+      }}
       onInput={(event) => {
         if (!isFreeTextField(event.target)) {
           return;

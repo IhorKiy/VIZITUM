@@ -2347,6 +2347,17 @@ textarea {
   width: 100%;
 }
 
+/* The field's own icon already stands for the calendar, so drop the native
+   indicator and let a click anywhere in the input open the picker instead
+   (see FilterForm) rather than showing the same icon twice. */
+.filter-form input[type="date"] {
+  cursor: pointer;
+}
+
+.filter-form input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
 .filter-footer {
   align-items: center;
   border-top: 1px solid var(--line);
