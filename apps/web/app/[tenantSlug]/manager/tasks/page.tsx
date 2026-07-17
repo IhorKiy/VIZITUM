@@ -4,6 +4,7 @@ import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
 import {
@@ -245,23 +246,25 @@ export default async function ManagerTasksPage({
       </header>
 
       {pageState.updated ? (
-        <section className="notice-panel success" aria-label={t("updateAria")}>
-          <div>
-            <p className="eyebrow">{t("updatedEyebrow")}</p>
-            <h2>{t("updatedTitle")}</h2>
-            <p>{t("updatedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("updateAria")}
+          body={t("updatedBody")}
+          clearParams={["updated"]}
+          eyebrow={t("updatedEyebrow")}
+          title={t("updatedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {pageState.error ? (
-        <section className="notice-panel danger" aria-label={t("errorAria")}>
-          <div>
-            <p className="eyebrow">{t("errorEyebrow")}</p>
-            <h2>{t("errorTitle")}</h2>
-            <p>{t("errorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("errorAria")}
+          body={t("errorBody")}
+          clearParams={["error"]}
+          eyebrow={t("errorEyebrow")}
+          title={t("errorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       <section className="manager-grid" aria-label={t("metricsAria")}>

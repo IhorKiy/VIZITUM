@@ -28,7 +28,7 @@ import { getFormatter } from "next-intl/server";
 import { formatLabel, formatShortDate } from "../../../lib/format";
 import { AdminLimitForm } from "./admin-limit-form";
 import { ArchiveTenantForm } from "./archive-tenant-form";
-import { AutoDismissNotice } from "./auto-dismiss-notice";
+import { DismissableNotice } from "../../../components/dismissable-notice";
 import { CreateTenantModal } from "./create-tenant-modal";
 import { NameChangeForm } from "./name-change-form";
 import { PurgeTenantForm } from "./purge-tenant-form";
@@ -62,6 +62,7 @@ const EMPTY_TENANT_METRICS = {
   locationCount: 0,
 };
 const SAVED_NOTICE_PARAMS = ["saved"];
+const INVITE_NOTICE_PARAMS = ["invited"];
 const ERROR_NOTICE_PARAMS = ["error"];
 // The invite token is a secret share-link, so it is passed to the confirmation
 // render through a short-lived httpOnly cookie instead of the URL (which would
@@ -814,37 +815,39 @@ export default async function PlatformTenantsPage({
       </header>
 
       {pageState.saved ? (
-        <AutoDismissNotice
+        <DismissableNotice
           ariaLabel="Save status"
-          className="notice-panel success"
           clearParams={SAVED_NOTICE_PARAMS}
-        >
-          <p>Tenant created and ready to use.</p>
-        </AutoDismissNotice>
+          eyebrow="Updated"
+          title="Tenant created and ready to use."
+          tone="success"
+        />
       ) : null}
       {pageState.invited ? (
-        <section className="notice-panel success" aria-label="Invite status">
-          <div>
-            <p className="eyebrow">Invite created</p>
-            <h2>Tenant superadmin invite is ready</h2>
-            <p>{inviteBody}</p>
-            {inviteLink ? (
-              <code className="copyable-value">{inviteLink}</code>
-            ) : null}
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel="Invite status"
+          // The invite link below is the only copy of it — never hide it.
+          autoDismiss={false}
+          body={inviteBody}
+          clearParams={INVITE_NOTICE_PARAMS}
+          eyebrow="Invite created"
+          title="Tenant superadmin invite is ready"
+          tone="success"
+        >
+          {inviteLink ? (
+            <code className="copyable-value">{inviteLink}</code>
+          ) : null}
+        </DismissableNotice>
       ) : null}
       {pageState.error ? (
-        <AutoDismissNotice
+        <DismissableNotice
           ariaLabel="Save status"
-          className="notice-panel danger"
+          body="Check tenant status, duplicate email addresses, required roles and tenant fields."
           clearParams={ERROR_NOTICE_PARAMS}
-        >
-          <p>
-            Could not save the platform action. Check tenant status, duplicate
-            email addresses, required roles and tenant fields.
-          </p>
-        </AutoDismissNotice>
+          eyebrow="Error"
+          title="Could not save the platform action."
+          tone="danger"
+        />
       ) : null}
 
       <section className="platform-tenants-section" aria-label="Tenants">

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
+import { DismissableNotice } from "../../../../../components/dismissable-notice";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import {
   createVisit,
@@ -218,42 +219,36 @@ export default async function LocationDetailPage({
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       {error === "visit" ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("location.visitErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("location.visitErrorEyebrow")}</p>
-            <h2>{t("location.visitErrorTitle")}</h2>
-            <p>{t("location.visitErrorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("location.visitErrorAria")}
+          body={t("location.visitErrorBody")}
+          clearParams={["error"]}
+          eyebrow={t("location.visitErrorEyebrow")}
+          title={t("location.visitErrorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       {error === "route" ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("location.routeErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("location.routeErrorEyebrow")}</p>
-            <h2>{t("location.routeErrorTitle")}</h2>
-            <p>{t("location.routeErrorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("location.routeErrorAria")}
+          body={t("location.routeErrorBody")}
+          clearParams={["error"]}
+          eyebrow={t("location.routeErrorEyebrow")}
+          title={t("location.routeErrorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       {route === "visited" ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("location.routeVisitedAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("location.routeVisitedEyebrow")}</p>
-            <h2>{t("location.routeVisitedTitle")}</h2>
-            <p>{t("location.routeVisitedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("location.routeVisitedAria")}
+          body={t("location.routeVisitedBody")}
+          clearParams={["route"]}
+          eyebrow={t("location.routeVisitedEyebrow")}
+          title={t("location.routeVisitedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {isDemoLocation ? (

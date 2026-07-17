@@ -314,36 +314,35 @@ export default async function AdminUsersPage({
       </header>
 
       {pageState.invited ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("inviteStatusAria")}
+        <DismissableNotice
+          ariaLabel={t("inviteStatusAria")}
+          // The invite link below is the only copy of it — never hide it.
+          autoDismiss={false}
+          body={t(
+            inviteFlash?.emailStatus === "sent"
+              ? "inviteEmailSentBody"
+              : inviteFlash?.emailStatus === "failed"
+                ? "inviteEmailFailedBody"
+                : "inviteReadyBody",
+            {
+              forEmail: inviteFlash?.email
+                ? t("inviteForEmail", { email: inviteFlash.email })
+                : "",
+            },
+          )}
+          clearParams={["invited"]}
+          eyebrow={
+            pageState.invited === "resent"
+              ? t("inviteRefreshed")
+              : t("inviteCreated")
+          }
+          title={t("inviteReadyTitle")}
+          tone="success"
         >
-          <div>
-            <p className="eyebrow">
-              {pageState.invited === "resent"
-                ? t("inviteRefreshed")
-                : t("inviteCreated")}
-            </p>
-            <h2>{t("inviteReadyTitle")}</h2>
-            <p>
-              {t(
-                inviteFlash?.emailStatus === "sent"
-                  ? "inviteEmailSentBody"
-                  : inviteFlash?.emailStatus === "failed"
-                    ? "inviteEmailFailedBody"
-                    : "inviteReadyBody",
-                {
-                  forEmail: inviteFlash?.email
-                    ? t("inviteForEmail", { email: inviteFlash.email })
-                    : "",
-                },
-              )}
-            </p>
-            {inviteLink ? (
-              <code className="copyable-value">{inviteLink}</code>
-            ) : null}
-          </div>
-        </section>
+          {inviteLink ? (
+            <code className="copyable-value">{inviteLink}</code>
+          ) : null}
+        </DismissableNotice>
       ) : null}
 
       {pageState.status || pageState.role || pageState.deleted ? (
