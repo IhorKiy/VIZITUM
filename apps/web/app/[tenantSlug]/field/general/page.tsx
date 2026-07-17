@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   getCurrentSession,
@@ -147,29 +148,25 @@ export default async function GeneralPage({
       </header>
 
       {task === "updated" ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("taskStatusAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("taskUpdatedEyebrow")}</p>
-            <h2>{t("taskUpdatedTitle")}</h2>
-            <p>{t("taskUpdatedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("taskStatusAria")}
+          body={t("taskUpdatedBody")}
+          clearParams={["task"]}
+          eyebrow={t("taskUpdatedEyebrow")}
+          title={t("taskUpdatedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {error === "task" ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("taskErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("taskErrorEyebrow")}</p>
-            <h2>{t("taskErrorTitle")}</h2>
-            <p>{t("taskErrorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("taskErrorAria")}
+          body={t("taskErrorBody")}
+          clearParams={["error"]}
+          eyebrow={t("taskErrorEyebrow")}
+          title={t("taskErrorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       <div className="general-stack">

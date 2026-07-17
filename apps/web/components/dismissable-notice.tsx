@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 type DismissableNoticeProps = {
@@ -8,10 +8,22 @@ type DismissableNoticeProps = {
   ariaLabel: string;
   eyebrow: string;
   title: string;
-  body: string;
+  body?: string;
+  // Extra content rendered under the body — e.g. an invite link the user has to
+  // copy. A notice carrying content like this must set autoDismiss={false}.
+  children?: ReactNode;
+  // Buttons/links rendered beside the text. Only put shortcuts here that stay
+  // reachable elsewhere, since an auto-dismissing notice takes them with it.
+  actions?: ReactNode;
   // Query params to strip from the URL once dismissed, so a refresh (or back
   // navigation) does not resurface the notice.
   clearParams: string[];
+  // Defaults to true for success and false for danger: error notices stay put
+  // until the user navigates or acts, because auto-dismissing would hide
+  // failure detail (e.g. a server-provided message) before it can be read.
+  // Pass false explicitly for a success notice whose content the user still
+  // needs (an invite link), which would be destroyed by hiding it.
+  autoDismiss?: boolean;
   timeoutMs?: number;
 };
 
@@ -21,18 +33,19 @@ export function DismissableNotice({
   eyebrow,
   title,
   body,
+  children,
+  actions,
   clearParams,
+  autoDismiss,
   timeoutMs = 5000,
 }: DismissableNoticeProps) {
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const dismisses = autoDismiss ?? tone === "success";
 
   useEffect(() => {
-    // Error notices stay put until the user navigates or acts — auto-dismissing
-    // would hide failure detail (e.g. a server-provided message) before it can
-    // be read. Only success notices fade out on a timer.
-    if (tone === "danger") {
+    if (!dismisses) {
       return;
     }
 
@@ -43,7 +56,9 @@ export function DismissableNotice({
       for (const param of clearParams) {
         url.searchParams.delete(param);
       }
-      router.replace(`${url.pathname}${url.search}`, { scroll: false });
+      router.replace(`${url.pathname}${url.search}${url.hash}`, {
+        scroll: false,
+      });
     }, timeoutMs + 300);
 
     return () => {
@@ -62,15 +77,17 @@ export function DismissableNotice({
   return (
     <section
       aria-label={ariaLabel}
-      className={`notice-panel ${tone}${
-        tone === "danger" ? "" : " auto-dismiss"
-      }${leaving ? " is-leaving" : ""}`}
+      className={`notice-panel ${tone}${dismisses ? " auto-dismiss" : ""}${
+        leaving ? " is-leaving" : ""
+      }`}
     >
       <div>
         <p className="eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
-        <p>{body}</p>
+        {body ? <p>{body}</p> : null}
+        {children}
       </div>
+      {actions ? <div className="notice-actions">{actions}</div> : null}
     </section>
   );
 }

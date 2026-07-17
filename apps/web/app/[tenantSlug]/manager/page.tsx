@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../components/app-shell";
 import { AssignTaskModal } from "../../../components/assign-task-modal";
+import { DismissableNotice } from "../../../components/dismissable-notice";
 import {
   createTask,
   listHighPriorityTasks,
@@ -272,48 +273,49 @@ export default async function ManagerPage({
       </header>
 
       {task === "created" ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("taskStatusAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("taskCreatedEyebrow")}</p>
-            <h2>{t("taskCreatedTitle")}</h2>
-            <p>{t("taskCreatedBody")}</p>
-          </div>
-          <div className="notice-actions">
-            <a
-              className="secondary-button"
-              href={`/${tenantSlug}/manager?assign=1`}
-            >
-              {t("assignAnother")}
-            </a>
-            <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
-              {t("openTaskList")}
-            </a>
-          </div>
-        </section>
+        <DismissableNotice
+          actions={
+            <>
+              <a
+                className="secondary-button"
+                href={`/${tenantSlug}/manager?assign=1`}
+              >
+                {t("assignAnother")}
+              </a>
+              <a
+                className="primary-button"
+                href={`/${tenantSlug}/manager/tasks`}
+              >
+                {t("openTaskList")}
+              </a>
+            </>
+          }
+          ariaLabel={t("taskStatusAria")}
+          body={t("taskCreatedBody")}
+          clearParams={["task"]}
+          eyebrow={t("taskCreatedEyebrow")}
+          title={t("taskCreatedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {error === "task" ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("taskErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("taskErrorEyebrow")}</p>
-            <h2>{t("taskErrorTitle")}</h2>
-            <p>{t("taskErrorBody")}</p>
-          </div>
-          <div className="notice-actions">
+        <DismissableNotice
+          actions={
             <a
               className="primary-button"
               href={`/${tenantSlug}/manager?assign=1`}
             >
               {t("returnToTaskForm")}
             </a>
-          </div>
-        </section>
+          }
+          ariaLabel={t("taskErrorAria")}
+          body={t("taskErrorBody")}
+          clearParams={["error"]}
+          eyebrow={t("taskErrorEyebrow")}
+          title={t("taskErrorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       {!hasLiveData && demoFallbackEnabled ? (

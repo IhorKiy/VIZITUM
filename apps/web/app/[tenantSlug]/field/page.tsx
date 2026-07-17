@@ -1,6 +1,7 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../components/app-shell";
+import { DismissableNotice } from "../../../components/dismissable-notice";
 import {
   getCurrentSession,
   listTodayRoutes,
@@ -133,16 +134,14 @@ export default async function FieldPage({
       </header>
 
       {report === "confirmed" ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("home.reportStatusAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("home.reportConfirmedEyebrow")}</p>
-            <h2>{t("home.reportConfirmedTitle")}</h2>
-            <p>{t("home.reportConfirmedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("home.reportStatusAria")}
+          body={t("home.reportConfirmedBody")}
+          clearParams={["report"]}
+          eyebrow={t("home.reportConfirmedEyebrow")}
+          title={t("home.reportConfirmedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {isDemoMode ? (

@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
+import { DismissableNotice } from "../../../../../components/dismissable-notice";
 import { FieldVoiceNoteRecorder } from "../../../../../components/field-voice-note-recorder";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import {
@@ -222,68 +223,58 @@ export default async function VisitDetailPage({
       ) : null}
 
       {audio === "uploaded" ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("audioStatusAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("audioUploadedEyebrow")}</p>
-            <h2>{t("audioUploadedTitle")}</h2>
-            <p>{t("audioUploadedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("audioStatusAria")}
+          body={t("audioUploadedBody")}
+          clearParams={["audio"]}
+          eyebrow={t("audioUploadedEyebrow")}
+          title={t("audioUploadedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {note === "saved" ? (
-        <section
-          className="notice-panel success"
-          aria-label={t("noteStatusAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("noteSavedEyebrow")}</p>
-            <h2>{t("noteSavedTitle")}</h2>
-            <p>{t("noteSavedBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("noteStatusAria")}
+          body={t("noteSavedBody")}
+          clearParams={["note"]}
+          eyebrow={t("noteSavedEyebrow")}
+          title={t("noteSavedTitle")}
+          tone="success"
+        />
       ) : null}
 
       {error === "audio" ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("audioErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("audioErrorEyebrow")}</p>
-            <h2>{t("audioErrorTitle")}</h2>
-            <p>{t("audioErrorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("audioErrorAria")}
+          body={t("audioErrorBody")}
+          clearParams={["error"]}
+          eyebrow={t("audioErrorEyebrow")}
+          title={t("audioErrorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       {error === "note" ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("noteErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("noteErrorEyebrow")}</p>
-            <h2>{t("noteErrorTitle")}</h2>
-            <p>{t("noteErrorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("noteErrorAria")}
+          body={t("noteErrorBody")}
+          clearParams={["error"]}
+          eyebrow={t("noteErrorEyebrow")}
+          title={t("noteErrorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       {error === "report" ? (
-        <section
-          className="notice-panel danger"
-          aria-label={t("reportErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{t("reportErrorEyebrow")}</p>
-            <h2>{t("reportErrorTitle")}</h2>
-            <p>{t("reportErrorBody")}</p>
-          </div>
-        </section>
+        <DismissableNotice
+          ariaLabel={t("reportErrorAria")}
+          body={t("reportErrorBody")}
+          clearParams={["error"]}
+          eyebrow={t("reportErrorEyebrow")}
+          title={t("reportErrorTitle")}
+          tone="danger"
+        />
       ) : null}
 
       <article className="visit-card">

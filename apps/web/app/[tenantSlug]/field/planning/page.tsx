@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   addRouteItem,
@@ -224,36 +225,43 @@ export default async function PlanningPage({
       </header>
 
       {planning === "added" ? (
-        <NoticePanel
-          eyebrow={tCommon("notice.updated")}
+        <DismissableNotice
           ariaLabel={t("statusAria")}
-          title={t("addedTitle")}
           body={t("addedBody")}
+          clearParams={["planning"]}
+          eyebrow={tCommon("notice.updated")}
+          title={t("addedTitle")}
+          tone="success"
         />
       ) : null}
       {planning === "removed" ? (
-        <NoticePanel
-          eyebrow={tCommon("notice.updated")}
+        <DismissableNotice
           ariaLabel={t("statusAria")}
-          title={t("removedTitle")}
           body={t("removedBody")}
+          clearParams={["planning"]}
+          eyebrow={tCommon("notice.updated")}
+          title={t("removedTitle")}
+          tone="success"
         />
       ) : null}
       {planning === "reordered" ? (
-        <NoticePanel
-          eyebrow={tCommon("notice.updated")}
+        <DismissableNotice
           ariaLabel={t("statusAria")}
-          title={t("reorderedTitle")}
           body={t("reorderedBody")}
+          clearParams={["planning"]}
+          eyebrow={tCommon("notice.updated")}
+          title={t("reorderedTitle")}
+          tone="success"
         />
       ) : null}
       {error ? (
-        <NoticePanel
-          tone="danger"
-          eyebrow={tCommon("notice.error")}
+        <DismissableNotice
           ariaLabel={t("statusAria")}
-          title={t("failedTitle")}
           body={t("failedBody")}
+          clearParams={["error"]}
+          eyebrow={tCommon("notice.error")}
+          title={t("failedTitle")}
+          tone="danger"
         />
       ) : null}
 
@@ -457,33 +465,6 @@ function activeStops(plan: RoutePlan): PlanningStop[] {
     .filter((item) => item.status !== "skipped")
     .map((item) => ({ ...item, routePlanId: plan.id }))
     .sort((a, b) => a.sequence - b.sequence);
-}
-
-function NoticePanel({
-  title,
-  body,
-  eyebrow,
-  ariaLabel,
-  tone,
-}: {
-  title: string;
-  body: string;
-  eyebrow: string;
-  ariaLabel: string;
-  tone?: "danger";
-}) {
-  return (
-    <section
-      className={`notice-panel ${tone ?? "success"}`}
-      aria-label={ariaLabel}
-    >
-      <div>
-        <p className="eyebrow">{eyebrow}</p>
-        <h2>{title}</h2>
-        <p>{body}</p>
-      </div>
-    </section>
-  );
 }
 
 function planningHref(
