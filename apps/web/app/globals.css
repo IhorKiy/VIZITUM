@@ -2665,7 +2665,9 @@ textarea {
   align-items: flex-start;
   display: flex;
   gap: 6px;
-  margin-top: 12px;
+  /* Clearly more than the 10px the facts sit under the title by, so the
+     description reads as its own thing rather than one more fact. */
+  margin-top: 18px;
 }
 
 .task-details-toggle {
@@ -2689,6 +2691,10 @@ textarea {
   display: block;
   font-size: 14px;
   line-height: 1.45;
+  /* Stop the line short of the card's edge: a description running the full
+     width of a wide card is one long unreadable stretch, and the ellipsis
+     lands somewhere the eye has to travel to. Narrow cards just fill up. */
+  max-width: 68ch;
 }
 
 /* Collapsed: one line, the rest behind an ellipsis. */
