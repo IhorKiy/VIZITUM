@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import {
@@ -26,7 +26,11 @@ import {
   buildRouteOptions,
   type FilterOption,
 } from "../../../../lib/filter-options";
-import { formatEnumLabel, type CommonTranslator } from "../../../../lib/format";
+import {
+  formatEnumLabel,
+  type CommonTranslator,
+  type IntlFormatter,
+} from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 import { taskStatuses } from "../../../../lib/task-status";
 
@@ -53,12 +57,19 @@ export default async function ManagerTasksPage({
 }: ManagerTasksPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [locale, t, tManager, tCommon] = await Promise.all([
+  const [locale, timeZone, t, tManager, tCommon] = await Promise.all([
     getLocale(),
+    getTimeZone(),
     getTranslations("manager.tasks"),
     getTranslations("manager"),
     getTranslations("common"),
   ]);
+  // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
+  // against today's date in the tenant timezone (the same zone the formatted
+  // dates render in), not the server's local midnight.
+  const todayIsoDate = new Intl.DateTimeFormat("en-CA", { timeZone }).format(
+    new Date(),
+  );
   const selectedStatus = normalizeTaskStatus(pageState.status);
   const selectedPriority = normalizeTaskPriority(pageState.priority);
   const selectedAssigneeId = normalizeFilterValue(pageState.assignedToUserId);
@@ -183,7 +194,12 @@ export default async function ManagerTasksPage({
   }
 
   const tasks = tasksResult.data.items;
-  const counters = buildTaskCounters(tasks, tasksResult.data.total, t);
+  const counters = buildTaskCounters(
+    tasks,
+    tasksResult.data.total,
+    t,
+    todayIsoDate,
+  );
   const assigneeOptions = allTasksResult.ok
     ? buildAssigneeOptions(allTasksResult.data.items, locale)
     : [];
@@ -342,7 +358,7 @@ export default async function ManagerTasksPage({
 
         <details className="filter-disclosure" open={hasFilters}>
           <summary className="filter-disclosure-summary">
-            {t("filtersLabel")}
+            {tCommon("filtersLabel")}
             {hasFilters ? (
               <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
@@ -433,8 +449,9 @@ export default async function ManagerTasksPage({
         </details>
 
         {tasks.length > 0 ? (
-          <TasksTable
+          <TasksCards
             tasks={tasks}
+            todayIsoDate={todayIsoDate}
             updateTaskStatusAction={updateTaskStatusAction}
             updateTaskDetailsAction={updateTaskDetailsAction}
           />
@@ -481,12 +498,14 @@ function buildAssigneeOptions(tasks: Task[], locale: string): FilterOption[] {
   );
 }
 
-function TasksTable({
+function TasksCards({
   tasks,
+  todayIsoDate,
   updateTaskStatusAction,
   updateTaskDetailsAction,
 }: {
   tasks: Task[];
+  todayIsoDate: string;
   updateTaskStatusAction: (formData: FormData) => Promise<void>;
   updateTaskDetailsAction: (formData: FormData) => Promise<void>;
 }) {
@@ -494,92 +513,90 @@ function TasksTable({
   const tCommon = useTranslations("common");
   const format = useFormatter();
 
+  // One card layout at every width. The status pill doubles as the inline
+  // editor (click to change it, saves on pick); the description lives behind
+  // the "details" disclosure.
   return (
-    <>
-      {/* One card layout at every width. The status pill doubles as the inline
-          editor (click to change it, saves on pick); the description lives
-          behind the "details" disclosure. */}
-      <ul className="task-cards">
-        {tasks.map((task) => {
-          const overdue = isTaskOverdue(task);
+    <ul className="task-cards">
+      {tasks.map((task) => {
+        const overdue = isTaskOverdue(task, todayIsoDate);
 
-          return (
-            <li
-              className={`task-card${overdue ? " is-overdue" : ""}`}
-              key={task.id}
-            >
-              <div className="task-card-top">
-                <h3 className="task-card-title">{task.title}</h3>
-                <TaskStatusEditor
+        return (
+          <li
+            className={`task-card${overdue ? " is-overdue" : ""}`}
+            key={task.id}
+          >
+            <div className="task-card-top">
+              <h3 className="task-card-title">{task.title}</h3>
+              <TaskStatusEditor
+                taskId={task.id}
+                status={task.status}
+                ariaLabel={t("updateTaskStatusAria", { title: task.title })}
+                updateAction={updateTaskStatusAction}
+              />
+            </div>
+            <dl className="task-card-facts">
+              <div className="task-fact">
+                <dt>
+                  <UserIcon />
+                  <span className="sr-only">{t("tableAssignee")}</span>
+                </dt>
+                <dd>{task.assignedTo?.name ?? t("unassigned")}</dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <MapPinIcon />
+                  <span className="sr-only">{t("tableLocation")}</span>
+                </dt>
+                <dd>
+                  {task.location
+                    ? `${task.location.name}, ${task.location.city}`
+                    : t("noLocation")}
+                </dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <FlagIcon />
+                  <span className="sr-only">{t("tablePriority")}</span>
+                </dt>
+                <dd>
+                  <PriorityTag
+                    priority={task.priority}
+                    label={formatEnumLabel(tCommon, task.priority)}
+                  />
+                </dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <CalendarIcon />
+                  <span className="sr-only">{t("tableDue")}</span>
+                </dt>
+                <dd>
+                  <DueDate
+                    format={format}
+                    value={task.dueDate}
+                    overdue={overdue}
+                    overdueLabel={t("overdue")}
+                  />
+                </dd>
+              </div>
+            </dl>
+            <details className="task-card-more">
+              <summary className="task-card-more-summary">
+                {t("cardDetails")}
+              </summary>
+              <div className="task-card-more-body">
+                <TaskDetailsEditor
                   taskId={task.id}
-                  status={task.status}
-                  ariaLabel={t("updateTaskStatusAria", { title: task.title })}
-                  updateAction={updateTaskStatusAction}
+                  value={task.description ?? ""}
+                  updateAction={updateTaskDetailsAction}
                 />
               </div>
-              <dl className="task-card-facts">
-                <div className="task-fact">
-                  <dt>
-                    <UserIcon />
-                    <span className="sr-only">{t("tableAssignee")}</span>
-                  </dt>
-                  <dd>{task.assignedTo?.name ?? t("unassigned")}</dd>
-                </div>
-                <div className="task-fact">
-                  <dt>
-                    <MapPinIcon />
-                    <span className="sr-only">{t("tableLocation")}</span>
-                  </dt>
-                  <dd>
-                    {task.location
-                      ? `${task.location.name}, ${task.location.city}`
-                      : t("noLocation")}
-                  </dd>
-                </div>
-                <div className="task-fact">
-                  <dt>
-                    <FlagIcon />
-                    <span className="sr-only">{t("tablePriority")}</span>
-                  </dt>
-                  <dd>
-                    <PriorityTag
-                      priority={task.priority}
-                      label={formatEnumLabel(tCommon, task.priority)}
-                    />
-                  </dd>
-                </div>
-                <div className="task-fact">
-                  <dt>
-                    <CalendarIcon />
-                    <span className="sr-only">{t("tableDue")}</span>
-                  </dt>
-                  <dd>
-                    <DueDate
-                      format={format}
-                      value={task.dueDate}
-                      overdue={overdue}
-                      overdueLabel={t("overdue")}
-                    />
-                  </dd>
-                </div>
-              </dl>
-              <details className="task-card-more">
-                <summary className="task-card-more-summary">
-                  {t("cardDetails")}
-                </summary>
-                <div className="task-card-more-body">
-                  <TaskDetailsEditor
-                    taskId={task.id}
-                    value={task.description ?? ""}
-                    updateAction={updateTaskDetailsAction}
-                  />
-                </div>
-              </details>
-            </li>
-          );
-        })}
-      </ul>
-    </>
+            </details>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -605,7 +622,7 @@ function DueDate({
   overdue,
   overdueLabel,
 }: {
-  format: ReturnType<typeof useFormatter>;
+  format: IntlFormatter;
   value: string | null;
   overdue: boolean;
   overdueLabel: string;
@@ -630,6 +647,7 @@ function buildTaskCounters(
   tasks: Task[],
   total: number,
   t: TasksTranslator,
+  todayIsoDate: string,
 ): Array<{
   label: string;
   value: string;
@@ -640,7 +658,7 @@ function buildTaskCounters(
     (task) => task.status === "open" || task.status === "in_progress",
   );
   const highPriority = open.filter((task) => task.priority === "high");
-  const overdue = open.filter(isTaskOverdue);
+  const overdue = open.filter((task) => isTaskOverdue(task, todayIsoDate));
 
   return [
     {
@@ -787,10 +805,7 @@ function normalizeTaskPriority(value: string | undefined): TaskPriority | null {
   return null;
 }
 
-function formatDate(
-  format: ReturnType<typeof useFormatter>,
-  value: string | null,
-): string {
+function formatDate(format: IntlFormatter, value: string | null): string {
   if (!value) {
     return "-";
   }
@@ -798,16 +813,11 @@ function formatDate(
   return format.dateTime(new Date(value), { dateStyle: "medium" });
 }
 
-function startOfToday(): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  return today;
-}
-
 // A task is overdue only while it is still actionable: a past due date on a
 // done or cancelled task is not flagged. Matches the "overdue" counter.
-function isTaskOverdue(task: Task): boolean {
+// Due dates are date-only "YYYY-MM-DD" strings, so a lexicographic compare
+// against today's date in the tenant timezone is exact.
+function isTaskOverdue(task: Task, todayIsoDate: string): boolean {
   if (!task.dueDate) {
     return false;
   }
@@ -816,5 +826,5 @@ function isTaskOverdue(task: Task): boolean {
     return false;
   }
 
-  return new Date(task.dueDate).getTime() < startOfToday().getTime();
+  return task.dueDate.slice(0, 10) < todayIsoDate;
 }

@@ -271,7 +271,7 @@ export default async function ManagerLocationsPage({
 
         <details className="filter-disclosure" open={hasFilters}>
           <summary className="filter-disclosure-summary">
-            {t("filtersLabel")}
+            {tCommon("filtersLabel")}
             {hasFilters ? (
               <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
@@ -407,10 +407,8 @@ function LocationsCards({
         const visitCount = activity?.visitCount ?? 0;
         const area = [
           location.territory ?? t("unassignedTerritory"),
-          location.region ?? location.type,
-        ]
-          .filter(Boolean)
-          .join(" · ");
+          location.region ?? location.type ?? t("noRegion"),
+        ].join(" · ");
 
         return (
           <li className="task-card" key={location.id}>

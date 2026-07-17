@@ -227,7 +227,7 @@ export default async function ManagerRepresentativesPage({
 
         <details className="filter-disclosure" open={hasFilters}>
           <summary className="filter-disclosure-summary">
-            {t("filtersLabel")}
+            {tCommon("filtersLabel")}
             {hasFilters ? (
               <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
@@ -318,11 +318,12 @@ function RepresentativesCards({
           <div className="task-card-top">
             <h3 className="task-card-title">{representative.name}</h3>
             <span
-              aria-label={`${t("tableOpenTasks")}: ${representative.openTaskCount}`}
               className={`status-pill ${
                 representative.openTaskCount > 0 ? "warning" : "active"
               }`}
+              title={t("tableOpenTasks")}
             >
+              <span className="sr-only">{t("tableOpenTasks")}: </span>
               {representative.openTaskCount}
             </span>
           </div>

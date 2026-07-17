@@ -24,7 +24,11 @@ import {
   buildRouteOptions,
   type FilterOption,
 } from "../../../../lib/filter-options";
-import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
+import {
+  formatDateTime,
+  formatEnumLabel,
+  statusPillTone,
+} from "../../../../lib/format";
 
 type ManagerVisitsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -244,7 +248,7 @@ export default async function ManagerVisitsPage({
 
         <details className="filter-disclosure" open={hasFilters}>
           <summary className="filter-disclosure-summary">
-            {t("filtersLabel")}
+            {tCommon("filtersLabel")}
             {hasFilters ? (
               <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
@@ -406,7 +410,7 @@ function VisitsCards({
         <li className="task-card" key={visit.id}>
           <div className="task-card-top">
             <h3 className="task-card-title">{visit.location.name}</h3>
-            <span className={`status-pill ${visitStatusTone(visit.status)}`}>
+            <span className={`status-pill ${statusPillTone(visit.status)}`}>
               {formatEnumLabel(tCommon, visit.status)}
             </span>
           </div>
@@ -573,16 +577,4 @@ function normalizeDateFilter(value: string | undefined): string | null {
   }
 
   return normalizedValue;
-}
-
-function visitStatusTone(status: VisitStatus): "active" | "info" | "warning" {
-  if (status === "completed") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
 }
