@@ -1,15 +1,15 @@
 import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import {
   CalendarIcon,
   FlagIcon,
   MapPinIcon,
+  RouteIcon,
   UserIcon,
 } from "../../../../components/icons";
-import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import { TaskDetailsEditor } from "../../../../components/task-details-editor";
 import { TaskStatusEditor } from "../../../../components/task-status-editor";
 import {
@@ -26,9 +26,13 @@ import {
   buildRouteOptions,
   type FilterOption,
 } from "../../../../lib/filter-options";
-import { formatEnumLabel, type CommonTranslator } from "../../../../lib/format";
+import {
+  formatEnumLabel,
+  type CommonTranslator,
+  type IntlFormatter,
+} from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
-import { taskStatuses, taskStatusTone } from "../../../../lib/task-status";
+import { taskStatuses } from "../../../../lib/task-status";
 
 type ManagerTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -53,12 +57,19 @@ export default async function ManagerTasksPage({
 }: ManagerTasksPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [locale, t, tManager, tCommon] = await Promise.all([
+  const [locale, timeZone, t, tManager, tCommon] = await Promise.all([
     getLocale(),
+    getTimeZone(),
     getTranslations("manager.tasks"),
     getTranslations("manager"),
     getTranslations("common"),
   ]);
+  // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
+  // against today's date in the tenant timezone (the same zone the formatted
+  // dates render in), not the server's local midnight.
+  const todayIsoDate = new Intl.DateTimeFormat("en-CA", { timeZone }).format(
+    new Date(),
+  );
   const selectedStatus = normalizeTaskStatus(pageState.status);
   const selectedPriority = normalizeTaskPriority(pageState.priority);
   const selectedAssigneeId = normalizeFilterValue(pageState.assignedToUserId);
@@ -183,7 +194,12 @@ export default async function ManagerTasksPage({
   }
 
   const tasks = tasksResult.data.items;
-  const counters = buildTaskCounters(tasks, tasksResult.data.total, t);
+  const counters = buildTaskCounters(
+    tasks,
+    tasksResult.data.total,
+    t,
+    todayIsoDate,
+  );
   const assigneeOptions = allTasksResult.ok
     ? buildAssigneeOptions(allTasksResult.data.items, locale)
     : [];
@@ -342,7 +358,7 @@ export default async function ManagerTasksPage({
 
         <details className="filter-disclosure" open={hasFilters}>
           <summary className="filter-disclosure-summary">
-            {t("filtersLabel")}
+            {tCommon("filtersLabel")}
             {hasFilters ? (
               <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
@@ -355,7 +371,10 @@ export default async function ManagerTasksPage({
               <input name="priority" type="hidden" value={selectedPriority} />
             ) : null}
             <label>
-              {t("route")}
+              <span className="filter-field-icon" title={t("route")}>
+                <RouteIcon />
+                <span className="sr-only">{t("route")}</span>
+              </span>
               <select
                 defaultValue={selectedRoutePlanId ?? ""}
                 name="routePlanId"
@@ -369,7 +388,10 @@ export default async function ManagerTasksPage({
               </select>
             </label>
             <label>
-              {t("location")}
+              <span className="filter-field-icon" title={t("location")}>
+                <MapPinIcon />
+                <span className="sr-only">{t("location")}</span>
+              </span>
               <select defaultValue={selectedLocationId ?? ""} name="locationId">
                 <option value="">{t("anyLocation")}</option>
                 {locationOptions.map((option) => (
@@ -380,7 +402,10 @@ export default async function ManagerTasksPage({
               </select>
             </label>
             <label>
-              {t("assignee")}
+              <span className="filter-field-icon" title={t("assignee")}>
+                <UserIcon />
+                <span className="sr-only">{t("assignee")}</span>
+              </span>
               <select
                 defaultValue={selectedAssigneeId ?? ""}
                 name="assignedToUserId"
@@ -394,11 +419,17 @@ export default async function ManagerTasksPage({
               </select>
             </label>
             <label>
-              {t("dueFrom")}
+              <span className="filter-field-icon" title={t("dueFrom")}>
+                <CalendarIcon />
+                <span className="sr-only">{t("dueFrom")}</span>
+              </span>
               <input defaultValue={dueFrom ?? ""} name="dueFrom" type="date" />
             </label>
             <label>
-              {t("dueTo")}
+              <span className="filter-field-icon" title={t("dueTo")}>
+                <CalendarIcon />
+                <span className="sr-only">{t("dueTo")}</span>
+              </span>
               <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
             </label>
             <div className="filter-actions">
@@ -418,8 +449,9 @@ export default async function ManagerTasksPage({
         </details>
 
         {tasks.length > 0 ? (
-          <TasksTable
+          <TasksCards
             tasks={tasks}
+            todayIsoDate={todayIsoDate}
             updateTaskStatusAction={updateTaskStatusAction}
             updateTaskDetailsAction={updateTaskDetailsAction}
           />
@@ -466,12 +498,14 @@ function buildAssigneeOptions(tasks: Task[], locale: string): FilterOption[] {
   );
 }
 
-function TasksTable({
+function TasksCards({
   tasks,
+  todayIsoDate,
   updateTaskStatusAction,
   updateTaskDetailsAction,
 }: {
   tasks: Task[];
+  todayIsoDate: string;
   updateTaskStatusAction: (formData: FormData) => Promise<void>;
   updateTaskDetailsAction: (formData: FormData) => Promise<void>;
 }) {
@@ -479,64 +513,19 @@ function TasksTable({
   const tCommon = useTranslations("common");
   const format = useFormatter();
 
+  // One card layout at every width. The status pill doubles as the inline
+  // editor (click to change it, saves on pick); the description lives behind
+  // the "details" disclosure.
   return (
-    <>
-      {/* Wide screens: the full data table. Narrow screens (<= 1080px, where a
-          sidebar-reduced panel can't fit 7 columns) hide it and show the card
-          list below instead. */}
-      <table className="table drilldown-table manager-task-table">
-        <thead>
-          <tr>
-            <th>{t("tableTask")}</th>
-            <th>{t("tableLocation")}</th>
-            <th>{t("tableAssignee")}</th>
-            <th>{t("tableStatus")}</th>
-            <th>{t("tablePriority")}</th>
-            <th>{t("tableDue")}</th>
-            <th>{t("tableUpdate")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map((task) => (
-            <tr key={task.id}>
-              <td>
-                <strong>{task.title}</strong>
-                <span>{task.description ?? t("noTaskDetails")}</span>
-              </td>
-              <td>
-                {task.location ? (
-                  <>
-                    <strong>{task.location.name}</strong>
-                    <span>{task.location.city}</span>
-                  </>
-                ) : (
-                  t("noLocation")
-                )}
-              </td>
-              <td>{task.assignedTo?.name ?? t("unassigned")}</td>
-              <td>
-                <span className={`status-pill ${taskStatusTone(task.status)}`}>
-                  {formatEnumLabel(tCommon, task.status)}
-                </span>
-              </td>
-              <td>{formatEnumLabel(tCommon, task.priority)}</td>
-              <td className="nowrap-cell">
-                {formatDate(format, task.dueDate)}
-              </td>
-              <td>
-                <TaskStatusForm
-                  task={task}
-                  updateTaskStatusAction={updateTaskStatusAction}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <ul className="task-cards">
+      {tasks.map((task) => {
+        const overdue = isTaskOverdue(task, todayIsoDate);
 
-      <ul className="task-cards">
-        {tasks.map((task) => (
-          <li className="task-card" key={task.id}>
+        return (
+          <li
+            className={`task-card${overdue ? " is-overdue" : ""}`}
+            key={task.id}
+          >
             <div className="task-card-top">
               <h3 className="task-card-title">{task.title}</h3>
               <TaskStatusEditor
@@ -570,14 +559,26 @@ function TasksTable({
                   <FlagIcon />
                   <span className="sr-only">{t("tablePriority")}</span>
                 </dt>
-                <dd>{formatEnumLabel(tCommon, task.priority)}</dd>
+                <dd>
+                  <PriorityTag
+                    priority={task.priority}
+                    label={formatEnumLabel(tCommon, task.priority)}
+                  />
+                </dd>
               </div>
               <div className="task-fact">
                 <dt>
                   <CalendarIcon />
                   <span className="sr-only">{t("tableDue")}</span>
                 </dt>
-                <dd>{formatDate(format, task.dueDate)}</dd>
+                <dd>
+                  <DueDate
+                    format={format}
+                    value={task.dueDate}
+                    overdue={overdue}
+                    overdueLabel={t("overdue")}
+                  />
+                </dd>
               </div>
             </dl>
             <details className="task-card-more">
@@ -593,43 +594,48 @@ function TasksTable({
               </div>
             </details>
           </li>
-        ))}
-      </ul>
-    </>
+        );
+      })}
+    </ul>
   );
 }
 
-function TaskStatusForm({
-  task,
-  updateTaskStatusAction,
+function PriorityTag({
+  priority,
+  label,
 }: {
-  task: Task;
-  updateTaskStatusAction: (formData: FormData) => Promise<void>;
+  priority: TaskPriority;
+  label: string;
 }) {
-  const t = useTranslations("manager.tasks");
-  const tCommon = useTranslations("common");
+  // The card fact already shows a flag in its <dt>; here we only tint the
+  // label amber for "high" so it pops without a second icon.
+  return (
+    <span className={`priority-tag${priority === "high" ? " is-high" : ""}`}>
+      {label}
+    </span>
+  );
+}
+
+function DueDate({
+  format,
+  value,
+  overdue,
+  overdueLabel,
+}: {
+  format: IntlFormatter;
+  value: string | null;
+  overdue: boolean;
+  overdueLabel: string;
+}) {
+  if (!overdue) {
+    return <>{formatDate(format, value)}</>;
+  }
 
   return (
-    <form action={updateTaskStatusAction} className="inline-control-form">
-      <input name="taskId" type="hidden" value={task.id} />
-      <select
-        aria-label={t("updateTaskStatusAria", { title: task.title })}
-        defaultValue={task.status}
-        name="status"
-      >
-        {taskStatuses.map((status) => (
-          <option key={status} value={status}>
-            {formatEnumLabel(tCommon, status)}
-          </option>
-        ))}
-      </select>
-      <PendingSubmitButton
-        className="secondary-button"
-        pendingLabel={tCommon("saving")}
-      >
-        {tCommon("save")}
-      </PendingSubmitButton>
-    </form>
+    <span className="due-overdue">
+      {formatDate(format, value)}
+      <span className="overdue-tag">{overdueLabel}</span>
+    </span>
   );
 }
 
@@ -641,6 +647,7 @@ function buildTaskCounters(
   tasks: Task[],
   total: number,
   t: TasksTranslator,
+  todayIsoDate: string,
 ): Array<{
   label: string;
   value: string;
@@ -651,13 +658,7 @@ function buildTaskCounters(
     (task) => task.status === "open" || task.status === "in_progress",
   );
   const highPriority = open.filter((task) => task.priority === "high");
-  const overdue = open.filter((task) => {
-    if (!task.dueDate) {
-      return false;
-    }
-
-    return new Date(task.dueDate).getTime() < startOfToday().getTime();
-  });
+  const overdue = open.filter((task) => isTaskOverdue(task, todayIsoDate));
 
   return [
     {
@@ -804,10 +805,7 @@ function normalizeTaskPriority(value: string | undefined): TaskPriority | null {
   return null;
 }
 
-function formatDate(
-  format: ReturnType<typeof useFormatter>,
-  value: string | null,
-): string {
+function formatDate(format: IntlFormatter, value: string | null): string {
   if (!value) {
     return "-";
   }
@@ -815,9 +813,18 @@ function formatDate(
   return format.dateTime(new Date(value), { dateStyle: "medium" });
 }
 
-function startOfToday(): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+// A task is overdue only while it is still actionable: a past due date on a
+// done or cancelled task is not flagged. Matches the "overdue" counter.
+// Due dates are date-only "YYYY-MM-DD" strings, so a lexicographic compare
+// against today's date in the tenant timezone is exact.
+function isTaskOverdue(task: Task, todayIsoDate: string): boolean {
+  if (!task.dueDate) {
+    return false;
+  }
 
-  return today;
+  if (task.status !== "open" && task.status !== "in_progress") {
+    return false;
+  }
+
+  return task.dueDate.slice(0, 10) < todayIsoDate;
 }

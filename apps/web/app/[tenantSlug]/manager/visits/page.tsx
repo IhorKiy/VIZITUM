@@ -3,6 +3,14 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import {
+  CalendarIcon,
+  CheckIcon,
+  MapPinIcon,
+  RouteIcon,
+  TagIcon,
+  UserIcon,
+} from "../../../../components/icons";
+import {
   listAdminLocations,
   listTodayRoutes,
   listVisits,
@@ -16,7 +24,11 @@ import {
   buildRouteOptions,
   type FilterOption,
 } from "../../../../lib/filter-options";
-import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
+import {
+  formatDateTime,
+  formatEnumLabel,
+  statusPillTone,
+} from "../../../../lib/format";
 
 type ManagerVisitsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -169,14 +181,6 @@ export default async function ManagerVisitsPage({
           <p className="eyebrow">{tManager("eyebrow")}</p>
           <h1>{t("title")}</h1>
         </div>
-        <div className="toolbar">
-          <a className="secondary-button" href={`/${tenantSlug}/manager`}>
-            {t("overview")}
-          </a>
-          <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
-            {t("tasks")}
-          </a>
-        </div>
       </header>
 
       <section className="manager-grid" aria-label={t("metricsAria")}>
@@ -242,79 +246,108 @@ export default async function ManagerVisitsPage({
           </div>
         </div>
 
-        <form action={`/${tenantSlug}/manager/visits`} className="filter-form">
-          {selectedStatus ? (
-            <input name="status" type="hidden" value={selectedStatus} />
-          ) : null}
-          <label>
-            {t("route")}
-            <select defaultValue={selectedRoutePlanId ?? ""} name="routePlanId">
-              <option value="">{t("anyRoute")}</option>
-              {routeOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("location")}
-            <select defaultValue={selectedLocationId ?? ""} name="locationId">
-              <option value="">{t("anyLocation")}</option>
-              {locationOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("representative")}
-            <select
-              defaultValue={selectedRepresentativeId ?? ""}
-              name="representativeUserId"
-            >
-              <option value="">{t("anyRepresentative")}</option>
-              {representativeOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("startedFrom")}
-            <input
-              defaultValue={startedFrom ?? ""}
-              name="startedFrom"
-              type="date"
-            />
-          </label>
-          <label>
-            {t("startedTo")}
-            <input
-              defaultValue={startedTo ?? ""}
-              name="startedTo"
-              type="date"
-            />
-          </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
+        <details className="filter-disclosure" open={hasFilters}>
+          <summary className="filter-disclosure-summary">
+            {tCommon("filtersLabel")}
             {hasFilters ? (
-              <a
-                className="secondary-button"
-                href={`/${tenantSlug}/manager/visits`}
-              >
-                {tCommon("reset")}
-              </a>
+              <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
-          </div>
-        </form>
+          </summary>
+          <form
+            action={`/${tenantSlug}/manager/visits`}
+            className="filter-form"
+          >
+            {selectedStatus ? (
+              <input name="status" type="hidden" value={selectedStatus} />
+            ) : null}
+            <label>
+              <span className="filter-field-icon" title={t("route")}>
+                <RouteIcon />
+                <span className="sr-only">{t("route")}</span>
+              </span>
+              <select
+                defaultValue={selectedRoutePlanId ?? ""}
+                name="routePlanId"
+              >
+                <option value="">{t("anyRoute")}</option>
+                {routeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="filter-field-icon" title={t("location")}>
+                <MapPinIcon />
+                <span className="sr-only">{t("location")}</span>
+              </span>
+              <select defaultValue={selectedLocationId ?? ""} name="locationId">
+                <option value="">{t("anyLocation")}</option>
+                {locationOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="filter-field-icon" title={t("representative")}>
+                <UserIcon />
+                <span className="sr-only">{t("representative")}</span>
+              </span>
+              <select
+                defaultValue={selectedRepresentativeId ?? ""}
+                name="representativeUserId"
+              >
+                <option value="">{t("anyRepresentative")}</option>
+                {representativeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="filter-field-icon" title={t("startedFrom")}>
+                <CalendarIcon />
+                <span className="sr-only">{t("startedFrom")}</span>
+              </span>
+              <input
+                defaultValue={startedFrom ?? ""}
+                name="startedFrom"
+                type="date"
+              />
+            </label>
+            <label>
+              <span className="filter-field-icon" title={t("startedTo")}>
+                <CalendarIcon />
+                <span className="sr-only">{t("startedTo")}</span>
+              </span>
+              <input
+                defaultValue={startedTo ?? ""}
+                name="startedTo"
+                type="date"
+              />
+            </label>
+            <div className="filter-actions">
+              <button className="secondary-button" type="submit">
+                {tCommon("applyFilters")}
+              </button>
+              {hasFilters ? (
+                <a
+                  className="secondary-button"
+                  href={`/${tenantSlug}/manager/visits`}
+                >
+                  {tCommon("reset")}
+                </a>
+              ) : null}
+            </div>
+          </form>
+        </details>
 
         {visits.length > 0 ? (
-          <VisitsTable tenantSlug={tenantSlug} visits={visits} />
+          <VisitsCards tenantSlug={tenantSlug} visits={visits} />
         ) : (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
@@ -357,7 +390,7 @@ function buildRepresentativeOptions(
   );
 }
 
-function VisitsTable({
+function VisitsCards({
   tenantSlug,
   visits,
 }: {
@@ -368,49 +401,69 @@ function VisitsTable({
   const tCommon = useTranslations("common");
   const format = useFormatter();
 
+  // Same card layout as the manager task list (shared .task-card* styles): the
+  // location is the title, the status pill sits top-right, the facts row uses
+  // the same icon language, and an "open" link mirrors the task card's footer.
   return (
-    <table className="table drilldown-table">
-      <thead>
-        <tr>
-          <th>{t("tableLocation")}</th>
-          <th>{t("tableRepresentative")}</th>
-          <th>{t("tableStatus")}</th>
-          <th>{t("tableType")}</th>
-          <th>{t("tableStarted")}</th>
-          <th>{t("tableCompleted")}</th>
-          <th>{t("tableReport")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {visits.map((visit) => (
-          <tr key={visit.id}>
-            <td>
-              <strong>{visit.location.name}</strong>
-              <span>
+    <ul className="task-cards">
+      {visits.map((visit) => (
+        <li className="task-card" key={visit.id}>
+          <div className="task-card-top">
+            <h3 className="task-card-title">{visit.location.name}</h3>
+            <span className={`status-pill ${statusPillTone(visit.status)}`}>
+              {formatEnumLabel(tCommon, visit.status)}
+            </span>
+          </div>
+          <dl className="task-card-facts">
+            <div className="task-fact">
+              <dt>
+                <UserIcon />
+                <span className="sr-only">{t("tableRepresentative")}</span>
+              </dt>
+              <dd>{visit.representative.name}</dd>
+            </div>
+            <div className="task-fact">
+              <dt>
+                <MapPinIcon />
+                <span className="sr-only">{t("tableLocation")}</span>
+              </dt>
+              <dd>
                 {visit.location.addressLine}, {visit.location.city}
-              </span>
-            </td>
-            <td>{visit.representative.name}</td>
-            <td>
-              <span className={`status-pill ${visitStatusTone(visit.status)}`}>
-                {formatEnumLabel(tCommon, visit.status)}
-              </span>
-            </td>
-            <td>{formatEnumLabel(tCommon, visit.visitType)}</td>
-            <td>{formatDateTime(format, visit.startedAt)}</td>
-            <td>{formatDateTime(format, visit.completedAt)}</td>
-            <td>
-              <a
-                className="secondary-button"
-                href={`/${tenantSlug}/manager/visits/${visit.id}`}
-              >
-                {t("open")}
-              </a>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+              </dd>
+            </div>
+            <div className="task-fact">
+              <dt>
+                <TagIcon />
+                <span className="sr-only">{t("tableType")}</span>
+              </dt>
+              <dd>{formatEnumLabel(tCommon, visit.visitType)}</dd>
+            </div>
+            <div className="task-fact">
+              <dt>
+                <CalendarIcon />
+                <span className="sr-only">{t("tableStarted")}</span>
+              </dt>
+              <dd>{formatDateTime(format, visit.startedAt)}</dd>
+            </div>
+            {visit.completedAt ? (
+              <div className="task-fact">
+                <dt>
+                  <CheckIcon />
+                  <span className="sr-only">{t("tableCompleted")}</span>
+                </dt>
+                <dd>{formatDateTime(format, visit.completedAt)}</dd>
+              </div>
+            ) : null}
+          </dl>
+          <a
+            className="task-card-open"
+            href={`/${tenantSlug}/manager/visits/${visit.id}`}
+          >
+            {t("open")}
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -524,16 +577,4 @@ function normalizeDateFilter(value: string | undefined): string | null {
   }
 
   return normalizedValue;
-}
-
-function visitStatusTone(status: VisitStatus): "active" | "info" | "warning" {
-  if (status === "completed") {
-    return "active";
-  }
-
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
 }
