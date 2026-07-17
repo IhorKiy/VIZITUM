@@ -479,7 +479,7 @@ export default async function AdminProductsPage({
             ) : null}
             <FilterField icon={<TagIcon />} label={t("category")}>
               <select defaultValue={selectedCategory ?? ""} name="category">
-                <option value="">{t("allCategories")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {categoryFilterOptions.map((category) => (
                   <option key={category.id} value={category.name}>
                     {category.name}

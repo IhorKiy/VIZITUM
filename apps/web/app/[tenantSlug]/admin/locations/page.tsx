@@ -761,7 +761,7 @@ function LocationsSection({
             ) : null}
             <FilterField icon={<MapIcon />} label={t("chain")}>
               <select defaultValue={selectedChain ?? ""} name="locChain">
-                <option value="">{t("allChains")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {chainFilterOptions.map((chain) => (
                   <option key={chain.id} value={chain.id}>
                     {chain.name}

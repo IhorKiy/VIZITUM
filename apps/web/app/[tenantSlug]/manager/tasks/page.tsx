@@ -384,7 +384,7 @@ export default async function ManagerTasksPage({
                 defaultValue={selectedRoutePlanId ?? ""}
                 name="routePlanId"
               >
-                <option value="">{t("anyRoute")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {routeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -394,7 +394,7 @@ export default async function ManagerTasksPage({
             </FilterField>
             <FilterField icon={<MapPinIcon />} label={t("location")}>
               <select defaultValue={selectedLocationId ?? ""} name="locationId">
-                <option value="">{t("anyLocation")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {locationOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -407,7 +407,7 @@ export default async function ManagerTasksPage({
                 defaultValue={selectedAssigneeId ?? ""}
                 name="assignedToUserId"
               >
-                <option value="">{t("anyAssignee")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {assigneeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}

@@ -298,7 +298,7 @@ export default async function ManagerLocationsPage({
             </FilterField>
             <FilterField icon={<MapPinIcon />} label={t("city")}>
               <select defaultValue={selectedCity ?? ""} name="city">
-                <option value="">{t("anyCity")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {cityOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -308,7 +308,7 @@ export default async function ManagerLocationsPage({
             </FilterField>
             <FilterField icon={<MapIcon />} label={t("region")}>
               <select defaultValue={selectedRegion ?? ""} name="region">
-                <option value="">{t("anyRegion")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {regionOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -318,7 +318,7 @@ export default async function ManagerLocationsPage({
             </FilterField>
             <FilterField icon={<TagIcon />} label={t("territory")}>
               <select defaultValue={selectedTerritory ?? ""} name="territory">
-                <option value="">{t("anyTerritory")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {territoryOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}

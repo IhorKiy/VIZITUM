@@ -271,7 +271,7 @@ export default async function ManagerVisitsPage({
                 defaultValue={selectedRoutePlanId ?? ""}
                 name="routePlanId"
               >
-                <option value="">{t("anyRoute")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {routeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -281,7 +281,7 @@ export default async function ManagerVisitsPage({
             </FilterField>
             <FilterField icon={<MapPinIcon />} label={t("location")}>
               <select defaultValue={selectedLocationId ?? ""} name="locationId">
-                <option value="">{t("anyLocation")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {locationOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -294,7 +294,7 @@ export default async function ManagerVisitsPage({
                 defaultValue={selectedRepresentativeId ?? ""}
                 name="representativeUserId"
               >
-                <option value="">{t("anyRepresentative")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {representativeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
