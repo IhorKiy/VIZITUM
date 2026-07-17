@@ -12,6 +12,9 @@ type TaskDetailsEditorProps = {
   updateAction: (formData: FormData) => Promise<void>;
 };
 
+// The description is its own disclosure: collapsed it shows a single clamped
+// line, so a card carries a hint of what the task says instead of a generic
+// "details" label. Expanding reveals the rest of the text and the pencil.
 export function TaskDetailsEditor({
   taskId,
   value,
@@ -19,6 +22,7 @@ export function TaskDetailsEditor({
 }: TaskDetailsEditorProps) {
   const t = useTranslations("manager.tasks");
   const tCommon = useTranslations("common");
+  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -55,19 +59,32 @@ export function TaskDetailsEditor({
   if (!editing) {
     return (
       <div className="task-details">
-        <p className={`list-card-desc${value ? "" : " is-empty"}`}>
-          {value || t("noTaskDetails")}
-        </p>
         <button
-          aria-label={t("editDetails")}
-          className="name-edit-button"
-          disabled={pending}
-          onClick={() => setEditing(true)}
-          title={t("editDetails")}
+          aria-expanded={expanded}
+          className="task-details-toggle"
+          onClick={() => setExpanded((open) => !open)}
           type="button"
         >
-          <PencilIcon />
+          <span
+            className={`task-details-text${value ? "" : " is-empty"}${
+              expanded ? "" : " is-clamped"
+            }`}
+          >
+            {value || t("noTaskDetails")}
+          </span>
         </button>
+        {expanded ? (
+          <button
+            aria-label={t("editDetails")}
+            className="name-edit-button"
+            disabled={pending}
+            onClick={() => setEditing(true)}
+            title={t("editDetails")}
+            type="button"
+          >
+            <PencilIcon />
+          </button>
+        ) : null}
       </div>
     );
   }

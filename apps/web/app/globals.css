@@ -2525,6 +2525,9 @@ textarea {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
+  /* A grid item defaults to min-width: auto, which would let the task details'
+     unwrapped line push the card wider than the list instead of clamping. */
+  min-width: 0;
   padding: 14px 16px;
 }
 
@@ -2616,13 +2619,8 @@ textarea {
   margin: 0;
 }
 
-.list-card-more {
-  margin-top: 12px;
-}
-
 /* Footer link that drills down from a card (e.g. a visit card to its visit
-   page), styled to match the task card's "details" summary so every list
-   shares one footer affordance. */
+   page) — the quiet uppercase footer affordance a card ends on. */
 .list-card-open {
   align-items: center;
   color: var(--muted);
@@ -2660,61 +2658,47 @@ textarea {
   margin-top: 0;
 }
 
-.list-card-more > summary {
-  align-items: center;
-  color: var(--muted);
-  cursor: pointer;
-  display: flex;
-  font-size: 12px;
-  font-weight: 800;
-  gap: 6px;
-  letter-spacing: 0.02em;
-  list-style: none;
-  text-transform: uppercase;
-}
-
-.list-card-more > summary::-webkit-details-marker {
-  display: none;
-}
-
-.list-card-more > summary::after {
-  content: "›";
-  font-size: 18px;
-  line-height: 1;
-  transition: transform 0.2s ease;
-}
-
-.list-card-more[open] > summary::after {
-  transform: rotate(90deg);
-}
-
-.list-card-more-body {
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.list-card-desc {
-  color: var(--ink);
-  font-size: 14px;
-  line-height: 1.45;
-  margin: 0;
-}
-
-/* Inline editor for a task's details: read-only text with a pencil, or a
-   textarea with save/cancel while editing. */
+/* A task's description doubles as its own disclosure: one clamped line that
+   expands to the full text plus a pencil, or a textarea with save/cancel
+   while editing. */
 .task-details {
   align-items: flex-start;
   display: flex;
   gap: 6px;
+  margin-top: 12px;
 }
 
-.task-details .list-card-desc {
+.task-details-toggle {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
   flex: 1;
   min-width: 0;
+  padding: 0;
+  text-align: left;
 }
 
-.list-card-desc.is-empty {
+.task-details-toggle:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.task-details-text {
+  color: var(--ink);
+  display: block;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* Collapsed: one line, the rest behind an ellipsis. */
+.task-details-text.is-clamped {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-details-text.is-empty {
   color: var(--muted);
 }
 
@@ -2745,22 +2729,6 @@ textarea {
 .task-details-actions {
   display: flex;
   gap: 4px;
-}
-
-.list-card-more-body .inline-control-form {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-start;
-}
-
-/* Size the status select to its content (with a sensible floor) rather than
-   stretching it across the card — overrides the base rule's width: 100%. */
-.list-card-more-body .inline-control-form select {
-  flex: 0 1 auto;
-  min-width: 150px;
-  width: auto;
 }
 
 .report-detail-list {

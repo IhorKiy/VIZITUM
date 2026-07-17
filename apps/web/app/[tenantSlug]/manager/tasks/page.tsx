@@ -549,18 +549,11 @@ function TasksCards({
                 />
               </CardFact>
             </dl>
-            <details className="list-card-more">
-              <summary className="list-card-more-summary">
-                {t("cardDetails")}
-              </summary>
-              <div className="list-card-more-body">
-                <TaskDetailsEditor
-                  taskId={task.id}
-                  value={task.description ?? ""}
-                  updateAction={updateTaskDetailsAction}
-                />
-              </div>
-            </details>
+            <TaskDetailsEditor
+              taskId={task.id}
+              value={task.description ?? ""}
+              updateAction={updateTaskDetailsAction}
+            />
           </li>
         );
       })}

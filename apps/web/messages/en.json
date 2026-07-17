@@ -280,7 +280,6 @@
       "tableAssignee": "Assignee",
       "tablePriority": "Priority",
       "tableDue": "Due",
-      "cardDetails": "Details",
       "editDetails": "Edit details",
       "editDetailsPlaceholder": "Add task details",
       "editStatus": "Change status",
