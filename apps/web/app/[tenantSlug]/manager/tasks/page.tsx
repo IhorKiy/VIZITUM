@@ -210,15 +210,22 @@ export default async function ManagerTasksPage({
     redirect(`/${tenantSlug}/manager/tasks?updated=1`);
   }
 
-  const tasksResult = await listTasks(query.toString());
-  const allTasksResult = hasFilters
-    ? await listTasks("pageSize=100")
-    : tasksResult;
-  const routesResult = await listTodayRoutes();
-  const locationsResult = await listAdminLocations("pageSize=100");
-  // Only feeds the assign form: a representative with a visit but no route
-  // today and no task yet would otherwise be unassignable here.
-  const visitsResult = await listVisits();
+  const tasksPromise = listTasks(query.toString());
+  const [
+    tasksResult,
+    allTasksResult,
+    routesResult,
+    locationsResult,
+    visitsResult,
+  ] = await Promise.all([
+    tasksPromise,
+    hasFilters ? listTasks("pageSize=100") : tasksPromise,
+    listTodayRoutes(),
+    listAdminLocations("pageSize=100"),
+    // Only feeds the assign form: a representative with a visit but no route
+    // today and no task yet would otherwise be unassignable here.
+    listVisits(),
+  ]);
 
   if (!tasksResult.ok) {
     return (
