@@ -132,7 +132,6 @@ textarea {
 .zone-switcher-mobile {
   display: flex;
   gap: 6px;
-  justify-content: flex-end;
   max-width: 100%;
   overflow-x: auto;
 }
