@@ -1,5 +1,13 @@
 import { AppShell } from "../../../../components/app-shell";
 import {
+  CalendarIcon,
+  FlagIcon,
+  MapIcon,
+  MapPinIcon,
+  SearchIcon,
+  TagIcon,
+} from "../../../../components/icons";
+import {
   getCurrentSession,
   listAdminLocations,
   listTasks,
@@ -205,20 +213,6 @@ export default async function ManagerLocationsPage({
           <p className="eyebrow">{tManager("eyebrow")}</p>
           <h1>{t("title")}</h1>
         </div>
-        <div className="toolbar">
-          <a className="secondary-button" href={`/${tenantSlug}/manager`}>
-            {t("overview")}
-          </a>
-          <a
-            className="secondary-button"
-            href={`/${tenantSlug}/manager/visits`}
-          >
-            {t("visits")}
-          </a>
-          <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
-            {t("tasks")}
-          </a>
-        </div>
       </header>
 
       <section className="manager-grid" aria-label={t("metricsAria")}>
@@ -275,72 +269,92 @@ export default async function ManagerLocationsPage({
           </div>
         </div>
 
-        <form
-          action={`/${tenantSlug}/manager/locations`}
-          className="filter-form locations-filter-form"
-        >
-          {selectedStatus ? (
-            <input name="status" type="hidden" value={selectedStatus} />
-          ) : null}
-          <label>
-            {t("search")}
-            <input
-              defaultValue={search ?? ""}
-              name="search"
-              placeholder={t("searchPlaceholder")}
-              type="search"
-            />
-          </label>
-          <label>
-            {t("city")}
-            <select defaultValue={selectedCity ?? ""} name="city">
-              <option value="">{t("anyCity")}</option>
-              {cityOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("region")}
-            <select defaultValue={selectedRegion ?? ""} name="region">
-              <option value="">{t("anyRegion")}</option>
-              {regionOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("territory")}
-            <select defaultValue={selectedTerritory ?? ""} name="territory">
-              <option value="">{t("anyTerritory")}</option>
-              {territoryOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
+        <details className="filter-disclosure" open={hasFilters}>
+          <summary className="filter-disclosure-summary">
+            {t("filtersLabel")}
             {hasFilters ? (
-              <a
-                className="secondary-button"
-                href={`/${tenantSlug}/manager/locations`}
-              >
-                {tCommon("reset")}
-              </a>
+              <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
-          </div>
-        </form>
+          </summary>
+          <form
+            action={`/${tenantSlug}/manager/locations`}
+            className="filter-form locations-filter-form"
+          >
+            {selectedStatus ? (
+              <input name="status" type="hidden" value={selectedStatus} />
+            ) : null}
+            <label>
+              <span className="filter-field-icon" title={t("search")}>
+                <SearchIcon />
+                <span className="sr-only">{t("search")}</span>
+              </span>
+              <input
+                defaultValue={search ?? ""}
+                name="search"
+                placeholder={t("searchPlaceholder")}
+                type="search"
+              />
+            </label>
+            <label>
+              <span className="filter-field-icon" title={t("city")}>
+                <MapPinIcon />
+                <span className="sr-only">{t("city")}</span>
+              </span>
+              <select defaultValue={selectedCity ?? ""} name="city">
+                <option value="">{t("anyCity")}</option>
+                {cityOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="filter-field-icon" title={t("region")}>
+                <MapIcon />
+                <span className="sr-only">{t("region")}</span>
+              </span>
+              <select defaultValue={selectedRegion ?? ""} name="region">
+                <option value="">{t("anyRegion")}</option>
+                {regionOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="filter-field-icon" title={t("territory")}>
+                <TagIcon />
+                <span className="sr-only">{t("territory")}</span>
+              </span>
+              <select defaultValue={selectedTerritory ?? ""} name="territory">
+                <option value="">{t("anyTerritory")}</option>
+                {territoryOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="filter-actions">
+              <button className="secondary-button" type="submit">
+                {tCommon("applyFilters")}
+              </button>
+              {hasFilters ? (
+                <a
+                  className="secondary-button"
+                  href={`/${tenantSlug}/manager/locations`}
+                >
+                  {tCommon("reset")}
+                </a>
+              ) : null}
+            </div>
+          </form>
+        </details>
 
         {locations.length > 0 ? (
-          <LocationsTable
+          <LocationsCards
             activityByLocation={activityByLocation}
             locations={locations}
             tenantSlug={tenantSlug}
@@ -369,7 +383,7 @@ export default async function ManagerLocationsPage({
   );
 }
 
-function LocationsTable({
+function LocationsCards({
   activityByLocation,
   locations,
   tenantSlug,
@@ -382,73 +396,88 @@ function LocationsTable({
   const tCommon = useTranslations("common");
   const format = useFormatter();
 
+  // Same card layout as the manager task/visit lists (shared .task-card*
+  // styles): the location is the title, the status pill sits top-right, the
+  // coverage facts use the same icon language, and the footer holds the
+  // per-location drill-down links.
   return (
-    <table className="table drilldown-table">
-      <thead>
-        <tr>
-          <th>{t("tableLocation")}</th>
-          <th>{t("tableArea")}</th>
-          <th>{t("tableStatus")}</th>
-          <th>{t("tableVisits")}</th>
-          <th>{t("tableOpenTasks")}</th>
-          <th>{t("tableActions")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {locations.map((location) => {
-          const activity = activityByLocation.get(location.id);
+    <ul className="task-cards">
+      {locations.map((location) => {
+        const activity = activityByLocation.get(location.id);
+        const visitCount = activity?.visitCount ?? 0;
+        const area = [
+          location.territory ?? t("unassignedTerritory"),
+          location.region ?? location.type,
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
-          return (
-            <tr key={location.id}>
-              <td>
-                <strong>{location.name}</strong>
-                <span>
+        return (
+          <li className="task-card" key={location.id}>
+            <div className="task-card-top">
+              <h3 className="task-card-title">{location.name}</h3>
+              <span className={`status-pill ${statusTone(location.status)}`}>
+                {formatEnumLabel(tCommon, location.status)}
+              </span>
+            </div>
+            <dl className="task-card-facts">
+              <div className="task-fact">
+                <dt>
+                  <MapPinIcon />
+                  <span className="sr-only">{t("tableLocation")}</span>
+                </dt>
+                <dd>
                   {location.addressLine}, {location.city}
-                </span>
-              </td>
-              <td>
-                <strong>
-                  {location.territory ?? t("unassignedTerritory")}
-                </strong>
-                <span>{location.region ?? location.type ?? t("noRegion")}</span>
-              </td>
-              <td>
-                <span className={`status-pill ${statusTone(location.status)}`}>
-                  {formatEnumLabel(tCommon, location.status)}
-                </span>
-              </td>
-              <td>
-                <strong>{activity?.visitCount ?? 0}</strong>
-                <span>
-                  {formatDateTime(
-                    format,
-                    activity?.lastVisitAt ?? null,
-                    t("noVisitsYet"),
-                  )}
-                </span>
-              </td>
-              <td>{activity?.openTaskCount ?? 0}</td>
-              <td>
-                <div className="table-actions">
-                  <a
-                    className="secondary-button"
-                    href={`/${tenantSlug}/manager/visits?locationId=${location.id}`}
-                  >
-                    {t("visits")}
-                  </a>
-                  <a
-                    className="secondary-button"
-                    href={`/${tenantSlug}/manager/tasks?locationId=${location.id}`}
-                  >
-                    {t("tasks")}
-                  </a>
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                </dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <TagIcon />
+                  <span className="sr-only">{t("tableArea")}</span>
+                </dt>
+                <dd>{area}</dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <CalendarIcon />
+                  <span className="sr-only">{t("tableVisits")}</span>
+                </dt>
+                <dd>
+                  {visitCount > 0
+                    ? `${visitCount} · ${formatDateTime(
+                        format,
+                        activity?.lastVisitAt ?? null,
+                        t("noVisitsYet"),
+                      )}`
+                    : t("noVisitsYet")}
+                </dd>
+              </div>
+              <div className="task-fact">
+                <dt>
+                  <FlagIcon />
+                  <span className="sr-only">{t("tableOpenTasks")}</span>
+                </dt>
+                <dd>{activity?.openTaskCount ?? 0}</dd>
+              </div>
+            </dl>
+            <div className="task-card-links">
+              <a
+                className="task-card-open"
+                href={`/${tenantSlug}/manager/visits?locationId=${location.id}`}
+              >
+                {t("visits")}
+              </a>
+              <a
+                className="task-card-open"
+                href={`/${tenantSlug}/manager/tasks?locationId=${location.id}`}
+              >
+                {t("tasks")}
+              </a>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

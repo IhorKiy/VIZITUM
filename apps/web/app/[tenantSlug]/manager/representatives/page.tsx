@@ -1,5 +1,12 @@
 import { AppShell } from "../../../../components/app-shell";
 import {
+  CalendarIcon,
+  CheckIcon,
+  MailIcon,
+  MapPinIcon,
+  SearchIcon,
+} from "../../../../components/icons";
+import {
   getCurrentSession,
   listRoutes,
   listTasks,
@@ -166,20 +173,6 @@ export default async function ManagerRepresentativesPage({
           <p className="eyebrow">{tManager("eyebrow")}</p>
           <h1>{t("title")}</h1>
         </div>
-        <div className="toolbar">
-          <a className="secondary-button" href={`/${tenantSlug}/manager`}>
-            {t("overview")}
-          </a>
-          <a
-            className="secondary-button"
-            href={`/${tenantSlug}/manager/locations`}
-          >
-            {t("coverage")}
-          </a>
-          <a className="primary-button" href={`/${tenantSlug}/manager/tasks`}>
-            {t("tasks")}
-          </a>
-        </div>
       </header>
 
       <section className="manager-grid" aria-label={t("metricsAria")}>
@@ -232,39 +225,50 @@ export default async function ManagerRepresentativesPage({
           </div>
         </div>
 
-        <form
-          action={`/${tenantSlug}/manager/representatives`}
-          className="filter-form representatives-filter-form"
-        >
-          {selectedActivity ? (
-            <input name="activity" type="hidden" value={selectedActivity} />
-          ) : null}
-          <label>
-            {t("search")}
-            <input
-              defaultValue={search ?? ""}
-              name="search"
-              placeholder={t("searchPlaceholder")}
-              type="search"
-            />
-          </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
+        <details className="filter-disclosure" open={hasFilters}>
+          <summary className="filter-disclosure-summary">
+            {t("filtersLabel")}
             {hasFilters ? (
-              <a
-                className="secondary-button"
-                href={`/${tenantSlug}/manager/representatives`}
-              >
-                {tCommon("reset")}
-              </a>
+              <span aria-hidden="true" className="filter-active-dot" />
             ) : null}
-          </div>
-        </form>
+          </summary>
+          <form
+            action={`/${tenantSlug}/manager/representatives`}
+            className="filter-form representatives-filter-form"
+          >
+            {selectedActivity ? (
+              <input name="activity" type="hidden" value={selectedActivity} />
+            ) : null}
+            <label>
+              <span className="filter-field-icon" title={t("search")}>
+                <SearchIcon />
+                <span className="sr-only">{t("search")}</span>
+              </span>
+              <input
+                defaultValue={search ?? ""}
+                name="search"
+                placeholder={t("searchPlaceholder")}
+                type="search"
+              />
+            </label>
+            <div className="filter-actions">
+              <button className="secondary-button" type="submit">
+                {tCommon("applyFilters")}
+              </button>
+              {hasFilters ? (
+                <a
+                  className="secondary-button"
+                  href={`/${tenantSlug}/manager/representatives`}
+                >
+                  {tCommon("reset")}
+                </a>
+              ) : null}
+            </div>
+          </form>
+        </details>
 
         {representatives.length > 0 ? (
-          <RepresentativesTable
+          <RepresentativesCards
             representatives={representatives}
             tenantSlug={tenantSlug}
           />
@@ -292,7 +296,7 @@ export default async function ManagerRepresentativesPage({
   );
 }
 
-function RepresentativesTable({
+function RepresentativesCards({
   representatives,
   tenantSlug,
 }: {
@@ -302,70 +306,84 @@ function RepresentativesTable({
   const t = useTranslations("manager.representatives");
   const format = useFormatter();
 
+  // Same card layout as the manager task/visit/coverage lists (shared
+  // .task-card* styles): the rep is the title, the open-task count sits
+  // top-right as the headline pill (amber when work is pending), the workload
+  // facts use the same icon language, and the footer drills into that rep's
+  // visits and tasks.
   return (
-    <table className="table drilldown-table">
-      <thead>
-        <tr>
-          <th>{t("tableRepresentative")}</th>
-          <th>{t("tableRoutes")}</th>
-          <th>{t("tableVisits")}</th>
-          <th>{t("tableOpenTasks")}</th>
-          <th>{t("tableLastActivity")}</th>
-          <th>{t("tableActions")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {representatives.map((representative) => (
-          <tr key={representative.id}>
-            <td>
-              <strong>{representative.name}</strong>
-              <span>{representative.email}</span>
-            </td>
-            <td>{representative.routeCount}</td>
-            <td>
-              <strong>{representative.visitCount}</strong>
-              <span>
+    <ul className="task-cards">
+      {representatives.map((representative) => (
+        <li className="task-card" key={representative.id}>
+          <div className="task-card-top">
+            <h3 className="task-card-title">{representative.name}</h3>
+            <span
+              aria-label={`${t("tableOpenTasks")}: ${representative.openTaskCount}`}
+              className={`status-pill ${
+                representative.openTaskCount > 0 ? "warning" : "active"
+              }`}
+            >
+              {representative.openTaskCount}
+            </span>
+          </div>
+          <dl className="task-card-facts">
+            <div className="task-fact">
+              <dt>
+                <MailIcon />
+                <span className="sr-only">{t("email")}</span>
+              </dt>
+              <dd>{representative.email}</dd>
+            </div>
+            <div className="task-fact">
+              <dt>
+                <MapPinIcon />
+                <span className="sr-only">{t("tableRoutes")}</span>
+              </dt>
+              <dd>{representative.routeCount}</dd>
+            </div>
+            <div className="task-fact">
+              <dt>
+                <CheckIcon />
+                <span className="sr-only">{t("tableVisits")}</span>
+              </dt>
+              <dd>
+                {representative.visitCount} ·{" "}
                 {t("completedCount", {
                   count: representative.completedVisitCount,
                 })}
-              </span>
-            </td>
-            <td>
-              <span
-                className={`status-pill ${
-                  representative.openTaskCount > 0 ? "warning" : "active"
-                }`}
-              >
-                {representative.openTaskCount}
-              </span>
-            </td>
-            <td>
-              {formatDateTime(
-                format,
-                representative.lastActivityAt,
-                t("noActivity"),
-              )}
-            </td>
-            <td>
-              <div className="table-actions">
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/manager/visits?representativeUserId=${representative.id}`}
-                >
-                  {t("visits")}
-                </a>
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/manager/tasks?assignedToUserId=${representative.id}`}
-                >
-                  {t("tasks")}
-                </a>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+              </dd>
+            </div>
+            <div className="task-fact">
+              <dt>
+                <CalendarIcon />
+                <span className="sr-only">{t("tableLastActivity")}</span>
+              </dt>
+              <dd>
+                {formatDateTime(
+                  format,
+                  representative.lastActivityAt,
+                  t("noActivity"),
+                )}
+              </dd>
+            </div>
+          </dl>
+          <div className="task-card-links">
+            <a
+              className="task-card-open"
+              href={`/${tenantSlug}/manager/visits?representativeUserId=${representative.id}`}
+            >
+              {t("visits")}
+            </a>
+            <a
+              className="task-card-open"
+              href={`/${tenantSlug}/manager/tasks?assignedToUserId=${representative.id}`}
+            >
+              {t("tasks")}
+            </a>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 

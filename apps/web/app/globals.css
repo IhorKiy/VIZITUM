@@ -2296,6 +2296,19 @@ textarea {
   gap: 6px;
 }
 
+/* Filter fields are labelled by an icon instead of text; the name stays for
+   screen readers (sr-only) and as a hover tooltip on the label. */
+.filter-field-icon {
+  color: var(--muted);
+  display: inline-flex;
+  width: fit-content;
+}
+
+.filter-field-icon svg {
+  height: 16px;
+  width: 16px;
+}
+
 .filter-form input,
 .filter-form select {
   background: #ffffff;
@@ -2372,38 +2385,61 @@ textarea {
   width: 1px;
 }
 
-/* Manager task list: a real table on desktop, a compact card list below 1080px
-   (where a sidebar-reduced panel can't hold 7 columns). Both are rendered; the
-   media query at the bottom of this file toggles which one shows. */
-.manager-task-table {
-  min-width: 640px;
+/* Manager task list: one card layout at every width (the desktop table was
+   dropped in favour of the cards). Scanning cues, shared by every card:
+   - high priority reads amber (important, but not an error),
+   - overdue reads in danger red (late) with a small tag and a card accent —
+     two distinct signals so an important-but-on-time task never looks late. */
+.priority-tag {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
 }
 
-.manager-task-table .nowrap-cell {
-  white-space: nowrap;
+.priority-tag.is-high {
+  color: var(--gold);
+  font-weight: 800;
 }
 
-/* Stack the status select over its Save button so the update column stays
-   narrow (~120px) and the 7-column table fits the desktop panel. */
-.manager-task-table .inline-control-form {
-  align-items: stretch;
-  flex-direction: column;
-  gap: 8px;
+.priority-tag.is-high svg {
+  height: 14px;
+  width: 14px;
 }
 
-.manager-task-table .inline-control-form select {
-  min-width: 0;
-  width: 100%;
+.due-overdue {
+  align-items: baseline;
+  color: var(--danger);
+  display: inline-flex;
+  flex-wrap: wrap;
+  font-weight: 800;
+  gap: 6px;
 }
 
-.manager-task-table .inline-control-form .secondary-button {
-  white-space: nowrap;
-  width: 100%;
+.overdue-tag {
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-line);
+  border-radius: 999px;
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  text-transform: uppercase;
 }
 
-/* Card list is hidden on desktop; the 1080px media query reveals it. */
+/* A hairline red rail on overdue cards, visible when scanning the list edge
+   without competing with the card content. */
+.task-card.is-overdue {
+  border-color: var(--danger-line);
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
 .task-cards {
-  display: none;
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .task-card {
@@ -2511,6 +2547,46 @@ textarea {
 
 .task-card-more {
   margin-top: 12px;
+}
+
+/* Visit cards have no inline detail to expand; instead the footer is a link to
+   the visit page, styled to match the task card's "details" summary so both
+   lists share one footer affordance. */
+.task-card-open {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+  letter-spacing: 0.02em;
+  margin-top: 12px;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.task-card-open::after {
+  content: "›";
+  font-size: 18px;
+  line-height: 1;
+}
+
+.task-card-open:hover {
+  color: var(--accent-strong);
+}
+
+/* Coverage cards drill down to two places (visits / tasks for the location);
+   lay the footer links in a row, and drop their own top margin since the row
+   already spaces them from the facts. */
+.task-card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.task-card-links .task-card-open {
+  margin-top: 0;
 }
 
 .task-card-more > summary {
@@ -2946,24 +3022,6 @@ textarea {
   font-size: 13px;
   font-weight: 800;
   padding: 10px 12px;
-}
-
-/* The 7-column tasks table needs ~720px of content width. On desktop the 248px
-   sidebar leaves the panel below that until the viewport is ~1080px wide, so
-   swap the table for the card list up to 1080px — decoupled from the 920px
-   shell breakpoint so the desktop sidebar stays put. */
-@media (max-width: 1080px) {
-  .manager-task-table {
-    display: none;
-  }
-
-  .task-cards {
-    display: grid;
-    gap: 12px;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
 }
 
 @media (max-width: 920px) {
