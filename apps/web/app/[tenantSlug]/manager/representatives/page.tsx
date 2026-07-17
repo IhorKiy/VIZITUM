@@ -7,6 +7,7 @@ import {
   filterCountTags,
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { FilterPills } from "../../../../components/filter-pills";
 import {
   CalendarIcon,
   CheckIcon,
@@ -166,13 +167,6 @@ export default async function ManagerRepresentativesPage({
     },
   );
   const counters = buildRepresentativeCounters(representatives, t);
-  const filterSummary = buildRepresentativeFilterSummary(
-    {
-      activity: selectedActivity,
-      search,
-    },
-    t,
-  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-representatives">
@@ -200,72 +194,51 @@ export default async function ManagerRepresentativesPage({
         ))}
       </section>
 
-      <section className="panel drilldown-panel">
-        <div className="panel-toolbar">
-          <div className="panel-title-stack">
-            <h2>{t("workload")}</h2>
-            <p>{t("showingSummary", { summary: filterSummary })}</p>
-          </div>
-          <div className="filter-pills" aria-label={t("activityFiltersAria")}>
-            <a
-              aria-current={!selectedActivity ? "page" : undefined}
-              href={buildRepresentativeFilterHref(tenantSlug, {
-                activity: null,
-                search,
-              })}
-            >
-              {tCommon("all")}
-            </a>
-            {activityFilters.map((filter) => (
-              <a
-                aria-current={
-                  selectedActivity === filter.value ? "page" : undefined
-                }
-                href={buildRepresentativeFilterHref(tenantSlug, {
-                  activity: filter.value,
-                  search,
-                })}
-                key={filter.value}
-              >
-                {t(filter.labelKey)}
-              </a>
-            ))}
-          </div>
-        </div>
-
-        <FilterDisclosure
-          hasFilters={hasFilters}
-          label={tCommon("filtersLabel")}
-        >
-          <FilterForm
-            action={`/${tenantSlug}/manager/representatives`}
-            className="filter-form representatives-filter-form"
-          >
-            {selectedActivity ? (
-              <input name="activity" type="hidden" value={selectedActivity} />
-            ) : null}
-            <FilterField icon={<SearchIcon />} label={t("search")}>
-              <input
-                defaultValue={search ?? ""}
-                name="search"
-                placeholder={t("searchPlaceholder")}
-                type="search"
-              />
-            </FilterField>
-            <FilterFooter
-              resetHref={
-                hasFilters
-                  ? `/${tenantSlug}/manager/representatives`
-                  : undefined
-              }
-              resetLabel={tCommon("reset")}
-              resultText={t.rich("filterResultCount", {
-                ...filterCountTags,
-                count: representatives.length,
-              })}
+      <section aria-label={t("workload")} className="panel drilldown-panel">
+        <FilterForm action={`/${tenantSlug}/manager/representatives`}>
+          <div className="panel-toolbar">
+            <FilterPills
+              ariaLabel={t("activityFiltersAria")}
+              name="activity"
+              options={[
+                { label: tCommon("all"), value: "" },
+                ...activityFilters.map((filter) => ({
+                  label: t(filter.labelKey),
+                  value: filter.value,
+                })),
+              ]}
+              value={selectedActivity ?? ""}
             />
-          </FilterForm>
-        </FilterDisclosure>
+          </div>
+
+          <FilterDisclosure
+            hasFilters={hasFilters}
+            label={tCommon("filtersLabel")}
+          >
+            <div className="filter-form representatives-filter-form">
+              <FilterField icon={<SearchIcon />} label={t("search")}>
+                <input
+                  defaultValue={search ?? ""}
+                  name="search"
+                  placeholder={t("searchPlaceholder")}
+                  type="search"
+                />
+              </FilterField>
+              <FilterFooter
+                resetHref={
+                  hasFilters
+                    ? `/${tenantSlug}/manager/representatives`
+                    : undefined
+                }
+                resetLabel={tCommon("reset")}
+                resultText={t.rich("filterResultCount", {
+                  ...filterCountTags,
+                  count: representatives.length,
+                })}
+              />
+            </div>
+          </FilterDisclosure>
+        </FilterForm>
 
         {representatives.length > 0 ? (
           <RepresentativesCards
@@ -526,45 +499,6 @@ function buildRepresentativeCounters(
   ];
 }
 
-function buildRepresentativeFilterHref(
-  tenantSlug: string,
-  filters: {
-    activity: RepresentativeActivityFilter | null;
-    search: string | null;
-  },
-): string {
-  const query = new URLSearchParams();
-
-  if (filters.activity) {
-    query.set("activity", filters.activity);
-  }
-
-  if (filters.search) {
-    query.set("search", filters.search);
-  }
-
-  const suffix = query.toString();
-
-  return `/${tenantSlug}/manager/representatives${suffix ? `?${suffix}` : ""}`;
-}
-
-function buildRepresentativeFilterSummary(
-  filters: {
-    activity: RepresentativeActivityFilter | null;
-    search: string | null;
-  },
-  t: RepresentativesTranslator,
-): string {
-  const parts = [
-    filters.activity
-      ? formatActivityFilter(filters.activity, t)
-      : t("summaryAll"),
-    filters.search ? t("summaryMatching", { search: filters.search }) : null,
-  ].filter(Boolean);
-
-  return parts.join(", ");
-}
-
 function normalizeActivityFilter(
   value: string | undefined,
 ): RepresentativeActivityFilter | null {
@@ -577,13 +511,4 @@ function normalizeActivityFilter(
   }
 
   return null;
-}
-
-function formatActivityFilter(
-  value: RepresentativeActivityFilter,
-  t: RepresentativesTranslator,
-): string {
-  const filter = activityFilters.find((entry) => entry.value === value);
-
-  return filter ? t(filter.labelKey) : value;
 }

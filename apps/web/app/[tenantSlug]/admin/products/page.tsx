@@ -14,6 +14,7 @@ import {
   filterCountTags,
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { FilterPills } from "../../../../components/filter-pills";
 import { SearchIcon, TagIcon } from "../../../../components/icons";
 import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import {
@@ -395,118 +396,70 @@ export default async function AdminProductsPage({
         updateAction={updateCategoryAction}
       />
 
-      <section className="panel drilldown-panel">
-        <div className="panel-toolbar">
-          <div className="panel-title-stack">
-            <h2>{t("productList")}</h2>
-            <p>
-              {selectedStatus
-                ? t("showingStatus", {
-                    status: formatEnumLabel(tCommon, selectedStatus),
-                    search: search ? t("searchSuffix", { search }) : "",
-                  })
-                : t("showingAll", {
-                    search: search ? t("searchSuffix", { search }) : "",
-                  })}
-            </p>
-          </div>
-          <div className="panel-toolbar-filters">
-            <div className="filter-pills" aria-label={t("statusFiltersAria")}>
-              <a
-                aria-current={!selectedStatus ? "page" : undefined}
-                href={buildProductHref(tenantSlug, {
-                  category: selectedCategory,
-                  search,
-                  view: viewParam,
-                })}
-              >
-                {tCommon("all")}
-              </a>
-              {productStatuses.map((status) => (
-                <a
-                  aria-current={selectedStatus === status ? "page" : undefined}
-                  href={buildProductHref(tenantSlug, {
-                    status,
-                    category: selectedCategory,
-                    search,
-                    view: viewParam,
-                  })}
-                  key={status}
-                >
-                  {formatEnumLabel(tCommon, status)}
-                </a>
-              ))}
-            </div>
-            <div className="filter-pills" aria-label={t("viewFiltersAria")}>
-              <a
-                aria-current={!groupByCategory ? "page" : undefined}
-                href={buildProductHref(tenantSlug, {
-                  status: selectedStatus,
-                  category: selectedCategory,
-                  search,
-                })}
-              >
-                {t("viewList")}
-              </a>
-              <a
-                aria-current={groupByCategory ? "page" : undefined}
-                href={buildProductHref(tenantSlug, {
-                  status: selectedStatus,
-                  category: selectedCategory,
-                  search,
-                  view: "category",
-                })}
-              >
-                {t("viewByCategory")}
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <FilterDisclosure
-          hasFilters={hasFilters}
-          label={tCommon("filtersLabel")}
-        >
-          <FilterForm
-            action={`/${tenantSlug}/admin/products`}
-            className="filter-form products-filter-form"
-          >
-            {selectedStatus ? (
-              <input name="status" type="hidden" value={selectedStatus} />
-            ) : null}
-            {groupByCategory ? (
-              <input name="view" type="hidden" value="category" />
-            ) : null}
-            <FilterField icon={<TagIcon />} label={t("category")}>
-              <select defaultValue={selectedCategory ?? ""} name="category">
-                <option value="">{tCommon("anyOption")}</option>
-                {categoryFilterOptions.map((category) => (
-                  <option key={category.id} value={category.name}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField icon={<SearchIcon />} label={t("search")}>
-              <input
-                defaultValue={search ?? ""}
-                name="search"
-                placeholder={t("searchPlaceholder")}
-                type="text"
+      <section aria-label={t("productList")} className="panel drilldown-panel">
+        <FilterForm action={`/${tenantSlug}/admin/products`}>
+          <div className="panel-toolbar">
+            <div className="panel-toolbar-filters">
+              <FilterPills
+                ariaLabel={t("statusFiltersAria")}
+                name="status"
+                options={[
+                  { label: tCommon("all"), value: "" },
+                  ...productStatuses.map((status) => ({
+                    label: formatEnumLabel(tCommon, status),
+                    value: status,
+                  })),
+                ]}
+                value={selectedStatus ?? ""}
               />
-            </FilterField>
-            <FilterFooter
-              resetHref={
-                hasFilters ? `/${tenantSlug}/admin/products` : undefined
-              }
-              resetLabel={tCommon("reset")}
-              resultText={t.rich("filterResultCount", {
-                ...filterCountTags,
-                count: productsResult.data.total,
-              })}
-            />
-          </FilterForm>
-        </FilterDisclosure>
+              <FilterPills
+                ariaLabel={t("viewFiltersAria")}
+                name="view"
+                options={[
+                  { label: t("viewList"), value: "" },
+                  { label: t("viewByCategory"), value: "category" },
+                ]}
+                value={viewParam ?? ""}
+              />
+            </div>
+          </div>
+
+          <FilterDisclosure
+            hasFilters={hasFilters}
+            label={tCommon("filtersLabel")}
+          >
+            <div className="filter-form products-filter-form">
+              <FilterField icon={<TagIcon />} label={t("category")}>
+                <select defaultValue={selectedCategory ?? ""} name="category">
+                  <option value="">{tCommon("anyOption")}</option>
+                  {categoryFilterOptions.map((category) => (
+                    <option key={category.id} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField icon={<SearchIcon />} label={t("search")}>
+                <input
+                  defaultValue={search ?? ""}
+                  name="search"
+                  placeholder={t("searchPlaceholder")}
+                  type="text"
+                />
+              </FilterField>
+              <FilterFooter
+                resetHref={
+                  hasFilters ? `/${tenantSlug}/admin/products` : undefined
+                }
+                resetLabel={tCommon("reset")}
+                resultText={t.rich("filterResultCount", {
+                  ...filterCountTags,
+                  count: productsResult.data.total,
+                })}
+              />
+            </div>
+          </FilterDisclosure>
+        </FilterForm>
 
         {products.length > 0 ? (
           groupByCategory ? (
@@ -694,38 +647,6 @@ function ProductRow({
       </div>
     </details>
   );
-}
-
-function buildProductHref(
-  tenantSlug: string,
-  filters: {
-    status?: ProductStatus | null;
-    category?: string | null;
-    search?: string | null;
-    view?: string | null;
-  },
-): string {
-  const query = new URLSearchParams();
-
-  if (filters.status) {
-    query.set("status", filters.status);
-  }
-
-  if (filters.category) {
-    query.set("category", filters.category);
-  }
-
-  if (filters.search) {
-    query.set("search", filters.search);
-  }
-
-  if (filters.view) {
-    query.set("view", filters.view);
-  }
-
-  const suffix = query.toString();
-
-  return `/${tenantSlug}/admin/products${suffix ? `?${suffix}` : ""}`;
 }
 
 function normalizeStatus(value: string | undefined): ProductStatus | null {

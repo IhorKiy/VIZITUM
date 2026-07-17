@@ -11,6 +11,7 @@ import {
   filterCountTags,
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { FilterPills } from "../../../../components/filter-pills";
 import {
   CalendarIcon,
   CheckIcon,
@@ -160,28 +161,6 @@ export default async function ManagerVisitsPage({
   const routeOptions = routesResult.ok
     ? buildRouteOptions(routesResult.data, locale)
     : [];
-  const selectedRepresentativeLabel =
-    representativeOptions.find(
-      (option) => option.id === selectedRepresentativeId,
-    )?.label ?? null;
-  const selectedRouteLabel =
-    routeOptions.find((option) => option.id === selectedRoutePlanId)?.label ??
-    null;
-  const selectedLocationLabel =
-    locationOptions.find((option) => option.id === selectedLocationId)?.label ??
-    null;
-  const filterSummary = selectedStatus
-    ? t("summaryStatusVisits", {
-        status: formatEnumLabel(tCommon, selectedStatus),
-      })
-    : t("summaryAllVisits");
-  const detailSummary = [
-    selectedRepresentativeLabel,
-    selectedLocationLabel,
-    selectedRouteLabel,
-    startedFrom ? t("summaryFrom", { date: startedFrom }) : null,
-    startedTo ? t("summaryTo", { date: startedTo }) : null,
-  ].filter(Boolean);
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
@@ -209,121 +188,90 @@ export default async function ManagerVisitsPage({
         ))}
       </section>
 
-      <section className="panel drilldown-panel">
-        <div className="panel-toolbar">
-          <div className="panel-title-stack">
-            <h2>{t("visitList")}</h2>
-            <p>
-              {t("showingSummary", {
-                summary: filterSummary,
-                details: detailSummary.length
-                  ? `, ${detailSummary.join(", ")}`
-                  : "",
-              })}
-            </p>
+      <section aria-label={t("visitList")} className="panel drilldown-panel">
+        <FilterForm action={`/${tenantSlug}/manager/visits`}>
+          <div className="panel-toolbar">
+            <FilterPills
+              ariaLabel={t("statusFiltersAria")}
+              name="status"
+              options={[
+                { label: tCommon("all"), value: "" },
+                ...visitStatuses.map((visitStatus) => ({
+                  label: formatEnumLabel(tCommon, visitStatus),
+                  value: visitStatus,
+                })),
+              ]}
+              value={selectedStatus ?? ""}
+            />
           </div>
-          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
-            <a
-              aria-current={!selectedStatus ? "page" : undefined}
-              href={buildVisitFilterHref(tenantSlug, null, {
-                locationId: selectedLocationId,
-                representativeUserId: selectedRepresentativeId,
-                routePlanId: selectedRoutePlanId,
-                startedFrom,
-                startedTo,
-              })}
-            >
-              {tCommon("all")}
-            </a>
-            {visitStatuses.map((visitStatus) => (
-              <a
-                aria-current={
-                  selectedStatus === visitStatus ? "page" : undefined
-                }
-                href={buildVisitFilterHref(tenantSlug, visitStatus, {
-                  locationId: selectedLocationId,
-                  representativeUserId: selectedRepresentativeId,
-                  routePlanId: selectedRoutePlanId,
-                  startedFrom,
-                  startedTo,
-                })}
-                key={visitStatus}
-              >
-                {formatEnumLabel(tCommon, visitStatus)}
-              </a>
-            ))}
-          </div>
-        </div>
 
-        <FilterDisclosure
-          hasFilters={hasFilters}
-          label={tCommon("filtersLabel")}
-        >
-          <FilterForm
-            action={`/${tenantSlug}/manager/visits`}
-            className="filter-form"
+          <FilterDisclosure
+            hasFilters={hasFilters}
+            label={tCommon("filtersLabel")}
           >
-            {selectedStatus ? (
-              <input name="status" type="hidden" value={selectedStatus} />
-            ) : null}
-            <FilterField icon={<RouteIcon />} label={t("route")}>
-              <select
-                defaultValue={selectedRoutePlanId ?? ""}
-                name="routePlanId"
-              >
-                <option value="">{tCommon("anyOption")}</option>
-                {routeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField icon={<MapPinIcon />} label={t("location")}>
-              <select defaultValue={selectedLocationId ?? ""} name="locationId">
-                <option value="">{tCommon("anyOption")}</option>
-                {locationOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField icon={<UserIcon />} label={t("representative")}>
-              <select
-                defaultValue={selectedRepresentativeId ?? ""}
-                name="representativeUserId"
-              >
-                <option value="">{tCommon("anyOption")}</option>
-                {representativeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterDateRange
-              fromLabel={t("startedFrom")}
-              fromName="startedFrom"
-              fromValue={startedFrom ?? ""}
-              label={t("visitPeriod")}
-              placeholder={tCommon("datePlaceholder")}
-              toLabel={t("startedTo")}
-              toName="startedTo"
-              toValue={startedTo ?? ""}
-            />
-            <FilterFooter
-              resetHref={
-                hasFilters ? `/${tenantSlug}/manager/visits` : undefined
-              }
-              resetLabel={tCommon("reset")}
-              resultText={t.rich("filterResultCount", {
-                ...filterCountTags,
-                count: visitsResult.data.total,
-              })}
-            />
-          </FilterForm>
-        </FilterDisclosure>
+            <div className="filter-form">
+              <FilterField icon={<RouteIcon />} label={t("route")}>
+                <select
+                  defaultValue={selectedRoutePlanId ?? ""}
+                  name="routePlanId"
+                >
+                  <option value="">{tCommon("anyOption")}</option>
+                  {routeOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField icon={<MapPinIcon />} label={t("location")}>
+                <select
+                  defaultValue={selectedLocationId ?? ""}
+                  name="locationId"
+                >
+                  <option value="">{tCommon("anyOption")}</option>
+                  {locationOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField icon={<UserIcon />} label={t("representative")}>
+                <select
+                  defaultValue={selectedRepresentativeId ?? ""}
+                  name="representativeUserId"
+                >
+                  <option value="">{tCommon("anyOption")}</option>
+                  {representativeOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterDateRange
+                fromLabel={t("startedFrom")}
+                fromName="startedFrom"
+                fromValue={startedFrom ?? ""}
+                label={t("visitPeriod")}
+                placeholder={tCommon("datePlaceholder")}
+                toLabel={t("startedTo")}
+                toName="startedTo"
+                toValue={startedTo ?? ""}
+              />
+              <FilterFooter
+                resetHref={
+                  hasFilters ? `/${tenantSlug}/manager/visits` : undefined
+                }
+                resetLabel={tCommon("reset")}
+                resultText={t.rich("filterResultCount", {
+                  ...filterCountTags,
+                  count: visitsResult.data.total,
+                })}
+              />
+            </div>
+          </FilterDisclosure>
+        </FilterForm>
 
         {visits.length > 0 ? (
           <VisitsCards tenantSlug={tenantSlug} visits={visits} />
@@ -476,48 +424,6 @@ function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
   }
 
   return null;
-}
-
-function buildVisitFilterHref(
-  tenantSlug: string,
-  status: VisitStatus | null,
-  filters: {
-    locationId: string | null;
-    representativeUserId: string | null;
-    routePlanId: string | null;
-    startedFrom: string | null;
-    startedTo: string | null;
-  },
-): string {
-  const query = new URLSearchParams();
-
-  if (status) {
-    query.set("status", status);
-  }
-
-  if (filters.representativeUserId) {
-    query.set("representativeUserId", filters.representativeUserId);
-  }
-
-  if (filters.locationId) {
-    query.set("locationId", filters.locationId);
-  }
-
-  if (filters.routePlanId) {
-    query.set("routePlanId", filters.routePlanId);
-  }
-
-  if (filters.startedFrom) {
-    query.set("startedFrom", filters.startedFrom);
-  }
-
-  if (filters.startedTo) {
-    query.set("startedTo", filters.startedTo);
-  }
-
-  const suffix = query.toString();
-
-  return `/${tenantSlug}/manager/visits${suffix ? `?${suffix}` : ""}`;
 }
 
 function normalizeFilterValue(value: string | undefined): string | null {

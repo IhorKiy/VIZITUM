@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { AssignTaskModal } from "../../../../components/assign-task-modal";
 import { CardFact } from "../../../../components/card-fact";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDateRange } from "../../../../components/filter-date-range";
@@ -13,6 +14,7 @@ import {
   filterCountTags,
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { FilterPills } from "../../../../components/filter-pills";
 import {
   CalendarIcon,
   FlagIcon,
@@ -23,9 +25,11 @@ import {
 import { TaskDetailsEditor } from "../../../../components/task-details-editor";
 import { TaskStatusEditor } from "../../../../components/task-status-editor";
 import {
+  createTask,
   listAdminLocations,
   listTodayRoutes,
   listTasks,
+  listVisits,
   updateTask,
   type Task,
   type TaskPriority,
@@ -36,17 +40,19 @@ import {
   buildRouteOptions,
   type FilterOption,
 } from "../../../../lib/filter-options";
-import {
-  formatEnumLabel,
-  type CommonTranslator,
-  type IntlFormatter,
-} from "../../../../lib/format";
+import { formatEnumLabel, type IntlFormatter } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import {
+  buildTaskAssigneeOptions,
+  buildTaskLocationOptions,
+  parseTaskPriorityInput,
+} from "../../../../lib/task-form";
 import { taskStatuses } from "../../../../lib/task-status";
 
 type ManagerTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    assign?: string;
     assignedToUserId?: string;
     dueFrom?: string;
     dueTo?: string;
@@ -55,6 +61,7 @@ type ManagerTasksPageProps = {
     priority?: string;
     routePlanId?: string;
     status?: string;
+    task?: string;
     updated?: string;
   }>;
 };
@@ -67,13 +74,18 @@ export default async function ManagerTasksPage({
 }: ManagerTasksPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [locale, timeZone, t, tManager, tCommon] = await Promise.all([
-    getLocale(),
-    getTimeZone(),
-    getTranslations("manager.tasks"),
-    getTranslations("manager"),
-    getTranslations("common"),
-  ]);
+  // The assign-task form and its notices live in the overview namespace, where
+  // the shared modal reads them from — the same strings, translated once.
+  const [locale, timeZone, t, tManager, tOverview, tCommon] = await Promise.all(
+    [
+      getLocale(),
+      getTimeZone(),
+      getTranslations("manager.tasks"),
+      getTranslations("manager"),
+      getTranslations("manager.overview"),
+      getTranslations("common"),
+    ],
+  );
   // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
   // against today's date in the tenant timezone (the same zone the formatted
   // dates render in), not the server's local midnight.
@@ -126,6 +138,38 @@ export default async function ManagerTasksPage({
     query.set("dueTo", dueTo);
   }
 
+  async function createTaskAction(formData: FormData) {
+    "use server";
+
+    const title = getFormString(formData, "title").trim();
+    const description = getFormString(formData, "description").trim();
+    const priority = parseTaskPriorityInput(formData.get("priority"));
+    const assignedToUserId = getFormString(formData, "assignedToUserId").trim();
+    const locationId = getFormString(formData, "locationId").trim();
+    const dueDate = getFormString(formData, "dueDate").trim();
+
+    if (!title) {
+      redirect(`/${tenantSlug}/manager/tasks?error=task&assign=1`);
+    }
+
+    const result = await createTask({
+      title,
+      priority,
+      ...(description ? { description } : {}),
+      ...(assignedToUserId ? { assignedToUserId } : {}),
+      ...(locationId ? { locationId } : {}),
+      ...(dueDate ? { dueDate } : {}),
+    });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/manager/tasks?error=task&assign=1`);
+    }
+
+    // Drops any active filter: the new task is the thing to look at, and it may
+    // well not match the filter that was on screen when it was created.
+    redirect(`/${tenantSlug}/manager/tasks?task=created`);
+  }
+
   async function updateTaskStatusAction(formData: FormData) {
     "use server";
 
@@ -166,12 +210,22 @@ export default async function ManagerTasksPage({
     redirect(`/${tenantSlug}/manager/tasks?updated=1`);
   }
 
-  const tasksResult = await listTasks(query.toString());
-  const allTasksResult = hasFilters
-    ? await listTasks("pageSize=100")
-    : tasksResult;
-  const routesResult = await listTodayRoutes();
-  const locationsResult = await listAdminLocations("pageSize=100");
+  const tasksPromise = listTasks(query.toString());
+  const [
+    tasksResult,
+    allTasksResult,
+    routesResult,
+    locationsResult,
+    visitsResult,
+  ] = await Promise.all([
+    tasksPromise,
+    hasFilters ? listTasks("pageSize=100") : tasksPromise,
+    listTodayRoutes(),
+    listAdminLocations("pageSize=100"),
+    // Only feeds the assign form: a representative with a visit but no route
+    // today and no task yet would otherwise be unassignable here.
+    listVisits(),
+  ]);
 
   if (!tasksResult.ok) {
     return (
@@ -219,27 +273,26 @@ export default async function ManagerTasksPage({
   const routeOptions = routesResult.ok
     ? buildRouteOptions(routesResult.data, locale)
     : [];
-  const selectedAssigneeLabel =
-    assigneeOptions.find((option) => option.id === selectedAssigneeId)?.label ??
-    null;
-  const selectedRouteLabel =
-    routeOptions.find((option) => option.id === selectedRoutePlanId)?.label ??
-    null;
-  const selectedLocationLabel =
-    locationOptions.find((option) => option.id === selectedLocationId)?.label ??
-    null;
-  const filterSummary = buildTaskFilterSummary(
-    {
-      assigneeLabel: selectedAssigneeLabel,
-      dueFrom,
-      dueTo,
-      locationLabel: selectedLocationLabel,
-      priority: selectedPriority,
-      routeLabel: selectedRouteLabel,
-      status: selectedStatus,
-    },
-    t,
-    tCommon,
+  const routes = routesResult.ok ? routesResult.data : [];
+  const visits = visitsResult.ok ? visitsResult.data.items : [];
+  // The filter lists exist to narrow what is already here, so they follow the
+  // tasks on screen; the assign form has to offer everyone who could take new
+  // work and every place that is still open for it.
+  const assignAssigneeOptions = buildTaskAssigneeOptions(
+    routes,
+    visits,
+    allTasksResult.ok ? allTasksResult.data.items : tasks,
+    locale,
+  );
+  const assignLocationOptions = buildTaskLocationOptions(
+    routes,
+    visits,
+    locationsResult.ok
+      ? locationsResult.data.items.filter(
+          (location) => location.status === "active",
+        )
+      : [],
+    locale,
   );
 
   return (
@@ -249,7 +302,33 @@ export default async function ManagerTasksPage({
           <p className="eyebrow">{tManager("eyebrow")}</p>
           <h1>{t("title")}</h1>
         </div>
+        <div className="toolbar">
+          <AssignTaskModal
+            action={createTaskAction}
+            assigneeOptions={assignAssigneeOptions}
+            locationOptions={assignLocationOptions}
+          />
+        </div>
       </header>
+
+      {pageState.task === "created" ? (
+        <DismissableNotice
+          actions={
+            <a
+              className="secondary-button"
+              href={`/${tenantSlug}/manager/tasks?assign=1`}
+            >
+              {tOverview("assignAnother")}
+            </a>
+          }
+          ariaLabel={tOverview("taskStatusAria")}
+          body={tOverview("taskCreatedBody")}
+          clearParams={["task"]}
+          eyebrow={tOverview("taskCreatedEyebrow")}
+          title={tOverview("taskCreatedTitle")}
+          tone="success"
+        />
+      ) : null}
 
       {pageState.updated ? (
         <DismissableNotice
@@ -262,7 +341,24 @@ export default async function ManagerTasksPage({
         />
       ) : null}
 
-      {pageState.error ? (
+      {pageState.error === "task" ? (
+        <DismissableNotice
+          actions={
+            <a
+              className="primary-button"
+              href={`/${tenantSlug}/manager/tasks?assign=1`}
+            >
+              {tOverview("returnToTaskForm")}
+            </a>
+          }
+          ariaLabel={tOverview("taskErrorAria")}
+          body={tOverview("taskErrorBody")}
+          clearParams={["error"]}
+          eyebrow={tOverview("taskErrorEyebrow")}
+          title={tOverview("taskErrorTitle")}
+          tone="danger"
+        />
+      ) : pageState.error ? (
         <DismissableNotice
           ariaLabel={t("errorAria")}
           body={t("errorBody")}
@@ -290,156 +386,104 @@ export default async function ManagerTasksPage({
         ))}
       </section>
 
-      <section className="panel drilldown-panel">
-        <div className="panel-toolbar">
-          <div className="panel-title-stack">
-            <h2>{t("taskList")}</h2>
-            <p>{t("showingSummary", { summary: filterSummary })}</p>
-          </div>
-          <div className="filter-groups">
-            <div className="filter-pills" aria-label={t("statusFiltersAria")}>
-              <a
-                aria-current={!selectedStatus ? "page" : undefined}
-                href={buildTaskFilterHref(tenantSlug, {
-                  assignedToUserId: selectedAssigneeId,
-                  dueFrom,
-                  dueTo,
-                  locationId: selectedLocationId,
-                  priority: selectedPriority,
-                  routePlanId: selectedRoutePlanId,
-                  status: null,
-                })}
-              >
-                {tCommon("all")}
-              </a>
-              {taskStatuses.map((status) => (
-                <a
-                  aria-current={selectedStatus === status ? "page" : undefined}
-                  href={buildTaskFilterHref(tenantSlug, {
-                    assignedToUserId: selectedAssigneeId,
-                    dueFrom,
-                    dueTo,
-                    locationId: selectedLocationId,
-                    priority: selectedPriority,
-                    routePlanId: selectedRoutePlanId,
-                    status,
-                  })}
-                  key={status}
-                >
-                  {formatEnumLabel(tCommon, status)}
-                </a>
-              ))}
-            </div>
-            <div className="filter-pills" aria-label={t("priorityFiltersAria")}>
-              <a
-                aria-current={!selectedPriority ? "page" : undefined}
-                href={buildTaskFilterHref(tenantSlug, {
-                  assignedToUserId: selectedAssigneeId,
-                  dueFrom,
-                  dueTo,
-                  locationId: selectedLocationId,
-                  priority: null,
-                  routePlanId: selectedRoutePlanId,
-                  status: selectedStatus,
-                })}
-              >
-                {t("anyPriority")}
-              </a>
-              {taskPriorities.map((priority) => (
-                <a
-                  aria-current={
-                    selectedPriority === priority ? "page" : undefined
-                  }
-                  href={buildTaskFilterHref(tenantSlug, {
-                    assignedToUserId: selectedAssigneeId,
-                    dueFrom,
-                    dueTo,
-                    locationId: selectedLocationId,
-                    priority,
-                    routePlanId: selectedRoutePlanId,
-                    status: selectedStatus,
-                  })}
-                  key={priority}
-                >
-                  {formatEnumLabel(tCommon, priority)}
-                </a>
-              ))}
+      <section aria-label={t("taskList")} className="panel drilldown-panel">
+        <FilterForm action={`/${tenantSlug}/manager/tasks`}>
+          <div className="panel-toolbar">
+            <div className="filter-groups">
+              <FilterPills
+                ariaLabel={t("statusFiltersAria")}
+                name="status"
+                options={[
+                  { label: tCommon("all"), value: "" },
+                  ...taskStatuses.map((status) => ({
+                    label: formatEnumLabel(tCommon, status),
+                    value: status,
+                  })),
+                ]}
+                value={selectedStatus ?? ""}
+              />
+              <FilterPills
+                ariaLabel={t("priorityFiltersAria")}
+                name="priority"
+                options={[
+                  { label: t("anyPriority"), value: "" },
+                  ...taskPriorities.map((priority) => ({
+                    label: formatEnumLabel(tCommon, priority),
+                    value: priority,
+                  })),
+                ]}
+                value={selectedPriority ?? ""}
+              />
             </div>
           </div>
-        </div>
 
-        <FilterDisclosure
-          hasFilters={hasFilters}
-          label={tCommon("filtersLabel")}
-        >
-          <FilterForm
-            action={`/${tenantSlug}/manager/tasks`}
-            className="filter-form"
+          <FilterDisclosure
+            hasFilters={hasFilters}
+            label={tCommon("filtersLabel")}
           >
-            {selectedStatus ? (
-              <input name="status" type="hidden" value={selectedStatus} />
-            ) : null}
-            {selectedPriority ? (
-              <input name="priority" type="hidden" value={selectedPriority} />
-            ) : null}
-            <FilterField icon={<RouteIcon />} label={t("route")}>
-              <select
-                defaultValue={selectedRoutePlanId ?? ""}
-                name="routePlanId"
-              >
-                <option value="">{tCommon("anyOption")}</option>
-                {routeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField icon={<MapPinIcon />} label={t("location")}>
-              <select defaultValue={selectedLocationId ?? ""} name="locationId">
-                <option value="">{tCommon("anyOption")}</option>
-                {locationOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField icon={<UserIcon />} label={t("assignee")}>
-              <select
-                defaultValue={selectedAssigneeId ?? ""}
-                name="assignedToUserId"
-              >
-                <option value="">{tCommon("anyOption")}</option>
-                {assigneeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterDateRange
-              fromLabel={t("dueFrom")}
-              fromName="dueFrom"
-              fromValue={dueFrom ?? ""}
-              label={t("duePeriod")}
-              placeholder={tCommon("datePlaceholder")}
-              toLabel={t("dueTo")}
-              toName="dueTo"
-              toValue={dueTo ?? ""}
-            />
-            <FilterFooter
-              resetHref={
-                hasFilters ? `/${tenantSlug}/manager/tasks` : undefined
-              }
-              resetLabel={tCommon("reset")}
-              resultText={t.rich("filterResultCount", {
-                ...filterCountTags,
-                count: tasksResult.data.total,
-              })}
-            />
-          </FilterForm>
-        </FilterDisclosure>
+            <div className="filter-form">
+              <FilterField icon={<RouteIcon />} label={t("route")}>
+                <select
+                  defaultValue={selectedRoutePlanId ?? ""}
+                  name="routePlanId"
+                >
+                  <option value="">{tCommon("anyOption")}</option>
+                  {routeOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField icon={<MapPinIcon />} label={t("location")}>
+                <select
+                  defaultValue={selectedLocationId ?? ""}
+                  name="locationId"
+                >
+                  <option value="">{tCommon("anyOption")}</option>
+                  {locationOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField icon={<UserIcon />} label={t("assignee")}>
+                <select
+                  defaultValue={selectedAssigneeId ?? ""}
+                  name="assignedToUserId"
+                >
+                  <option value="">{tCommon("anyOption")}</option>
+                  {assigneeOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterDateRange
+                fromLabel={t("dueFrom")}
+                fromName="dueFrom"
+                fromValue={dueFrom ?? ""}
+                label={t("duePeriod")}
+                placeholder={tCommon("datePlaceholder")}
+                toLabel={t("dueTo")}
+                toName="dueTo"
+                toValue={dueTo ?? ""}
+              />
+              <FilterFooter
+                resetHref={
+                  hasFilters ? `/${tenantSlug}/manager/tasks` : undefined
+                }
+                resetLabel={tCommon("reset")}
+                resultText={t.rich("filterResultCount", {
+                  ...filterCountTags,
+                  count: tasksResult.data.total,
+                })}
+              />
+            </div>
+          </FilterDisclosure>
+        </FilterForm>
 
         {tasks.length > 0 ? (
           <TasksCards
@@ -461,7 +505,10 @@ export default async function ManagerTasksPage({
                   {t("showAllTasks")}
                 </a>
               ) : null}
-              <a className="primary-button" href={`/${tenantSlug}/manager`}>
+              <a
+                className="primary-button"
+                href={`/${tenantSlug}/manager/tasks?assign=1`}
+              >
                 {t("assignTask")}
               </a>
             </div>
@@ -644,93 +691,6 @@ function buildTaskCounters(
       tone: overdue.length > 0 ? "warning" : "active",
     },
   ];
-}
-
-function buildTaskFilterHref(
-  tenantSlug: string,
-  filters: {
-    assignedToUserId: string | null;
-    dueFrom: string | null;
-    dueTo: string | null;
-    locationId: string | null;
-    priority: TaskPriority | null;
-    routePlanId: string | null;
-    status: TaskStatus | null;
-  },
-): string {
-  const query = new URLSearchParams();
-
-  if (filters.status) {
-    query.set("status", filters.status);
-  }
-
-  if (filters.priority) {
-    query.set("priority", filters.priority);
-  }
-
-  if (filters.assignedToUserId) {
-    query.set("assignedToUserId", filters.assignedToUserId);
-  }
-
-  if (filters.locationId) {
-    query.set("locationId", filters.locationId);
-  }
-
-  if (filters.routePlanId) {
-    query.set("routePlanId", filters.routePlanId);
-  }
-
-  if (filters.dueFrom) {
-    query.set("dueFrom", filters.dueFrom);
-  }
-
-  if (filters.dueTo) {
-    query.set("dueTo", filters.dueTo);
-  }
-
-  const suffix = query.toString();
-
-  return `/${tenantSlug}/manager/tasks${suffix ? `?${suffix}` : ""}`;
-}
-
-function buildTaskFilterSummary(
-  filters: {
-    assigneeLabel: string | null;
-    dueFrom: string | null;
-    dueTo: string | null;
-    locationLabel: string | null;
-    priority: TaskPriority | null;
-    routeLabel: string | null;
-    status: TaskStatus | null;
-  },
-  t: TasksTranslator,
-  tCommon: CommonTranslator,
-): string {
-  const parts = [
-    filters.status
-      ? t("summaryStatusTasks", {
-          status: formatEnumLabel(tCommon, filters.status),
-        })
-      : t("summaryAllTasks"),
-    filters.priority
-      ? t("summaryPriority", {
-          priority: formatEnumLabel(tCommon, filters.priority),
-        })
-      : null,
-    filters.assigneeLabel
-      ? t("summaryAssignedTo", { name: filters.assigneeLabel })
-      : null,
-    filters.locationLabel
-      ? t("summaryAtLocation", { name: filters.locationLabel })
-      : null,
-    filters.routeLabel
-      ? t("summaryOnRoute", { name: filters.routeLabel })
-      : null,
-    filters.dueFrom ? t("summaryFrom", { date: filters.dueFrom }) : null,
-    filters.dueTo ? t("summaryTo", { date: filters.dueTo }) : null,
-  ].filter(Boolean);
-
-  return parts.join(", ");
 }
 
 function normalizeFilterValue(value: string | undefined): string | null {
