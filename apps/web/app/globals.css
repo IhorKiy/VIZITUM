@@ -4,6 +4,9 @@
   --surface-muted: #f1f3f2;
   --ink: #17211b;
   --muted: #657066;
+  /* Unset form state — a placeholder, a mask, a filter's empty dash. Lighter
+     than --muted so "nothing chosen" never reads as a value. */
+  --placeholder: color-mix(in srgb, var(--muted) 75%, var(--surface));
   --line: #d8ded8;
   --accent: #176b5f;
   --accent-strong: #0d4f47;
@@ -2347,6 +2350,17 @@ textarea {
   width: 100%;
 }
 
+.filter-form input::placeholder {
+  color: var(--placeholder);
+}
+
+/* A select sitting on its empty dash is showing a placeholder, not a value, so
+   it should not carry a value's weight. Browsers without :has() keep the dash
+   in --ink, which is legible either way. */
+.filter-form select:has(option[value=""]:checked) {
+  color: var(--placeholder);
+}
+
 /* The field's own icon already stands for the calendar, so drop the native
    indicator and let a click anywhere in the input open the picker instead
    (see FilterForm) rather than showing the same icon twice. */
@@ -2367,7 +2381,7 @@ textarea {
 }
 
 .filter-date-placeholder {
-  color: var(--muted);
+  color: var(--placeholder);
   left: 34px;
   pointer-events: none;
   position: absolute;
