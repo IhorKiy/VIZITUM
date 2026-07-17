@@ -3248,6 +3248,9 @@ textarea {
     justify-items: stretch;
   }
 
+  /* Pairs, not a single column: one field per row would stretch each control
+     to the full panel width long before the screen is actually narrow. The
+     date range keeps its default span, so it still fills a row of its own. */
   .filter-form,
   .locations-filter-form,
   .representatives-filter-form,
@@ -3255,22 +3258,7 @@ textarea {
   .location-filter-form,
   .field-history-filter-form,
   .products-filter-form {
-    grid-template-columns: 1fr;
-  }
-
-  /* Nothing left to span in a single-column form. */
-  .filter-field--range {
-    grid-column: auto;
-  }
-
-  /* Side by side, the two date inputs are too narrow to show a full date, so
-     stack them; the dash only reads as a range while they share a row. */
-  .filter-date-range {
-    grid-template-columns: 1fr;
-  }
-
-  .filter-date-range-dash {
-    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .tenant-metrics-grid {
@@ -3295,6 +3283,35 @@ textarea {
 
   .mobile-nav {
     display: flex;
+  }
+}
+
+/* Phone width: a pair of filters no longer fits, so stack them. Must follow the
+   920px block to win over its two-column template. */
+@media (max-width: 640px) {
+  .filter-form,
+  .locations-filter-form,
+  .representatives-filter-form,
+  .locations-chains-filter-form,
+  .location-filter-form,
+  .field-history-filter-form,
+  .products-filter-form {
+    grid-template-columns: 1fr;
+  }
+
+  /* Nothing left to span in a single-column form. */
+  .filter-field--range {
+    grid-column: auto;
+  }
+
+  /* Side by side, the two date inputs are too narrow to show a full date, so
+     stack them; the dash only reads as a range while they share a row. */
+  .filter-date-range {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-date-range-dash {
+    display: none;
   }
 }
 
