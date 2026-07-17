@@ -1065,7 +1065,7 @@ textarea {
 
 /* Toolbar can carry two stacked pill groups (status + view mode). */
 .panel-toolbar-filters {
-  align-items: flex-end;
+  align-items: flex-start;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2177,7 +2177,7 @@ textarea {
 .filter-groups {
   display: grid;
   gap: 8px;
-  justify-items: end;
+  justify-items: start;
 }
 
 /* Collapsible wrapper for the tasks filter form: the disclosure owns the
@@ -2426,26 +2426,43 @@ textarea {
   font-weight: 800;
 }
 
+/* The pill rows open the panel, so they start where everything under them
+   starts: the filter disclosure, the cards, the panel's own edge. */
 .filter-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  justify-content: flex-end;
 }
 
-.filter-pills a {
+.filter-pills label {
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--muted);
+  cursor: pointer;
   font-size: 12px;
   font-weight: 850;
   padding: 7px 10px;
 }
 
-.filter-pills a[aria-current="page"] {
+/* The radio is what the pill actually is; the label draws it. Kept in the
+   layout and merely transparent so it still takes focus from the keyboard. */
+.filter-pills input {
+  height: 0;
+  opacity: 0;
+  position: absolute;
+  width: 0;
+}
+
+.filter-pills label:has(input:checked) {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
+}
+
+/* The radio carries focus but cannot show it, so the pill wears the ring. */
+.filter-pills label:has(input:focus-visible) {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
 }
 
 .drilldown-table td strong,
@@ -3199,7 +3216,6 @@ textarea {
   }
 
   .dashboard-grid,
-  .manager-grid,
   .import-grid,
   .admin-users-grid,
   .setup-grid,
@@ -3207,6 +3223,13 @@ textarea {
   .user-actions-grid,
   .import-template-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Metric cards hold a label and a number, so one per row wastes the width
+     and pushes the content they summarize off screen. Pack as many as fit
+     instead: two on a phone, three on a tablet, one below ~330px. */
+  .manager-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .setup-check {
@@ -3250,10 +3273,6 @@ textarea {
     overflow-x: auto;
   }
 
-  .filter-pills {
-    justify-content: flex-start;
-  }
-
   .inline-control-form {
     display: grid;
   }
@@ -3294,6 +3313,17 @@ textarea {
   .filter-date-range-dash {
     display: none;
   }
+
+  /* Two metric cards to a row leaves each about half as wide, so the desktop
+     padding and 34px number no longer earn their space. */
+  .metric-card {
+    padding: 12px;
+  }
+
+  .metric-value {
+    font-size: 26px;
+    margin-top: 4px;
+  }
 }
 
 /* The field (representative) zone is phone-only: force the mobile layout at
@@ -3323,9 +3353,24 @@ textarea {
    single column throughout the phone-only zone, the same way the shared
    mobile breakpoint does at narrow viewports. */
 .app-shell--mobile-only .dashboard-grid,
-.app-shell--mobile-only .manager-grid,
 .app-shell--mobile-only .visit-actions {
   grid-template-columns: 1fr;
+}
+
+/* Metric cards pack instead of collapsing, and shrink to phone proportions, the
+   same way the shared mobile breakpoint does — repeated here because this zone
+   renders the phone frame at every viewport width, including above 640px. */
+.app-shell--mobile-only .manager-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.app-shell--mobile-only .metric-card {
+  padding: 12px;
+}
+
+.app-shell--mobile-only .metric-value {
+  font-size: 26px;
+  margin-top: 4px;
 }
 
 /* Mirror the rest of the shared mobile breakpoint for the layout primitives
@@ -3339,8 +3384,7 @@ textarea {
   display: grid;
 }
 
-.app-shell--mobile-only .toolbar,
-.app-shell--mobile-only .filter-pills {
+.app-shell--mobile-only .toolbar {
   justify-content: flex-start;
 }
 

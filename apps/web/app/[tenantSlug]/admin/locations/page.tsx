@@ -14,6 +14,7 @@ import {
   filterCountTags,
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { FilterPills } from "../../../../components/filter-pills";
 import { MapIcon, SearchIcon } from "../../../../components/icons";
 import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -638,11 +639,6 @@ function LocationsSection({
           ...chains,
         ]
       : chains;
-  const selectedChainName = selectedChain
-    ? (chainFilterOptions.find((chain) => chain.id === selectedChain)?.name ??
-      selectedChain)
-    : null;
-
   const locationGroups = groupByChain
     ? buildEntityGroups(
         locations,
@@ -663,132 +659,81 @@ function LocationsSection({
         />
       </div>
 
+      {/* No heading of its own: the accordion this sits in is already titled. */}
       <div className="panel drilldown-panel">
-        <div className="panel-toolbar">
-          <div className="panel-title-stack">
-            <h2>{t("locationList")}</h2>
-            <p>
-              {selectedStatus
-                ? t("showingStatus", {
-                    status: formatEnumLabel(tCommon, selectedStatus),
-                    chain: selectedChainName
-                      ? t("chainSuffix", { chain: selectedChainName })
-                      : "",
-                    search: search ? t("searchSuffix", { search }) : "",
-                  })
-                : t("showingAll", {
-                    chain: selectedChainName
-                      ? t("chainSuffix", { chain: selectedChainName })
-                      : "",
-                    search: search ? t("searchSuffix", { search }) : "",
-                  })}
-            </p>
-          </div>
-          <div className="panel-toolbar-filters">
-            <div className="filter-pills" aria-label={t("statusFiltersAria")}>
-              <a
-                aria-current={!selectedStatus ? "page" : undefined}
-                href={buildFilterHref(tenantSlug, {
-                  ...baseParams,
-                  locChain: selectedChain,
-                  locSearch: search,
-                  locView: viewParam,
-                })}
-              >
-                {tCommon("all")}
-              </a>
-              {locationStatuses.map((status) => (
-                <a
-                  aria-current={selectedStatus === status ? "page" : undefined}
-                  href={buildFilterHref(tenantSlug, {
-                    ...baseParams,
-                    locStatus: status,
-                    locChain: selectedChain,
-                    locSearch: search,
-                    locView: viewParam,
-                  })}
-                  key={status}
-                >
-                  {formatEnumLabel(tCommon, status)}
-                </a>
-              ))}
-            </div>
-            <div className="filter-pills" aria-label={t("viewFiltersAria")}>
-              <a
-                aria-current={!groupByChain ? "page" : undefined}
-                href={buildFilterHref(tenantSlug, {
-                  ...baseParams,
-                  locStatus: selectedStatus,
-                  locChain: selectedChain,
-                  locSearch: search,
-                })}
-              >
-                {t("viewList")}
-              </a>
-              <a
-                aria-current={groupByChain ? "page" : undefined}
-                href={buildFilterHref(tenantSlug, {
-                  ...baseParams,
-                  locStatus: selectedStatus,
-                  locChain: selectedChain,
-                  locSearch: search,
-                  locView: "chain",
-                })}
-              >
-                {t("viewByChain")}
-              </a>
-            </div>
-          </div>
-        </div>
+        <FilterForm action={`/${tenantSlug}/admin/locations`}>
+          {/* Not filters: which accordion section is open, and the chains
+              section's own filters, both carried so filtering the locations
+              list leaves the rest of the page as it was. */}
+          <input name="open" type="hidden" value="locations" />
+          {Object.entries(carryParams).map(([name, value]) => (
+            <input key={name} name={name} type="hidden" value={value} />
+          ))}
 
-        <FilterDisclosure
-          hasFilters={hasFilters}
-          label={tCommon("filtersLabel")}
-        >
-          <FilterForm
-            action={`/${tenantSlug}/admin/locations`}
-            className="filter-form location-filter-form"
-          >
-            <input name="open" type="hidden" value="locations" />
-            {Object.entries(carryParams).map(([name, value]) => (
-              <input key={name} name={name} type="hidden" value={value} />
-            ))}
-            {selectedStatus ? (
-              <input name="locStatus" type="hidden" value={selectedStatus} />
-            ) : null}
-            {groupByChain ? (
-              <input name="locView" type="hidden" value="chain" />
-            ) : null}
-            <FilterField icon={<MapIcon />} label={t("chain")}>
-              <select defaultValue={selectedChain ?? ""} name="locChain">
-                <option value="">{tCommon("anyOption")}</option>
-                {chainFilterOptions.map((chain) => (
-                  <option key={chain.id} value={chain.id}>
-                    {chain.name}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField icon={<SearchIcon />} label={t("search")}>
-              <input
-                defaultValue={search ?? ""}
-                name="locSearch"
-                placeholder={t("searchPlaceholder")}
-                type="text"
+          <div className="panel-toolbar">
+            <div className="panel-toolbar-filters">
+              <FilterPills
+                ariaLabel={t("statusFiltersAria")}
+                name="locStatus"
+                options={[
+                  { label: tCommon("all"), value: "" },
+                  ...locationStatuses.map((status) => ({
+                    label: formatEnumLabel(tCommon, status),
+                    value: status,
+                  })),
+                ]}
+                value={selectedStatus ?? ""}
               />
-            </FilterField>
-            <FilterFooter
-              resetHref={
-                hasFilters ? buildFilterHref(tenantSlug, baseParams) : undefined
-              }
-              resetLabel={tCommon("reset")}
-              resultText={t.rich("filterResultCount", {
-                ...filterCountTags,
-                count: total,
-              })}
-            />
-          </FilterForm>
-        </FilterDisclosure>
+              <FilterPills
+                ariaLabel={t("viewFiltersAria")}
+                name="locView"
+                options={[
+                  { label: t("viewList"), value: "" },
+                  { label: t("viewByChain"), value: "chain" },
+                ]}
+                value={viewParam ?? ""}
+              />
+            </div>
+          </div>
+
+          <FilterDisclosure
+            hasFilters={hasFilters}
+            label={tCommon("filtersLabel")}
+          >
+            <div className="filter-form location-filter-form">
+              <FilterField icon={<MapIcon />} label={t("chain")}>
+                <select defaultValue={selectedChain ?? ""} name="locChain">
+                  <option value="">{tCommon("anyOption")}</option>
+                  {chainFilterOptions.map((chain) => (
+                    <option key={chain.id} value={chain.id}>
+                      {chain.name}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField icon={<SearchIcon />} label={t("search")}>
+                <input
+                  defaultValue={search ?? ""}
+                  name="locSearch"
+                  placeholder={t("searchPlaceholder")}
+                  type="text"
+                />
+              </FilterField>
+              <FilterFooter
+                resetHref={
+                  hasFilters
+                    ? buildFilterHref(tenantSlug, baseParams)
+                    : undefined
+                }
+                resetLabel={tCommon("reset")}
+                resultText={t.rich("filterResultCount", {
+                  ...filterCountTags,
+                  count: total,
+                })}
+              />
+            </div>
+          </FilterDisclosure>
+        </FilterForm>
 
         {locations.length > 0 ? (
           groupByChain ? (
@@ -889,82 +834,60 @@ function ChainsSection({
         <AddChainModal action={createChainAction} />
       </div>
 
+      {/* No heading of its own: the accordion this sits in is already titled. */}
       <div className="panel drilldown-panel">
-        <div className="panel-toolbar">
-          <div className="panel-title-stack">
-            <h2>{t("chainList")}</h2>
-            <p>
-              {selectedStatus
-                ? t("showingStatus", {
-                    status: formatEnumLabel(tCommon, selectedStatus),
-                    search: search ? t("searchSuffix", { search }) : "",
-                  })
-                : t("showingAll", {
-                    search: search ? t("searchSuffix", { search }) : "",
-                  })}
-            </p>
-          </div>
-          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
-            <a
-              aria-current={!selectedStatus ? "page" : undefined}
-              href={buildFilterHref(tenantSlug, {
-                ...baseParams,
-                chainSearch: search,
-              })}
-            >
-              {tCommon("all")}
-            </a>
-            {chainStatuses.map((status) => (
-              <a
-                aria-current={selectedStatus === status ? "page" : undefined}
-                href={buildFilterHref(tenantSlug, {
-                  ...baseParams,
-                  chainStatus: status,
-                  chainSearch: search,
-                })}
-                key={status}
-              >
-                {formatEnumLabel(tCommon, status)}
-              </a>
-            ))}
-          </div>
-        </div>
+        <FilterForm action={`/${tenantSlug}/admin/locations`}>
+          {/* Not filters: which accordion section is open, and the locations
+              section's own filters, both carried so filtering the chains list
+              leaves the rest of the page as it was. */}
+          <input name="open" type="hidden" value="chains" />
+          {Object.entries(carryParams).map(([name, value]) => (
+            <input key={name} name={name} type="hidden" value={value} />
+          ))}
 
-        <FilterDisclosure
-          hasFilters={hasFilters}
-          label={tCommon("filtersLabel")}
-        >
-          <FilterForm
-            action={`/${tenantSlug}/admin/locations`}
-            className="filter-form locations-chains-filter-form"
-          >
-            <input name="open" type="hidden" value="chains" />
-            {Object.entries(carryParams).map(([name, value]) => (
-              <input key={name} name={name} type="hidden" value={value} />
-            ))}
-            {selectedStatus ? (
-              <input name="chainStatus" type="hidden" value={selectedStatus} />
-            ) : null}
-            <FilterField icon={<SearchIcon />} label={t("search")}>
-              <input
-                defaultValue={search ?? ""}
-                name="chainSearch"
-                placeholder={t("searchPlaceholder")}
-                type="text"
-              />
-            </FilterField>
-            <FilterFooter
-              resetHref={
-                hasFilters ? buildFilterHref(tenantSlug, baseParams) : undefined
-              }
-              resetLabel={tCommon("reset")}
-              resultText={t.rich("filterResultCount", {
-                ...filterCountTags,
-                count: total,
-              })}
+          <div className="panel-toolbar">
+            <FilterPills
+              ariaLabel={t("statusFiltersAria")}
+              name="chainStatus"
+              options={[
+                { label: tCommon("all"), value: "" },
+                ...chainStatuses.map((status) => ({
+                  label: formatEnumLabel(tCommon, status),
+                  value: status,
+                })),
+              ]}
+              value={selectedStatus ?? ""}
             />
-          </FilterForm>
-        </FilterDisclosure>
+          </div>
+
+          <FilterDisclosure
+            hasFilters={hasFilters}
+            label={tCommon("filtersLabel")}
+          >
+            <div className="filter-form locations-chains-filter-form">
+              <FilterField icon={<SearchIcon />} label={t("search")}>
+                <input
+                  defaultValue={search ?? ""}
+                  name="chainSearch"
+                  placeholder={t("searchPlaceholder")}
+                  type="text"
+                />
+              </FilterField>
+              <FilterFooter
+                resetHref={
+                  hasFilters
+                    ? buildFilterHref(tenantSlug, baseParams)
+                    : undefined
+                }
+                resetLabel={tCommon("reset")}
+                resultText={t.rich("filterResultCount", {
+                  ...filterCountTags,
+                  count: total,
+                })}
+              />
+            </div>
+          </FilterDisclosure>
+        </FilterForm>
 
         {chains.length > 0 ? (
           <div className="admin-user-list">

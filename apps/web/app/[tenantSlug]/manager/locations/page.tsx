@@ -7,6 +7,7 @@ import {
   filterCountTags,
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { FilterPills } from "../../../../components/filter-pills";
 import {
   CalendarIcon,
   FlagIcon,
@@ -34,7 +35,6 @@ import {
   formatEnumLabel,
   normalizeFilterValue,
   statusTone,
-  type CommonTranslator,
 } from "../../../../lib/format";
 
 type ManagerLocationsPageProps = {
@@ -202,17 +202,6 @@ export default async function ManagerLocationsPage({
     "territory",
     locale,
   );
-  const filterSummary = buildLocationFilterSummary(
-    {
-      city: selectedCity,
-      region: selectedRegion,
-      search,
-      status: selectedStatus,
-      territory: selectedTerritory,
-    },
-    t,
-    tCommon,
-  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-locations">
@@ -240,104 +229,82 @@ export default async function ManagerLocationsPage({
         ))}
       </section>
 
-      <section className="panel drilldown-panel">
-        <div className="panel-toolbar">
-          <div className="panel-title-stack">
-            <h2>{t("locationCoverage")}</h2>
-            <p>{t("showingSummary", { summary: filterSummary })}</p>
-          </div>
-          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
-            <a
-              aria-current={!selectedStatus ? "page" : undefined}
-              href={buildLocationFilterHref(tenantSlug, {
-                city: selectedCity,
-                region: selectedRegion,
-                search,
-                status: null,
-                territory: selectedTerritory,
-              })}
-            >
-              {tCommon("all")}
-            </a>
-            {locationStatuses.map((status) => (
-              <a
-                aria-current={selectedStatus === status ? "page" : undefined}
-                href={buildLocationFilterHref(tenantSlug, {
-                  city: selectedCity,
-                  region: selectedRegion,
-                  search,
-                  status,
-                  territory: selectedTerritory,
-                })}
-                key={status}
-              >
-                {formatEnumLabel(tCommon, status)}
-              </a>
-            ))}
-          </div>
-        </div>
-
-        <FilterDisclosure
-          hasFilters={hasFilters}
-          label={tCommon("filtersLabel")}
-        >
-          <FilterForm
-            action={`/${tenantSlug}/manager/locations`}
-            className="filter-form locations-filter-form"
-          >
-            {selectedStatus ? (
-              <input name="status" type="hidden" value={selectedStatus} />
-            ) : null}
-            <FilterField icon={<SearchIcon />} label={t("search")}>
-              <input
-                defaultValue={search ?? ""}
-                name="search"
-                placeholder={t("searchPlaceholder")}
-                type="search"
-              />
-            </FilterField>
-            <FilterField icon={<MapPinIcon />} label={t("city")}>
-              <select defaultValue={selectedCity ?? ""} name="city">
-                <option value="">{tCommon("anyOption")}</option>
-                {cityOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField icon={<MapIcon />} label={t("region")}>
-              <select defaultValue={selectedRegion ?? ""} name="region">
-                <option value="">{tCommon("anyOption")}</option>
-                {regionOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterField icon={<TagIcon />} label={t("territory")}>
-              <select defaultValue={selectedTerritory ?? ""} name="territory">
-                <option value="">{tCommon("anyOption")}</option>
-                {territoryOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-            <FilterFooter
-              resetHref={
-                hasFilters ? `/${tenantSlug}/manager/locations` : undefined
-              }
-              resetLabel={tCommon("reset")}
-              resultText={t.rich("filterResultCount", {
-                ...filterCountTags,
-                count: locationsResult.data.total,
-              })}
+      <section
+        aria-label={t("locationCoverage")}
+        className="panel drilldown-panel"
+      >
+        <FilterForm action={`/${tenantSlug}/manager/locations`}>
+          <div className="panel-toolbar">
+            <FilterPills
+              ariaLabel={t("statusFiltersAria")}
+              name="status"
+              options={[
+                { label: tCommon("all"), value: "" },
+                ...locationStatuses.map((status) => ({
+                  label: formatEnumLabel(tCommon, status),
+                  value: status,
+                })),
+              ]}
+              value={selectedStatus ?? ""}
             />
-          </FilterForm>
-        </FilterDisclosure>
+          </div>
+
+          <FilterDisclosure
+            hasFilters={hasFilters}
+            label={tCommon("filtersLabel")}
+          >
+            <div className="filter-form locations-filter-form">
+              <FilterField icon={<SearchIcon />} label={t("search")}>
+                <input
+                  defaultValue={search ?? ""}
+                  name="search"
+                  placeholder={t("searchPlaceholder")}
+                  type="search"
+                />
+              </FilterField>
+              <FilterField icon={<MapPinIcon />} label={t("city")}>
+                <select defaultValue={selectedCity ?? ""} name="city">
+                  <option value="">{tCommon("anyOption")}</option>
+                  {cityOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField icon={<MapIcon />} label={t("region")}>
+                <select defaultValue={selectedRegion ?? ""} name="region">
+                  <option value="">{tCommon("anyOption")}</option>
+                  {regionOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterField icon={<TagIcon />} label={t("territory")}>
+                <select defaultValue={selectedTerritory ?? ""} name="territory">
+                  <option value="">{tCommon("anyOption")}</option>
+                  {territoryOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <FilterFooter
+                resetHref={
+                  hasFilters ? `/${tenantSlug}/manager/locations` : undefined
+                }
+                resetLabel={tCommon("reset")}
+                resultText={t.rich("filterResultCount", {
+                  ...filterCountTags,
+                  count: locationsResult.data.total,
+                })}
+              />
+            </div>
+          </FilterDisclosure>
+        </FilterForm>
 
         {locations.length > 0 ? (
           <LocationsCards
@@ -570,71 +537,6 @@ async function fetchAllLocations(): Promise<Location[]> {
   }
 
   return items;
-}
-
-function buildLocationFilterHref(
-  tenantSlug: string,
-  filters: {
-    city: string | null;
-    region: string | null;
-    search: string | null;
-    status: LocationStatus | null;
-    territory: string | null;
-  },
-): string {
-  const query = new URLSearchParams();
-
-  if (filters.status) {
-    query.set("status", filters.status);
-  }
-
-  if (filters.search) {
-    query.set("search", filters.search);
-  }
-
-  if (filters.city) {
-    query.set("city", filters.city);
-  }
-
-  if (filters.region) {
-    query.set("region", filters.region);
-  }
-
-  if (filters.territory) {
-    query.set("territory", filters.territory);
-  }
-
-  const suffix = query.toString();
-
-  return `/${tenantSlug}/manager/locations${suffix ? `?${suffix}` : ""}`;
-}
-
-function buildLocationFilterSummary(
-  filters: {
-    city: string | null;
-    region: string | null;
-    search: string | null;
-    status: LocationStatus | null;
-    territory: string | null;
-  },
-  t: LocationsTranslator,
-  tCommon: CommonTranslator,
-): string {
-  const parts = [
-    filters.status
-      ? t("summaryStatusLocations", {
-          status: formatEnumLabel(tCommon, filters.status),
-        })
-      : t("summaryAllLocations"),
-    filters.search ? t("summaryMatching", { search: filters.search }) : null,
-    filters.city ? t("summaryInCity", { city: filters.city }) : null,
-    filters.region ? t("summaryRegion", { region: filters.region }) : null,
-    filters.territory
-      ? t("summaryTerritory", { territory: filters.territory })
-      : null,
-  ].filter(Boolean);
-
-  return parts.join(", ");
 }
 
 function normalizeLocationStatus(

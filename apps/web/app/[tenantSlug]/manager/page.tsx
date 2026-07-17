@@ -12,7 +12,6 @@ import {
   listTodayRoutes,
   listVisits,
   recordDashboardView,
-  type Location,
   type RoutePlan,
   type Task,
   type Visit,
@@ -20,6 +19,11 @@ import {
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 import { formatEnumLabel, type CommonTranslator } from "../../../lib/format";
 import { getFormString } from "../../../lib/form";
+import {
+  buildTaskAssigneeOptions,
+  buildTaskLocationOptions,
+  parseTaskPriorityInput,
+} from "../../../lib/task-form";
 
 type ManagerPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -48,16 +52,6 @@ type AttentionItem = {
   tone: "info" | "warning";
   area: string;
   detail: string;
-};
-
-type TaskAssigneeOption = {
-  id: string;
-  label: string;
-};
-
-type TaskLocationOption = {
-  id: string;
-  label: string;
 };
 
 type OverviewTranslator = Awaited<
@@ -526,74 +520,6 @@ function buildAttentionItems(
       ];
 }
 
-function buildTaskAssigneeOptions(
-  routes: RoutePlan[],
-  visits: Visit[],
-  tasks: Task[],
-  locale: string,
-): TaskAssigneeOption[] {
-  const options = new Map<string, TaskAssigneeOption>();
-
-  routes.forEach((route) => {
-    options.set(route.representative.id, {
-      id: route.representative.id,
-      label: route.representative.name,
-    });
-  });
-  visits.forEach((visit) => {
-    options.set(visit.representative.id, {
-      id: visit.representative.id,
-      label: visit.representative.name,
-    });
-  });
-  tasks.forEach((task) => {
-    if (task.assignedTo) {
-      options.set(task.assignedTo.id, {
-        id: task.assignedTo.id,
-        label: task.assignedTo.name,
-      });
-    }
-  });
-
-  return [...options.values()].sort((a, b) =>
-    a.label.localeCompare(b.label, locale),
-  );
-}
-
-function buildTaskLocationOptions(
-  routes: RoutePlan[],
-  visits: Visit[],
-  locations: Location[],
-  locale: string,
-): TaskLocationOption[] {
-  const options = new Map<string, TaskLocationOption>();
-
-  routes.forEach((route) => {
-    route.items.forEach((item) => {
-      options.set(item.location.id, {
-        id: item.location.id,
-        label: item.location.name,
-      });
-    });
-  });
-  visits.forEach((visit) => {
-    options.set(visit.location.id, {
-      id: visit.location.id,
-      label: visit.location.name,
-    });
-  });
-  locations.forEach((location) => {
-    options.set(location.id, {
-      id: location.id,
-      label: location.name,
-    });
-  });
-
-  return [...options.values()].sort((a, b) =>
-    a.label.localeCompare(b.label, locale),
-  );
-}
-
 function buildManagerCsv(
   metrics: ManagerMetric[],
   representatives: RepresentativeSummary[],
@@ -627,10 +553,4 @@ function buildManagerCsv(
 
 function escapeCsvCell(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
-}
-
-function parseTaskPriorityInput(value: FormDataEntryValue | null) {
-  return value === "low" || value === "normal" || value === "high"
-    ? value
-    : "normal";
 }

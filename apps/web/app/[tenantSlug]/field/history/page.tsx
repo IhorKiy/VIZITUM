@@ -9,17 +9,14 @@ import {
   filterCountTags,
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { FilterPills } from "../../../../components/filter-pills";
 import {
   getCurrentSession,
   listVisits,
   type Visit,
   type VisitStatus,
 } from "../../../../lib/api-client";
-import {
-  formatDateTime,
-  formatEnumLabel,
-  type CommonTranslator,
-} from "../../../../lib/format";
+import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -135,15 +132,6 @@ export default async function FieldHistoryPage({
 
   const visits = visitsResult.data.items;
   const counters = buildHistoryCounters(visits, visitsResult.data.total, t);
-  const filterSummary = buildHistoryFilterSummary(
-    {
-      startedFrom,
-      startedTo,
-      status: selectedStatus,
-    },
-    t,
-    tCommon,
-  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-history">
@@ -180,70 +168,51 @@ export default async function FieldHistoryPage({
         ))}
       </section>
 
-      <section className="panel drilldown-panel">
-        <div className="panel-toolbar">
-          <div className="panel-title-stack">
-            <h2>{t("myVisits")}</h2>
-            <p>{t("showingSummary", { summary: filterSummary })}</p>
+      <section aria-label={t("myVisits")} className="panel drilldown-panel">
+        <FilterForm action={`/${tenantSlug}/field/history`}>
+          <div className="panel-toolbar">
+            <FilterPills
+              ariaLabel={t("statusFiltersAria")}
+              name="status"
+              options={[
+                { label: tCommon("all"), value: "" },
+                ...visitStatuses.map((status) => ({
+                  label: formatEnumLabel(tCommon, status),
+                  value: status,
+                })),
+              ]}
+              value={selectedStatus ?? ""}
+            />
           </div>
-          <div className="filter-pills" aria-label={t("statusFiltersAria")}>
-            <a
-              aria-current={!selectedStatus ? "page" : undefined}
-              href={buildHistoryFilterHref(tenantSlug, null, {
-                startedFrom,
-                startedTo,
-              })}
-            >
-              {tCommon("all")}
-            </a>
-            {visitStatuses.map((status) => (
-              <a
-                aria-current={selectedStatus === status ? "page" : undefined}
-                href={buildHistoryFilterHref(tenantSlug, status, {
-                  startedFrom,
-                  startedTo,
-                })}
-                key={status}
-              >
-                {formatEnumLabel(tCommon, status)}
-              </a>
-            ))}
-          </div>
-        </div>
 
-        <FilterDisclosure
-          hasFilters={hasFilters}
-          label={tCommon("filtersLabel")}
-        >
-          <FilterForm
-            action={`/${tenantSlug}/field/history`}
-            className="filter-form field-history-filter-form"
+          <FilterDisclosure
+            hasFilters={hasFilters}
+            label={tCommon("filtersLabel")}
           >
-            {selectedStatus ? (
-              <input name="status" type="hidden" value={selectedStatus} />
-            ) : null}
-            <FilterDateRange
-              fromLabel={t("startedFrom")}
-              fromName="startedFrom"
-              fromValue={startedFrom ?? ""}
-              label={t("visitPeriod")}
-              placeholder={tCommon("datePlaceholder")}
-              toLabel={t("startedTo")}
-              toName="startedTo"
-              toValue={startedTo ?? ""}
-            />
-            <FilterFooter
-              resetHref={
-                hasFilters ? `/${tenantSlug}/field/history` : undefined
-              }
-              resetLabel={tCommon("reset")}
-              resultText={t.rich("filterResultCount", {
-                ...filterCountTags,
-                count: visitsResult.data.total,
-              })}
-            />
-          </FilterForm>
-        </FilterDisclosure>
+            <div className="filter-form field-history-filter-form">
+              <FilterDateRange
+                fromLabel={t("startedFrom")}
+                fromName="startedFrom"
+                fromValue={startedFrom ?? ""}
+                label={t("visitPeriod")}
+                placeholder={tCommon("datePlaceholder")}
+                toLabel={t("startedTo")}
+                toName="startedTo"
+                toValue={startedTo ?? ""}
+              />
+              <FilterFooter
+                resetHref={
+                  hasFilters ? `/${tenantSlug}/field/history` : undefined
+                }
+                resetLabel={tCommon("reset")}
+                resultText={t.rich("filterResultCount", {
+                  ...filterCountTags,
+                  count: visitsResult.data.total,
+                })}
+              />
+            </div>
+          </FilterDisclosure>
+        </FilterForm>
 
         {visits.length > 0 ? (
           <HistoryTable visits={visits} />
@@ -350,57 +319,6 @@ function buildHistoryCounters(
       tone: unfinished.length > 0 ? "warning" : "active",
     },
   ];
-}
-
-function buildHistoryFilterHref(
-  tenantSlug: string,
-  status: VisitStatus | null,
-  filters: {
-    startedFrom: string | null;
-    startedTo: string | null;
-  },
-): string {
-  const query = new URLSearchParams();
-
-  if (status) {
-    query.set("status", status);
-  }
-
-  if (filters.startedFrom) {
-    query.set("startedFrom", filters.startedFrom);
-  }
-
-  if (filters.startedTo) {
-    query.set("startedTo", filters.startedTo);
-  }
-
-  const suffix = query.toString();
-
-  return `/${tenantSlug}/field/history${suffix ? `?${suffix}` : ""}`;
-}
-
-function buildHistoryFilterSummary(
-  filters: {
-    startedFrom: string | null;
-    startedTo: string | null;
-    status: VisitStatus | null;
-  },
-  t: HistoryTranslator,
-  tCommon: CommonTranslator,
-): string {
-  const parts = [
-    filters.status
-      ? t("summaryStatusVisits", {
-          status: formatEnumLabel(tCommon, filters.status),
-        })
-      : t("summaryAllVisits"),
-    filters.startedFrom
-      ? t("summaryFrom", { date: filters.startedFrom })
-      : null,
-    filters.startedTo ? t("summaryTo", { date: filters.startedTo }) : null,
-  ].filter(Boolean);
-
-  return parts.join(", ");
 }
 
 function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
