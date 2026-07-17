@@ -108,28 +108,30 @@ export async function AppShell({
           </div>
         </div>
 
-        {currentUser && currentZone !== "field" ? (
-          // The field zone shows the signed-in name in its page greeting
-          // ("Hi, {firstName}!"), so the topbar name would just duplicate it.
-          <p className="topbar-user-name">{currentUser.name}</p>
-        ) : null}
+        <div className="topbar-aside">
+          {currentUser && currentZone !== "field" ? (
+            // The field zone shows the signed-in name in its page greeting
+            // ("Hi, {firstName}!"), so the topbar name would just duplicate it.
+            <p className="topbar-user-name">{currentUser.name}</p>
+          ) : null}
 
-        {otherZones.length > 0 ? (
-          <div
-            aria-label={tZoneSwitcher("ariaLabel")}
-            className="zone-switcher zone-switcher-mobile"
-          >
-            {otherZones.map((zone) => (
-              <form action={selectZoneAction} key={zone}>
-                <input name="tenantSlug" type="hidden" value={tenantSlug} />
-                <input name="zone" type="hidden" value={zone} />
-                <button className="zone-switcher-link" type="submit">
-                  {tZoneNames(zone)}
-                </button>
-              </form>
-            ))}
-          </div>
-        ) : null}
+          {otherZones.length > 0 ? (
+            <div
+              aria-label={tZoneSwitcher("ariaLabel")}
+              className="zone-switcher-mobile"
+            >
+              {otherZones.map((zone) => (
+                <form action={selectZoneAction} key={zone}>
+                  <input name="tenantSlug" type="hidden" value={tenantSlug} />
+                  <input name="zone" type="hidden" value={zone} />
+                  <button className="zone-switcher-link" type="submit">
+                    {tZoneNames(zone)}
+                  </button>
+                </form>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </header>
 
       <aside className="sidebar" aria-label={tNav("ariaPrimary")}>

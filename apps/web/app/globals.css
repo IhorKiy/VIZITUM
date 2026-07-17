@@ -76,9 +76,12 @@ textarea {
 }
 
 .mobile-topbar {
+  align-items: center;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   display: none;
+  gap: 12px;
+  justify-content: space-between;
   padding: 14px 16px;
   position: sticky;
   top: 0;
@@ -107,16 +110,30 @@ textarea {
   margin: 2px 0 0;
 }
 
+/* Name and zone pills share the right end of the topbar, opposite the brand. */
+.topbar-aside {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
 .topbar-user-name {
   color: var(--muted);
   font-size: 12px;
-  margin: 8px 0 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .zone-switcher-mobile {
   display: flex;
   gap: 6px;
-  margin-top: 10px;
+  justify-content: flex-end;
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -126,7 +143,7 @@ textarea {
 
 .zone-switcher-mobile .zone-switcher-link {
   background: var(--surface-muted);
-  border-color: var(--line);
+  border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--ink);
   flex: 0 0 auto;
@@ -3191,7 +3208,7 @@ textarea {
   }
 
   .mobile-topbar {
-    display: block;
+    display: flex;
   }
 
   .main-surface {
@@ -3342,7 +3359,7 @@ textarea {
 }
 
 .app-shell--mobile-only .mobile-topbar {
-  display: block;
+  display: flex;
 }
 
 .app-shell--mobile-only .main-surface {
