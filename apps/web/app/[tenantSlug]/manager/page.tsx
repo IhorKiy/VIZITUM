@@ -112,9 +112,10 @@ export default async function ManagerPage({
 }: ManagerPageProps) {
   const { tenantSlug } = await params;
   const { task } = await searchParams;
-  const [locale, t, tManager, tCommon] = await Promise.all([
+  const [locale, t, tAssign, tManager, tCommon] = await Promise.all([
     getLocale(),
     getTranslations("manager.overview"),
+    getTranslations("manager.assignTask"),
     getTranslations("manager"),
     getTranslations("common"),
   ]);
@@ -163,7 +164,11 @@ export default async function ManagerPage({
     locationsResult,
   ] = await Promise.all([
     listTodayRoutes(),
-    listVisits(),
+    // Feeds both the confirmed-reports metric and the assign form's people, so
+    // ask for the API's maximum page the way the sibling manager lists do. The
+    // default page stops at 50, which undercounts the metric and hides
+    // assignable representatives.
+    listVisits("pageSize=100"),
     listTasks(),
     listHighPriorityTasks(),
     listLocations(),
@@ -280,21 +285,21 @@ export default async function ManagerPage({
                 className="secondary-button"
                 href={`/${tenantSlug}/manager?assign=1`}
               >
-                {t("assignAnother")}
+                {tAssign("assignAnother")}
               </a>
               <a
                 className="primary-button"
                 href={`/${tenantSlug}/manager/tasks`}
               >
-                {t("openTaskList")}
+                {tAssign("openTaskList")}
               </a>
             </>
           }
-          ariaLabel={t("taskStatusAria")}
-          body={t("taskCreatedBody")}
+          ariaLabel={tAssign("taskStatusAria")}
+          body={tAssign("taskCreatedBody")}
           clearParams={["task"]}
-          eyebrow={t("taskCreatedEyebrow")}
-          title={t("taskCreatedTitle")}
+          eyebrow={tAssign("taskCreatedEyebrow")}
+          title={tAssign("taskCreatedTitle")}
           tone="success"
         />
       ) : null}
