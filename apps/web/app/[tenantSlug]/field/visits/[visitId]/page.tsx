@@ -39,7 +39,7 @@ type FieldVisit = {
   name: string;
   address: string;
   status: string;
-  statusTone: "active" | "info" | "warning";
+  statusTone: ReturnType<typeof statusPillTone>;
   next: string;
   canConfirm: boolean;
   aiQualityState:

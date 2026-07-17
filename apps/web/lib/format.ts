@@ -83,7 +83,12 @@ export function statusTone(
   return status === "archived" ? "warning" : "info";
 }
 
-export function statusPillTone(status: string): "active" | "info" | "warning" {
+// Pill tone for a visit or task status. Work in flight is the only state that
+// carries the info tone: everything not started yet (open, draft) is neutral,
+// so "in progress" is not the same colour as the state it moved on from.
+export function statusPillTone(
+  status: string,
+): "active" | "info" | "neutral" | "warning" {
   if (status === "done" || status === "completed") {
     return "active";
   }
@@ -92,5 +97,9 @@ export function statusPillTone(status: string): "active" | "info" | "warning" {
     return "warning";
   }
 
-  return "info";
+  if (status === "in_progress") {
+    return "info";
+  }
+
+  return "neutral";
 }

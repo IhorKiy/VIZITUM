@@ -2547,54 +2547,46 @@ textarea {
 }
 
 /* The status pill doubles as an edit affordance: a chevron next to it hints the
-   status is changeable; clicking swaps it for a select that auto-saves. */
-.task-status-trigger {
+   status is changeable, and the select covering both auto-saves the pick. */
+.task-status {
   align-items: center;
-  background: transparent;
-  border: 0;
   border-radius: 999px;
-  cursor: pointer;
   display: inline-flex;
   flex-shrink: 0;
   gap: 4px;
-  padding: 0;
+  position: relative;
 }
 
-.task-status-trigger > svg {
+.task-status > svg {
   color: var(--muted);
   transition: color 0.12s ease;
 }
 
-.task-status-trigger:hover > svg {
+.task-status:hover > svg {
   color: var(--accent-strong);
 }
 
-.task-status-trigger:disabled {
+/* Invisible by design: the pill under it is the visual, while this stays the
+   real control — the hit area, the accessible name and the keyboard target. */
+.task-status-select {
+  cursor: pointer;
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+}
+
+.task-status-select:disabled {
   cursor: not-allowed;
+}
+
+.task-status:has(.task-status-select:disabled) {
   opacity: 0.6;
 }
 
-.task-status-trigger:focus-visible {
+/* The select carries focus but cannot show it, so the wrapper wears the ring. */
+.task-status:has(.task-status-select:focus-visible) {
   outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
-}
-
-.task-status-select {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--ink);
-  flex-shrink: 0;
-  font-family: inherit;
-  font-size: 13px;
-  min-height: 36px;
-  padding: 4px 8px;
-}
-
-.task-status-select:focus-visible {
-  border-color: var(--accent-strong);
-  outline: 2px solid var(--accent-strong);
-  outline-offset: 1px;
 }
 
 /* Icon-labelled facts (assignee, location, priority, due) wrap onto as many
@@ -2873,6 +2865,11 @@ textarea {
 
 .status-pill.info {
   background: var(--blue);
+}
+
+/* Not started yet — reads as quieter than the work that is actually moving. */
+.status-pill.neutral {
+  background: var(--muted);
 }
 
 .status-pill.danger {
