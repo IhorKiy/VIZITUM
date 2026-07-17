@@ -2,12 +2,12 @@
 
 Reference for the implemented database schema. Source of truth: `prisma/schema.prisma` (migrations in `prisma/migrations/`). This is the current state; `docs/vizitum-low-level-technical-design.md` §DB describes design intent and may differ. Update this document in the same change as any schema change.
 
-**27 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
+**28 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
 
 ## Conventions
 
 - IDs: `cuid()` strings.
-- Tenant-owned tables: `tenantId` + `createdAt` + `updatedAt`; soft delete via `deletedAt` where user-facing records can be removed (`users`, `locations`, `location_contacts`, `products`, `tasks`, `visit_notes`, `storage_objects`).
+- Tenant-owned tables: `tenantId` + `createdAt` + `updatedAt`; soft delete via `deletedAt` where user-facing records can be removed (`users`, `chains`, `locations`, `location_contacts`, `products`, `tasks`, `visit_notes`, `storage_objects`).
 - Uniqueness is tenant-scoped where it matters: `users @@unique([tenantId, email])`, `locations @@unique([tenantId, externalCode])`, `route_plans @@unique([tenantId, representativeUserId, planDate])`, `tenant_settings @@unique([tenantId, key])`. `products` uniqueness on `(tenantId, externalCode)` is a **partial** unique index scoped to live rows (`WHERE deletedAt IS NULL`, migration `20260713120000_product_external_code_partial_unique`) — not a plain `@@unique`, so a soft-deleted product frees its externalCode for re-import/re-create (matches the `deletedAt: null` create + import pre-checks). Prisma can't express partial unique indexes, so it's managed via raw SQL and omitted from `schema.prisma`.
 
 ## Platform group

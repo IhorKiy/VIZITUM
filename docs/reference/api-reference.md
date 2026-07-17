@@ -246,4 +246,4 @@ Purpose-level access checks inside `StorageService` are stricter than the guard-
 
 ## Endpoint count
 
-87 endpoints across 19 controllers (auth 5, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 3, locations 11, chains 4, products 4, routes 6, imports 6, admin users 8, admin settings 6, storage 3).
+93 endpoints across 20 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 3, locations 11, chains 4, products 5, product-categories 4, routes 6, imports 6, admin users 8, admin settings 5, storage 3).
