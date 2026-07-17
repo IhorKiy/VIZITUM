@@ -4,8 +4,13 @@ import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
+import { FilterDateRange } from "../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
+import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import {
   CalendarIcon,
@@ -410,22 +415,25 @@ export default async function ManagerTasksPage({
                 ))}
               </select>
             </FilterField>
-            <FilterField icon={<CalendarIcon />} label={t("dueFrom")}>
-              <input defaultValue={dueFrom ?? ""} name="dueFrom" type="date" />
-            </FilterField>
-            <FilterField icon={<CalendarIcon />} label={t("dueTo")}>
-              <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
-            </FilterField>
-            {hasFilters ? (
-              <div className="filter-actions">
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/manager/tasks`}
-                >
-                  {tCommon("reset")}
-                </a>
-              </div>
-            ) : null}
+            <FilterDateRange
+              fromLabel={t("dueFrom")}
+              fromName="dueFrom"
+              fromValue={dueFrom ?? ""}
+              label={t("duePeriod")}
+              toLabel={t("dueTo")}
+              toName="dueTo"
+              toValue={dueTo ?? ""}
+            />
+            <FilterFooter
+              resetHref={
+                hasFilters ? `/${tenantSlug}/manager/tasks` : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: tasksResult.data.total,
+              })}
+            />
           </FilterForm>
         </FilterDisclosure>
 

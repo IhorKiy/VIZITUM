@@ -2,6 +2,10 @@ import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
+import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import {
   CalendarIcon,
@@ -248,16 +252,18 @@ export default async function ManagerRepresentativesPage({
                 type="search"
               />
             </FilterField>
-            {hasFilters ? (
-              <div className="filter-actions">
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/manager/representatives`}
-                >
-                  {tCommon("reset")}
-                </a>
-              </div>
-            ) : null}
+            <FilterFooter
+              resetHref={
+                hasFilters
+                  ? `/${tenantSlug}/manager/representatives`
+                  : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: representatives.length,
+              })}
+            />
           </FilterForm>
         </FilterDisclosure>
 

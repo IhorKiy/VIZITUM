@@ -7,7 +7,14 @@ import { AppShell } from "../../../../components/app-shell";
 import { CategoriesAccordion } from "../../../../components/categories-accordion";
 import { DeleteProductButton } from "../../../../components/delete-product-button";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { FilterDisclosure } from "../../../../components/filter-disclosure";
+import { FilterField } from "../../../../components/filter-field";
+import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { SearchIcon, TagIcon } from "../../../../components/icons";
 import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import {
   createAdminProduct,
@@ -456,47 +463,50 @@ export default async function AdminProductsPage({
           </div>
         </div>
 
-        <FilterForm
-          action={`/${tenantSlug}/admin/products`}
-          className="filter-form products-filter-form"
+        <FilterDisclosure
+          hasFilters={hasFilters}
+          label={tCommon("filtersLabel")}
         >
-          {selectedStatus ? (
-            <input name="status" type="hidden" value={selectedStatus} />
-          ) : null}
-          {groupByCategory ? (
-            <input name="view" type="hidden" value="category" />
-          ) : null}
-          <label>
-            {t("category")}
-            <select defaultValue={selectedCategory ?? ""} name="category">
-              <option value="">{t("allCategories")}</option>
-              {categoryFilterOptions.map((category) => (
-                <option key={category.id} value={category.name}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("search")}
-            <input
-              defaultValue={search ?? ""}
-              name="search"
-              placeholder={t("searchPlaceholder")}
-              type="text"
+          <FilterForm
+            action={`/${tenantSlug}/admin/products`}
+            className="filter-form products-filter-form"
+          >
+            {selectedStatus ? (
+              <input name="status" type="hidden" value={selectedStatus} />
+            ) : null}
+            {groupByCategory ? (
+              <input name="view" type="hidden" value="category" />
+            ) : null}
+            <FilterField icon={<TagIcon />} label={t("category")}>
+              <select defaultValue={selectedCategory ?? ""} name="category">
+                <option value="">{t("allCategories")}</option>
+                {categoryFilterOptions.map((category) => (
+                  <option key={category.id} value={category.name}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField icon={<SearchIcon />} label={t("search")}>
+              <input
+                defaultValue={search ?? ""}
+                name="search"
+                placeholder={t("searchPlaceholder")}
+                type="text"
+              />
+            </FilterField>
+            <FilterFooter
+              resetHref={
+                hasFilters ? `/${tenantSlug}/admin/products` : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: productsResult.data.total,
+              })}
             />
-          </label>
-          {hasFilters ? (
-            <div className="filter-actions">
-              <a
-                className="secondary-button"
-                href={`/${tenantSlug}/admin/products`}
-              >
-                {tCommon("reset")}
-              </a>
-            </div>
-          ) : null}
-        </FilterForm>
+          </FilterForm>
+        </FilterDisclosure>
 
         {products.length > 0 ? (
           groupByCategory ? (

@@ -2180,39 +2180,61 @@ textarea {
 /* Collapsible wrapper for the tasks filter form: the disclosure owns the
    bottom separator so a collapsed filter row still divides cleanly from the
    list below. */
-.filter-disclosure {
-  border-bottom: 1px solid var(--line);
+.filter-panel {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 12px;
   margin: 0 0 14px;
-  padding-bottom: 6px;
 }
 
-.filter-disclosure > summary {
+.filter-panel-summary {
   align-items: center;
-  color: var(--ink);
   cursor: pointer;
   display: flex;
-  font-size: 13px;
-  font-weight: 800;
-  gap: 8px;
+  gap: 12px;
+  justify-content: space-between;
   list-style: none;
-  padding: 6px 0;
-  width: fit-content;
+  padding: 10px 14px;
 }
 
-.filter-disclosure > summary::-webkit-details-marker {
+.filter-panel-summary::-webkit-details-marker {
   display: none;
 }
 
-.filter-disclosure > summary::after {
-  color: var(--muted);
-  content: "›";
-  font-size: 18px;
-  line-height: 1;
-  transition: transform 0.2s ease;
+.filter-panel[open] .filter-panel-summary {
+  border-bottom: 1px solid var(--line);
 }
 
-.filter-disclosure[open] > summary::after {
-  transform: rotate(90deg);
+.filter-panel-title {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.filter-panel-title svg {
+  color: var(--accent);
+}
+
+.filter-panel-chevron {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  width: 32px;
+}
+
+.filter-panel[open] .filter-panel-chevron {
+  transform: rotate(180deg);
 }
 
 .filter-active-dot {
@@ -2222,86 +2244,79 @@ textarea {
   width: 8px;
 }
 
-.filter-disclosure .filter-form {
-  border-bottom: 0;
-  margin: 6px 0 0;
-  padding-bottom: 8px;
-}
-
 .filter-form {
-  align-items: end;
-  border-bottom: 1px solid var(--line);
   display: grid;
-  gap: 12px;
-  /* Route, location, assignee/rep, due-from, due-to, then the actions. Auto-fit
-     equal columns so the controls reflow onto extra rows when the panel is
-     narrower than all of them in a row (e.g. a sidebar-reduced desktop panel
-     ~770px) instead of forcing a horizontal scrollbar. Wide panels still lay
-     them out on a single row. */
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  margin: 0 0 14px;
-  padding-bottom: 14px;
+  gap: 14px;
+  /* Route, location, assignee/rep on one row, then the date range under them —
+     the range spans two of these three columns (.filter-field--range). */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 14px;
 }
 
+/* Forms whose fields do not fill the row end in a filler track, so the fields
+   keep a readable width instead of stretching while the footer, which spans
+   every column, still reaches both panel edges. */
 .locations-filter-form {
-  grid-template-columns:
-    minmax(180px, 1fr)
-    repeat(3, minmax(150px, 0.8fr))
-    auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .representatives-filter-form {
-  grid-template-columns: minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(220px, 420px) 1fr;
 }
 
-/* Locations / Chains sections filter just by a single search field, so pack the
-   input and the action buttons to the left with the normal grid gap between
-   them instead of stretching across the 5-column default template. */
 .locations-chains-filter-form {
-  grid-template-columns: minmax(200px, 320px) auto;
-  justify-content: start;
+  grid-template-columns: minmax(200px, 420px) 1fr;
 }
 
-/* The Locations section adds a chain filter next to search — chain, search then
-   actions, left-packed. */
 .location-filter-form {
-  grid-template-columns: minmax(180px, 240px) minmax(200px, 320px) auto;
-  justify-content: start;
+  grid-template-columns: minmax(180px, 260px) minmax(200px, 420px) 1fr;
 }
 
 .field-history-filter-form {
-  grid-template-columns:
-    repeat(2, minmax(160px, 1fr))
-    auto;
+  grid-template-columns: repeat(2, minmax(160px, 260px)) 1fr;
 }
 
 .products-filter-form {
-  grid-template-columns:
-    minmax(170px, 240px)
-    minmax(180px, 1fr)
-    auto;
+  grid-template-columns: minmax(170px, 260px) minmax(200px, 420px) 1fr;
 }
 
-/* Keep Apply + Reset side by side so the auto track sizes to both buttons
-   instead of collapsing and stacking them. */
-.products-filter-form .filter-actions {
-  flex-wrap: nowrap;
-}
-
-.filter-form label {
-  color: var(--muted);
+.filter-field {
   display: grid;
-  font-size: 13px;
-  font-weight: 800;
   gap: 6px;
+  /* Let a control shrink below its content's intrinsic width inside its grid
+     column instead of blowing the column (and the panel) wider — the long
+     "Будь-який виконавець" placeholder otherwise overflows a narrow column. */
+  min-width: 0;
 }
 
-/* Filter fields are labelled by an icon instead of text; the name stays for
-   screen readers (sr-only) and as a hover tooltip on the label. */
+.filter-field--range {
+  grid-column: span 2;
+}
+
+.filter-field-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The icon sits inside the control; the control's left padding is what keeps
+   the text clear of it. */
+.filter-field-control {
+  align-items: center;
+  display: flex;
+  min-width: 0;
+  position: relative;
+}
+
 .filter-field-icon {
+  align-items: center;
   color: var(--muted);
   display: inline-flex;
-  width: fit-content;
+  left: 10px;
+  pointer-events: none;
+  position: absolute;
 }
 
 .filter-field-icon svg {
@@ -2309,24 +2324,52 @@ textarea {
   width: 16px;
 }
 
+.filter-date-range {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.filter-date-range-dash {
+  color: var(--muted);
+}
+
 .filter-form input,
 .filter-form select {
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
   min-height: 40px;
-  /* Let a select shrink below its longest option's intrinsic width inside its
-     grid column instead of blowing the column (and the panel) wider — the long
-     "Будь-який виконавець" placeholder otherwise overflows a narrow column. */
   min-width: 0;
-  padding: 9px 10px;
+  padding: 9px 10px 9px 34px;
+  width: 100%;
 }
 
-.filter-actions {
+.filter-footer {
+  align-items: center;
+  border-top: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
+  /* Spans every column so it reads as the panel's closing row, and bleeds back
+     out to the panel edges through the form's own padding. */
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  margin: 0 -14px -14px;
+  padding: 12px 14px;
+}
+
+.filter-result-count {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.filter-result-count b {
+  color: var(--ink);
+  font-weight: 800;
 }
 
 .filter-pills {
@@ -3161,24 +3204,33 @@ textarea {
     justify-items: stretch;
   }
 
-  .filter-form {
+  .filter-form,
+  .locations-filter-form,
+  .representatives-filter-form,
+  .locations-chains-filter-form,
+  .location-filter-form,
+  .field-history-filter-form,
+  .products-filter-form {
     grid-template-columns: 1fr;
   }
 
-  .locations-filter-form {
+  /* Nothing left to span in a single-column form. */
+  .filter-field--range {
+    grid-column: auto;
+  }
+
+  /* Side by side, the two date inputs are too narrow to show a full date, so
+     stack them; the dash only reads as a range while they share a row. */
+  .filter-date-range {
     grid-template-columns: 1fr;
+  }
+
+  .filter-date-range-dash {
+    display: none;
   }
 
   .tenant-metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .representatives-filter-form {
-    grid-template-columns: 1fr;
-  }
-
-  .field-history-filter-form {
-    grid-template-columns: 1fr;
   }
 
   .panel {
@@ -3263,6 +3315,18 @@ textarea {
 .app-shell--mobile-only .filter-form,
 .app-shell--mobile-only .field-history-filter-form {
   grid-template-columns: 1fr;
+}
+
+.app-shell--mobile-only .filter-field--range {
+  grid-column: auto;
+}
+
+.app-shell--mobile-only .filter-date-range {
+  grid-template-columns: 1fr;
+}
+
+.app-shell--mobile-only .filter-date-range-dash {
+  display: none;
 }
 
 .app-shell--mobile-only .inline-control-form {

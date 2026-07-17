@@ -230,7 +230,9 @@
       "tableType": "Type",
       "tableStarted": "Started",
       "tableCompleted": "Completed",
-      "open": "Open"
+      "open": "Open",
+      "visitPeriod": "Visit period",
+      "filterResultCount": "{count, plural, =0 {No visits found} one {Found <b>#</b> visit} other {Found <b>#</b> visits}}"
     },
     "tasks": {
       "title": "Tasks",
@@ -289,7 +291,9 @@
       "noTaskDetails": "No additional details",
       "noLocation": "No location",
       "unassigned": "Unassigned",
-      "updateTaskStatusAria": "Update {title} status"
+      "updateTaskStatusAria": "Update {title} status",
+      "duePeriod": "Due period",
+      "filterResultCount": "{count, plural, =0 {No tasks found} one {Found <b>#</b> task} other {Found <b>#</b> tasks}}"
     },
     "locations": {
       "title": "Coverage",
@@ -336,7 +340,8 @@
       "tableOpenTasks": "Open tasks",
       "unassignedTerritory": "Unassigned",
       "noRegion": "No region",
-      "noVisitsYet": "No visits yet"
+      "noVisitsYet": "No visits yet",
+      "filterResultCount": "{count, plural, =0 {No locations found} one {Found <b>#</b> location} other {Found <b>#</b> locations}}"
     },
     "representatives": {
       "title": "Representatives",
@@ -376,7 +381,8 @@
       "tableOpenTasks": "Open tasks",
       "tableLastActivity": "Last activity",
       "completedCount": "{count} completed",
-      "noActivity": "No activity"
+      "noActivity": "No activity",
+      "filterResultCount": "{count, plural, =0 {No representatives found} one {Found <b>#</b> representative} other {Found <b>#</b> representatives}}"
     },
     "visitDetail": {
       "title": "Visit report",
@@ -534,7 +540,8 @@
       "createdAria": "Location created",
       "createdEyebrow": "Location created",
       "createdTitle": "New location was added",
-      "createdBody": "The location is now available for this tenant."
+      "createdBody": "The location is now available for this tenant.",
+      "filterResultCount": "{count, plural, =0 {No locations found} one {Found <b>#</b> location} other {Found <b>#</b> locations}}"
     },
     "chains": {
       "title": "Chains",
@@ -574,7 +581,8 @@
       "cancelEdit": "Cancel",
       "archiveChain": "Archive",
       "archivingChain": "Archiving…",
-      "archiveChainPrompt": "Archive \"{name}\"? It will move to the archived list."
+      "archiveChainPrompt": "Archive \"{name}\"? It will move to the archived list.",
+      "filterResultCount": "{count, plural, =0 {No chains found} one {Found <b>#</b> chain} other {Found <b>#</b> chains}}"
     },
     "products": {
       "title": "Products / SKUs",
@@ -644,7 +652,8 @@
       "updatedCategoryTitle": "Category renamed",
       "updatedCategoryBody": "The new name was applied to products in this category.",
       "removedCategoryTitle": "Category removed",
-      "removedCategoryBody": "The category was deleted for this tenant."
+      "removedCategoryBody": "The category was deleted for this tenant.",
+      "filterResultCount": "{count, plural, =0 {No products found} one {Found <b>#</b> product} other {Found <b>#</b> products}}"
     },
     "pilot": {
       "title": "Pilot"
@@ -1118,7 +1127,9 @@
       "summaryAllVisits": "all visits",
       "summaryStatusVisits": "{status} visits",
       "summaryFrom": "from {date}",
-      "summaryTo": "to {date}"
+      "summaryTo": "to {date}",
+      "visitPeriod": "Visit period",
+      "filterResultCount": "{count, plural, =0 {No visits found} one {Found <b>#</b> visit} other {Found <b>#</b> visits}}"
     }
   },
   "operations": {

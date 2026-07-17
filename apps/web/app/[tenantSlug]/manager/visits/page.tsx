@@ -3,8 +3,13 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
+import { FilterDateRange } from "../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
+import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import {
   CalendarIcon,
@@ -297,30 +302,25 @@ export default async function ManagerVisitsPage({
                 ))}
               </select>
             </FilterField>
-            <FilterField icon={<CalendarIcon />} label={t("startedFrom")}>
-              <input
-                defaultValue={startedFrom ?? ""}
-                name="startedFrom"
-                type="date"
-              />
-            </FilterField>
-            <FilterField icon={<CalendarIcon />} label={t("startedTo")}>
-              <input
-                defaultValue={startedTo ?? ""}
-                name="startedTo"
-                type="date"
-              />
-            </FilterField>
-            {hasFilters ? (
-              <div className="filter-actions">
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/manager/visits`}
-                >
-                  {tCommon("reset")}
-                </a>
-              </div>
-            ) : null}
+            <FilterDateRange
+              fromLabel={t("startedFrom")}
+              fromName="startedFrom"
+              fromValue={startedFrom ?? ""}
+              label={t("visitPeriod")}
+              toLabel={t("startedTo")}
+              toName="startedTo"
+              toValue={startedTo ?? ""}
+            />
+            <FilterFooter
+              resetHref={
+                hasFilters ? `/${tenantSlug}/manager/visits` : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: visitsResult.data.total,
+              })}
+            />
           </FilterForm>
         </FilterDisclosure>
 

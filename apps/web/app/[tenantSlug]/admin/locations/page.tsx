@@ -7,7 +7,14 @@ import { AppShell } from "../../../../components/app-shell";
 import { ArchiveChainButton } from "../../../../components/archive-chain-button";
 import { CreateLocationModal } from "../../../../components/create-location-modal";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { FilterDisclosure } from "../../../../components/filter-disclosure";
+import { FilterField } from "../../../../components/filter-field";
+import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
+import { MapIcon, SearchIcon } from "../../../../components/icons";
 import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
@@ -513,6 +520,7 @@ export default async function AdminLocationsPage({
                 selectedChain={locChain}
                 selectedStatus={locStatus}
                 tenantSlug={tenantSlug}
+                total={locationsResult.data.total}
               />
             ) : (
               <div className="empty-state-panel">
@@ -552,6 +560,7 @@ export default async function AdminLocationsPage({
                 search={chainSearch}
                 selectedStatus={chainStatus}
                 tenantSlug={tenantSlug}
+                total={chainsResult.data.total}
                 updateChainAction={updateChainAction}
               />
             ) : (
@@ -587,6 +596,7 @@ function LocationsSection({
   selectedChain,
   selectedStatus,
   tenantSlug,
+  total,
 }: {
   allChains: Chain[];
   carryParams: Record<string, string>;
@@ -602,6 +612,7 @@ function LocationsSection({
   selectedChain: string | null;
   selectedStatus: LocationStatus | null;
   tenantSlug: string;
+  total: number;
 }) {
   const t = useTranslations("admin.locations");
   const tCommon = useTranslations("common");
@@ -730,51 +741,54 @@ function LocationsSection({
           </div>
         </div>
 
-        <FilterForm
-          action={`/${tenantSlug}/admin/locations`}
-          className="filter-form location-filter-form"
+        <FilterDisclosure
+          hasFilters={hasFilters}
+          label={tCommon("filtersLabel")}
         >
-          <input name="open" type="hidden" value="locations" />
-          {Object.entries(carryParams).map(([name, value]) => (
-            <input key={name} name={name} type="hidden" value={value} />
-          ))}
-          {selectedStatus ? (
-            <input name="locStatus" type="hidden" value={selectedStatus} />
-          ) : null}
-          {groupByChain ? (
-            <input name="locView" type="hidden" value="chain" />
-          ) : null}
-          <label>
-            {t("chain")}
-            <select defaultValue={selectedChain ?? ""} name="locChain">
-              <option value="">{t("allChains")}</option>
-              {chainFilterOptions.map((chain) => (
-                <option key={chain.id} value={chain.id}>
-                  {chain.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("search")}
-            <input
-              defaultValue={search ?? ""}
-              name="locSearch"
-              placeholder={t("searchPlaceholder")}
-              type="text"
+          <FilterForm
+            action={`/${tenantSlug}/admin/locations`}
+            className="filter-form location-filter-form"
+          >
+            <input name="open" type="hidden" value="locations" />
+            {Object.entries(carryParams).map(([name, value]) => (
+              <input key={name} name={name} type="hidden" value={value} />
+            ))}
+            {selectedStatus ? (
+              <input name="locStatus" type="hidden" value={selectedStatus} />
+            ) : null}
+            {groupByChain ? (
+              <input name="locView" type="hidden" value="chain" />
+            ) : null}
+            <FilterField icon={<MapIcon />} label={t("chain")}>
+              <select defaultValue={selectedChain ?? ""} name="locChain">
+                <option value="">{t("allChains")}</option>
+                {chainFilterOptions.map((chain) => (
+                  <option key={chain.id} value={chain.id}>
+                    {chain.name}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField icon={<SearchIcon />} label={t("search")}>
+              <input
+                defaultValue={search ?? ""}
+                name="locSearch"
+                placeholder={t("searchPlaceholder")}
+                type="text"
+              />
+            </FilterField>
+            <FilterFooter
+              resetHref={
+                hasFilters ? buildFilterHref(tenantSlug, baseParams) : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: total,
+              })}
             />
-          </label>
-          {hasFilters ? (
-            <div className="filter-actions">
-              <a
-                className="secondary-button"
-                href={buildFilterHref(tenantSlug, baseParams)}
-              >
-                {tCommon("reset")}
-              </a>
-            </div>
-          ) : null}
-        </FilterForm>
+          </FilterForm>
+        </FilterDisclosure>
 
         {locations.length > 0 ? (
           groupByChain ? (
@@ -850,6 +864,7 @@ function ChainsSection({
   search,
   selectedStatus,
   tenantSlug,
+  total,
   updateChainAction,
 }: {
   archiveChainAction: (formData: FormData) => Promise<void>;
@@ -860,6 +875,7 @@ function ChainsSection({
   search: string | null;
   selectedStatus: ChainStatus | null;
   tenantSlug: string;
+  total: number;
   updateChainAction: (formData: FormData) => Promise<void>;
 }) {
   const t = useTranslations("admin.chains");
@@ -914,37 +930,41 @@ function ChainsSection({
           </div>
         </div>
 
-        <FilterForm
-          action={`/${tenantSlug}/admin/locations`}
-          className="filter-form locations-chains-filter-form"
+        <FilterDisclosure
+          hasFilters={hasFilters}
+          label={tCommon("filtersLabel")}
         >
-          <input name="open" type="hidden" value="chains" />
-          {Object.entries(carryParams).map(([name, value]) => (
-            <input key={name} name={name} type="hidden" value={value} />
-          ))}
-          {selectedStatus ? (
-            <input name="chainStatus" type="hidden" value={selectedStatus} />
-          ) : null}
-          <label>
-            {t("search")}
-            <input
-              defaultValue={search ?? ""}
-              name="chainSearch"
-              placeholder={t("searchPlaceholder")}
-              type="text"
+          <FilterForm
+            action={`/${tenantSlug}/admin/locations`}
+            className="filter-form locations-chains-filter-form"
+          >
+            <input name="open" type="hidden" value="chains" />
+            {Object.entries(carryParams).map(([name, value]) => (
+              <input key={name} name={name} type="hidden" value={value} />
+            ))}
+            {selectedStatus ? (
+              <input name="chainStatus" type="hidden" value={selectedStatus} />
+            ) : null}
+            <FilterField icon={<SearchIcon />} label={t("search")}>
+              <input
+                defaultValue={search ?? ""}
+                name="chainSearch"
+                placeholder={t("searchPlaceholder")}
+                type="text"
+              />
+            </FilterField>
+            <FilterFooter
+              resetHref={
+                hasFilters ? buildFilterHref(tenantSlug, baseParams) : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: total,
+              })}
             />
-          </label>
-          {hasFilters ? (
-            <div className="filter-actions">
-              <a
-                className="secondary-button"
-                href={buildFilterHref(tenantSlug, baseParams)}
-              >
-                {tCommon("reset")}
-              </a>
-            </div>
-          ) : null}
-        </FilterForm>
+          </FilterForm>
+        </FilterDisclosure>
 
         {chains.length > 0 ? (
           <div className="admin-user-list">
