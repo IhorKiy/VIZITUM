@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 
-const SEARCH_DEBOUNCE_MS = 400;
+const TYPING_DEBOUNCE_MS = 400;
 
 type FilterFormProps = {
   action: string;
@@ -11,17 +11,24 @@ type FilterFormProps = {
   children: ReactNode;
 };
 
-function isFreeTextField(target: EventTarget): boolean {
+// Fields the user types into, which apply after a pause instead of per event:
+// a search would otherwise fire a request per keystroke, and a date per typed
+// segment — browsers emit input events for half-typed dates, passing through
+// an empty value and bogus years (0002 on the way to 2026).
+function isTypedField(target: EventTarget): boolean {
   return (
     target instanceof HTMLInputElement &&
-    (target.type === "text" || target.type === "search")
+    (target.type === "text" ||
+      target.type === "search" ||
+      target.type === "date")
   );
 }
 
 // Filter form that applies on change instead of behind a submit button: selects
-// and dates navigate at once, free-text search waits for a pause in typing so a
-// request does not fire per keystroke. Navigating with a soft router.replace
-// keeps focus in the search field and keeps filtering out of session history.
+// navigate at once, typed fields (search, dates) wait for a pause in typing.
+// Navigating with a soft, scroll-preserving router.replace keeps focus in the
+// search field, keeps the page where the user scrolled it, and keeps filtering
+// out of session history.
 export function FilterForm({ action, className, children }: FilterFormProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -41,7 +48,7 @@ export function FilterForm({ action, className, children }: FilterFormProps) {
       }
     }
     const query = params.toString();
-    router.replace(query ? `${action}?${query}` : action);
+    router.replace(query ? `${action}?${query}` : action, { scroll: false });
   };
 
   return (
@@ -49,7 +56,7 @@ export function FilterForm({ action, className, children }: FilterFormProps) {
       action={action}
       className={className}
       onChange={(event) => {
-        if (isFreeTextField(event.target)) {
+        if (isTypedField(event.target)) {
           return;
         }
         clearTimeout(debounceRef.current);
@@ -70,11 +77,11 @@ export function FilterForm({ action, className, children }: FilterFormProps) {
         }
       }}
       onInput={(event) => {
-        if (!isFreeTextField(event.target)) {
+        if (!isTypedField(event.target)) {
           return;
         }
         clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(applyFilters, SEARCH_DEBOUNCE_MS);
+        debounceRef.current = setTimeout(applyFilters, TYPING_DEBOUNCE_MS);
       }}
       onSubmit={(event) => {
         event.preventDefault();
