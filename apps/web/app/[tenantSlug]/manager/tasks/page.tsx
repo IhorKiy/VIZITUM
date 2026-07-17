@@ -3,6 +3,9 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { CardFact } from "../../../../components/card-fact";
+import { FilterDisclosure } from "../../../../components/filter-disclosure";
+import { FilterField } from "../../../../components/filter-field";
 import {
   CalendarIcon,
   FlagIcon,
@@ -356,13 +359,10 @@ export default async function ManagerTasksPage({
           </div>
         </div>
 
-        <details className="filter-disclosure" open={hasFilters}>
-          <summary className="filter-disclosure-summary">
-            {tCommon("filtersLabel")}
-            {hasFilters ? (
-              <span aria-hidden="true" className="filter-active-dot" />
-            ) : null}
-          </summary>
+        <FilterDisclosure
+          hasFilters={hasFilters}
+          label={tCommon("filtersLabel")}
+        >
           <form action={`/${tenantSlug}/manager/tasks`} className="filter-form">
             {selectedStatus ? (
               <input name="status" type="hidden" value={selectedStatus} />
@@ -370,11 +370,7 @@ export default async function ManagerTasksPage({
             {selectedPriority ? (
               <input name="priority" type="hidden" value={selectedPriority} />
             ) : null}
-            <label>
-              <span className="filter-field-icon" title={t("route")}>
-                <RouteIcon />
-                <span className="sr-only">{t("route")}</span>
-              </span>
+            <FilterField icon={<RouteIcon />} label={t("route")}>
               <select
                 defaultValue={selectedRoutePlanId ?? ""}
                 name="routePlanId"
@@ -386,12 +382,8 @@ export default async function ManagerTasksPage({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="filter-field-icon" title={t("location")}>
-                <MapPinIcon />
-                <span className="sr-only">{t("location")}</span>
-              </span>
+            </FilterField>
+            <FilterField icon={<MapPinIcon />} label={t("location")}>
               <select defaultValue={selectedLocationId ?? ""} name="locationId">
                 <option value="">{t("anyLocation")}</option>
                 {locationOptions.map((option) => (
@@ -400,12 +392,8 @@ export default async function ManagerTasksPage({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="filter-field-icon" title={t("assignee")}>
-                <UserIcon />
-                <span className="sr-only">{t("assignee")}</span>
-              </span>
+            </FilterField>
+            <FilterField icon={<UserIcon />} label={t("assignee")}>
               <select
                 defaultValue={selectedAssigneeId ?? ""}
                 name="assignedToUserId"
@@ -417,21 +405,13 @@ export default async function ManagerTasksPage({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="filter-field-icon" title={t("dueFrom")}>
-                <CalendarIcon />
-                <span className="sr-only">{t("dueFrom")}</span>
-              </span>
+            </FilterField>
+            <FilterField icon={<CalendarIcon />} label={t("dueFrom")}>
               <input defaultValue={dueFrom ?? ""} name="dueFrom" type="date" />
-            </label>
-            <label>
-              <span className="filter-field-icon" title={t("dueTo")}>
-                <CalendarIcon />
-                <span className="sr-only">{t("dueTo")}</span>
-              </span>
+            </FilterField>
+            <FilterField icon={<CalendarIcon />} label={t("dueTo")}>
               <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
-            </label>
+            </FilterField>
             <div className="filter-actions">
               <button className="secondary-button" type="submit">
                 {tCommon("applyFilters")}
@@ -446,7 +426,7 @@ export default async function ManagerTasksPage({
               ) : null}
             </div>
           </form>
-        </details>
+        </FilterDisclosure>
 
         {tasks.length > 0 ? (
           <TasksCards
@@ -517,17 +497,17 @@ function TasksCards({
   // editor (click to change it, saves on pick); the description lives behind
   // the "details" disclosure.
   return (
-    <ul className="task-cards">
+    <ul className="list-cards">
       {tasks.map((task) => {
         const overdue = isTaskOverdue(task, todayIsoDate);
 
         return (
           <li
-            className={`task-card${overdue ? " is-overdue" : ""}`}
+            className={`list-card${overdue ? " is-overdue" : ""}`}
             key={task.id}
           >
-            <div className="task-card-top">
-              <h3 className="task-card-title">{task.title}</h3>
+            <div className="list-card-top">
+              <h3 className="list-card-title">{task.title}</h3>
               <TaskStatusEditor
                 taskId={task.id}
                 status={task.status}
@@ -535,57 +515,35 @@ function TasksCards({
                 updateAction={updateTaskStatusAction}
               />
             </div>
-            <dl className="task-card-facts">
-              <div className="task-fact">
-                <dt>
-                  <UserIcon />
-                  <span className="sr-only">{t("tableAssignee")}</span>
-                </dt>
-                <dd>{task.assignedTo?.name ?? t("unassigned")}</dd>
-              </div>
-              <div className="task-fact">
-                <dt>
-                  <MapPinIcon />
-                  <span className="sr-only">{t("tableLocation")}</span>
-                </dt>
-                <dd>
-                  {task.location
-                    ? `${task.location.name}, ${task.location.city}`
-                    : t("noLocation")}
-                </dd>
-              </div>
-              <div className="task-fact">
-                <dt>
-                  <FlagIcon />
-                  <span className="sr-only">{t("tablePriority")}</span>
-                </dt>
-                <dd>
-                  <PriorityTag
-                    priority={task.priority}
-                    label={formatEnumLabel(tCommon, task.priority)}
-                  />
-                </dd>
-              </div>
-              <div className="task-fact">
-                <dt>
-                  <CalendarIcon />
-                  <span className="sr-only">{t("tableDue")}</span>
-                </dt>
-                <dd>
-                  <DueDate
-                    format={format}
-                    value={task.dueDate}
-                    overdue={overdue}
-                    overdueLabel={t("overdue")}
-                  />
-                </dd>
-              </div>
+            <dl className="list-card-facts">
+              <CardFact icon={<UserIcon />} label={t("tableAssignee")}>
+                {task.assignedTo?.name ?? t("unassigned")}
+              </CardFact>
+              <CardFact icon={<MapPinIcon />} label={t("tableLocation")}>
+                {task.location
+                  ? `${task.location.name}, ${task.location.city}`
+                  : t("noLocation")}
+              </CardFact>
+              <CardFact icon={<FlagIcon />} label={t("tablePriority")}>
+                <PriorityTag
+                  priority={task.priority}
+                  label={formatEnumLabel(tCommon, task.priority)}
+                />
+              </CardFact>
+              <CardFact icon={<CalendarIcon />} label={t("tableDue")}>
+                <DueDate
+                  format={format}
+                  value={task.dueDate}
+                  overdue={overdue}
+                  overdueLabel={t("overdue")}
+                />
+              </CardFact>
             </dl>
-            <details className="task-card-more">
-              <summary className="task-card-more-summary">
+            <details className="list-card-more">
+              <summary className="list-card-more-summary">
                 {t("cardDetails")}
               </summary>
-              <div className="task-card-more-body">
+              <div className="list-card-more-body">
                 <TaskDetailsEditor
                   taskId={task.id}
                   value={task.description ?? ""}

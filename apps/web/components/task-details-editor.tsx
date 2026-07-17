@@ -55,7 +55,7 @@ export function TaskDetailsEditor({
   if (!editing) {
     return (
       <div className="task-details">
-        <p className={`task-card-desc${value ? "" : " is-empty"}`}>
+        <p className={`list-card-desc${value ? "" : " is-empty"}`}>
           {value || t("noTaskDetails")}
         </p>
         <button

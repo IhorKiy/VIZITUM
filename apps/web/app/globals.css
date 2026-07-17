@@ -2379,8 +2379,11 @@ textarea {
   width: 1px;
 }
 
-/* Manager task list: one card layout at every width (the desktop table was
-   dropped in favour of the cards). Scanning cues, shared by every card:
+/* Manager list cards, shared by the tasks, visits, locations and
+   representatives lists: one card layout at every width (the desktop tables
+   were dropped in favour of the cards). The .priority-tag, .due-overdue,
+   .overdue-tag and .list-card.is-overdue rules below are task-only scanning
+   cues; the rest of the .list-card* family is generic:
    - high priority reads amber (important, but not an error),
    - overdue reads in danger red (late) with a small tag and a card accent —
      two distinct signals so an important-but-on-time task never looks late. */
@@ -2418,12 +2421,12 @@ textarea {
 
 /* A hairline red rail on overdue cards, visible when scanning the list edge
    without competing with the card content. */
-.task-card.is-overdue {
+.list-card.is-overdue {
   border-color: var(--danger-line);
   box-shadow: inset 3px 0 0 var(--danger);
 }
 
-.task-cards {
+.list-cards {
   display: grid;
   gap: 12px;
   list-style: none;
@@ -2431,28 +2434,28 @@ textarea {
   padding: 0;
 }
 
-.task-card {
+.list-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 14px 16px;
 }
 
-.task-card-top {
+.list-card-top {
   align-items: start;
   display: flex;
   gap: 12px;
   justify-content: space-between;
 }
 
-.task-card-title {
+.list-card-title {
   font-size: 15px;
   font-weight: 800;
   line-height: 1.35;
   margin: 0;
 }
 
-.task-card-top .status-pill {
+.list-card-top .status-pill {
   flex-shrink: 0;
 }
 
@@ -2509,14 +2512,14 @@ textarea {
 
 /* Icon-labelled facts (assignee, location, priority, due) wrap onto as many
    rows as the width allows — the icon replaces a verbose text label. */
-.task-card-facts {
+.list-card-facts {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
   margin: 10px 0 0;
 }
 
-.task-fact {
+.list-card-fact {
   align-items: center;
   color: var(--ink);
   display: flex;
@@ -2524,24 +2527,24 @@ textarea {
   gap: 6px;
 }
 
-.task-fact dt {
+.list-card-fact dt {
   align-items: center;
   color: var(--muted);
   display: flex;
 }
 
-.task-fact dd {
+.list-card-fact dd {
   margin: 0;
 }
 
-.task-card-more {
+.list-card-more {
   margin-top: 12px;
 }
 
-/* Visit cards have no inline detail to expand; instead the footer is a link to
-   the visit page, styled to match the task card's "details" summary so both
-   lists share one footer affordance. */
-.task-card-open {
+/* Footer link that drills down from a card (e.g. a visit card to its visit
+   page), styled to match the task card's "details" summary so every list
+   shares one footer affordance. */
+.list-card-open {
   align-items: center;
   color: var(--muted);
   display: inline-flex;
@@ -2554,31 +2557,31 @@ textarea {
   width: fit-content;
 }
 
-.task-card-open::after {
+.list-card-open::after {
   content: "›";
   font-size: 18px;
   line-height: 1;
 }
 
-.task-card-open:hover {
+.list-card-open:hover {
   color: var(--accent-strong);
 }
 
 /* Coverage cards drill down to two places (visits / tasks for the location);
    lay the footer links in a row, and drop their own top margin since the row
    already spaces them from the facts. */
-.task-card-links {
+.list-card-links {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
   margin-top: 12px;
 }
 
-.task-card-links .task-card-open {
+.list-card-links .list-card-open {
   margin-top: 0;
 }
 
-.task-card-more > summary {
+.list-card-more > summary {
   align-items: center;
   color: var(--muted);
   cursor: pointer;
@@ -2591,28 +2594,28 @@ textarea {
   text-transform: uppercase;
 }
 
-.task-card-more > summary::-webkit-details-marker {
+.list-card-more > summary::-webkit-details-marker {
   display: none;
 }
 
-.task-card-more > summary::after {
+.list-card-more > summary::after {
   content: "›";
   font-size: 18px;
   line-height: 1;
   transition: transform 0.2s ease;
 }
 
-.task-card-more[open] > summary::after {
+.list-card-more[open] > summary::after {
   transform: rotate(90deg);
 }
 
-.task-card-more-body {
+.list-card-more-body {
   display: grid;
   gap: 10px;
   margin-top: 10px;
 }
 
-.task-card-desc {
+.list-card-desc {
   color: var(--ink);
   font-size: 14px;
   line-height: 1.45;
@@ -2627,12 +2630,12 @@ textarea {
   gap: 6px;
 }
 
-.task-details .task-card-desc {
+.task-details .list-card-desc {
   flex: 1;
   min-width: 0;
 }
 
-.task-card-desc.is-empty {
+.list-card-desc.is-empty {
   color: var(--muted);
 }
 
@@ -2665,7 +2668,7 @@ textarea {
   gap: 4px;
 }
 
-.task-card-more-body .inline-control-form {
+.list-card-more-body .inline-control-form {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -2675,7 +2678,7 @@ textarea {
 
 /* Size the status select to its content (with a sensible floor) rather than
    stretching it across the card — overrides the base rule's width: 100%. */
-.task-card-more-body .inline-control-form select {
+.list-card-more-body .inline-control-form select {
   flex: 0 1 auto;
   min-width: 150px;
   width: auto;
