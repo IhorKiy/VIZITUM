@@ -3,8 +3,14 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
+import { FilterDateRange } from "../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
+import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
+import { FilterForm } from "../../../../components/filter-form";
 import {
   CalendarIcon,
   CheckIcon,
@@ -253,7 +259,7 @@ export default async function ManagerVisitsPage({
           hasFilters={hasFilters}
           label={tCommon("filtersLabel")}
         >
-          <form
+          <FilterForm
             action={`/${tenantSlug}/manager/visits`}
             className="filter-form"
           >
@@ -265,7 +271,7 @@ export default async function ManagerVisitsPage({
                 defaultValue={selectedRoutePlanId ?? ""}
                 name="routePlanId"
               >
-                <option value="">{t("anyRoute")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {routeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -275,7 +281,7 @@ export default async function ManagerVisitsPage({
             </FilterField>
             <FilterField icon={<MapPinIcon />} label={t("location")}>
               <select defaultValue={selectedLocationId ?? ""} name="locationId">
-                <option value="">{t("anyLocation")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {locationOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -288,7 +294,7 @@ export default async function ManagerVisitsPage({
                 defaultValue={selectedRepresentativeId ?? ""}
                 name="representativeUserId"
               >
-                <option value="">{t("anyRepresentative")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {representativeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -296,34 +302,27 @@ export default async function ManagerVisitsPage({
                 ))}
               </select>
             </FilterField>
-            <FilterField icon={<CalendarIcon />} label={t("startedFrom")}>
-              <input
-                defaultValue={startedFrom ?? ""}
-                name="startedFrom"
-                type="date"
-              />
-            </FilterField>
-            <FilterField icon={<CalendarIcon />} label={t("startedTo")}>
-              <input
-                defaultValue={startedTo ?? ""}
-                name="startedTo"
-                type="date"
-              />
-            </FilterField>
-            <div className="filter-actions">
-              <button className="secondary-button" type="submit">
-                {tCommon("applyFilters")}
-              </button>
-              {hasFilters ? (
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/manager/visits`}
-                >
-                  {tCommon("reset")}
-                </a>
-              ) : null}
-            </div>
-          </form>
+            <FilterDateRange
+              fromLabel={t("startedFrom")}
+              fromName="startedFrom"
+              fromValue={startedFrom ?? ""}
+              label={t("visitPeriod")}
+              placeholder={tCommon("datePlaceholder")}
+              toLabel={t("startedTo")}
+              toName="startedTo"
+              toValue={startedTo ?? ""}
+            />
+            <FilterFooter
+              resetHref={
+                hasFilters ? `/${tenantSlug}/manager/visits` : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: visitsResult.data.total,
+              })}
+            />
+          </FilterForm>
         </FilterDisclosure>
 
         {visits.length > 0 ? (

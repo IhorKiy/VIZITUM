@@ -7,7 +7,6 @@
     "cancel": "Скасувати",
     "close": "Закрити",
     "reset": "Скинути",
-    "applyFilters": "Застосувати фільтри",
     "filtersLabel": "Фільтри",
     "all": "Усі",
     "notSet": "не вказано",
@@ -105,7 +104,9 @@
       "sessionActions": "Дії сесії",
       "updated": "Оновлено",
       "error": "Помилка"
-    }
+    },
+    "anyOption": "—",
+    "datePlaceholder": "__.__.____"
   },
   "auth": {
     "eyebrow": "Доступ до робочого простору",
@@ -215,11 +216,8 @@
       "summaryTo": "до {date}",
       "statusFiltersAria": "Фільтри статусу візитів",
       "route": "Маршрут",
-      "anyRoute": "Будь-який маршрут",
       "location": "Точка",
-      "anyLocation": "Будь-яка точка",
       "representative": "Представник",
-      "anyRepresentative": "Будь-який представник",
       "startedFrom": "Розпочаті з",
       "startedTo": "Розпочаті до",
       "emptyTitle": "Жоден візит не відповідає цьому фільтру",
@@ -231,7 +229,9 @@
       "tableType": "Тип",
       "tableStarted": "Розпочато",
       "tableCompleted": "Завершено",
-      "open": "Відкрити"
+      "open": "Відкрити",
+      "visitPeriod": "Період візиту",
+      "filterResultCount": "{count, plural, =0 {Візитів не знайдено} one {Знайдено <b>#</b> візит} few {Знайдено <b>#</b> візити} many {Знайдено <b>#</b> візитів} other {Знайдено <b>#</b> візита}}"
     },
     "tasks": {
       "title": "Задачі",
@@ -268,11 +268,8 @@
       "priorityFiltersAria": "Фільтри пріоритету задач",
       "anyPriority": "Будь-який пріоритет",
       "route": "Маршрут",
-      "anyRoute": "Будь-який маршрут",
       "location": "Точка",
-      "anyLocation": "Будь-яка точка",
       "assignee": "Виконавець",
-      "anyAssignee": "Будь-який виконавець",
       "dueFrom": "Термін з",
       "dueTo": "Термін до",
       "emptyTitle": "Жодна задача не відповідає цьому фільтру",
@@ -283,14 +280,15 @@
       "tableAssignee": "Виконавець",
       "tablePriority": "Пріоритет",
       "tableDue": "Термін",
-      "cardDetails": "Деталі",
       "editDetails": "Редагувати деталі",
       "editDetailsPlaceholder": "Додайте деталі задачі",
       "editStatus": "Змінити статус",
       "noTaskDetails": "Без додаткових деталей",
       "noLocation": "Без точки",
       "unassigned": "Не призначено",
-      "updateTaskStatusAria": "Оновити статус задачі {title}"
+      "updateTaskStatusAria": "Оновити статус задачі {title}",
+      "duePeriod": "Період виконання",
+      "filterResultCount": "{count, plural, =0 {Задач не знайдено} one {Знайдено <b>#</b> задачу} few {Знайдено <b>#</b> задачі} many {Знайдено <b>#</b> задач} other {Знайдено <b>#</b> задачі}}"
     },
     "locations": {
       "title": "Покриття",
@@ -322,11 +320,8 @@
       "search": "Пошук",
       "searchPlaceholder": "Назва або код",
       "city": "Місто",
-      "anyCity": "Будь-яке місто",
       "region": "Регіон",
-      "anyRegion": "Будь-який регіон",
       "territory": "Територія",
-      "anyTerritory": "Будь-яка територія",
       "emptyTitle": "Жодна точка не відповідає цьому фільтру",
       "emptyBody": "Скористайтеся іншим фільтром покриття або імпортуйте активні точки, перш ніж переглядати активність територій.",
       "showAllLocations": "Показати всі точки",
@@ -337,7 +332,8 @@
       "tableOpenTasks": "Відкриті задачі",
       "unassignedTerritory": "Не призначено",
       "noRegion": "Без регіону",
-      "noVisitsYet": "Візитів ще немає"
+      "noVisitsYet": "Візитів ще немає",
+      "filterResultCount": "{count, plural, =0 {Точок не знайдено} one {Знайдено <b>#</b> точку} few {Знайдено <b>#</b> точки} many {Знайдено <b>#</b> точок} other {Знайдено <b>#</b> точки}}"
     },
     "representatives": {
       "title": "Представники",
@@ -377,7 +373,8 @@
       "tableOpenTasks": "Відкриті задачі",
       "tableLastActivity": "Остання активність",
       "completedCount": "{count} завершено",
-      "noActivity": "Без активності"
+      "noActivity": "Без активності",
+      "filterResultCount": "{count, plural, =0 {Представників не знайдено} one {Знайдено <b>#</b> представника} few {Знайдено <b>#</b> представників} many {Знайдено <b>#</b> представників} other {Знайдено <b>#</b> представника}}"
     },
     "visitDetail": {
       "title": "Звіт про візит",
@@ -513,7 +510,6 @@
       "category": "Категорія",
       "chain": "Мережа",
       "chainNone": "Без мережі",
-      "allChains": "Усі мережі",
       "viewList": "Список",
       "viewByChain": "За мережею",
       "viewFiltersAria": "Режим перегляду точок",
@@ -535,7 +531,8 @@
       "createdAria": "Точку створено",
       "createdEyebrow": "Точку створено",
       "createdTitle": "Нову точку додано",
-      "createdBody": "Точка тепер доступна в цьому просторі."
+      "createdBody": "Точка тепер доступна в цьому просторі.",
+      "filterResultCount": "{count, plural, =0 {Точок не знайдено} one {Знайдено <b>#</b> точку} few {Знайдено <b>#</b> точки} many {Знайдено <b>#</b> точок} other {Знайдено <b>#</b> точки}}"
     },
     "chains": {
       "title": "Мережі",
@@ -575,7 +572,8 @@
       "cancelEdit": "Скасувати",
       "archiveChain": "Архівувати",
       "archivingChain": "Архівування…",
-      "archiveChainPrompt": "Архівувати «{name}»? Мережа перейде до архівних."
+      "archiveChainPrompt": "Архівувати «{name}»? Мережа перейде до архівних.",
+      "filterResultCount": "{count, plural, =0 {Мереж не знайдено} one {Знайдено <b>#</b> мережу} few {Знайдено <b>#</b> мережі} many {Знайдено <b>#</b> мереж} other {Знайдено <b>#</b> мережі}}"
     },
     "products": {
       "title": "Товари / SKU",
@@ -606,7 +604,6 @@
       "viewFiltersAria": "Режим перегляду товарів",
       "viewList": "Список",
       "viewByCategory": "За категоріями",
-      "allCategories": "Усі категорії",
       "search": "Пошук",
       "searchPlaceholder": "Назва, SKU або категорія",
       "emptyTitle": "Жоден товар не відповідає цьому фільтру",
@@ -645,7 +642,8 @@
       "updatedCategoryTitle": "Категорію перейменовано",
       "updatedCategoryBody": "Нову назву застосовано до товарів цієї категорії.",
       "removedCategoryTitle": "Категорію видалено",
-      "removedCategoryBody": "Категорію видалено для цього простору."
+      "removedCategoryBody": "Категорію видалено для цього простору.",
+      "filterResultCount": "{count, plural, =0 {Товарів не знайдено} one {Знайдено <b>#</b> товар} few {Знайдено <b>#</b> товари} many {Знайдено <b>#</b> товарів} other {Знайдено <b>#</b> товару}}"
     },
     "pilot": {
       "title": "Пілот"
@@ -1119,7 +1117,9 @@
       "summaryAllVisits": "усі візити",
       "summaryStatusVisits": "візити «{status}»",
       "summaryFrom": "з {date}",
-      "summaryTo": "до {date}"
+      "summaryTo": "до {date}",
+      "visitPeriod": "Період візиту",
+      "filterResultCount": "{count, plural, =0 {Візитів не знайдено} one {Знайдено <b>#</b> візит} few {Знайдено <b>#</b> візити} many {Знайдено <b>#</b> візитів} other {Знайдено <b>#</b> візита}}"
     }
   },
   "operations": {

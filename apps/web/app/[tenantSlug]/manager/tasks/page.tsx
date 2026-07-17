@@ -5,8 +5,14 @@ import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { FilterDateRange } from "../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
+import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
+import { FilterForm } from "../../../../components/filter-form";
 import {
   CalendarIcon,
   FlagIcon,
@@ -366,7 +372,10 @@ export default async function ManagerTasksPage({
           hasFilters={hasFilters}
           label={tCommon("filtersLabel")}
         >
-          <form action={`/${tenantSlug}/manager/tasks`} className="filter-form">
+          <FilterForm
+            action={`/${tenantSlug}/manager/tasks`}
+            className="filter-form"
+          >
             {selectedStatus ? (
               <input name="status" type="hidden" value={selectedStatus} />
             ) : null}
@@ -378,7 +387,7 @@ export default async function ManagerTasksPage({
                 defaultValue={selectedRoutePlanId ?? ""}
                 name="routePlanId"
               >
-                <option value="">{t("anyRoute")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {routeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -388,7 +397,7 @@ export default async function ManagerTasksPage({
             </FilterField>
             <FilterField icon={<MapPinIcon />} label={t("location")}>
               <select defaultValue={selectedLocationId ?? ""} name="locationId">
-                <option value="">{t("anyLocation")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {locationOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -401,7 +410,7 @@ export default async function ManagerTasksPage({
                 defaultValue={selectedAssigneeId ?? ""}
                 name="assignedToUserId"
               >
-                <option value="">{t("anyAssignee")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {assigneeOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -409,26 +418,27 @@ export default async function ManagerTasksPage({
                 ))}
               </select>
             </FilterField>
-            <FilterField icon={<CalendarIcon />} label={t("dueFrom")}>
-              <input defaultValue={dueFrom ?? ""} name="dueFrom" type="date" />
-            </FilterField>
-            <FilterField icon={<CalendarIcon />} label={t("dueTo")}>
-              <input defaultValue={dueTo ?? ""} name="dueTo" type="date" />
-            </FilterField>
-            <div className="filter-actions">
-              <button className="secondary-button" type="submit">
-                {tCommon("applyFilters")}
-              </button>
-              {hasFilters ? (
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/manager/tasks`}
-                >
-                  {tCommon("reset")}
-                </a>
-              ) : null}
-            </div>
-          </form>
+            <FilterDateRange
+              fromLabel={t("dueFrom")}
+              fromName="dueFrom"
+              fromValue={dueFrom ?? ""}
+              label={t("duePeriod")}
+              placeholder={tCommon("datePlaceholder")}
+              toLabel={t("dueTo")}
+              toName="dueTo"
+              toValue={dueTo ?? ""}
+            />
+            <FilterFooter
+              resetHref={
+                hasFilters ? `/${tenantSlug}/manager/tasks` : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: tasksResult.data.total,
+              })}
+            />
+          </FilterForm>
         </FilterDisclosure>
 
         {tasks.length > 0 ? (
@@ -542,18 +552,11 @@ function TasksCards({
                 />
               </CardFact>
             </dl>
-            <details className="list-card-more">
-              <summary className="list-card-more-summary">
-                {t("cardDetails")}
-              </summary>
-              <div className="list-card-more-body">
-                <TaskDetailsEditor
-                  taskId={task.id}
-                  value={task.description ?? ""}
-                  updateAction={updateTaskDetailsAction}
-                />
-              </div>
-            </details>
+            <TaskDetailsEditor
+              taskId={task.id}
+              value={task.description ?? ""}
+              updateAction={updateTaskDetailsAction}
+            />
           </li>
         );
       })}

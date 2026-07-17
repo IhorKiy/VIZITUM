@@ -3,6 +3,11 @@ import { CardFact } from "../../../../components/card-fact";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
 import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
+import { FilterForm } from "../../../../components/filter-form";
+import {
   CalendarIcon,
   FlagIcon,
   MapIcon,
@@ -276,7 +281,7 @@ export default async function ManagerLocationsPage({
           hasFilters={hasFilters}
           label={tCommon("filtersLabel")}
         >
-          <form
+          <FilterForm
             action={`/${tenantSlug}/manager/locations`}
             className="filter-form locations-filter-form"
           >
@@ -293,7 +298,7 @@ export default async function ManagerLocationsPage({
             </FilterField>
             <FilterField icon={<MapPinIcon />} label={t("city")}>
               <select defaultValue={selectedCity ?? ""} name="city">
-                <option value="">{t("anyCity")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {cityOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -303,7 +308,7 @@ export default async function ManagerLocationsPage({
             </FilterField>
             <FilterField icon={<MapIcon />} label={t("region")}>
               <select defaultValue={selectedRegion ?? ""} name="region">
-                <option value="">{t("anyRegion")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {regionOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -313,7 +318,7 @@ export default async function ManagerLocationsPage({
             </FilterField>
             <FilterField icon={<TagIcon />} label={t("territory")}>
               <select defaultValue={selectedTerritory ?? ""} name="territory">
-                <option value="">{t("anyTerritory")}</option>
+                <option value="">{tCommon("anyOption")}</option>
                 {territoryOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
@@ -321,20 +326,17 @@ export default async function ManagerLocationsPage({
                 ))}
               </select>
             </FilterField>
-            <div className="filter-actions">
-              <button className="secondary-button" type="submit">
-                {tCommon("applyFilters")}
-              </button>
-              {hasFilters ? (
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/manager/locations`}
-                >
-                  {tCommon("reset")}
-                </a>
-              ) : null}
-            </div>
-          </form>
+            <FilterFooter
+              resetHref={
+                hasFilters ? `/${tenantSlug}/manager/locations` : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: locationsResult.data.total,
+              })}
+            />
+          </FilterForm>
         </FilterDisclosure>
 
         {locations.length > 0 ? (

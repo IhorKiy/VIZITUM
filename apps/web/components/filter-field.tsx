@@ -6,16 +6,18 @@ type FilterFieldProps = {
   children: ReactNode;
 };
 
-// A filter-form control labelled by an icon instead of text; the field name
-// stays available as a hover tooltip (title) and for screen readers (sr-only).
+// A filter-form control with its name spelled out above it and an icon sitting
+// inside the control, which the control's own padding leaves room for.
 export function FilterField({ icon, label, children }: FilterFieldProps) {
   return (
-    <label>
-      <span className="filter-field-icon" title={label}>
-        {icon}
-        <span className="sr-only">{label}</span>
+    <label className="filter-field">
+      <span className="filter-field-label">{label}</span>
+      <span className="filter-field-control">
+        <span aria-hidden="true" className="filter-field-icon">
+          {icon}
+        </span>
+        {children}
       </span>
-      {children}
     </label>
   );
 }

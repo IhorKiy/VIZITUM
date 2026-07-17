@@ -2,6 +2,13 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { FilterDateRange } from "../../../../components/filter-date-range";
+import { FilterDisclosure } from "../../../../components/filter-disclosure";
+import {
+  FilterFooter,
+  filterCountTags,
+} from "../../../../components/filter-footer";
+import { FilterForm } from "../../../../components/filter-form";
 import {
   getCurrentSession,
   listVisits,
@@ -204,43 +211,39 @@ export default async function FieldHistoryPage({
           </div>
         </div>
 
-        <form
-          action={`/${tenantSlug}/field/history`}
-          className="filter-form field-history-filter-form"
+        <FilterDisclosure
+          hasFilters={hasFilters}
+          label={tCommon("filtersLabel")}
         >
-          {selectedStatus ? (
-            <input name="status" type="hidden" value={selectedStatus} />
-          ) : null}
-          <label>
-            {t("startedFrom")}
-            <input
-              defaultValue={startedFrom ?? ""}
-              name="startedFrom"
-              type="date"
-            />
-          </label>
-          <label>
-            {t("startedTo")}
-            <input
-              defaultValue={startedTo ?? ""}
-              name="startedTo"
-              type="date"
-            />
-          </label>
-          <div className="filter-actions">
-            <button className="secondary-button" type="submit">
-              {tCommon("applyFilters")}
-            </button>
-            {hasFilters ? (
-              <a
-                className="secondary-button"
-                href={`/${tenantSlug}/field/history`}
-              >
-                {tCommon("reset")}
-              </a>
+          <FilterForm
+            action={`/${tenantSlug}/field/history`}
+            className="filter-form field-history-filter-form"
+          >
+            {selectedStatus ? (
+              <input name="status" type="hidden" value={selectedStatus} />
             ) : null}
-          </div>
-        </form>
+            <FilterDateRange
+              fromLabel={t("startedFrom")}
+              fromName="startedFrom"
+              fromValue={startedFrom ?? ""}
+              label={t("visitPeriod")}
+              placeholder={tCommon("datePlaceholder")}
+              toLabel={t("startedTo")}
+              toName="startedTo"
+              toValue={startedTo ?? ""}
+            />
+            <FilterFooter
+              resetHref={
+                hasFilters ? `/${tenantSlug}/field/history` : undefined
+              }
+              resetLabel={tCommon("reset")}
+              resultText={t.rich("filterResultCount", {
+                ...filterCountTags,
+                count: visitsResult.data.total,
+              })}
+            />
+          </FilterForm>
+        </FilterDisclosure>
 
         {visits.length > 0 ? (
           <HistoryTable visits={visits} />
