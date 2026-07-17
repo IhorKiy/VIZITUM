@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../components/app-shell";
-import { AssignTaskModal } from "../../../components/assign-task-modal";
+import {
+  AssignTaskModal,
+  type AssignTaskActionResult,
+} from "../../../components/assign-task-modal";
 import { DismissableNotice } from "../../../components/dismissable-notice";
 import {
   createTask,
@@ -29,7 +32,6 @@ type ManagerPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     task?: string;
-    error?: string;
     assign?: string;
   }>;
 };
@@ -109,7 +111,7 @@ export default async function ManagerPage({
   searchParams,
 }: ManagerPageProps) {
   const { tenantSlug } = await params;
-  const { task, error } = await searchParams;
+  const { task } = await searchParams;
   const [locale, t, tManager, tCommon] = await Promise.all([
     getLocale(),
     getTranslations("manager.overview"),
@@ -119,7 +121,9 @@ export default async function ManagerPage({
 
   await recordDashboardView("manager").catch(() => undefined);
 
-  async function createManagerTaskAction(formData: FormData) {
+  async function createManagerTaskAction(
+    formData: FormData,
+  ): Promise<AssignTaskActionResult> {
     "use server";
 
     const title = getFormString(formData, "title").trim();
@@ -129,8 +133,10 @@ export default async function ManagerPage({
     const locationId = getFormString(formData, "locationId").trim();
     const dueDate = getFormString(formData, "dueDate").trim();
 
+    // Failures return instead of redirecting: a redirect would remount the
+    // page tree and throw away everything typed into the assign-task modal.
     if (!title) {
-      redirect(`/${tenantSlug}/manager?error=task&assign=1`);
+      return { ok: false };
     }
 
     const result = await createTask({
@@ -143,7 +149,7 @@ export default async function ManagerPage({
     });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/manager?error=task&assign=1`);
+      return { ok: false };
     }
 
     redirect(`/${tenantSlug}/manager?task=created`);
@@ -290,25 +296,6 @@ export default async function ManagerPage({
           eyebrow={t("taskCreatedEyebrow")}
           title={t("taskCreatedTitle")}
           tone="success"
-        />
-      ) : null}
-
-      {error === "task" ? (
-        <DismissableNotice
-          actions={
-            <a
-              className="primary-button"
-              href={`/${tenantSlug}/manager?assign=1`}
-            >
-              {t("returnToTaskForm")}
-            </a>
-          }
-          ariaLabel={t("taskErrorAria")}
-          body={t("taskErrorBody")}
-          clearParams={["error"]}
-          eyebrow={t("taskErrorEyebrow")}
-          title={t("taskErrorTitle")}
-          tone="danger"
         />
       ) : null}
 

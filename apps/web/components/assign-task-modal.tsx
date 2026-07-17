@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { formatEnumLabel } from "../lib/format";
+import { getFormString } from "../lib/form";
 import { PendingSubmitButton } from "./pending-submit-button";
 
 type AssignTaskOption = {
@@ -12,8 +13,23 @@ type AssignTaskOption = {
   label: string;
 };
 
+// A successful create ends in a redirect (the action never resolves with a
+// value); a failed one must NOT redirect — a redirect remounts the page tree
+// and wipes the user's input — so it resolves with { ok: false } and the
+// still-mounted dialog shows the error and keeps the draft.
+export type AssignTaskActionResult = { ok: false } | void;
+
+type AssignTaskDraft = {
+  title: string;
+  description: string;
+  assignedToUserId: string;
+  locationId: string;
+  priority: string;
+  dueDate: string;
+};
+
 type AssignTaskModalProps = {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<AssignTaskActionResult>;
   assigneeOptions: AssignTaskOption[];
   locationOptions: AssignTaskOption[];
 };
@@ -26,14 +42,17 @@ export function AssignTaskModal({
   const t = useTranslations("manager.overview");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
   const searchParams = useSearchParams();
+  const [draft, setDraft] = useState<AssignTaskDraft | null>(null);
+  const [submitFailed, setSubmitFailed] = useState(false);
+  const [formVersion, setFormVersion] = useState(0);
 
   // Keep the dialog in sync with the URL on every navigation (not a static
   // prop): `?assign=1` opens it, anything else closes it. This closes the
   // modal after a successful create (which redirects to `?task=created`) and
-  // reopens it from the success/error notices even when `assign` was already
-  // "1" on the previous URL — a boolean prop would not re-fire in that case.
+  // reopens it from the success notice's "Assign another" link even when
+  // `assign` was already "1" on the previous URL — a boolean prop would not
+  // re-fire in that case.
   useEffect(() => {
     const dialog = dialogRef.current;
 
@@ -50,13 +69,39 @@ export function AssignTaskModal({
     }
   }, [searchParams]);
 
-  // The dialog is only hidden on close, never unmounted, so opening always
-  // starts from a blank form — otherwise "Assign another" would show the
-  // previous task's input. Resetting on open (not on close) keeps the entered
-  // values when a failed create redirects back with the dialog still open.
+  // Opening always starts from a blank form — otherwise "Assign another"
+  // would show the previous task's input. Bumping the form key remounts the
+  // form, which clears every field and discards any draft left over from an
+  // earlier failed submit.
   function openDialog() {
-    formRef.current?.reset();
+    setDraft(null);
+    setSubmitFailed(false);
+    setFormVersion((version) => version + 1);
     dialogRef.current?.showModal();
+  }
+
+  // React resets the (uncontrolled) form once the action settles, so a failed
+  // create captures the submitted values first and feeds them back as the
+  // remounted form's default values — a remount is the only way a <select>
+  // picks up a new defaultValue.
+  async function submitAction(formData: FormData) {
+    setSubmitFailed(false);
+
+    const values: AssignTaskDraft = {
+      title: getFormString(formData, "title"),
+      description: getFormString(formData, "description"),
+      assignedToUserId: getFormString(formData, "assignedToUserId"),
+      locationId: getFormString(formData, "locationId"),
+      priority: getFormString(formData, "priority"),
+      dueDate: getFormString(formData, "dueDate"),
+    };
+    const result = await action(formData);
+
+    if (result?.ok === false) {
+      setDraft(values);
+      setSubmitFailed(true);
+      setFormVersion((version) => version + 1);
+    }
   }
 
   return (
@@ -89,14 +134,21 @@ export function AssignTaskModal({
           </button>
         </div>
 
+        {submitFailed ? (
+          <div className="form-error" role="alert">
+            {t("taskErrorBody")}
+          </div>
+        ) : null}
+
         <form
-          action={action}
+          action={submitAction}
           className="visit-form compact modal-form"
-          ref={formRef}
+          key={formVersion}
         >
           <label>
             {t("formTitle")}
             <textarea
+              defaultValue={draft?.title ?? ""}
               name="title"
               placeholder={t("formTitlePlaceholder")}
               required
@@ -106,6 +158,7 @@ export function AssignTaskModal({
           <label>
             {t("formDetails")}
             <textarea
+              defaultValue={draft?.description ?? ""}
               name="description"
               placeholder={t("formDetailsPlaceholder")}
               rows={3}
@@ -113,7 +166,10 @@ export function AssignTaskModal({
           </label>
           <label>
             {t("formAssignee")}
-            <select name="assignedToUserId">
+            <select
+              defaultValue={draft?.assignedToUserId ?? ""}
+              name="assignedToUserId"
+            >
               <option value="">{t("formUnassigned")}</option>
               {assigneeOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -127,7 +183,7 @@ export function AssignTaskModal({
           </label>
           <label>
             {t("formLocation")}
-            <select name="locationId">
+            <select defaultValue={draft?.locationId ?? ""} name="locationId">
               <option value="">{t("formNoLocation")}</option>
               {locationOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -142,7 +198,11 @@ export function AssignTaskModal({
           <div className="form-row">
             <label>
               {t("formPriority")}
-              <select name="priority" defaultValue="normal" required>
+              <select
+                defaultValue={draft?.priority ?? "normal"}
+                name="priority"
+                required
+              >
                 <option value="normal">
                   {formatEnumLabel(tCommon, "normal")}
                 </option>
@@ -152,7 +212,11 @@ export function AssignTaskModal({
             </label>
             <label>
               {t("formDueDate")}
-              <input name="dueDate" type="date" />
+              <input
+                defaultValue={draft?.dueDate ?? ""}
+                name="dueDate"
+                type="date"
+              />
             </label>
           </div>
 
