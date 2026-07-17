@@ -1,4 +1,7 @@
 import { AppShell } from "../../../../components/app-shell";
+import { CardFact } from "../../../../components/card-fact";
+import { FilterDisclosure } from "../../../../components/filter-disclosure";
+import { FilterField } from "../../../../components/filter-field";
 import {
   CalendarIcon,
   CheckIcon,
@@ -225,13 +228,10 @@ export default async function ManagerRepresentativesPage({
           </div>
         </div>
 
-        <details className="filter-disclosure" open={hasFilters}>
-          <summary className="filter-disclosure-summary">
-            {tCommon("filtersLabel")}
-            {hasFilters ? (
-              <span aria-hidden="true" className="filter-active-dot" />
-            ) : null}
-          </summary>
+        <FilterDisclosure
+          hasFilters={hasFilters}
+          label={tCommon("filtersLabel")}
+        >
           <form
             action={`/${tenantSlug}/manager/representatives`}
             className="filter-form representatives-filter-form"
@@ -239,18 +239,14 @@ export default async function ManagerRepresentativesPage({
             {selectedActivity ? (
               <input name="activity" type="hidden" value={selectedActivity} />
             ) : null}
-            <label>
-              <span className="filter-field-icon" title={t("search")}>
-                <SearchIcon />
-                <span className="sr-only">{t("search")}</span>
-              </span>
+            <FilterField icon={<SearchIcon />} label={t("search")}>
               <input
                 defaultValue={search ?? ""}
                 name="search"
                 placeholder={t("searchPlaceholder")}
                 type="search"
               />
-            </label>
+            </FilterField>
             <div className="filter-actions">
               <button className="secondary-button" type="submit">
                 {tCommon("applyFilters")}
@@ -265,7 +261,7 @@ export default async function ManagerRepresentativesPage({
               ) : null}
             </div>
           </form>
-        </details>
+        </FilterDisclosure>
 
         {representatives.length > 0 ? (
           <RepresentativesCards
@@ -306,17 +302,15 @@ function RepresentativesCards({
   const t = useTranslations("manager.representatives");
   const format = useFormatter();
 
-  // Same card layout as the manager task/visit/coverage lists (shared
-  // .task-card* styles): the rep is the title, the open-task count sits
-  // top-right as the headline pill (amber when work is pending), the workload
-  // facts use the same icon language, and the footer drills into that rep's
+  // The rep is the title, the open-task count sits top-right as the headline
+  // pill (amber when work is pending), and the footer drills into that rep's
   // visits and tasks.
   return (
-    <ul className="task-cards">
+    <ul className="list-cards">
       {representatives.map((representative) => (
-        <li className="task-card" key={representative.id}>
-          <div className="task-card-top">
-            <h3 className="task-card-title">{representative.name}</h3>
+        <li className="list-card" key={representative.id}>
+          <div className="list-card-top">
+            <h3 className="list-card-title">{representative.name}</h3>
             <span
               className={`status-pill ${
                 representative.openTaskCount > 0 ? "warning" : "active"
@@ -327,56 +321,36 @@ function RepresentativesCards({
               {representative.openTaskCount}
             </span>
           </div>
-          <dl className="task-card-facts">
-            <div className="task-fact">
-              <dt>
-                <MailIcon />
-                <span className="sr-only">{t("email")}</span>
-              </dt>
-              <dd>{representative.email}</dd>
-            </div>
-            <div className="task-fact">
-              <dt>
-                <MapPinIcon />
-                <span className="sr-only">{t("tableRoutes")}</span>
-              </dt>
-              <dd>{representative.routeCount}</dd>
-            </div>
-            <div className="task-fact">
-              <dt>
-                <CheckIcon />
-                <span className="sr-only">{t("tableVisits")}</span>
-              </dt>
-              <dd>
-                {representative.visitCount} ·{" "}
-                {t("completedCount", {
-                  count: representative.completedVisitCount,
-                })}
-              </dd>
-            </div>
-            <div className="task-fact">
-              <dt>
-                <CalendarIcon />
-                <span className="sr-only">{t("tableLastActivity")}</span>
-              </dt>
-              <dd>
-                {formatDateTime(
-                  format,
-                  representative.lastActivityAt,
-                  t("noActivity"),
-                )}
-              </dd>
-            </div>
+          <dl className="list-card-facts">
+            <CardFact icon={<MailIcon />} label={t("email")}>
+              {representative.email}
+            </CardFact>
+            <CardFact icon={<MapPinIcon />} label={t("tableRoutes")}>
+              {representative.routeCount}
+            </CardFact>
+            <CardFact icon={<CheckIcon />} label={t("tableVisits")}>
+              {representative.visitCount} ·{" "}
+              {t("completedCount", {
+                count: representative.completedVisitCount,
+              })}
+            </CardFact>
+            <CardFact icon={<CalendarIcon />} label={t("tableLastActivity")}>
+              {formatDateTime(
+                format,
+                representative.lastActivityAt,
+                t("noActivity"),
+              )}
+            </CardFact>
           </dl>
-          <div className="task-card-links">
+          <div className="list-card-links">
             <a
-              className="task-card-open"
+              className="list-card-open"
               href={`/${tenantSlug}/manager/visits?representativeUserId=${representative.id}`}
             >
               {t("visits")}
             </a>
             <a
-              className="task-card-open"
+              className="list-card-open"
               href={`/${tenantSlug}/manager/tasks?assignedToUserId=${representative.id}`}
             >
               {t("tasks")}

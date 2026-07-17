@@ -1,4 +1,7 @@
 import { AppShell } from "../../../../components/app-shell";
+import { CardFact } from "../../../../components/card-fact";
+import { FilterDisclosure } from "../../../../components/filter-disclosure";
+import { FilterField } from "../../../../components/filter-field";
 import {
   CalendarIcon,
   FlagIcon,
@@ -269,13 +272,10 @@ export default async function ManagerLocationsPage({
           </div>
         </div>
 
-        <details className="filter-disclosure" open={hasFilters}>
-          <summary className="filter-disclosure-summary">
-            {tCommon("filtersLabel")}
-            {hasFilters ? (
-              <span aria-hidden="true" className="filter-active-dot" />
-            ) : null}
-          </summary>
+        <FilterDisclosure
+          hasFilters={hasFilters}
+          label={tCommon("filtersLabel")}
+        >
           <form
             action={`/${tenantSlug}/manager/locations`}
             className="filter-form locations-filter-form"
@@ -283,23 +283,15 @@ export default async function ManagerLocationsPage({
             {selectedStatus ? (
               <input name="status" type="hidden" value={selectedStatus} />
             ) : null}
-            <label>
-              <span className="filter-field-icon" title={t("search")}>
-                <SearchIcon />
-                <span className="sr-only">{t("search")}</span>
-              </span>
+            <FilterField icon={<SearchIcon />} label={t("search")}>
               <input
                 defaultValue={search ?? ""}
                 name="search"
                 placeholder={t("searchPlaceholder")}
                 type="search"
               />
-            </label>
-            <label>
-              <span className="filter-field-icon" title={t("city")}>
-                <MapPinIcon />
-                <span className="sr-only">{t("city")}</span>
-              </span>
+            </FilterField>
+            <FilterField icon={<MapPinIcon />} label={t("city")}>
               <select defaultValue={selectedCity ?? ""} name="city">
                 <option value="">{t("anyCity")}</option>
                 {cityOptions.map((option) => (
@@ -308,12 +300,8 @@ export default async function ManagerLocationsPage({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="filter-field-icon" title={t("region")}>
-                <MapIcon />
-                <span className="sr-only">{t("region")}</span>
-              </span>
+            </FilterField>
+            <FilterField icon={<MapIcon />} label={t("region")}>
               <select defaultValue={selectedRegion ?? ""} name="region">
                 <option value="">{t("anyRegion")}</option>
                 {regionOptions.map((option) => (
@@ -322,12 +310,8 @@ export default async function ManagerLocationsPage({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span className="filter-field-icon" title={t("territory")}>
-                <TagIcon />
-                <span className="sr-only">{t("territory")}</span>
-              </span>
+            </FilterField>
+            <FilterField icon={<TagIcon />} label={t("territory")}>
               <select defaultValue={selectedTerritory ?? ""} name="territory">
                 <option value="">{t("anyTerritory")}</option>
                 {territoryOptions.map((option) => (
@@ -336,7 +320,7 @@ export default async function ManagerLocationsPage({
                   </option>
                 ))}
               </select>
-            </label>
+            </FilterField>
             <div className="filter-actions">
               <button className="secondary-button" type="submit">
                 {tCommon("applyFilters")}
@@ -351,7 +335,7 @@ export default async function ManagerLocationsPage({
               ) : null}
             </div>
           </form>
-        </details>
+        </FilterDisclosure>
 
         {locations.length > 0 ? (
           <LocationsCards
@@ -396,12 +380,10 @@ function LocationsCards({
   const tCommon = useTranslations("common");
   const format = useFormatter();
 
-  // Same card layout as the manager task/visit lists (shared .task-card*
-  // styles): the location is the title, the status pill sits top-right, the
-  // coverage facts use the same icon language, and the footer holds the
-  // per-location drill-down links.
+  // The location is the title, the status pill sits top-right, and the footer
+  // holds the per-location drill-down links.
   return (
-    <ul className="task-cards">
+    <ul className="list-cards">
       {locations.map((location) => {
         const activity = activityByLocation.get(location.id);
         const visitCount = activity?.visitCount ?? 0;
@@ -411,62 +393,42 @@ function LocationsCards({
         ].join(" · ");
 
         return (
-          <li className="task-card" key={location.id}>
-            <div className="task-card-top">
-              <h3 className="task-card-title">{location.name}</h3>
+          <li className="list-card" key={location.id}>
+            <div className="list-card-top">
+              <h3 className="list-card-title">{location.name}</h3>
               <span className={`status-pill ${statusTone(location.status)}`}>
                 {formatEnumLabel(tCommon, location.status)}
               </span>
             </div>
-            <dl className="task-card-facts">
-              <div className="task-fact">
-                <dt>
-                  <MapPinIcon />
-                  <span className="sr-only">{t("tableLocation")}</span>
-                </dt>
-                <dd>
-                  {location.addressLine}, {location.city}
-                </dd>
-              </div>
-              <div className="task-fact">
-                <dt>
-                  <TagIcon />
-                  <span className="sr-only">{t("tableArea")}</span>
-                </dt>
-                <dd>{area}</dd>
-              </div>
-              <div className="task-fact">
-                <dt>
-                  <CalendarIcon />
-                  <span className="sr-only">{t("tableVisits")}</span>
-                </dt>
-                <dd>
-                  {visitCount > 0
-                    ? `${visitCount} · ${formatDateTime(
-                        format,
-                        activity?.lastVisitAt ?? null,
-                        t("noVisitsYet"),
-                      )}`
-                    : t("noVisitsYet")}
-                </dd>
-              </div>
-              <div className="task-fact">
-                <dt>
-                  <FlagIcon />
-                  <span className="sr-only">{t("tableOpenTasks")}</span>
-                </dt>
-                <dd>{activity?.openTaskCount ?? 0}</dd>
-              </div>
+            <dl className="list-card-facts">
+              <CardFact icon={<MapPinIcon />} label={t("tableLocation")}>
+                {location.addressLine}, {location.city}
+              </CardFact>
+              <CardFact icon={<TagIcon />} label={t("tableArea")}>
+                {area}
+              </CardFact>
+              <CardFact icon={<CalendarIcon />} label={t("tableVisits")}>
+                {visitCount > 0
+                  ? `${visitCount} · ${formatDateTime(
+                      format,
+                      activity?.lastVisitAt ?? null,
+                      t("noVisitsYet"),
+                    )}`
+                  : t("noVisitsYet")}
+              </CardFact>
+              <CardFact icon={<FlagIcon />} label={t("tableOpenTasks")}>
+                {activity?.openTaskCount ?? 0}
+              </CardFact>
             </dl>
-            <div className="task-card-links">
+            <div className="list-card-links">
               <a
-                className="task-card-open"
+                className="list-card-open"
                 href={`/${tenantSlug}/manager/visits?locationId=${location.id}`}
               >
                 {t("visits")}
               </a>
               <a
-                className="task-card-open"
+                className="list-card-open"
                 href={`/${tenantSlug}/manager/tasks?locationId=${location.id}`}
               >
                 {t("tasks")}
