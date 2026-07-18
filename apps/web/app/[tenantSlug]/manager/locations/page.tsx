@@ -331,8 +331,10 @@ function LocationsCards({
         const activity = activityByLocation.get(location.id);
         const visitCount = activity?.visitCount ?? 0;
         const area = [
-          location.territory ?? t("unassignedTerritory"),
-          location.type ?? t("noType"),
+          location.territory
+            ? formatEnumLabel(tCommon, location.territory)
+            : t("unassignedTerritory"),
+          location.type ? formatEnumLabel(tCommon, location.type) : t("noType"),
         ].join(" · ");
         const displayStatus = location.archived ? "archived" : location.status;
 
