@@ -60,6 +60,7 @@ describe("routes permissions", () => {
     const mutationHandlers = [
       RoutesController.prototype.createRoutePlan,
       RoutesController.prototype.updateRoutePlan,
+      RoutesController.prototype.deleteRoutePlan,
       RoutesController.prototype.createRouteItem,
       RoutesController.prototype.updateRouteItem,
     ];
@@ -166,5 +167,75 @@ describe("routes permissions", () => {
     );
 
     assert.equal(response.representativeUserId, "rep-b");
+  });
+});
+
+describe("route plan removal", () => {
+  it("forbids a representative from deleting another representative's plan", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-b",
+          status: "draft",
+        }),
+      },
+    };
+    const service = new RoutesService(prisma as never);
+
+    await assert.rejects(
+      service.deleteRoutePlan(representativeContext as never, "plan-a"),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(error.getResponse?.().code, "ROUTE_SCOPE_FORBIDDEN");
+        return true;
+      },
+    );
+  });
+
+  it("rejects deleting a plan that has already been published", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+          status: "published",
+        }),
+      },
+    };
+    const service = new RoutesService(prisma as never);
+
+    await assert.rejects(
+      service.deleteRoutePlan(representativeContext as never, "plan-a"),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(error.getResponse?.().code, "ROUTE_PLAN_NOT_REMOVABLE");
+        return true;
+      },
+    );
+  });
+
+  it("allows a representative to delete their own draft plan", async () => {
+    let deleteWhere: unknown;
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+          status: "draft",
+        }),
+        delete: async (args: unknown) => {
+          deleteWhere = args;
+          return buildFullPlan("rep-a");
+        },
+      },
+    };
+    const service = new RoutesService(prisma as never);
+
+    const response = await service.deleteRoutePlan(
+      representativeContext as never,
+      "plan-a",
+    );
+
+    assert.deepEqual(response, { deleted: true });
+    assert.deepEqual(deleteWhere, { where: { id: "plan-a" } });
   });
 });

@@ -2,13 +2,13 @@
 
 Reference for the implemented database schema. Source of truth: `prisma/schema.prisma` (migrations in `prisma/migrations/`). This is the current state; `docs/vizitum-low-level-technical-design.md` §DB describes design intent and may differ. Update this document in the same change as any schema change.
 
-**29 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
+**31 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
 
 ## Conventions
 
 - IDs: `cuid()` strings.
 - Tenant-owned tables: `tenantId` + `createdAt` + `updatedAt`; soft delete via `deletedAt` where user-facing records can be removed (`users`, `chains`, `locations`, `location_contacts`, `products`, `tasks`, `visit_notes`, `storage_objects`).
-- Uniqueness is tenant-scoped where it matters: `users @@unique([tenantId, email])`, `route_plans @@unique([tenantId, representativeUserId, planDate])`, `tenant_settings @@unique([tenantId, key])`. `products` and `locations` uniqueness on `(tenantId, externalCode)` is a **partial** unique index scoped to live rows (`WHERE deletedAt IS NULL`, migrations `20260713120000_product_external_code_partial_unique` and `20260718090000_location_external_code_partial_unique`) — not a plain `@@unique`, so a soft-deleted row frees its externalCode for re-import/re-create (matches the `deletedAt: null` create + import pre-checks). Prisma can't express partial unique indexes, so they're managed via raw SQL and omitted from `schema.prisma`.
+- Uniqueness is tenant-scoped where it matters: `users @@unique([tenantId, email])`, `route_plans @@unique([tenantId, representativeUserId, planDate])`, `route_template_items @@unique([tenantId, routeTemplateId, sequence])`, `tenant_settings @@unique([tenantId, key])`. `products` and `locations` uniqueness on `(tenantId, externalCode)` is a **partial** unique index scoped to live rows (`WHERE deletedAt IS NULL`, migrations `20260713120000_product_external_code_partial_unique` and `20260718090000_location_external_code_partial_unique`) — not a plain `@@unique`, so a soft-deleted row frees its externalCode for re-import/re-create (matches the `deletedAt: null` create + import pre-checks). Prisma can't express partial unique indexes, so they're managed via raw SQL and omitted from `schema.prisma`.
 
 ## Platform group
 
@@ -47,8 +47,10 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 
 | Model | Table | Purpose |
 | --- | --- | --- |
-| `RoutePlan` | `route_plans` | One plan per representative per `planDate` (RouteStatus: draft→published→in_progress→completed/cancelled). |
+| `RoutePlan` | `route_plans` | One plan per representative per `planDate` (RouteStatus: draft→published→in_progress→completed/cancelled). Optional `routeTemplateId` → `RouteTemplate` (`SetNull` on template delete) records which named template (if any) this date was assigned from — set by `POST /routes/templates/:templateId/assign` and `POST /routes/templates/copy-month`; a plan created directly via `POST /routes` has no template. |
 | `RouteItem` | `route_items` | Ordered stop (`sequence` unique within plan) with RouteItemStatus (**planned / visited / skipped**), planned time window, `skipReason`. At most one visit per item (`Visit.routeItemId` unique). |
+| `RouteTemplate` | `route_templates` | A representative's reusable, named stop list (`name`, no uniqueness constraint — reps may reuse names), independent of any date. Never drives visits/reports directly; assigning it to a date copies its items into a real `RoutePlan`/`RouteItem`s (see above). |
+| `RouteTemplateItem` | `route_template_items` | Ordered stop (`sequence` unique within template) on a `RouteTemplate`: just `locationId` + `sequence`, no status/time-window/skip fields (those only make sense once a stop is materialized onto a dated `RoutePlan`). Hard-deleted (`DELETE /routes/templates/:templateId/items/:itemId`) — unlike `RouteItem`, a template stop has no visit history to preserve. |
 | `Visit` | `visits` | Visit lifecycle (VisitStatus: draft/in_progress/completed/cancelled) with `startedAt`/`completedAt`/`cancelledAt`; links location, representative, optional route item. |
 | `VisitNote` | `visit_notes` | Text or audio note. Audio is referenced via `temporaryAudioObjectId` → `StorageObject` and is temporary processing data. |
 | `Report` | `reports` | **The durable outcome of a visit** (one per visit, `visitId` unique): `templateCode` (SegmentTemplate), `schemaVersion`, `confirmedData` (JSON), `confirmedBy`/`confirmedAt`, optional `aiMetadata`. Default status `confirmed`. |

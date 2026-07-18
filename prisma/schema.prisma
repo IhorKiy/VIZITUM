@@ -346,6 +346,7 @@ model User {
   assignedLocations          LocationAssignment[] @relation("RepresentativeLocationAssignments")
   routePlans                 RoutePlan[]          @relation("RepresentativeRoutePlans")
   createdRoutePlans          RoutePlan[]          @relation("CreatedRoutePlans")
+  routeTemplates             RouteTemplate[]      @relation("RepresentativeRouteTemplates")
   visits                     Visit[]              @relation("RepresentativeVisits")
   visitNotes                 VisitNote[]          @relation("CreatedVisitNotes")
   confirmedReports           Report[]             @relation("ConfirmedReports")
@@ -493,14 +494,15 @@ model Location {
   updatedAt    DateTime       @updatedAt
   deletedAt    DateTime?
 
-  chain       Chain?               @relation(fields: [chainId], references: [id], onDelete: SetNull)
-  category    LocationCategory?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  contacts    LocationContact[]
-  assignments LocationAssignment[]
-  routeItems  RouteItem[]
-  visits      Visit[]
-  reports     Report[]
-  tasks       Task[]
+  chain              Chain?               @relation(fields: [chainId], references: [id], onDelete: SetNull)
+  category           LocationCategory?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  contacts           LocationContact[]
+  assignments        LocationAssignment[]
+  routeItems         RouteItem[]
+  routeTemplateItems RouteTemplateItem[]
+  visits             Visit[]
+  reports            Report[]
+  tasks              Task[]
 
   // Uniqueness on (tenantId, externalCode) is enforced by a PARTIAL unique index
   // scoped to `deletedAt IS NULL` (see the
@@ -633,17 +635,20 @@ model RoutePlan {
   planDate             DateTime    @db.Date
   status               RouteStatus @default(draft)
   createdByUserId      String?
+  routeTemplateId      String?
   publishedAt          DateTime?
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
 
-  representative User        @relation("RepresentativeRoutePlans", fields: [representativeUserId], references: [id], onDelete: Cascade)
-  createdBy      User?       @relation("CreatedRoutePlans", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  representative User           @relation("RepresentativeRoutePlans", fields: [representativeUserId], references: [id], onDelete: Cascade)
+  createdBy      User?          @relation("CreatedRoutePlans", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  routeTemplate  RouteTemplate? @relation(fields: [routeTemplateId], references: [id], onDelete: SetNull)
   items          RouteItem[]
 
   @@unique([tenantId, representativeUserId, planDate])
   @@index([tenantId, planDate])
   @@index([tenantId, representativeUserId, planDate])
+  @@index([tenantId, routeTemplateId])
   @@map("route_plans")
 }
 
@@ -668,6 +673,43 @@ model RouteItem {
   @@index([tenantId, routePlanId])
   @@index([tenantId, locationId])
   @@map("route_items")
+}
+
+// A representative's reusable, named stop list. Assigning a template to a
+// date materializes a RoutePlan + RouteItems (see RoutePlan.routeTemplateId)
+// — the template itself never drives visits/reports directly.
+model RouteTemplate {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  representativeUserId String
+  name                 String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  representative User                @relation("RepresentativeRouteTemplates", fields: [representativeUserId], references: [id], onDelete: Cascade)
+  items          RouteTemplateItem[]
+  routePlans     RoutePlan[]
+
+  @@index([tenantId, representativeUserId])
+  @@map("route_templates")
+}
+
+model RouteTemplateItem {
+  id              String   @id @default(cuid())
+  tenantId        String
+  routeTemplateId String
+  locationId      String
+  sequence        Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  routeTemplate RouteTemplate @relation(fields: [routeTemplateId], references: [id], onDelete: Cascade)
+  location      Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, routeTemplateId, sequence])
+  @@index([tenantId, routeTemplateId])
+  @@index([tenantId, locationId])
+  @@map("route_template_items")
 }
 
 model Visit {
