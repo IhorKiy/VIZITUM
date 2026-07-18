@@ -232,7 +232,7 @@ export default async function GeneralPage({
                     </span>
                   </header>
                   <p className="visit-meta">
-                    {[location.type, location.region, location.territory]
+                    {[location.type, location.territory]
                       .filter(Boolean)
                       .map((value) => formatEnumLabel(tCommon, String(value)))
                       .join(" · ") || t("noSegmentDetails")}

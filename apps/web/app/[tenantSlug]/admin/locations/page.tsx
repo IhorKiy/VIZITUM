@@ -141,7 +141,6 @@ export default async function AdminLocationsPage({
       // "Category" reuses the existing free-text `type` column.
       type: normalizeOptionalField(formData.get("type")),
       chainId: normalizeOptionalField(formData.get("chainId")),
-      region: normalizeOptionalField(formData.get("region")),
       notes: normalizeOptionalField(formData.get("notes")),
     });
 
@@ -181,7 +180,6 @@ export default async function AdminLocationsPage({
     // "Category" reuses the existing free-text `type` column.
     const type = normalizeOptionalField(formData.get("type"));
     const chainId = normalizeOptionalField(formData.get("chainId"));
-    const region = normalizeOptionalField(formData.get("region"));
     const notes = normalizeOptionalField(formData.get("notes"));
     const status = normalizeLocationStatus(getFormString(formData, "status"));
 
@@ -196,7 +194,6 @@ export default async function AdminLocationsPage({
       city,
       type,
       chainId,
-      region,
       notes,
       status,
     });
@@ -1095,10 +1092,6 @@ function LocationRow({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              {t("region")}
-              <input defaultValue={location.region ?? ""} name="region" />
             </label>
             <label>
               {t("category")}
