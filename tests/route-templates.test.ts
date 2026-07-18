@@ -130,6 +130,7 @@ describe("route templates permissions", () => {
       RouteTemplatesController.prototype.createRouteTemplateItem,
       RouteTemplatesController.prototype.updateRouteTemplateItem,
       RouteTemplatesController.prototype.moveRouteTemplateItem,
+      RouteTemplatesController.prototype.reorderRouteTemplateItems,
       RouteTemplatesController.prototype.deleteRouteTemplateItem,
       RouteTemplatesController.prototype.assignRouteTemplate,
     ];
@@ -587,6 +588,167 @@ describe("route template item reorder", () => {
         "template-a",
         "item-2",
         { direction: "up" },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN");
+        return true;
+      },
+    );
+  });
+});
+
+describe("route template item full reorder (drag-and-drop)", () => {
+  it("bumps every item to a free slot before settling final sequences, in one transaction", async () => {
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+        buildTemplateItem({ id: "item-3", sequence: 3 }),
+      ],
+    });
+    const updateCalls: Array<{ where: { id: string }; data: { sequence: number } }> = [];
+    let transactionCallCount = 0;
+    const prisma = {
+      routeTemplate: {
+        findFirst: async () => template,
+        findUniqueOrThrow: async () => template,
+      },
+      $transaction: async (
+        callback: (tx: {
+          routeTemplateItem: {
+            update: (args: {
+              where: { id: string };
+              data: { sequence: number };
+            }) => Promise<unknown>;
+          };
+        }) => Promise<unknown>,
+      ) => {
+        transactionCallCount += 1;
+        return callback({
+          routeTemplateItem: {
+            update: async (args) => {
+              updateCalls.push(args);
+              return {};
+            },
+          },
+        });
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await service.reorderRouteTemplateItems(
+      representativeContext as never,
+      "template-a",
+      { itemIds: ["item-3", "item-1", "item-2"] },
+    );
+
+    assert.equal(transactionCallCount, 1);
+    assert.deepEqual(
+      updateCalls.map((call) => ({ id: call.where.id, sequence: call.data.sequence })),
+      [
+        // Phase 1: every item bumped to a temp slot past the current max (3),
+        // in submitted order — none of these can collide with each other or
+        // with a still-occupied 1..3 slot.
+        { id: "item-3", sequence: 4 },
+        { id: "item-1", sequence: 5 },
+        { id: "item-2", sequence: 6 },
+        // Phase 2: final 1..N assigned in the submitted (new) order.
+        { id: "item-3", sequence: 1 },
+        { id: "item-1", sequence: 2 },
+        { id: "item-2", sequence: 3 },
+      ],
+    );
+  });
+
+  it("rejects a reorder that omits one of the template's stops", async () => {
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+      ],
+    });
+    const prisma = { routeTemplate: { findFirst: async () => template } };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteTemplateItems(
+        representativeContext as never,
+        "template-a",
+        { itemIds: ["item-1"] },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_REORDER_INVALID");
+        return true;
+      },
+    );
+  });
+
+  it("rejects a reorder with a duplicated id", async () => {
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+      ],
+    });
+    const prisma = { routeTemplate: { findFirst: async () => template } };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteTemplateItems(
+        representativeContext as never,
+        "template-a",
+        { itemIds: ["item-1", "item-1"] },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_REORDER_INVALID");
+        return true;
+      },
+    );
+  });
+
+  it("rejects a reorder that references a stop from another template", async () => {
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+      ],
+    });
+    const prisma = { routeTemplate: { findFirst: async () => template } };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteTemplateItems(
+        representativeContext as never,
+        "template-a",
+        { itemIds: ["item-1", "item-from-another-template"] },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_REORDER_INVALID");
+        return true;
+      },
+    );
+  });
+
+  it("turns a concurrent reorder collision into a 409 instead of an unhandled 500", async () => {
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+      ],
+    });
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+      $transaction: async () => {
+        throw p2002();
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteTemplateItems(
+        representativeContext as never,
+        "template-a",
+        { itemIds: ["item-2", "item-1"] },
       ),
       (error: unknown) => {
         assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN");

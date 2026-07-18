@@ -76,16 +76,20 @@ textarea {
 }
 
 .mobile-topbar {
-  align-items: center;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   display: none;
-  gap: 12px;
-  justify-content: space-between;
-  padding: 14px 16px;
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.mobile-topbar-inner {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px 16px;
 }
 
 .mobile-topbar .brand-mark {
@@ -141,9 +145,10 @@ textarea {
 }
 
 .zone-switcher-mobile .zone-switcher-link {
-  background: var(--surface-muted);
+  background: none;
   border: 1px solid var(--line);
   border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(22, 30, 26, 0.1);
   color: var(--ink);
   flex: 0 0 auto;
   font-size: 12px;
@@ -3007,12 +3012,16 @@ textarea {
   border-top: 1px solid var(--line);
   bottom: 0;
   display: none;
-  gap: 4px;
   left: 0;
-  padding: 8px;
   position: fixed;
   right: 0;
   z-index: 20;
+}
+
+.mobile-nav-inner {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
 }
 
 .mobile-nav-link {
@@ -3224,7 +3233,7 @@ textarea {
   }
 
   .mobile-topbar {
-    display: flex;
+    display: block;
   }
 
   .main-surface {
@@ -3315,7 +3324,7 @@ textarea {
   }
 
   .mobile-nav {
-    display: flex;
+    display: block;
   }
 }
 
@@ -3364,8 +3373,6 @@ textarea {
    reads as a mobile app rather than a stretched desktop page. */
 .app-shell--mobile-only {
   display: block;
-  margin-inline: auto;
-  max-width: 430px;
   min-height: 100vh;
   position: relative;
 }
@@ -3375,10 +3382,17 @@ textarea {
 }
 
 .app-shell--mobile-only .mobile-topbar {
-  display: flex;
+  display: block;
+}
+
+.app-shell--mobile-only .mobile-topbar-inner {
+  margin-inline: auto;
+  max-width: 430px;
 }
 
 .app-shell--mobile-only .main-surface {
+  margin-inline: auto;
+  max-width: 430px;
   padding: 18px 14px 84px;
 }
 
@@ -3453,17 +3467,20 @@ textarea {
 }
 
 .app-shell--mobile-only .mobile-nav {
-  display: flex;
-  left: 50%;
-  right: auto;
-  transform: translateX(-50%);
-  width: min(430px, 100%);
+  display: block;
+}
+
+.app-shell--mobile-only .mobile-nav-inner {
+  margin-inline: auto;
+  max-width: 430px;
 }
 
 /* On screens wider than the phone frame, add a subtle device outline so the
-   column reads as an intentional mobile surface sitting on the page. */
+   column reads as an intentional mobile surface sitting on the page. The
+   header/footer bars stay full-bleed (see above) — only the scrollable body
+   in between gets the outline. */
 @media (min-width: 921px) {
-  .app-shell--mobile-only {
+  .app-shell--mobile-only .main-surface {
     border-inline: 1px solid var(--line);
     box-shadow: var(--shadow);
   }
@@ -3565,13 +3582,17 @@ textarea {
   padding: 0;
 }
 
-/* Clickable stop card (link to location detail) */
+/* Clickable stop card (link to location detail). Also used, unchanged, as
+   the outer box for the route-builder row (drag handle + summary + remove) —
+   display:flex works for both: the home page's single .route-stop-summary
+   child just fills it via flex:1 same as it filled the old block box. */
 .route-stop {
+  align-items: center;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
   color: inherit;
-  display: block;
+  display: flex;
   overflow: hidden;
   text-decoration: none;
 }
@@ -3584,8 +3605,10 @@ textarea {
   align-items: center;
   cursor: pointer;
   display: flex;
+  flex: 1;
   gap: 12px;
   list-style: none;
+  min-width: 0;
   padding: 12px 14px;
 }
 
@@ -3633,6 +3656,15 @@ textarea {
   white-space: nowrap;
 }
 
+/* Route builder only: an icon precedes the address text there (the field
+   home page's read-only stop list has no icon, so this only ever matches
+   inside route-stop-drag-list.tsx). */
+.route-stop-address svg {
+  flex-shrink: 0;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
 .route-stop-chevron {
   color: var(--muted);
   flex-shrink: 0;
@@ -3650,6 +3682,175 @@ textarea {
 
 .route-stop-detail .status-pill {
   justify-self: start;
+}
+
+/* Route builder (field/planning/page.tsx activeTemplate branch +
+   route-stop-drag-list.tsx): plain back link, the route-name/add-stop
+   <details> cards, the stop list's drag handle and remove form. */
+.route-back-link {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 4px;
+  margin-bottom: 16px;
+  text-decoration: none;
+}
+
+.route-back-link:hover {
+  color: var(--ink);
+}
+
+.route-name-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.route-name-summary {
+  align-items: flex-start;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  padding: 18px 20px;
+}
+
+.route-name-summary::-webkit-details-marker {
+  display: none;
+}
+
+.route-name-summary h2 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.route-name-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+
+.route-name-edit-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.route-name-card[open] .route-name-summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.route-rename-form {
+  padding: 16px 20px 20px;
+}
+
+.route-add-stop {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.route-add-stop[open] {
+  border-style: solid;
+}
+
+.route-add-stop-trigger {
+  align-items: center;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  font-weight: 800;
+  gap: 6px;
+  justify-content: center;
+  list-style: none;
+  padding: 16px;
+}
+
+.route-add-stop-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.route-add-stop[open] .route-add-stop-trigger {
+  border-bottom: 1px solid var(--line);
+}
+
+.route-add-stop form {
+  padding: 0 16px 16px;
+}
+
+.route-stops-section-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.route-stops-section-label {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.route-stops-drag-hint {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 4px;
+  margin: 0;
+}
+
+.route-stops-drag-hint svg {
+  flex-shrink: 0;
+}
+
+.route-stop-handle {
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: grab;
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 12px 4px 12px 14px;
+  touch-action: none;
+}
+
+.route-stop-handle:active {
+  cursor: grabbing;
+}
+
+.route-stop-handle:focus-visible {
+  outline: 2px solid var(--accent-soft);
+  outline-offset: -2px;
+}
+
+.route-stop.dragging {
+  box-shadow: var(--shadow);
+  opacity: 0.85;
+}
+
+.route-stop-remove-form {
+  flex-shrink: 0;
+  padding-right: 10px;
+}
+
+.route-delete-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
 }
 
 .location-header {
@@ -3848,12 +4049,6 @@ textarea {
   padding: 12px 14px;
 }
 
-.route-stop-actions {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .route-empty {
   background: var(--surface);
   border: 1px dashed var(--line);
@@ -3943,12 +4138,27 @@ textarea {
    assignment) — apps/web/app/[tenantSlug]/field/planning/page.tsx. */
 
 .tab-switcher {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--line) 30%, var(--surface-muted));
   border-radius: 12px;
   display: grid;
   gap: 4px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 16px;
   padding: 4px;
+}
+
+/* Scoped to the "+ Додати маршрут" toolbar below the tab-switcher — the
+   shared .toolbar class carries no margin since it's reused across many
+   layouts that already space it via a surrounding element. */
+.route-add-toolbar {
+  margin-bottom: 16px;
+}
+
+/* Overrides the field zone's blanket .toolbar { justify-content: flex-start }
+   (same specificity, defined later) — this one button reads better
+   right-aligned, without changing every other toolbar in the zone. */
+.app-shell--mobile-only .route-add-toolbar {
+  justify-content: flex-end;
 }
 
 .tab-switcher-link {
@@ -3965,7 +4175,6 @@ textarea {
 
 .tab-switcher-link.is-active {
   background: var(--surface);
-  border-color: var(--blue);
   box-shadow: 0 1px 3px rgba(22, 30, 26, 0.1);
   color: var(--ink);
 }

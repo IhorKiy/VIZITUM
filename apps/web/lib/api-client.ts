@@ -913,14 +913,13 @@ export async function updateRouteTemplateItem(
   );
 }
 
-export async function moveRouteTemplateItem(
+export async function reorderRouteTemplateItems(
   templateId: string,
-  itemId: string,
-  direction: "up" | "down",
+  itemIds: string[],
 ): Promise<ApiResult<RouteTemplate>> {
   return apiPost<RouteTemplate>(
-    `/routes/templates/${templateId}/items/${itemId}/move`,
-    { direction },
+    `/routes/templates/${templateId}/items/reorder`,
+    { itemIds },
   );
 }
 

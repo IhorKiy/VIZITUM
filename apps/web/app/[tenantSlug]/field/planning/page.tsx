@@ -8,7 +8,9 @@ import { DismissableNotice } from "../../../../components/dismissable-notice";
 import {
   CalendarIcon,
   CopyIcon,
+  GripIcon,
   MapPinIcon,
+  PencilIcon,
   RouteIcon,
 } from "../../../../components/icons";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
@@ -26,13 +28,15 @@ import {
   listLocations,
   listRouteTemplates,
   listRoutes,
-  moveRouteTemplateItem,
+  reorderRouteTemplateItems,
+  updateRouteTemplate,
   type Location,
   type RoutePlan,
   type RouteTemplate,
 } from "../../../../lib/api-client";
 import type { CommonTranslator, IntlFormatter } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import { RouteStopDragList } from "./route-stop-drag-list";
 
 type PlanningPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -136,29 +140,6 @@ export default async function PlanningPage({
     redirect(routesTabHref(tenantSlug, templateId, "item-added"));
   }
 
-  async function moveTemplateStopAction(formData: FormData) {
-    "use server";
-
-    const templateId = getFormString(formData, "templateId").trim();
-    const itemId = getFormString(formData, "itemId").trim();
-    const direction = formData.get("direction") === "up" ? "up" : "down";
-
-    if (!templateId || !itemId) {
-      redirect(routesTabHref(tenantSlug, templateId || undefined, "failed"));
-    }
-
-    // The swap (temp slot + two final updates) runs atomically on the
-    // server, in one transaction — a mid-swap failure can no longer strand
-    // an item at a temporary sequence.
-    const result = await moveRouteTemplateItem(templateId, itemId, direction);
-
-    if (!result.ok) {
-      redirect(routesTabHref(tenantSlug, templateId, "failed"));
-    }
-
-    redirect(routesTabHref(tenantSlug, templateId, "item-reordered"));
-  }
-
   async function removeTemplateStopAction(formData: FormData) {
     "use server";
 
@@ -176,6 +157,49 @@ export default async function PlanningPage({
     }
 
     redirect(routesTabHref(tenantSlug, templateId, "item-removed"));
+  }
+
+  async function renameRouteTemplateAction(formData: FormData) {
+    "use server";
+
+    const templateId = getFormString(formData, "templateId").trim();
+    const name = getFormString(formData, "name").trim();
+
+    if (!templateId || !name) {
+      redirect(routesTabHref(tenantSlug, templateId || undefined, "failed"));
+    }
+
+    const result = await updateRouteTemplate(templateId, { name });
+
+    if (!result.ok) {
+      redirect(routesTabHref(tenantSlug, templateId, "failed"));
+    }
+
+    redirect(routesTabHref(tenantSlug, templateId, "renamed"));
+  }
+
+  // Called directly from the client-side drag list (not a <form> submit) once
+  // a drag or arrow-key move settles on a new order — see
+  // route-stop-drag-list.tsx.
+  async function reorderTemplateStopsAction(
+    templateId: string,
+    itemIds: string[],
+  ) {
+    "use server";
+
+    if (!templateId || itemIds.length === 0) {
+      redirect(routesTabHref(tenantSlug, templateId || undefined, "failed"));
+    }
+
+    const result = await reorderRouteTemplateItems(templateId, itemIds);
+
+    if (!result.ok) {
+      redirect(routesTabHref(tenantSlug, templateId, "failed"));
+    }
+
+    // No success notice here — the drag itself (or the arrow-key move) is
+    // already the feedback; a banner on top of every reorder would be noise.
+    redirect(routesTabHref(tenantSlug, templateId));
   }
 
   async function assignRouteTemplateAction(formData: FormData) {
@@ -304,39 +328,40 @@ export default async function PlanningPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-planning">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">{t("eyebrow")}</p>
-          <h1>{t("title")}</h1>
-          <p>{formatLongDate(todayString(), format)}</p>
-        </div>
-        <div className="toolbar" aria-label={t("planningActions")}>
-          <a className="secondary-button" href={`/${tenantSlug}/field`}>
-            {t("backToField")}
-          </a>
-        </div>
-      </header>
+      {/* Drilling into a route replaces this title/tab chrome with its own
+          back link (see the activeTemplate branch of RoutesTabView) rather
+          than stacking a second navigation layer above it. */}
+      {!activeTemplate && (
+        <>
+          <header className="page-header">
+            <div>
+              <h1>{t("title")}</h1>
+              <p>{formatLongDate(todayString(), format)}</p>
+            </div>
+          </header>
 
-      <nav className="tab-switcher" aria-label={t("tabsAria")}>
-        <Link
-          className={`tab-switcher-link${
-            activeTab === "routes" ? " is-active" : ""
-          }`}
-          href={routesTabHref(tenantSlug)}
-        >
-          <RouteIcon />
-          {t("routesTab")}
-        </Link>
-        <Link
-          className={`tab-switcher-link${
-            activeTab === "planning" ? " is-active" : ""
-          }`}
-          href={planningTabHref(tenantSlug, selectedDate)}
-        >
-          <CalendarIcon />
-          {t("planningTab")}
-        </Link>
-      </nav>
+          <nav className="tab-switcher" aria-label={t("tabsAria")}>
+            <Link
+              className={`tab-switcher-link${
+                activeTab === "routes" ? " is-active" : ""
+              }`}
+              href={routesTabHref(tenantSlug)}
+            >
+              <RouteIcon />
+              {t("routesTab")}
+            </Link>
+            <Link
+              className={`tab-switcher-link${
+                activeTab === "planning" ? " is-active" : ""
+              }`}
+              href={planningTabHref(tenantSlug, selectedDate)}
+            >
+              <CalendarIcon />
+              {t("planningTab")}
+            </Link>
+          </nav>
+        </>
+      )}
 
       {activeTab === "routes" ? (
         <RoutesTabView
@@ -346,8 +371,9 @@ export default async function PlanningPage({
           deleteRouteTemplateAction={deleteRouteTemplateAction}
           isCreatingTemplate={isCreatingTemplate}
           locations={locations}
-          moveTemplateStopAction={moveTemplateStopAction}
           removeTemplateStopAction={removeTemplateStopAction}
+          renameRouteTemplateAction={renameRouteTemplateAction}
+          reorderTemplateStopsAction={reorderTemplateStopsAction}
           routeTemplates={routeTemplates}
           t={t}
           tCommon={tCommon}
@@ -383,6 +409,7 @@ type PlanningTranslator = Awaited<
   ReturnType<typeof getTranslations<"field.planning">>
 >;
 type ServerAction = (formData: FormData) => Promise<void>;
+type ReorderAction = (templateId: string, itemIds: string[]) => Promise<void>;
 
 function RoutesTabView({
   activeTemplate,
@@ -391,8 +418,9 @@ function RoutesTabView({
   deleteRouteTemplateAction,
   isCreatingTemplate,
   locations,
-  moveTemplateStopAction,
   removeTemplateStopAction,
+  renameRouteTemplateAction,
+  reorderTemplateStopsAction,
   routeTemplates,
   t,
   tCommon,
@@ -405,8 +433,9 @@ function RoutesTabView({
   deleteRouteTemplateAction: ServerAction;
   isCreatingTemplate: boolean;
   locations: Location[];
-  moveTemplateStopAction: ServerAction;
   removeTemplateStopAction: ServerAction;
+  renameRouteTemplateAction: ServerAction;
+  reorderTemplateStopsAction: ReorderAction;
   routeTemplates: RouteTemplate[];
   t: PlanningTranslator;
   tCommon: CommonTranslator;
@@ -456,142 +485,117 @@ function RoutesTabView({
     return (
       <>
         {statusNotice}
-        <div className="panel">
-          <div className="route-section-head">
-            <Link className="secondary-button" href={routesTabHref(tenantSlug)}>
-              {t("routeEditorBack")}
-            </Link>
-            <h2>{activeTemplate.name}</h2>
-            <DeleteRouteButton
-              deleteAction={deleteRouteTemplateAction}
-              routeId={activeTemplate.id}
-              routeName={activeTemplate.name}
-            />
-          </div>
 
-          {stops.length > 0 ? (
-            <ol className="route-stop-list">
-              {stops.map((stop, index) => (
-                <li className="route-stop" key={stop.id}>
-                  <span className="route-stop-index" aria-hidden="true">
-                    {index + 1}
-                  </span>
-                  <div className="route-stop-body">
-                    <h3>{stop.location.name}</h3>
-                    <p className="visit-meta">
-                      {[stop.location.addressLine, stop.location.city]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                  </div>
-                  <div className="route-stop-actions">
-                    <form
-                      action={moveTemplateStopAction}
-                      className="inline-control-form"
-                    >
-                      <input
-                        name="templateId"
-                        type="hidden"
-                        value={activeTemplate.id}
-                      />
-                      <input name="itemId" type="hidden" value={stop.id} />
-                      <input name="direction" type="hidden" value="up" />
-                      <button
-                        className="secondary-button"
-                        disabled={index === 0}
-                        type="submit"
-                        aria-label={t("moveUpAria", {
-                          name: stop.location.name,
-                        })}
-                      >
-                        ↑
-                      </button>
-                    </form>
-                    <form
-                      action={moveTemplateStopAction}
-                      className="inline-control-form"
-                    >
-                      <input
-                        name="templateId"
-                        type="hidden"
-                        value={activeTemplate.id}
-                      />
-                      <input name="itemId" type="hidden" value={stop.id} />
-                      <input name="direction" type="hidden" value="down" />
-                      <button
-                        className="secondary-button"
-                        disabled={index === stops.length - 1}
-                        type="submit"
-                        aria-label={t("moveDownAria", {
-                          name: stop.location.name,
-                        })}
-                      >
-                        ↓
-                      </button>
-                    </form>
-                    <form
-                      action={removeTemplateStopAction}
-                      className="inline-control-form"
-                    >
-                      <input
-                        name="templateId"
-                        type="hidden"
-                        value={activeTemplate.id}
-                      />
-                      <input name="itemId" type="hidden" value={stop.id} />
-                      <PendingSubmitButton
-                        className="secondary-button"
-                        pendingLabel={t("removing")}
-                      >
-                        {t("remove")}
-                      </PendingSubmitButton>
-                    </form>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="empty-state">{t("noStops")}</p>
-          )}
+        <Link className="route-back-link" href={routesTabHref(tenantSlug)}>
+          <span aria-hidden="true">‹</span> {t("routeEditorBack")}
+        </Link>
 
-          <section className="field-panel-section">
-            <h2>{t("addStop")}</h2>
-            {availableLocations.length > 0 ? (
-              <form
-                action={addTemplateStopAction}
-                className="visit-form compact"
-              >
-                <input
-                  name="templateId"
-                  type="hidden"
-                  value={activeTemplate.id}
-                />
-                <label>
-                  {t("locationLabel")}
-                  <select name="locationId" required>
-                    {availableLocations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.name}
-                        {location.city ? ` · ${location.city}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <PendingSubmitButton
-                  className="primary-button"
-                  pendingLabel={t("adding")}
-                >
-                  {t("addToRoute")}
-                </PendingSubmitButton>
-              </form>
-            ) : (
-              <p className="empty-state">
-                {locations.length === 0
-                  ? t("noLocations")
-                  : t("allLocationsUsed")}
+        <details className="route-name-card">
+          <summary className="route-name-summary">
+            <div>
+              <h2>{activeTemplate.name}</h2>
+              <p className="route-name-meta">
+                <MapPinIcon />
+                {t("routeStopsCount", { count: stops.length })}
               </p>
-            )}
-          </section>
+            </div>
+            <span className="route-name-edit-icon" aria-hidden="true">
+              <PencilIcon />
+            </span>
+          </summary>
+          <form
+            action={renameRouteTemplateAction}
+            className="visit-form compact route-rename-form"
+          >
+            <input name="templateId" type="hidden" value={activeTemplate.id} />
+            <label>
+              {t("createRouteNameLabel")}
+              <input
+                autoFocus
+                defaultValue={activeTemplate.name}
+                name="name"
+                required
+                type="text"
+              />
+            </label>
+            <div className="toolbar">
+              <PendingSubmitButton
+                className="primary-button"
+                pendingLabel={tCommon("saving")}
+              >
+                {tCommon("save")}
+              </PendingSubmitButton>
+            </div>
+          </form>
+        </details>
+
+        <details className="route-add-stop">
+          <summary className="route-add-stop-trigger">
+            <span aria-hidden="true">+</span> {t("addStop")}
+          </summary>
+          {availableLocations.length > 0 ? (
+            <form action={addTemplateStopAction} className="visit-form compact">
+              <input
+                name="templateId"
+                type="hidden"
+                value={activeTemplate.id}
+              />
+              <label>
+                {t("locationLabel")}
+                <select name="locationId" required>
+                  {availableLocations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                      {location.city ? ` · ${location.city}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <PendingSubmitButton
+                className="primary-button"
+                pendingLabel={t("adding")}
+              >
+                {t("addToRoute")}
+              </PendingSubmitButton>
+            </form>
+          ) : (
+            <p className="empty-state">
+              {locations.length === 0
+                ? t("noLocations")
+                : t("allLocationsUsed")}
+            </p>
+          )}
+        </details>
+
+        {stops.length > 0 ? (
+          <>
+            <div className="route-stops-section-head">
+              <p className="route-stops-section-label">
+                {t("stopsSectionLabel")}
+              </p>
+              <p className="route-stops-drag-hint">
+                <GripIcon />
+                {t("dragToReorderHint")}
+              </p>
+            </div>
+            <RouteStopDragList
+              removeAction={removeTemplateStopAction}
+              reorderAction={reorderTemplateStopsAction}
+              stops={stops}
+              templateId={activeTemplate.id}
+              tenantSlug={tenantSlug}
+            />
+          </>
+        ) : (
+          <p className="empty-state">{t("noStops")}</p>
+        )}
+
+        <div className="route-delete-row">
+          <DeleteRouteButton
+            deleteAction={deleteRouteTemplateAction}
+            routeId={activeTemplate.id}
+            routeName={activeTemplate.name}
+          />
         </div>
       </>
     );
@@ -604,7 +608,7 @@ function RoutesTabView({
   return (
     <>
       {statusNotice}
-      <div className="toolbar">
+      <div className="toolbar route-add-toolbar">
         <Link
           className="primary-button"
           href={routesTabHref(tenantSlug, "new")}
@@ -885,11 +889,6 @@ function buildTemplateStatusNotice(
     "item-removed": {
       title: t("itemRemovedTitle"),
       body: t("itemRemovedBody"),
-      tone: "success",
-    },
-    "item-reordered": {
-      title: t("reorderedTitle"),
-      body: t("reorderedBody"),
       tone: "success",
     },
     failed: {
