@@ -1095,21 +1095,21 @@ textarea {
   padding-top: 12px;
 }
 
-.product-delete.confirming {
+.confirm-action.confirming {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
-.product-delete-prompt {
+.confirm-action-prompt {
   color: var(--ink);
   font-size: 13px;
   font-weight: 700;
 }
 
-.product-delete-actions {
+.confirm-action-buttons {
   display: flex;
   gap: 8px;
 }
@@ -2788,19 +2788,11 @@ textarea {
 }
 
 /* Confirm step: the prompt and the two buttons wrap under the description on a
-   narrow card instead of forcing it wider. */
-.task-delete-confirm {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+   narrow card instead of forcing it wider, and sit left-aligned inline with
+   the other row actions rather than right-aligned in a footer. */
+.confirm-action-inline.confirming {
+  justify-content: flex-start;
   margin-top: 12px;
-}
-
-.task-delete-prompt {
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .report-detail-list {
