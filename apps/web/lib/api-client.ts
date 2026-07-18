@@ -493,8 +493,19 @@ export type RegisteredAudioUpload = {
   };
 };
 
+// `code`/`details` mirror the backend's ApiErrorResponse (src/common/api-error.types.ts)
+// when the failure came back as JSON with those fields — absent for network
+// failures or bodies that don't carry them, so callers that only had `status`/
+// `message` before keep working unchanged.
 export type ApiResult<TData> =
-  { ok: true; data: TData } | { ok: false; status: number; message: string };
+  | { ok: true; data: TData }
+  | {
+      ok: false;
+      status: number;
+      message: string;
+      code?: string;
+      details?: unknown;
+    };
 
 export async function getCurrentSession(): Promise<ApiResult<AuthSession>> {
   return apiGet<AuthSession>("/auth/me");
@@ -1323,7 +1334,7 @@ async function apiGet<TData>(path: string): Promise<ApiResult<TData>> {
     return {
       ok: false,
       status: response.status,
-      message: await readErrorMessage(response),
+      ...(await readErrorPayload(response)),
     };
   }
 
@@ -1362,7 +1373,7 @@ async function apiPost<TData>(
     return {
       ok: false,
       status: response.status,
-      message: await readErrorMessage(response),
+      ...(await readErrorPayload(response)),
     };
   }
 
@@ -1401,7 +1412,7 @@ async function apiPatch<TData>(
     return {
       ok: false,
       status: response.status,
-      message: await readErrorMessage(response),
+      ...(await readErrorPayload(response)),
     };
   }
 
@@ -1433,7 +1444,7 @@ async function apiDelete<TData>(path: string): Promise<ApiResult<TData>> {
     return {
       ok: false,
       status: response.status,
-      message: await readErrorMessage(response),
+      ...(await readErrorPayload(response)),
     };
   }
 
@@ -1476,15 +1487,25 @@ export async function buildRequestHeaders(path: string): Promise<HeadersInit> {
   };
 }
 
-async function readErrorMessage(response: Response): Promise<string> {
+async function readErrorPayload(
+  response: Response,
+): Promise<{ message: string; code?: string; details?: unknown }> {
   const fallback = `API request failed with ${response.status}.`;
 
   try {
-    const payload = (await response.json()) as { message?: unknown };
+    const payload = (await response.json()) as {
+      message?: unknown;
+      code?: unknown;
+      details?: unknown;
+    };
 
-    return typeof payload.message === "string" ? payload.message : fallback;
+    return {
+      message: typeof payload.message === "string" ? payload.message : fallback,
+      ...(typeof payload.code === "string" ? { code: payload.code } : {}),
+      ...(payload.details !== undefined ? { details: payload.details } : {}),
+    };
   } catch {
-    return fallback;
+    return { message: fallback };
   }
 }
 

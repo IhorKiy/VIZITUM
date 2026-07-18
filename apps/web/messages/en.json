@@ -543,7 +543,15 @@
       "categoryErrorAria": "Category error",
       "categoryErrorEyebrow": "Update failed",
       "categoryErrorTitle": "Check the category and try again",
-      "categoryErrorBody": "Category names must be unique, and a category still assigned to locations can't be deleted."
+      "categoryErrorBody": "Category names must be unique, and a category still assigned to locations can't be deleted.",
+      "categoryExistsErrorAria": "Category name taken",
+      "categoryExistsErrorEyebrow": "Name already taken",
+      "categoryExistsErrorTitle": "This name is already in use",
+      "categoryExistsErrorBody": "A category with this name already exists. Matching ignores upper and lower case, so try a different name.",
+      "categoryInUseErrorAria": "Category in use",
+      "categoryInUseErrorEyebrow": "Delete failed",
+      "categoryInUseErrorTitle": "Can't delete this category yet",
+      "categoryInUseErrorBody": "{count, plural, one {This category is still used by # location.} other {This category is still used by # locations.}} Remove the category from those locations first, then delete it."
     },
     "chains": {
       "title": "Chains",
