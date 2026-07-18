@@ -319,8 +319,12 @@ describe("location categories service", () => {
     );
 
     assert.deepEqual(findWhere, [{ id: "cat-1", tenantId: "tenant-1" }]);
+    // The `Restrict` FK blocks the delete regardless of `deletedAt`, so the
+    // in-use count must not filter it out — otherwise a category referenced
+    // only by archived locations would read as unused here and then fail
+    // with a P2003 the pre-check should have caught.
     assert.deepEqual(countWhere, [
-      { tenantId: "tenant-1", categoryId: "cat-1", deletedAt: null },
+      { tenantId: "tenant-1", categoryId: "cat-1" },
     ]);
     assert.deepEqual(deleteWhere, [{ id: "cat-1" }]);
     assert.deepEqual(result, { deleted: true });
@@ -372,6 +376,48 @@ describe("location categories service", () => {
         assert.equal(response.details?.locationCount, 3);
         return true;
       },
+    );
+  });
+
+  it("rejects deleting a category referenced only by an archived location (the Restrict FK doesn't care about deletedAt)", async () => {
+    const countWhere: unknown[] = [];
+    const prisma = {
+      locationCategory: {
+        findFirst: async () => ({ id: "cat-1" }),
+        delete: async () => {
+          throw new Error("delete should not be called");
+        },
+      },
+      location: {
+        // A real archived location still holds the FK, so the count must
+        // see it — this stands in for that row rather than filtering it out.
+        count: async (query: { where: unknown }) => {
+          countWhere.push(query.where);
+          return 1;
+        },
+      },
+    };
+    const service = new LocationCategoriesService(prisma as never);
+
+    await assert.rejects(
+      () => service.deleteCategory(createContext("tenant-1"), "cat-1"),
+      (error: unknown) => {
+        assert.ok(error instanceof ConflictException);
+        const response = error.getResponse() as {
+          code: string;
+          details?: { locationCount?: number };
+        };
+        assert.equal(response.code, "LOCATION_CATEGORY_IN_USE");
+        assert.equal(response.details?.locationCount, 1);
+        return true;
+      },
+    );
+    assert.deepEqual(countWhere, [
+      { tenantId: "tenant-1", categoryId: "cat-1" },
+    ]);
+    assert.ok(
+      countWhere.every((where) => !Object.hasOwn(where as object, "deletedAt")),
+      "the in-use count must not filter out archived locations",
     );
   });
 

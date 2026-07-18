@@ -182,11 +182,15 @@ export class LocationCategoriesService {
       });
     }
 
+    // The FK is `onDelete: Restrict`, and Prisma enforces that at the
+    // database row level — an archived (soft-deleted) location still blocks
+    // the delete just as a live one would. So this count (and the P2003
+    // fallback below) must include archived locations too, or the pre-check
+    // can read 0 while the delete still fails.
     const locationsInUse = await this.prisma.location.count({
       where: {
         tenantId: context.tenantId,
         categoryId: category.id,
-        deletedAt: null,
       },
     });
 
@@ -208,7 +212,6 @@ export class LocationCategoriesService {
           where: {
             tenantId: context.tenantId,
             categoryId: category.id,
-            deletedAt: null,
           },
         });
 
@@ -235,7 +238,8 @@ function categoryExistsConflict(): ConflictException {
 function categoryInUseConflict(locationCount: number): ConflictException {
   return new ConflictException({
     code: "LOCATION_CATEGORY_IN_USE",
-    message: "Category is assigned to one or more locations.",
+    message:
+      "Category is assigned to one or more locations, including archived ones.",
     details: { locationCount },
   });
 }

@@ -414,12 +414,7 @@ export class AuthService {
       throwAuthenticationRequired();
     }
 
-    const [
-      user,
-      productsEnabledSetting,
-      locationCategoriesEnabledSetting,
-      tenant,
-    ] = await Promise.all([
+    const [user, tenantSettings, tenant] = await Promise.all([
       this.prisma.user.findFirst({
         where: {
           id: session.userId,
@@ -427,21 +422,19 @@ export class AuthService {
         },
         include: { roles: true },
       }),
-      this.prisma.tenantSetting.findUnique({
+      // `/auth/me` is a hot path, so the two toggle lookups are one query
+      // (same unique index, `tenantId_key`, backs both) instead of two.
+      this.prisma.tenantSetting.findMany({
         where: {
-          tenantId_key: {
-            tenantId: session.tenantId,
-            key: PRODUCTS_ENABLED_SETTING_KEY,
+          tenantId: session.tenantId,
+          key: {
+            in: [
+              PRODUCTS_ENABLED_SETTING_KEY,
+              LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
+            ],
           },
         },
-      }),
-      this.prisma.tenantSetting.findUnique({
-        where: {
-          tenantId_key: {
-            tenantId: session.tenantId,
-            key: LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
-          },
-        },
+        select: { key: true, value: true },
       }),
       this.prisma.platformTenant.findUnique({
         where: { id: session.tenantId },
@@ -454,6 +447,12 @@ export class AuthService {
     }
 
     const roleCodes = user.roles.map((role) => role.roleCode);
+    const productsEnabledSetting = tenantSettings.find(
+      (setting) => setting.key === PRODUCTS_ENABLED_SETTING_KEY,
+    );
+    const locationCategoriesEnabledSetting = tenantSettings.find(
+      (setting) => setting.key === LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
+    );
 
     return {
       user: {

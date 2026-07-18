@@ -170,7 +170,7 @@ Strict, admin-managed vocabulary of category labels per tenant (unlike `ProductC
 | `GET /location-categories`                | all: `locations.read`   | — (all, name asc)   |
 | `POST /location-categories`               | all: `locations.manage` | `{ name }` — unique per tenant case-insensitively, 409 `LOCATION_CATEGORY_EXISTS` on duplicate |
 | `PATCH /location-categories/:categoryId`  | all: `locations.manage` | `{ name }` — rename; no cascade needed (the FK means every location referencing it reads the new name on next fetch); 409 on duplicate |
-| `DELETE /location-categories/:categoryId` | all: `locations.manage` | — → `{ deleted: true }`; 409 `LOCATION_CATEGORY_IN_USE` (with `details.locationCount`) if any location still references it |
+| `DELETE /location-categories/:categoryId` | all: `locations.manage` | — → `{ deleted: true }`; 409 `LOCATION_CATEGORY_IN_USE` (with `details.locationCount`) if any location still references it, including archived ones |
 
 ### Products — `/products` (`products.controller.ts`)
 

@@ -335,13 +335,20 @@ function LocationsCards({
       {locations.map((location) => {
         const activity = activityByLocation.get(location.id);
         const visitCount = activity?.visitCount ?? 0;
+        // When the category toggle is off, the segment is omitted entirely
+        // (matching the field screen) rather than showing a "no category"
+        // placeholder on every card.
         const area = [
           location.territory
             ? formatEnumLabel(tCommon, location.territory)
             : t("unassignedTerritory"),
-          locationCategoriesEnabled && location.category
-            ? formatEnumLabel(tCommon, location.category.name)
-            : t("noType"),
+          ...(locationCategoriesEnabled
+            ? [
+                location.category
+                  ? formatEnumLabel(tCommon, location.category.name)
+                  : t("noType"),
+              ]
+            : []),
         ].join(" · ");
         const displayStatus = location.archived ? "archived" : location.status;
 

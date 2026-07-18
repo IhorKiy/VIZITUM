@@ -185,7 +185,13 @@ export default async function AdminLocationsPage({
     const addressLine = getFormString(formData, "addressLine").trim();
     const city = getFormString(formData, "city").trim();
     const externalCode = normalizeOptionalField(formData.get("externalCode"));
-    const categoryId = normalizeOptionalField(formData.get("categoryId"));
+    // The category <select> is only rendered when the category toggle is on
+    // (see LocationRow), so `null` here means "control absent, leave the
+    // location's category untouched" — distinct from "" ("present but
+    // cleared to no category"). Only send categoryId when the control was
+    // actually in the form, or a save with the toggle off would silently
+    // wipe the location's category.
+    const categoryIdRaw = formData.get("categoryId");
     const chainId = normalizeOptionalField(formData.get("chainId"));
     const notes = normalizeOptionalField(formData.get("notes"));
     const status = normalizeLocationStatus(getFormString(formData, "status"));
@@ -199,7 +205,9 @@ export default async function AdminLocationsPage({
       externalCode,
       addressLine,
       city,
-      categoryId,
+      ...(categoryIdRaw !== null
+        ? { categoryId: normalizeOptionalField(categoryIdRaw) }
+        : {}),
       chainId,
       notes,
       status,
