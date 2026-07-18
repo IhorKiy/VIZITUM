@@ -515,12 +515,6 @@ export async function getVisitReport(
   return apiGet<Report>(`/visits/${visitId}/report`);
 }
 
-export async function listAllVisits(): Promise<
-  ApiResult<PaginatedResponse<Visit>>
-> {
-  return listVisits("pageSize=100");
-}
-
 export async function createVisit(
   locationId: string,
   representativeUserId: string,

@@ -77,18 +77,14 @@ export default async function ManagerTasksPage({
 }: ManagerTasksPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  // The assign-task form and its notices live in the overview namespace, where
-  // the shared modal reads them from — the same strings, translated once.
-  const [locale, timeZone, t, tManager, tOverview, tCommon] = await Promise.all(
-    [
-      getLocale(),
-      getTimeZone(),
-      getTranslations("manager.tasks"),
-      getTranslations("manager"),
-      getTranslations("manager.overview"),
-      getTranslations("common"),
-    ],
-  );
+  const [locale, timeZone, t, tManager, tAssign, tCommon] = await Promise.all([
+    getLocale(),
+    getTimeZone(),
+    getTranslations("manager.tasks"),
+    getTranslations("manager"),
+    getTranslations("manager.assignTask"),
+    getTranslations("common"),
+  ]);
   // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
   // against today's date in the tenant timezone (the same zone the formatted
   // dates render in), not the server's local midnight.
@@ -230,8 +226,10 @@ export default async function ManagerTasksPage({
     listTodayRoutes(),
     listAdminLocations("pageSize=100"),
     // Only feeds the assign form: a representative with a visit but no route
-    // today and no task yet would otherwise be unassignable here.
-    listVisits(),
+    // today and no task yet would otherwise be unassignable here. Asks for the
+    // API's maximum page, the way every other manager list does — the default
+    // page would silently drop assignable people past the 50th visit.
+    listVisits("pageSize=100"),
   ]);
 
   if (!tasksResult.ok) {
@@ -325,14 +323,14 @@ export default async function ManagerTasksPage({
               className="secondary-button"
               href={`/${tenantSlug}/manager/tasks?assign=1`}
             >
-              {tOverview("assignAnother")}
+              {tAssign("assignAnother")}
             </a>
           }
-          ariaLabel={tOverview("taskStatusAria")}
-          body={tOverview("taskCreatedBody")}
+          ariaLabel={tAssign("taskStatusAria")}
+          body={tAssign("taskCreatedBody")}
           clearParams={["task"]}
-          eyebrow={tOverview("taskCreatedEyebrow")}
-          title={tOverview("taskCreatedTitle")}
+          eyebrow={tAssign("taskCreatedEyebrow")}
+          title={tAssign("taskCreatedTitle")}
           tone="success"
         />
       ) : null}
@@ -499,7 +497,7 @@ export default async function ManagerTasksPage({
                 className="primary-button"
                 href={`/${tenantSlug}/manager/tasks?assign=1`}
               >
-                {t("assignTask")}
+                {tAssign("title")}
               </a>
             </div>
           </div>
