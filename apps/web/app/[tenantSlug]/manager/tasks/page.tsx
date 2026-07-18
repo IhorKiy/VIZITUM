@@ -377,7 +377,7 @@ export default async function ManagerTasksPage({
 
       {pageState.deleted ? (
         <DismissableNotice
-          ariaLabel={t("updateAria")}
+          ariaLabel={t("deletedAria")}
           body={t("deletedBody")}
           clearParams={["deleted"]}
           eyebrow={t("deletedEyebrow")}
@@ -389,11 +389,13 @@ export default async function ManagerTasksPage({
       {pageState.error ? (
         <DismissableNotice
           ariaLabel={t("errorAria")}
-          body={
-            pageState.error === "delete" ? t("deleteErrorBody") : t("errorBody")
-          }
+          body={t("errorBody")}
           clearParams={["error"]}
-          eyebrow={t("errorEyebrow")}
+          eyebrow={
+            pageState.error === "delete"
+              ? t("deleteErrorEyebrow")
+              : t("errorEyebrow")
+          }
           title={
             pageState.error === "delete"
               ? t("deleteErrorTitle")

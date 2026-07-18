@@ -62,7 +62,10 @@ describe("manager list filters", () => {
         count: async () => 0,
       },
     };
-    const service = new TasksService(prisma as never);
+    const service = new TasksService(
+      prisma as never,
+      { recordEvent: async () => {} } as never,
+    );
 
     await service.listTasks(managerContext as never, {
       assignedToUserId: "rep-a",
@@ -129,7 +132,10 @@ describe("manager list filters", () => {
         count: async () => 1,
       },
     };
-    const service = new TasksService(prisma as never);
+    const service = new TasksService(
+      prisma as never,
+      { recordEvent: async () => {} } as never,
+    );
 
     const result = await service.listTasks(managerContext as never, {
       pageSize: 25,

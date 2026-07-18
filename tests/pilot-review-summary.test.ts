@@ -170,6 +170,8 @@ describe("pilot review summary", () => {
     });
     assert.deepEqual(capturedManagerTaskWhere, {
       tenantId: "tenant-a",
+      // Soft-deleted tasks must not count as manager engagement.
+      deletedAt: null,
       OR: [
         {
           createdAt: {

@@ -49,6 +49,7 @@ describe("tasks service delete", () => {
     const findWhere: unknown[] = [];
     const updateArgs: { where: unknown; data: Record<string, unknown> }[] = [];
     const auditEvents: unknown[] = [];
+    const auditClients: unknown[] = [];
     const prisma = {
       task: {
         findFirst: async (query: { where: unknown }) => {
@@ -63,13 +64,19 @@ describe("tasks service delete", () => {
           return createTask({ deletedAt: query.data.deletedAt });
         },
       },
+      // Delete + audit run through one transaction; hand this same object
+      // back as the transaction client so the tx-routing is observable.
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn(prisma),
     };
     const audit = {
       recordEvent: async (
         context: RequestContext,
         input: unknown,
+        client?: unknown,
       ): Promise<void> => {
         auditEvents.push({ actorUserId: context.userId, input });
+        auditClients.push(client);
       },
     };
     const service = new TasksService(prisma as never, audit as never);
@@ -96,6 +103,9 @@ describe("tasks service delete", () => {
         },
       },
     ]);
+    // The audit event is written through the same transaction as the delete,
+    // so neither can exist without the other.
+    assert.deepEqual(auditClients, [prisma]);
   });
 
   it("does not delete a task from another tenant", async () => {

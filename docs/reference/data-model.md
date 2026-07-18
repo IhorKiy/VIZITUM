@@ -75,7 +75,7 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 
 | Model | Table | Purpose |
 | --- | --- | --- |
-| `AuditEvent` | `audit_events` | Tenant-scoped audit trail (`entityType`, `entityId`, `eventType`, `metadata`, `requestId`), written via `AuditService.recordEvent`. Used for `manager_dashboard.viewed` events (`pilot-review` module) and the superadmin/admin lifecycle (`admin.invited`/`admin.suspended`/`admin.reactivated`/`admin.deleted`/`admin.role_granted`/`admin.role_revoked`/`superadmin.invited`/`superadmin.promoted`/`superadmin.replaced`, from `UsersService`, `PlatformService` and `AuthService.acceptInvite`). |
+| `AuditEvent` | `audit_events` | Tenant-scoped audit trail (`entityType`, `entityId`, `eventType`, `metadata`, `requestId`), written via `AuditService.recordEvent`. Used for `manager_dashboard.viewed` events (`pilot-review` module) and the superadmin/admin lifecycle (`admin.invited`/`admin.suspended`/`admin.reactivated`/`admin.deleted`/`admin.role_granted`/`admin.role_revoked`/`superadmin.invited`/`superadmin.promoted`/`superadmin.replaced`, from `UsersService`, `PlatformService` and `AuthService.acceptInvite`), and `task.deleted` (`TasksService.deleteTask`). |
 
 ## Enums
 

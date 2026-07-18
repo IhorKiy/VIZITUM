@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
@@ -8,11 +9,14 @@ import type { RecordAuditEventInput } from "./audit.types";
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Pass the surrounding transaction's client to make the audit event commit
+  // or roll back together with the write it records.
   async recordEvent(
     context: RequestContext,
     input: RecordAuditEventInput,
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
   ): Promise<void> {
-    await this.prisma.auditEvent.create({
+    await client.auditEvent.create({
       data: {
         tenantId: context.tenantId,
         actorUserId: context.userId ?? null,
