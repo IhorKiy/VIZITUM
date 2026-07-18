@@ -178,6 +178,7 @@ export default async function ManagerLocationsPage({
   const locations = locationsResult.data.items;
   const locationOptionsSource =
     allLocations.length > 0 ? allLocations : locations;
+  const locationCategoriesEnabled = sessionResult.data.locationCategoriesEnabled;
   const visits = visitsResult.ok ? visitsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
   const activityByLocation = buildLocationActivity(visits, tasks);
@@ -309,6 +310,7 @@ export default async function ManagerLocationsPage({
         {locations.length > 0 ? (
           <LocationsCards
             activityByLocation={activityByLocation}
+            locationCategoriesEnabled={locationCategoriesEnabled}
             locations={locations}
             tenantSlug={tenantSlug}
           />
@@ -338,10 +340,12 @@ export default async function ManagerLocationsPage({
 
 function LocationsCards({
   activityByLocation,
+  locationCategoriesEnabled,
   locations,
   tenantSlug,
 }: {
   activityByLocation: Map<string, LocationActivity>;
+  locationCategoriesEnabled: boolean;
   locations: Location[];
   tenantSlug: string;
 }) {
@@ -358,7 +362,9 @@ function LocationsCards({
         const visitCount = activity?.visitCount ?? 0;
         const area = [
           location.territory ?? t("unassignedTerritory"),
-          location.region ?? location.type ?? t("noRegion"),
+          location.region ??
+            (locationCategoriesEnabled ? location.category?.name : null) ??
+            t("noRegion"),
         ].join(" · ");
         const displayStatus = location.archived ? "archived" : location.status;
 

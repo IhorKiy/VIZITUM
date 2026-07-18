@@ -1,6 +1,8 @@
 import type { TenantColorScheme } from "./branding";
 
 export const PRODUCTS_ENABLED_SETTING_KEY = "products_enabled";
+export const LOCATION_CATEGORIES_ENABLED_SETTING_KEY =
+  "location_categories_enabled";
 
 // UI languages the web frontend ships dictionaries for (apps/web/messages).
 // Keep in sync with SUPPORTED_LOCALES in apps/web/lib/tenant-locale.ts.
@@ -22,6 +24,7 @@ export type TenantSettingsResponse = {
   language: string;
   productMode: string;
   productsEnabled: boolean;
+  locationCategoriesEnabled: boolean;
   colorScheme: TenantColorScheme;
   logo: TenantLogoResponse | null;
   updatedAt: string;
@@ -32,6 +35,7 @@ export type UpdateTenantSettingsRequestBody = {
   timezone?: unknown;
   language?: unknown;
   productsEnabled?: unknown;
+  locationCategoriesEnabled?: unknown;
   colorScheme?: unknown;
 };
 

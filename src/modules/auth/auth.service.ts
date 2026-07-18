@@ -26,8 +26,12 @@ import type {
   SwitchZoneRequestBody,
 } from "./auth.types";
 import { isValidZone, isZoneAvailable } from "./zones";
+import { locationCategoriesEnabledFromSetting } from "../settings/location-categories-enabled";
 import { productsEnabledFromSetting } from "../settings/products-enabled";
-import { PRODUCTS_ENABLED_SETTING_KEY } from "../settings/settings.types";
+import {
+  LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
+  PRODUCTS_ENABLED_SETTING_KEY,
+} from "../settings/settings.types";
 import { DEFAULT_ADMIN_LIMIT, resolveAdminCap } from "../users/users.types";
 
 @Injectable()
@@ -390,6 +394,7 @@ export class AuthService {
   async getCurrentUser(request: Request): Promise<
     LoginResponse & {
       productsEnabled: boolean;
+      locationCategoriesEnabled: boolean;
       tenantTimezone: string;
       // Tenant is still on the pilot plan tier (status "pilot"). Drives the
       // temporary "Pilot" admin nav area, which disappears once the owner
@@ -409,27 +414,36 @@ export class AuthService {
       throwAuthenticationRequired();
     }
 
-    const [user, productsEnabledSetting, tenant] = await Promise.all([
-      this.prisma.user.findFirst({
-        where: {
-          id: session.userId,
-          tenantId: session.tenantId,
-        },
-        include: { roles: true },
-      }),
-      this.prisma.tenantSetting.findUnique({
-        where: {
-          tenantId_key: {
+    const [user, productsEnabledSetting, locationCategoriesEnabledSetting, tenant] =
+      await Promise.all([
+        this.prisma.user.findFirst({
+          where: {
+            id: session.userId,
             tenantId: session.tenantId,
-            key: PRODUCTS_ENABLED_SETTING_KEY,
           },
-        },
-      }),
-      this.prisma.platformTenant.findUnique({
-        where: { id: session.tenantId },
-        select: { timezone: true, status: true },
-      }),
-    ]);
+          include: { roles: true },
+        }),
+        this.prisma.tenantSetting.findUnique({
+          where: {
+            tenantId_key: {
+              tenantId: session.tenantId,
+              key: PRODUCTS_ENABLED_SETTING_KEY,
+            },
+          },
+        }),
+        this.prisma.tenantSetting.findUnique({
+          where: {
+            tenantId_key: {
+              tenantId: session.tenantId,
+              key: LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
+            },
+          },
+        }),
+        this.prisma.platformTenant.findUnique({
+          where: { id: session.tenantId },
+          select: { timezone: true, status: true },
+        }),
+      ]);
 
     if (!user || user.status !== "active") {
       throwAuthenticationRequired();
@@ -449,6 +463,9 @@ export class AuthService {
       roleCodes,
       permissions: this.rolesService.getPermissionsForRoles(roleCodes),
       productsEnabled: productsEnabledFromSetting(productsEnabledSetting),
+      locationCategoriesEnabled: locationCategoriesEnabledFromSetting(
+        locationCategoriesEnabledSetting,
+      ),
       tenantTimezone: tenant?.timezone ?? "UTC",
       pilotActive: tenant?.status === "pilot",
     };

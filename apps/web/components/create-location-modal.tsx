@@ -3,18 +3,22 @@
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
-import type { Chain, TenantUser } from "../lib/api-client";
+import type { Chain, LocationCategory, TenantUser } from "../lib/api-client";
 import { PendingSubmitButton } from "./pending-submit-button";
 
 type CreateLocationModalProps = {
   action: (formData: FormData) => Promise<void>;
+  categories: LocationCategory[];
   chains: Chain[];
+  locationCategoriesEnabled: boolean;
   representatives: TenantUser[];
 };
 
 export function CreateLocationModal({
   action,
+  categories,
   chains,
+  locationCategoriesEnabled,
   representatives,
 }: CreateLocationModalProps) {
   const t = useTranslations("admin.locations");
@@ -85,10 +89,19 @@ export function CreateLocationModal({
             {t("region")}
             <input name="region" />
           </label>
-          <label>
-            {t("category")}
-            <input name="type" />
-          </label>
+          {locationCategoriesEnabled ? (
+            <label>
+              {t("category")}
+              <select defaultValue="" name="categoryId">
+                <option value="">{t("noCategoryOption")}</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
             {t("assignedUser")}
             <select defaultValue="" name="representativeUserId">

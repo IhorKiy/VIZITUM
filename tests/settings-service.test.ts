@@ -57,6 +57,38 @@ describe("settings service", () => {
     assert.equal(settings.productsEnabled, false);
   });
 
+  it("defaults locationCategoriesEnabled to true when unset", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+      tenantSetting: {
+        findMany: async () => [],
+      },
+    } as never);
+
+    const settings = await service.getSettings(context as never);
+
+    assert.equal(settings.locationCategoriesEnabled, true);
+  });
+
+  it("reads a persisted locationCategoriesEnabled=false setting", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+      tenantSetting: {
+        findMany: async () => [
+          { key: "location_categories_enabled", value: false },
+        ],
+      },
+    } as never);
+
+    const settings = await service.getSettings(context as never);
+
+    assert.equal(settings.locationCategoriesEnabled, false);
+  });
+
   it("persists name, timezone and productsEnabled together in one transaction", async () => {
     const tenantUpdates: unknown[] = [];
     const settingUpserts: unknown[] = [];
@@ -254,6 +286,76 @@ describe("settings service", () => {
         }),
       (error: { response?: { code?: string } }) =>
         error.response?.code === "SETTINGS_INVALID",
+    );
+  });
+
+  it("rejects a non-boolean locationCategoriesEnabled value", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+    } as never);
+
+    await assert.rejects(
+      () =>
+        service.updateSettings(context as never, {
+          locationCategoriesEnabled: "yes" as unknown as boolean,
+        }),
+      (error: { response?: { code?: string; fieldErrors?: unknown } }) =>
+        error.response?.code === "SETTINGS_INVALID" &&
+        Boolean(
+          (
+            error.response?.fieldErrors as
+              | { locationCategoriesEnabled?: string[] }
+              | undefined
+          )?.locationCategoriesEnabled,
+        ),
+    );
+  });
+
+  it("persists locationCategoriesEnabled via the settings transaction", async () => {
+    const settingUpserts: { where?: { tenantId_key?: { key?: string }} }[] =
+      [];
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+        update: async () => undefined,
+      },
+      tenantSetting: {
+        // Simulates the state a fresh read would see after the upsert below
+        // has been applied — the mock is static, so this stands in for "the
+        // DB now reflects locationCategoriesEnabled: false".
+        findMany: async () => [
+          { key: "location_categories_enabled", value: false },
+        ],
+      },
+      $transaction: async (
+        callback: (tx: {
+          platformTenant: { update: (query: unknown) => Promise<void> };
+          tenantSetting: { upsert: (query: unknown) => Promise<void> };
+        }) => Promise<void>,
+      ) =>
+        callback({
+          platformTenant: {
+            update: async () => undefined,
+          },
+          tenantSetting: {
+            upsert: async (query: unknown) => {
+              settingUpserts.push(query as never);
+            },
+          },
+        }),
+    } as never);
+
+    const settings = await service.updateSettings(context as never, {
+      locationCategoriesEnabled: false,
+    });
+
+    assert.equal(settings.locationCategoriesEnabled, false);
+    assert.equal(settingUpserts.length, 1);
+    assert.equal(
+      settingUpserts[0].where?.tenantId_key?.key,
+      "location_categories_enabled",
     );
   });
 

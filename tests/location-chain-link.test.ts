@@ -17,9 +17,9 @@ function locationRow(overrides: Record<string, unknown> = {}) {
     id: "location-a",
     tenantId: "tenant-a",
     chainId: null,
+    categoryId: null,
     externalCode: null,
     name: "Kyiv North Market",
-    type: null,
     status: "active",
     addressLine: "Demo Avenue 10",
     city: "Kyiv",
@@ -29,6 +29,7 @@ function locationRow(overrides: Record<string, unknown> = {}) {
     longitude: null,
     notes: null,
     chain: null,
+    category: null,
     // Reads load contacts and active assignments via LOCATION_INCLUDE, so the
     // mocked row carries them (empty here) the way Prisma would.
     contacts: [],

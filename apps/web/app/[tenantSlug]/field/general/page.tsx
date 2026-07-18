@@ -118,6 +118,7 @@ export default async function GeneralPage({
   const locations = locationsResult.ok ? locationsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
   const products = productsResult.ok ? productsResult.data.items : [];
+  const locationCategoriesEnabled = sessionResult.data.locationCategoriesEnabled;
 
   const routeStops = routes.flatMap((plan) =>
     plan.items.filter((item) => item.status !== "skipped"),
@@ -232,7 +233,13 @@ export default async function GeneralPage({
                     </span>
                   </header>
                   <p className="visit-meta">
-                    {[location.type, location.region, location.territory]
+                    {[
+                      locationCategoriesEnabled
+                        ? location.category?.name
+                        : null,
+                      location.region,
+                      location.territory,
+                    ]
                       .filter(Boolean)
                       .map((value) => formatEnumLabel(tCommon, String(value)))
                       .join(" · ") || t("noSegmentDetails")}

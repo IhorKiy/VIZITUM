@@ -39,6 +39,7 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 | `locations.assign`         |                |         x         |       x       |              |                      |
 
 <!-- Chains (`/chains`, retail networks) are part of the location domain and have no dedicated permission: reads use `locations.read`, create/update use `locations.manage`. -->
+<!-- Location categories (`/location-categories`) are the same: no dedicated permission, reuses `locations.read`/`locations.manage`. -->
 
 | `contacts.read` | | x | x | x | x |
 | `contacts.manage` | | x | x | | |

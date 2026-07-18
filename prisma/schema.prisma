@@ -474,9 +474,9 @@ model Location {
   id           String         @id @default(cuid())
   tenantId     String
   chainId      String?
+  categoryId   String?
   externalCode String?
   name         String
-  type         String?
   status       LocationStatus @default(active)
   addressLine  String
   city         String
@@ -490,6 +490,7 @@ model Location {
   deletedAt    DateTime?
 
   chain       Chain?               @relation(fields: [chainId], references: [id], onDelete: SetNull)
+  category    LocationCategory?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   contacts    LocationContact[]
   assignments LocationAssignment[]
   routeItems  RouteItem[]
@@ -513,6 +514,7 @@ model Location {
   @@index([tenantId, region])
   @@index([tenantId, territory])
   @@index([tenantId, chainId])
+  @@index([tenantId, categoryId])
   @@map("locations")
 }
 
@@ -533,6 +535,26 @@ model LocationContact {
 
   @@index([tenantId, locationId])
   @@map("location_contacts")
+}
+
+model LocationCategory {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations Location[]
+
+  // Uniqueness on (tenantId, name) is enforced CASE-INSENSITIVELY by a functional
+  // unique index on (tenantId, lower(name)) (see the
+  // `20260718100000_location_category_dictionary` migration). Prisma can't
+  // express functional indexes in the schema, so it is managed via raw SQL and
+  // intentionally omitted here — do NOT reintroduce a plain
+  // `@@unique([tenantId, name])`, which would only guard exact case and let
+  // "Bakery" and "bakery" coexist again.
+  @@index([tenantId])
+  @@map("location_categories")
 }
 
 model LocationAssignment {

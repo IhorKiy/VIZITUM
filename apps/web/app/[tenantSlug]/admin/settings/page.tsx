@@ -118,6 +118,21 @@ export default async function AdminSettingsPage({
     );
   }
 
+  async function updateLocationCategoriesEnabledAction(formData: FormData) {
+    "use server";
+
+    const locationCategoriesEnabled =
+      formData.get("locationCategoriesEnabled") === "on";
+
+    const result = await updateAdminSettings({ locationCategoriesEnabled });
+
+    redirect(
+      `/${tenantSlug}/admin/settings?${
+        result.ok ? "saved=locationCategories" : "error=locationCategories"
+      }`,
+    );
+  }
+
   async function uploadLogoAction(formData: FormData) {
     "use server";
 
@@ -195,6 +210,10 @@ export default async function AdminSettingsPage({
       title: tBranding("removedLogoTitle"),
       body: tBranding("removedLogoBody"),
     },
+    locationCategories: {
+      title: tSettings("locationCategoriesSavedTitle"),
+      body: tSettings("locationCategoriesSavedBody"),
+    },
   };
   const savedMessage = saved ? savedMessages[saved] : undefined;
 
@@ -218,13 +237,24 @@ export default async function AdminSettingsPage({
         />
       ) : null}
 
-      {error ? (
+      {error && error !== "locationCategories" ? (
         <DismissableNotice
           ariaLabel={tBranding("errorAria")}
           body={tBranding("errorBody")}
           clearParams={["error"]}
           eyebrow={tBranding("errorEyebrow")}
           title={tBranding("errorTitle")}
+          tone="danger"
+        />
+      ) : null}
+
+      {error === "locationCategories" ? (
+        <DismissableNotice
+          ariaLabel={tSettings("errorAria")}
+          body={tSettings("errorBody")}
+          clearParams={["error"]}
+          eyebrow={tSettings("errorEyebrow")}
+          title={tSettings("errorTitle")}
           tone="danger"
         />
       ) : null}
@@ -311,6 +341,32 @@ export default async function AdminSettingsPage({
               ) : null}
             </div>
           </div>
+        </section>
+
+        <section className="panel">
+          <h2>{tSettings("locationCategoriesTitle")}</h2>
+          <p className="form-hint">{tSettings("locationCategoriesHint")}</p>
+          <form
+            action={updateLocationCategoriesEnabledAction}
+            className="field-stack"
+          >
+            <label className="checkbox-label">
+              <input
+                defaultChecked={settings.locationCategoriesEnabled}
+                name="locationCategoriesEnabled"
+                type="checkbox"
+              />
+              {tSettings("locationCategoriesToggleLabel")}
+            </label>
+            <div>
+              <PendingSubmitButton
+                className="primary-button"
+                pendingLabel={tCommon("saving")}
+              >
+                {tCommon("save")}
+              </PendingSubmitButton>
+            </div>
+          </form>
         </section>
       </div>
     </AppShell>

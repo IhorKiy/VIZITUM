@@ -12,6 +12,7 @@ export type AuthSession = {
   roleCodes: string[];
   permissions: string[];
   productsEnabled: boolean;
+  locationCategoriesEnabled: boolean;
   tenantTimezone: string;
   // Tenant is still on the pilot plan (status "pilot"); gates the temporary
   // "Pilot" admin nav area.
@@ -65,6 +66,11 @@ export type ChainSummary = {
   name: string;
 };
 
+export type LocationCategorySummary = {
+  id: string;
+  name: string;
+};
+
 export type Chain = {
   id: string;
   externalCode: string | null;
@@ -106,11 +112,12 @@ export type Location = {
   id: string;
   externalCode: string | null;
   name: string;
-  type: string | null;
   status: LocationStatus;
   archived: boolean;
   chainId: string | null;
   chain: ChainSummary | null;
+  categoryId: string | null;
+  category: LocationCategorySummary | null;
   addressLine: string;
   city: string;
   region: string | null;
@@ -120,6 +127,13 @@ export type Location = {
   notes: string | null;
   contacts: LocationContact[];
   assignments: LocationAssignment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LocationCategory = {
+  id: string;
+  name: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -230,6 +244,7 @@ export type TenantSettings = {
   language: string;
   productMode: string;
   productsEnabled: boolean;
+  locationCategoriesEnabled: boolean;
   colorScheme: string;
   logo: TenantLogo | null;
   updatedAt: string;
@@ -577,7 +592,7 @@ export async function createAdminLocation(input: {
   addressLine: string;
   city: string;
   externalCode?: string | null;
-  type?: string | null;
+  categoryId?: string | null;
   chainId?: string | null;
   region?: string | null;
   notes?: string | null;
@@ -590,7 +605,7 @@ export async function updateAdminLocation(
   input: {
     name?: string;
     externalCode?: string | null;
-    type?: string | null;
+    categoryId?: string | null;
     chainId?: string | null;
     addressLine?: string;
     city?: string;
@@ -659,6 +674,34 @@ export async function deactivateAdminLocationAssignment(
     `/locations/${locationId}/assignments/${assignmentId}/deactivate`,
     {},
   );
+}
+
+export async function listLocationCategories(): Promise<
+  ApiResult<LocationCategory[]>
+> {
+  return apiGet<LocationCategory[]>("/location-categories");
+}
+
+export async function createLocationCategory(input: {
+  name: string;
+}): Promise<ApiResult<LocationCategory>> {
+  return apiPost<LocationCategory>("/location-categories", input);
+}
+
+export async function updateLocationCategory(
+  categoryId: string,
+  input: { name: string },
+): Promise<ApiResult<LocationCategory>> {
+  return apiPatch<LocationCategory>(
+    `/location-categories/${categoryId}`,
+    input,
+  );
+}
+
+export async function deleteLocationCategory(
+  categoryId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(`/location-categories/${categoryId}`);
 }
 
 export async function listAdminChains(
@@ -796,6 +839,7 @@ export async function updateAdminSettings(input: {
   timezone?: string;
   language?: string;
   productsEnabled?: boolean;
+  locationCategoriesEnabled?: boolean;
   colorScheme?: string;
 }): Promise<ApiResult<TenantSettings>> {
   return apiPatch<TenantSettings>("/admin/settings", input);

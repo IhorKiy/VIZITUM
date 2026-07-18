@@ -32,6 +32,7 @@ import type {
 // the "primary"/"secondary" slots stay stable across edits.
 const LOCATION_INCLUDE = {
   chain: { select: { id: true, name: true } },
+  category: { select: { id: true, name: true } },
   contacts: {
     where: { deletedAt: null },
     orderBy: { createdAt: "asc" },
@@ -50,7 +51,7 @@ type LocationWithChain = Prisma.LocationGetPayload<{
 type LocationCreateData = {
   externalCode: string | null;
   name: string;
-  type: string | null;
+  categoryId: string | null;
   chainId: string | null;
   addressLine: string;
   city: string;
@@ -132,6 +133,7 @@ export class LocationsService {
     }
 
     await this.assertChainAvailable(context.tenantId, data.chainId);
+    await this.assertCategoryAvailable(context.tenantId, data.categoryId);
 
     const location = await this.prisma.location.create({
       data: {
@@ -165,6 +167,10 @@ export class LocationsService {
 
     if (data.chainId !== undefined) {
       await this.assertChainAvailable(context.tenantId, data.chainId);
+    }
+
+    if (data.categoryId !== undefined) {
+      await this.assertCategoryAvailable(context.tenantId, data.categoryId);
     }
 
     const updatedLocation = await this.prisma.location.update({
@@ -466,6 +472,36 @@ export class LocationsService {
     }
   }
 
+  // A location may only reference a category owned by the same tenant —
+  // never trust a categoryId from the request body against another tenant's
+  // dictionary. `null` clears the category and is always allowed.
+  private async assertCategoryAvailable(
+    tenantId: string,
+    categoryId: string | null,
+  ): Promise<void> {
+    if (!categoryId) {
+      return;
+    }
+
+    const category = await this.prisma.locationCategory.findFirst({
+      where: {
+        id: categoryId,
+        tenantId,
+      },
+      select: { id: true },
+    });
+
+    if (!category) {
+      throw new BadRequestException({
+        code: "LOCATION_CATEGORY_INVALID",
+        message: "Category was not found for this tenant.",
+        fieldErrors: {
+          categoryId: ["Category was not found."],
+        },
+      });
+    }
+  }
+
   private async assertExternalCodeAvailable(
     tenantId: string,
     externalCode: string,
@@ -632,7 +668,7 @@ function parseCreateLocationBody(
     addressLine,
     city,
     externalCode: normalizeOptionalString(body.externalCode),
-    type: normalizeOptionalString(body.type),
+    categoryId: normalizeId(body.categoryId),
     chainId: normalizeId(body.chainId),
     region: normalizeOptionalString(body.region),
     territory: normalizeOptionalString(body.territory),
@@ -711,8 +747,8 @@ function parseUpdateLocationBody(
     ...(body.externalCode !== undefined
       ? { externalCode: normalizeOptionalString(body.externalCode) }
       : {}),
-    ...(body.type !== undefined
-      ? { type: normalizeOptionalString(body.type) }
+    ...(body.categoryId !== undefined
+      ? { categoryId: normalizeId(body.categoryId) }
       : {}),
     ...(body.chainId !== undefined
       ? { chainId: normalizeId(body.chainId) }
@@ -826,12 +862,15 @@ function toLocationResponse(location: LocationWithChain): LocationResponse {
     id: location.id,
     externalCode: location.externalCode,
     name: location.name,
-    type: location.type,
     status: location.status,
     archived: location.deletedAt !== null,
     chainId: location.chainId,
     chain: location.chain
       ? { id: location.chain.id, name: location.chain.name }
+      : null,
+    categoryId: location.categoryId,
+    category: location.category
+      ? { id: location.category.id, name: location.category.name }
       : null,
     addressLine: location.addressLine,
     city: location.city,
