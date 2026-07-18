@@ -5,6 +5,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { AddChainModal } from "../../../../components/add-chain-modal";
 import { AppShell } from "../../../../components/app-shell";
 import { ArchiveChainButton } from "../../../../components/archive-chain-button";
+import { ArchiveLocationButton } from "../../../../components/archive-location-button";
 import { CreateLocationModal } from "../../../../components/create-location-modal";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
@@ -19,6 +20,7 @@ import { MapIcon, SearchIcon } from "../../../../components/icons";
 import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
+  archiveAdminLocation,
   createAdminChain,
   createAdminLocation,
   createAdminLocationAssignment,
@@ -28,6 +30,7 @@ import {
   listAdminChains,
   listAdminLocations,
   listAdminUsers,
+  restoreAdminLocation,
   updateAdminChain,
   updateAdminLocation,
   updateAdminLocationContact,
@@ -70,7 +73,10 @@ type AdminLocationsPageProps = {
   }>;
 };
 
+// The list filter can select archived rows; the edit form can only set a live
+// status. Archiving is a dedicated action, not a status choice.
 const locationStatuses: LocationStatus[] = ["active", "inactive", "archived"];
+const editableLocationStatuses: LocationStatus[] = ["active", "inactive"];
 const chainStatuses: ChainStatus[] = ["active", "archived"];
 
 export default async function AdminLocationsPage({
@@ -268,6 +274,46 @@ export default async function AdminLocationsPage({
     }
 
     redirect(`/${tenantSlug}/admin/locations?locUpdated=1&open=locations`);
+  }
+
+  async function archiveLocationAction(formData: FormData) {
+    "use server";
+
+    const locationId = getFormString(formData, "locationId").trim();
+    const errorHref = `/${tenantSlug}/admin/locations?locError=1&open=locations`;
+
+    if (!locationId) {
+      redirect(errorHref);
+    }
+
+    const result = await archiveAdminLocation(locationId);
+
+    if (!result.ok) {
+      redirect(errorHref);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?locUpdated=1&open=locations`);
+  }
+
+  async function restoreLocationAction(formData: FormData) {
+    "use server";
+
+    const locationId = getFormString(formData, "locationId").trim();
+    const errorHref = `/${tenantSlug}/admin/locations?locError=1&open=locations`;
+
+    if (!locationId) {
+      redirect(errorHref);
+    }
+
+    const result = await restoreAdminLocation(locationId);
+
+    if (!result.ok) {
+      redirect(errorHref);
+    }
+
+    redirect(
+      `/${tenantSlug}/admin/locations?locUpdated=1&open=locations&locStatus=archived`,
+    );
   }
 
   async function createChainAction(formData: FormData) {
@@ -508,6 +554,7 @@ export default async function AdminLocationsPage({
             {locationsResult.ok ? (
               <LocationsSection
                 allChains={chainsResult.ok ? chainsResult.data.items : []}
+                archiveLocationAction={archiveLocationAction}
                 carryParams={chainCarryParams}
                 chains={pickerChains}
                 createLocationAction={createLocationAction}
@@ -516,6 +563,7 @@ export default async function AdminLocationsPage({
                 locale={locale}
                 locations={locationsResult.data.items}
                 representatives={representatives}
+                restoreLocationAction={restoreLocationAction}
                 saveLocationAction={saveLocationAction}
                 search={locSearch}
                 selectedChain={locChain}
@@ -584,6 +632,7 @@ export default async function AdminLocationsPage({
 
 function LocationsSection({
   allChains,
+  archiveLocationAction,
   carryParams,
   chains,
   createLocationAction,
@@ -592,6 +641,7 @@ function LocationsSection({
   locale,
   locations,
   representatives,
+  restoreLocationAction,
   saveLocationAction,
   search,
   selectedChain,
@@ -600,6 +650,7 @@ function LocationsSection({
   total,
 }: {
   allChains: Chain[];
+  archiveLocationAction: (formData: FormData) => Promise<void>;
   carryParams: Record<string, string>;
   chains: Chain[];
   createLocationAction: (formData: FormData) => Promise<void>;
@@ -608,6 +659,7 @@ function LocationsSection({
   locale: string;
   locations: Location[];
   representatives: TenantUser[];
+  restoreLocationAction: (formData: FormData) => Promise<void>;
   saveLocationAction: (formData: FormData) => Promise<void>;
   search: string | null;
   selectedChain: string | null;
@@ -750,9 +802,11 @@ function LocationsSection({
                     {group.items.map((location) => (
                       <LocationRow
                         key={location.id}
+                        archiveLocationAction={archiveLocationAction}
                         chains={chains}
                         location={location}
                         representatives={representatives}
+                        restoreLocationAction={restoreLocationAction}
                         saveLocationAction={saveLocationAction}
                       />
                     ))}
@@ -765,9 +819,11 @@ function LocationsSection({
               {locations.map((location) => (
                 <LocationRow
                   key={location.id}
+                  archiveLocationAction={archiveLocationAction}
                   chains={chains}
                   location={location}
                   representatives={representatives}
+                  restoreLocationAction={restoreLocationAction}
                   saveLocationAction={saveLocationAction}
                 />
               ))}
@@ -922,14 +978,18 @@ function ChainsSection({
 }
 
 function LocationRow({
+  archiveLocationAction,
   chains,
   location,
   representatives,
+  restoreLocationAction,
   saveLocationAction,
 }: {
+  archiveLocationAction: (formData: FormData) => Promise<void>;
   chains: Chain[];
   location: Location;
   representatives: TenantUser[];
+  restoreLocationAction: (formData: FormData) => Promise<void>;
   saveLocationAction: (formData: FormData) => Promise<void>;
 }) {
   const t = useTranslations("admin.locations");
@@ -981,8 +1041,15 @@ function LocationRow({
           </p>
         </div>
         <div className="admin-user-summary-meta">
-          <span className={`status-pill ${statusTone(location.status)}`}>
-            {formatEnumLabel(tCommon, location.status)}
+          <span
+            className={`status-pill ${statusTone(
+              location.archived ? "archived" : location.status,
+            )}`}
+          >
+            {formatEnumLabel(
+              tCommon,
+              location.archived ? "archived" : location.status,
+            )}
           </span>
           <span className="disclosure-chevron" aria-hidden="true" />
         </div>
@@ -1039,7 +1106,7 @@ function LocationRow({
           <label>
             {t("status")}
             <select defaultValue={location.status} name="status" required>
-              {locationStatuses.map((status) => (
+              {editableLocationStatuses.map((status) => (
                 <option key={status} value={status}>
                   {formatEnumLabel(tCommon, status)}
                 </option>
@@ -1116,6 +1183,26 @@ function LocationRow({
             {t("saveLocation")}
           </PendingSubmitButton>
         </form>
+
+        {location.archived ? (
+          <form action={restoreLocationAction} className="product-row-footer">
+            <input name="locationId" type="hidden" value={location.id} />
+            <PendingSubmitButton
+              className="secondary-button"
+              pendingLabel={tCommon("saving")}
+            >
+              {t("restoreLocation")}
+            </PendingSubmitButton>
+          </form>
+        ) : (
+          <div className="product-row-footer">
+            <ArchiveLocationButton
+              archiveAction={archiveLocationAction}
+              locationId={location.id}
+              locationName={location.name}
+            />
+          </div>
+        )}
       </div>
     </details>
   );

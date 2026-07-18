@@ -134,10 +134,12 @@ The platform owner manages only the tenant's superadmin now — Company Admin in
 
 | Method & path                                                       | Permissions             | Body / query                                                                                            |
 | ------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `GET /locations`                                                    | all: `locations.read`   | query: `page, pageSize, status (active\|inactive\|archived), city, region, territory, chainId, search`  |
+| `GET /locations`                                                    | all: `locations.read`   | query: `page, pageSize, status (active\|inactive\|archived), city, region, territory, chainId, search`; `status=archived` returns soft-deleted rows (`deletedAt` set), every other value returns live rows only |
 | `GET /locations/:locationId`                                        | all: `locations.read`   | —                                                                                                       |
 | `POST /locations`                                                   | all: `locations.manage` | `{ externalCode?, name, type?, chainId?, addressLine, city, region?, territory?, latitude?, longitude?, notes? }`; `chainId` must reference a chain in the same tenant (400 `LOCATION_CHAIN_INVALID`) |
-| `PATCH /locations/:locationId`                                      | all: `locations.manage` | any create field plus `status?`; send `chainId: null` to clear the chain link                          |
+| `PATCH /locations/:locationId`                                      | all: `locations.manage` | any create field plus `status? (active\|inactive` only — `archived` is not a writable status); send `chainId: null` to clear the chain link |
+| `DELETE /locations/:locationId`                                     | all: `locations.manage` | archive (soft-delete): stamps `deletedAt`, drops the location from default lists while keeping its history; returns the archived `Location` (`archived: true`) |
+| `POST /locations/:locationId/restore`                               | all: `locations.manage` | clears `deletedAt`; 404 `LOCATION_NOT_FOUND` if the location is not archived                             |
 | `GET /locations/:locationId/contacts`                               | all: `contacts.read`    | —                                                                                                       |
 | `POST /locations/:locationId/contacts`                              | all: `contacts.manage`  | `{ name, roleTitle?, phone?, email?, notes? }`                                                          |
 | `PATCH /locations/:locationId/contacts/:contactId`                  | all: `contacts.manage`  | partial contact fields                                                                                  |
@@ -146,7 +148,7 @@ The platform owner manages only the tenant's superadmin now — Company Admin in
 | `POST /locations/:locationId/assignments`                           | all: `locations.assign` | `{ representativeUserId }`                                                                              |
 | `PATCH /locations/:locationId/assignments/:assignmentId/deactivate` | all: `locations.assign` | —                                                                                                       |
 
-Location responses embed the linked chain as `chain: { id, name } | null` alongside the raw `chainId`.
+Location responses embed the linked chain as `chain: { id, name } | null` alongside the raw `chainId`, and carry an `archived` boolean (`deletedAt` is set) so the console can render archived rows and offer restore.
 
 ### Chains — `/chains` (`chains.controller.ts`)
 
@@ -247,4 +249,4 @@ Purpose-level access checks inside `StorageService` are stricter than the guard-
 
 ## Endpoint count
 
-94 endpoints across 20 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 4, locations 11, chains 4, products 5, product-categories 4, routes 6, imports 6, admin users 8, admin settings 5, storage 3).
+96 endpoints across 20 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 4, locations 13, chains 4, products 5, product-categories 4, routes 6, imports 6, admin users 8, admin settings 5, storage 3).
