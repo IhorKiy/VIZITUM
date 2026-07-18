@@ -31,7 +31,7 @@ export function buildLocationOptions(
 
 export function buildLocationFieldOptions(
   locations: Location[],
-  field: "city" | "region" | "territory",
+  field: "city" | "territory",
   locale: string,
 ): FilterOption[] {
   const options = new Map<string, FilterOption>();

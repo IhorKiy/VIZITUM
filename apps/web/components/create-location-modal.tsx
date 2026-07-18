@@ -85,10 +85,6 @@ export function CreateLocationModal({
               ))}
             </select>
           </label>
-          <label>
-            {t("region")}
-            <input name="region" />
-          </label>
           {locationCategoriesEnabled ? (
             <label>
               {t("category")}

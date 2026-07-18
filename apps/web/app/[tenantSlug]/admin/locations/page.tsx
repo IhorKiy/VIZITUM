@@ -149,7 +149,6 @@ export default async function AdminLocationsPage({
       externalCode: normalizeOptionalField(formData.get("externalCode")),
       categoryId: normalizeOptionalField(formData.get("categoryId")),
       chainId: normalizeOptionalField(formData.get("chainId")),
-      region: normalizeOptionalField(formData.get("region")),
       notes: normalizeOptionalField(formData.get("notes")),
     });
 
@@ -188,7 +187,6 @@ export default async function AdminLocationsPage({
     const externalCode = normalizeOptionalField(formData.get("externalCode"));
     const categoryId = normalizeOptionalField(formData.get("categoryId"));
     const chainId = normalizeOptionalField(formData.get("chainId"));
-    const region = normalizeOptionalField(formData.get("region"));
     const notes = normalizeOptionalField(formData.get("notes"));
     const status = normalizeLocationStatus(getFormString(formData, "status"));
 
@@ -203,7 +201,6 @@ export default async function AdminLocationsPage({
       city,
       categoryId,
       chainId,
-      region,
       notes,
       status,
     });
@@ -1237,10 +1234,6 @@ function LocationRow({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              {t("region")}
-              <input defaultValue={location.region ?? ""} name="region" />
             </label>
             {locationCategoriesEnabled ? (
               <label>

@@ -103,7 +103,6 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         description:
           "Optional retail chain/network name; created on first use and reused by name.",
       },
-      { key: "region", required: false, description: "Optional region." },
       {
         key: "territory",
         required: false,
@@ -750,7 +749,6 @@ export class ImportsService {
           name: requiredString(row.name),
           addressLine: requiredString(row.address_line),
           city: requiredString(row.city),
-          region: optionalString(row.region),
           territory: optionalString(row.territory),
           latitude: optionalNumber(row.latitude),
           longitude: optionalNumber(row.longitude),

@@ -1,4 +1,4 @@
-name,address_line,city,external_code,category,chain,region,territory,latitude,longitude,assigned_representative_email,notes
-Kyiv North Market,Demo Avenue 10,Kyiv,LOC-KYIV-NORTH,Retail,ATB,Kyiv,North,50.4501,30.5234,rep.north@example.com,Synthetic pilot location
-Lviv Partner Store,Demo Street 24,Lviv,LOC-LVIV-PARTNER,Partner,Silpo,Lviv,West,49.8397,24.0297,rep.south@example.com,Synthetic pilot location
-Odesa Service Hub,Demo Lane 5,Odesa,LOC-ODESA-SERVICE,Service,ATB,Odesa,South,46.4825,30.7233,rep.south@example.com,Synthetic pilot location
+name,address_line,city,external_code,category,chain,territory,latitude,longitude,assigned_representative_email,notes
+Kyiv North Market,Demo Avenue 10,Kyiv,LOC-KYIV-NORTH,Retail,ATB,North,50.4501,30.5234,rep.north@example.com,Synthetic pilot location
+Lviv Partner Store,Demo Street 24,Lviv,LOC-LVIV-PARTNER,Partner,Silpo,West,49.8397,24.0297,rep.south@example.com,Synthetic pilot location
+Odesa Service Hub,Demo Lane 5,Odesa,LOC-ODESA-SERVICE,Service,ATB,South,46.4825,30.7233,rep.south@example.com,Synthetic pilot location

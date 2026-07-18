@@ -238,7 +238,6 @@ export default async function GeneralPage({
                       locationCategoriesEnabled
                         ? location.category?.name
                         : null,
-                      location.region,
                       location.territory,
                     ]
                       .filter(Boolean)

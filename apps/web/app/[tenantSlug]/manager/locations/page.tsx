@@ -11,7 +11,6 @@ import { FilterPills } from "../../../../components/filter-pills";
 import {
   CalendarIcon,
   FlagIcon,
-  MapIcon,
   MapPinIcon,
   SearchIcon,
   TagIcon,
@@ -41,7 +40,6 @@ type ManagerLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     city?: string;
-    region?: string;
     search?: string;
     status?: string;
     territory?: string;
@@ -105,16 +103,11 @@ export default async function ManagerLocationsPage({
   const pageState = await searchParams;
   const selectedStatus = normalizeLocationStatus(pageState.status);
   const selectedCity = normalizeFilterValue(pageState.city);
-  const selectedRegion = normalizeFilterValue(pageState.region);
   const selectedTerritory = normalizeFilterValue(pageState.territory);
   const search = normalizeFilterValue(pageState.search);
   const query = new URLSearchParams({ pageSize: "100" });
   const hasFilters = Boolean(
-    selectedStatus ||
-    selectedCity ||
-    selectedRegion ||
-    selectedTerritory ||
-    search,
+    selectedStatus || selectedCity || selectedTerritory || search,
   );
 
   if (selectedStatus) {
@@ -123,10 +116,6 @@ export default async function ManagerLocationsPage({
 
   if (selectedCity) {
     query.set("city", selectedCity);
-  }
-
-  if (selectedRegion) {
-    query.set("region", selectedRegion);
   }
 
   if (selectedTerritory) {
@@ -192,11 +181,6 @@ export default async function ManagerLocationsPage({
   const cityOptions = buildLocationFieldOptions(
     locationOptionsSource,
     "city",
-    locale,
-  );
-  const regionOptions = buildLocationFieldOptions(
-    locationOptionsSource,
-    "region",
     locale,
   );
   const territoryOptions = buildLocationFieldOptions(
@@ -268,16 +252,6 @@ export default async function ManagerLocationsPage({
                 <select defaultValue={selectedCity ?? ""} name="city">
                   <option value="">{tCommon("anyOption")}</option>
                   {cityOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </FilterField>
-              <FilterField icon={<MapIcon />} label={t("region")}>
-                <select defaultValue={selectedRegion ?? ""} name="region">
-                  <option value="">{tCommon("anyOption")}</option>
-                  {regionOptions.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.label}
                     </option>
@@ -362,10 +336,12 @@ function LocationsCards({
         const activity = activityByLocation.get(location.id);
         const visitCount = activity?.visitCount ?? 0;
         const area = [
-          location.territory ?? t("unassignedTerritory"),
-          location.region ??
-            (locationCategoriesEnabled ? location.category?.name : null) ??
-            t("noRegion"),
+          location.territory
+            ? formatEnumLabel(tCommon, location.territory)
+            : t("unassignedTerritory"),
+          locationCategoriesEnabled && location.category
+            ? formatEnumLabel(tCommon, location.category.name)
+            : t("noType"),
         ].join(" · ");
         const displayStatus = location.archived ? "archived" : location.status;
 

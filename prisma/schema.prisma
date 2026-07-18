@@ -480,6 +480,10 @@ model Location {
   status       LocationStatus @default(active)
   addressLine  String
   city         String
+  // Dormant/reserved for the Business tier (regional breakdown). Not exposed in
+  // the UI, API or CSV import today — removed from the Pilot/Team surface — but
+  // kept in the schema (and indexed) so existing data survives until the
+  // Business package re-introduces a region-aware, plan-gated surface.
   region       String?
   territory    String?
   latitude     Decimal?       @db.Decimal(10, 7)

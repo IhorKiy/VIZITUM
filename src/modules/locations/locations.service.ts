@@ -55,7 +55,6 @@ type LocationCreateData = {
   chainId: string | null;
   addressLine: string;
   city: string;
-  region: string | null;
   territory: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -629,7 +628,6 @@ function buildLocationWhere(
       ? { deletedAt: { not: null } }
       : { deletedAt: null, ...(query.status ? { status: query.status } : {}) }),
     ...(query.city ? { city: query.city } : {}),
-    ...(query.region ? { region: query.region } : {}),
     ...(query.territory ? { territory: query.territory } : {}),
     ...(query.chainId ? { chainId: query.chainId } : {}),
     ...(query.search
@@ -670,7 +668,6 @@ function parseCreateLocationBody(
     externalCode: normalizeOptionalString(body.externalCode),
     categoryId: normalizeId(body.categoryId),
     chainId: normalizeId(body.chainId),
-    region: normalizeOptionalString(body.region),
     territory: normalizeOptionalString(body.territory),
     latitude: normalizeCoordinate(body.latitude),
     longitude: normalizeCoordinate(body.longitude),
@@ -752,9 +749,6 @@ function parseUpdateLocationBody(
       : {}),
     ...(body.chainId !== undefined
       ? { chainId: normalizeId(body.chainId) }
-      : {}),
-    ...(body.region !== undefined
-      ? { region: normalizeOptionalString(body.region) }
       : {}),
     ...(body.territory !== undefined
       ? { territory: normalizeOptionalString(body.territory) }
@@ -874,7 +868,6 @@ function toLocationResponse(location: LocationWithChain): LocationResponse {
       : null,
     addressLine: location.addressLine,
     city: location.city,
-    region: location.region,
     territory: location.territory,
     latitude: location.latitude?.toNumber() ?? null,
     longitude: location.longitude?.toNumber() ?? null,
