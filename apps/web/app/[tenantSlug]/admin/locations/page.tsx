@@ -74,6 +74,7 @@ type AdminLocationsPageProps = {
     locView?: string;
     locCatCreated?: string;
     locCatError?: string;
+    locCatErrorCount?: string;
     chainCreated?: string;
     chainUpdated?: string;
     chainError?: string;
@@ -429,7 +430,7 @@ export default async function AdminLocationsPage({
     const result = await createLocationCategory({ name });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+      redirect(locationCategoryErrorHref(tenantSlug, result));
     }
 
     redirect(`/${tenantSlug}/admin/locations?locCatCreated=1`);
@@ -448,7 +449,7 @@ export default async function AdminLocationsPage({
     const result = await updateLocationCategory(categoryId, { name });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+      redirect(locationCategoryErrorHref(tenantSlug, result));
     }
 
     redirect(`/${tenantSlug}/admin/locations?locCatCreated=updated`);
@@ -466,7 +467,7 @@ export default async function AdminLocationsPage({
     const result = await deleteLocationCategory(categoryId);
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+      redirect(locationCategoryErrorHref(tenantSlug, result));
     }
 
     redirect(`/${tenantSlug}/admin/locations?locCatCreated=removed`);
@@ -569,6 +570,36 @@ export default async function AdminLocationsPage({
     locCarryParams.locView = "chain";
   }
 
+  // The three location-category server actions redirect with a specific
+  // `locCatError` reason (see locationCategoryErrorHref); render the matching
+  // copy here rather than the generic categoryError* fallback.
+  const locCatErrorCount = Number(pageState.locCatErrorCount);
+  const locCatNotice =
+    pageState.locCatError === "exists"
+      ? {
+          ariaLabel: t("categoryExistsErrorAria"),
+          eyebrow: t("categoryExistsErrorEyebrow"),
+          title: t("categoryExistsErrorTitle"),
+          body: t("categoryExistsErrorBody"),
+        }
+      : pageState.locCatError === "inUse"
+        ? {
+            ariaLabel: t("categoryInUseErrorAria"),
+            eyebrow: t("categoryInUseErrorEyebrow"),
+            title: t("categoryInUseErrorTitle"),
+            body: t("categoryInUseErrorBody", {
+              count: Number.isFinite(locCatErrorCount) ? locCatErrorCount : 0,
+            }),
+          }
+        : pageState.locCatError
+          ? {
+              ariaLabel: t("categoryErrorAria"),
+              eyebrow: t("categoryErrorEyebrow"),
+              title: t("categoryErrorTitle"),
+              body: t("categoryErrorBody"),
+            }
+          : null;
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="admin-locations">
       <header className="page-header">
@@ -646,13 +677,13 @@ export default async function AdminLocationsPage({
         />
       ) : null}
 
-      {pageState.locCatError ? (
+      {locCatNotice ? (
         <DismissableNotice
-          ariaLabel={t("categoryErrorAria")}
-          body={t("categoryErrorBody")}
-          clearParams={["locCatError"]}
-          eyebrow={t("categoryErrorEyebrow")}
-          title={t("categoryErrorTitle")}
+          ariaLabel={locCatNotice.ariaLabel}
+          body={locCatNotice.body}
+          clearParams={["locCatError", "locCatErrorCount"]}
+          eyebrow={locCatNotice.eyebrow}
+          title={locCatNotice.title}
           tone="danger"
         />
       ) : null}
@@ -1577,4 +1608,30 @@ function normalizeOptionalField(
   const normalizedValue = typeof value === "string" ? value.trim() : "";
 
   return normalizedValue || null;
+}
+
+// Distinguishes the two actionable location-category conflicts the backend
+// reports (see LocationCategoriesService.categoryExistsConflict /
+// categoryInUseConflict) so the page can render a specific reason instead of
+// a generic failure notice; anything else (network error, 500, a category
+// deleted by someone else, ...) falls back to `locCatError=1`.
+function locationCategoryErrorHref(
+  tenantSlug: string,
+  result: { code?: string; details?: unknown },
+): string {
+  if (result.code === "LOCATION_CATEGORY_EXISTS") {
+    return `/${tenantSlug}/admin/locations?locCatError=exists`;
+  }
+
+  if (result.code === "LOCATION_CATEGORY_IN_USE") {
+    const details = result.details as { locationCount?: unknown } | null;
+    const locationCount =
+      typeof details?.locationCount === "number" ? details.locationCount : null;
+
+    if (locationCount !== null) {
+      return `/${tenantSlug}/admin/locations?locCatError=inUse&locCatErrorCount=${locationCount}`;
+    }
+  }
+
+  return `/${tenantSlug}/admin/locations?locCatError=1`;
 }
