@@ -182,10 +182,22 @@ export class LocationsService {
     context: RequestContext,
     locationId: string,
   ): Promise<LocationResponse> {
-    const location = await this.findTenantLocation(
-      context.tenantId,
-      locationId,
-    );
+    // Existence guard only — the full row is hydrated once, by the update.
+    const location = await this.prisma.location.findFirst({
+      where: {
+        id: locationId,
+        tenantId: context.tenantId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!location) {
+      throw new NotFoundException({
+        code: "LOCATION_NOT_FOUND",
+        message: "Location was not found.",
+      });
+    }
 
     const archivedLocation = await this.prisma.location.update({
       where: { id: location.id },
@@ -200,13 +212,14 @@ export class LocationsService {
     context: RequestContext,
     locationId: string,
   ): Promise<LocationResponse> {
+    // Existence guard only — the full row is hydrated once, by the update.
     const location = await this.prisma.location.findFirst({
       where: {
         id: locationId,
         tenantId: context.tenantId,
         deletedAt: { not: null },
       },
-      include: LOCATION_INCLUDE,
+      select: { id: true },
     });
 
     if (!location) {
@@ -574,13 +587,11 @@ function buildLocationWhere(
 ): Prisma.LocationWhereInput {
   // `archived` is not a real status — it means the row is soft-deleted. Every
   // other filter runs against live rows only.
-  const status = query.status === "archived" ? undefined : query.status;
-
   return {
     tenantId,
     ...(query.status === "archived"
       ? { deletedAt: { not: null } }
-      : { deletedAt: null, ...(status ? { status } : {}) }),
+      : { deletedAt: null, ...(query.status ? { status: query.status } : {}) }),
     ...(query.city ? { city: query.city } : {}),
     ...(query.region ? { region: query.region } : {}),
     ...(query.territory ? { territory: query.territory } : {}),
