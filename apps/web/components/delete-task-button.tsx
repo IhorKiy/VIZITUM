@@ -42,7 +42,7 @@ export function DeleteTaskButton({
           <TrashIcon />
         </button>
       )}
-      wrapperClassName="confirm-action confirm-action-inline"
+      variantClassName="confirm-action-inline"
     />
   );
 }

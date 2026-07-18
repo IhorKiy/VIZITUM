@@ -18,7 +18,8 @@ type ConfirmActionButtonProps = {
   /** Closes an open prompt when this value changes, for actions that redirect
    * and RSC-refresh without remounting the button. */
   resetKey?: unknown;
-  wrapperClassName?: string;
+  /** Appended to the base "confirm-action" wrapper class, e.g. "confirm-action-inline". */
+  variantClassName?: string;
 };
 
 export function ConfirmActionButton({
@@ -31,7 +32,7 @@ export function ConfirmActionButton({
   cancelLabel,
   renderTrigger,
   resetKey,
-  wrapperClassName = "confirm-action",
+  variantClassName,
 }: ConfirmActionButtonProps) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -73,7 +74,11 @@ export function ConfirmActionButton({
   }
 
   return (
-    <div className={`${wrapperClassName} confirming`}>
+    <div
+      className={["confirm-action", variantClassName, "confirming"]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <span className="confirm-action-prompt">{promptText}</span>
       <div className="confirm-action-buttons">
         <button
