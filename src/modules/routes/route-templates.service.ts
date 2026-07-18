@@ -292,22 +292,30 @@ export class RouteTemplatesService {
 
     const item = items[index];
     const other = items[otherIndex];
+    // `items` is a snapshot from the top of this request, so two concurrent
+    // moves on the same template can compute the same tempSequence — the
+    // one that commits second hits the same unique-sequence P2002 as a
+    // racing create/update and needs the same 409 treatment.
     const tempSequence = Math.max(...items.map((row) => row.sequence)) + 1;
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.routeTemplateItem.update({
-        where: { id: item.id },
-        data: { sequence: tempSequence },
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.routeTemplateItem.update({
+          where: { id: item.id },
+          data: { sequence: tempSequence },
+        });
+        await tx.routeTemplateItem.update({
+          where: { id: other.id },
+          data: { sequence: item.sequence },
+        });
+        await tx.routeTemplateItem.update({
+          where: { id: item.id },
+          data: { sequence: other.sequence },
+        });
       });
-      await tx.routeTemplateItem.update({
-        where: { id: other.id },
-        data: { sequence: item.sequence },
-      });
-      await tx.routeTemplateItem.update({
-        where: { id: item.id },
-        data: { sequence: other.sequence },
-      });
-    });
+    } catch (error) {
+      throw toSequenceConflictOrRethrow(error);
+    }
 
     return this.getRouteTemplateResponse(template.id);
   }

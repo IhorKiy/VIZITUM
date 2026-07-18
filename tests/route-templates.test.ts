@@ -562,6 +562,38 @@ describe("route template item reorder", () => {
       },
     );
   });
+
+  it("turns a concurrent move collision into a 409 instead of an unhandled 500", async () => {
+    // Two overlapping moves on the same template both compute their
+    // tempSequence from the same stale snapshot; the one that commits
+    // second collides with the first and should 409, not 500.
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+      ],
+    });
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+      $transaction: async () => {
+        throw p2002();
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.moveRouteTemplateItem(
+        representativeContext as never,
+        "template-a",
+        "item-2",
+        { direction: "up" },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN");
+        return true;
+      },
+    );
+  });
 });
 
 describe("route template assignment", () => {
