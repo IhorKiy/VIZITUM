@@ -11,6 +11,11 @@ import { PERMISSIONS } from "../src/modules/roles/permissions";
 import { RoutesController } from "../src/modules/routes/routes.controller";
 import { RoutesService } from "../src/modules/routes/routes.service";
 
+// Most tests here never reach an audited write (ownership/status checks
+// throw first), so this no-op stands in for AuditService wherever the call
+// itself isn't under test.
+const noopAudit = { recordEvent: async () => {} };
+
 const manageAnyPermissions = [
   PERMISSIONS.ROUTES_MANAGE_TEAM,
   PERMISSIONS.ROUTES_MANAGE_OWN,
@@ -98,7 +103,7 @@ describe("routes permissions", () => {
         }),
       },
     };
-    const service = new RoutesService(prisma as never);
+    const service = new RoutesService(prisma as never, noopAudit as never);
 
     await assert.rejects(
       service.updateRoutePlan(representativeContext as never, "plan-a", {
@@ -112,7 +117,7 @@ describe("routes permissions", () => {
   });
 
   it("forbids a representative from creating a plan for someone else", async () => {
-    const service = new RoutesService({} as never);
+    const service = new RoutesService({} as never, noopAudit as never);
 
     await assert.rejects(
       service.createRoutePlan(representativeContext as never, {
@@ -136,7 +141,7 @@ describe("routes permissions", () => {
         update: async () => buildFullPlan("rep-a"),
       },
     };
-    const service = new RoutesService(prisma as never);
+    const service = new RoutesService(prisma as never, noopAudit as never);
 
     const response = await service.updateRoutePlan(
       representativeContext as never,
@@ -158,7 +163,7 @@ describe("routes permissions", () => {
         update: async () => buildFullPlan("rep-b"),
       },
     };
-    const service = new RoutesService(prisma as never);
+    const service = new RoutesService(prisma as never, noopAudit as never);
 
     const response = await service.updateRoutePlan(
       managerContext as never,
@@ -181,7 +186,7 @@ describe("route plan removal", () => {
         }),
       },
     };
-    const service = new RoutesService(prisma as never);
+    const service = new RoutesService(prisma as never, noopAudit as never);
 
     await assert.rejects(
       service.deleteRoutePlan(representativeContext as never, "plan-a"),
@@ -202,7 +207,7 @@ describe("route plan removal", () => {
         }),
       },
     };
-    const service = new RoutesService(prisma as never);
+    const service = new RoutesService(prisma as never, noopAudit as never);
 
     await assert.rejects(
       service.deleteRoutePlan(representativeContext as never, "plan-a"),
@@ -213,8 +218,10 @@ describe("route plan removal", () => {
     );
   });
 
-  it("allows a representative to delete their own draft plan", async () => {
+  it("deletes a representative's own draft plan and records an audit event through the same transaction", async () => {
     let deleteWhere: unknown;
+    const auditEvents: unknown[] = [];
+    const auditClients: unknown[] = [];
     const prisma = {
       routePlan: {
         findFirst: async () => ({
@@ -227,8 +234,22 @@ describe("route plan removal", () => {
           return buildFullPlan("rep-a");
         },
       },
+      // Delete + audit run through one transaction; hand this same object
+      // back as the transaction client so the tx-routing is observable.
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn(prisma),
     };
-    const service = new RoutesService(prisma as never);
+    const audit = {
+      recordEvent: async (
+        context: { userId?: string },
+        input: unknown,
+        client?: unknown,
+      ): Promise<void> => {
+        auditEvents.push({ actorUserId: context.userId, input });
+        auditClients.push(client);
+      },
+    };
+    const service = new RoutesService(prisma as never, audit as never);
 
     const response = await service.deleteRoutePlan(
       representativeContext as never,
@@ -237,5 +258,18 @@ describe("route plan removal", () => {
 
     assert.deepEqual(response, { deleted: true });
     assert.deepEqual(deleteWhere, { where: { id: "plan-a" } });
+    assert.deepEqual(auditEvents, [
+      {
+        actorUserId: "rep-a",
+        input: {
+          entityType: "route_plan",
+          entityId: "plan-a",
+          eventType: "route_plan.deleted",
+        },
+      },
+    ]);
+    // Audited through the same transaction as the delete, so neither can
+    // exist without the other.
+    assert.deepEqual(auditClients, [prisma]);
   });
 });

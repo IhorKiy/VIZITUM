@@ -13,6 +13,15 @@ import { PERMISSIONS } from "../src/modules/roles/permissions";
 import { RouteTemplatesController } from "../src/modules/routes/route-templates.controller";
 import { RouteTemplatesService } from "../src/modules/routes/route-templates.service";
 
+// Most tests here never reach an audited write (ownership/validation checks
+// throw first), so this no-op stands in for AuditService wherever the call
+// itself isn't under test.
+const noopAudit = { recordEvent: async () => {} };
+
+// assertFieldRepresentative's default answer: an active field rep, so tests
+// that aren't specifically about that check don't have to think about it.
+const activeRepUser = { id: "rep-a" };
+
 const manageAnyPermissions = [
   PERMISSIONS.ROUTES_MANAGE_TEAM,
   PERMISSIONS.ROUTES_MANAGE_OWN,
@@ -79,6 +88,33 @@ function buildTemplateItem(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function buildMaterializedPlan(overrides: Record<string, unknown> = {}) {
+  const planDate = new Date("2026-09-05T00:00:00.000Z");
+
+  return {
+    id: "plan-new",
+    representativeUserId: "rep-a",
+    representative: { id: "rep-a", email: "rep@example.com", name: "Rep A" },
+    planDate,
+    status: "draft",
+    publishedAt: null,
+    createdByUserId: null,
+    routeTemplateId: "template-a",
+    routeTemplate: { id: "template-a", name: "Стрий" },
+    createdAt: planDate,
+    updatedAt: planDate,
+    items: [],
+    ...overrides,
+  };
+}
+
+function p2002(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+    code: "P2002",
+    clientVersion: "test",
+  });
+}
+
 function errorCode(error: unknown): unknown {
   return (error as { getResponse?: () => { code?: string } }).getResponse?.()
     .code;
@@ -128,7 +164,7 @@ describe("route template tenant isolation", () => {
         },
       },
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     await service.listRouteTemplates(representativeContext as never, {});
 
@@ -145,7 +181,7 @@ describe("route template tenant isolation", () => {
         findFirst: async () => null,
       },
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     await assert.rejects(
       service.updateRouteTemplate(otherTenantContext as never, "template-a", {
@@ -161,7 +197,7 @@ describe("route template tenant isolation", () => {
 
 describe("route template ownership scope", () => {
   it("forbids a representative from creating a template for someone else", async () => {
-    const service = new RouteTemplatesService({} as never);
+    const service = new RouteTemplatesService({} as never, noopAudit as never);
 
     await assert.rejects(
       service.createRouteTemplate(representativeContext as never, {
@@ -179,13 +215,13 @@ describe("route template ownership scope", () => {
     const created = buildTemplate();
     const prisma = {
       user: {
-        findFirst: async () => ({ id: "rep-a" }),
+        findFirst: async () => activeRepUser,
       },
       routeTemplate: {
         create: async () => created,
       },
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     const response = await service.createRouteTemplate(
       representativeContext as never,
@@ -202,7 +238,7 @@ describe("route template ownership scope", () => {
         findFirst: async () => null,
       },
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     await assert.rejects(
       service.createRouteTemplate(representativeContext as never, {
@@ -222,7 +258,7 @@ describe("route template ownership scope", () => {
         findFirst: async () => buildTemplate({ representativeUserId: "rep-b" }),
       },
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     await assert.rejects(
       service.deleteRouteTemplate(representativeContext as never, "template-a"),
@@ -233,14 +269,30 @@ describe("route template ownership scope", () => {
     );
   });
 
-  it("allows a team manager to manage any representative's template", async () => {
+  it("deletes a template and records an audit event through the same transaction", async () => {
+    const auditEvents: unknown[] = [];
+    const auditClients: unknown[] = [];
     const prisma = {
       routeTemplate: {
         findFirst: async () => buildTemplate({ representativeUserId: "rep-b" }),
         delete: async () => buildTemplate({ representativeUserId: "rep-b" }),
       },
+      // Delete + audit run through one transaction; hand this same object
+      // back as the transaction client so the tx-routing is observable.
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn(prisma),
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const audit = {
+      recordEvent: async (
+        context: { userId?: string },
+        input: unknown,
+        client?: unknown,
+      ): Promise<void> => {
+        auditEvents.push({ actorUserId: context.userId, input });
+        auditClients.push(client);
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, audit as never);
 
     const response = await service.deleteRouteTemplate(
       managerContext as never,
@@ -248,6 +300,75 @@ describe("route template ownership scope", () => {
     );
 
     assert.deepEqual(response, { deleted: true });
+    assert.deepEqual(auditEvents, [
+      {
+        actorUserId: "manager-a",
+        input: {
+          entityType: "route_template",
+          entityId: "template-a",
+          eventType: "route_template.deleted",
+        },
+      },
+    ]);
+    // Audited through the same transaction as the delete, so neither can
+    // exist without the other.
+    assert.deepEqual(auditClients, [prisma]);
+  });
+});
+
+describe("route template item sequence conflicts", () => {
+  it("turns a concurrent create collision into a 409 instead of an unhandled 500", async () => {
+    const template = buildTemplate();
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+      location: { findFirst: async () => ({ id: "loc-1" }) },
+      routeTemplateItem: {
+        create: async () => {
+          throw p2002();
+        },
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.createRouteTemplateItem(representativeContext as never, "template-a", {
+        locationId: "loc-1",
+        sequence: 1,
+      }),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN");
+        return true;
+      },
+    );
+  });
+
+  it("turns a concurrent reorder collision into a 409 instead of an unhandled 500", async () => {
+    const template = buildTemplate({
+      items: [buildTemplateItem({ id: "item-1", sequence: 1 })],
+    });
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+      routeTemplateItem: {
+        findFirst: async () => buildTemplateItem({ id: "item-1", sequence: 1 }),
+        update: async () => {
+          throw p2002();
+        },
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.updateRouteTemplateItem(
+        representativeContext as never,
+        "template-a",
+        "item-1",
+        { sequence: 2 },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN");
+        return true;
+      },
+    );
   });
 });
 
@@ -261,22 +382,10 @@ describe("route template assignment", () => {
     });
     const createManyCalls: Array<{ data: unknown[] }> = [];
     const planDate = new Date("2026-07-20T00:00:00.000Z");
-    const materializedPlan = {
-      id: "plan-new",
-      representativeUserId: "rep-a",
-      representative: { id: "rep-a", email: "rep@example.com", name: "Rep A" },
-      planDate,
-      status: "draft",
-      publishedAt: null,
-      createdByUserId: null,
-      routeTemplateId: "template-a",
-      routeTemplate: { id: "template-a", name: "Стрий" },
-      createdAt: planDate,
-      updatedAt: planDate,
-      items: [],
-    };
+    const materializedPlan = buildMaterializedPlan({ planDate });
     const prisma = {
       routeTemplate: { findFirst: async () => template },
+      user: { findFirst: async () => activeRepUser },
       $transaction: async (
         callback: (tx: {
           routePlan: {
@@ -299,7 +408,7 @@ describe("route template assignment", () => {
           },
         }),
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     const response = await service.assignRouteTemplate(
       representativeContext as never,
@@ -330,14 +439,12 @@ describe("route template assignment", () => {
     const template = buildTemplate();
     const prisma = {
       routeTemplate: { findFirst: async () => template },
+      user: { findFirst: async () => activeRepUser },
       $transaction: async () => {
-        throw new Prisma.PrismaClientKnownRequestError(
-          "Unique constraint failed",
-          { code: "P2002", clientVersion: "test" },
-        );
+        throw p2002();
       },
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     await assert.rejects(
       service.assignRouteTemplate(
@@ -359,7 +466,7 @@ describe("route template assignment", () => {
     const prisma = {
       routeTemplate: { findFirst: async () => template },
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     await assert.rejects(
       service.assignRouteTemplate(
@@ -375,14 +482,38 @@ describe("route template assignment", () => {
       },
     );
   });
+
+  it("rejects assigning a template whose representative is no longer an active field representative", async () => {
+    const template = buildTemplate();
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+      // Deactivated (or deleted/re-roled) since the template was created.
+      user: { findFirst: async () => null },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.assignRouteTemplate(
+        representativeContext as never,
+        "template-a",
+        { planDate: "2026-07-20" },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "REPRESENTATIVE_INVALID");
+        return true;
+      },
+    );
+  });
 });
 
 describe("route plan copy-month", () => {
-  it("skips a source day that has no template, a day already planned, and a day that doesn't exist in the target month, while creating the rest", async () => {
+  it("skips a source day with no template, a day already planned, and a day that doesn't exist in the target month, while creating the rest — with one flat query each for source days, occupied days and templates", async () => {
     // August 2026 -> September 2026 (30 days). Source plans: the 5th
-    // (templated, free slot), the 10th (templated, but September 10th is
-    // already taken), the 15th (no template attached), and the 31st
-    // (templated, but September has no 31st).
+    // (templated, free slot -> created), the 10th (templated, but September
+    // 10th is already taken -> skipped), the 31st (templated, but September
+    // has no 31st -> skipped). A plan with no template attached is never
+    // returned by the real query (routeTemplateId: { not: null }), so it's
+    // not part of this fixture — see the where-clause assertion below.
     const sourcePlans = [
       {
         planDate: new Date("2026-08-05T00:00:00.000Z"),
@@ -392,30 +523,35 @@ describe("route plan copy-month", () => {
         planDate: new Date("2026-08-10T00:00:00.000Z"),
         routeTemplateId: "template-a",
       },
-      { planDate: new Date("2026-08-15T00:00:00.000Z"), routeTemplateId: null },
       {
         planDate: new Date("2026-08-31T00:00:00.000Z"),
         routeTemplateId: "template-a",
       },
     ];
-    const template = buildTemplate({
-      items: [buildTemplateItem()],
-    });
+    const existingPlansInTargetMonth = [
+      { planDate: new Date("2026-09-10T00:00:00.000Z") },
+    ];
+    const template = buildTemplate({ items: [buildTemplateItem()] });
     const createdPlanDates: string[] = [];
+    const findManyWheres: Array<Record<string, unknown>> = [];
+    let templateFindManyCallCount = 0;
     const prisma = {
+      user: { findFirst: async () => activeRepUser },
       routePlan: {
-        findMany: async () => sourcePlans,
-        findUnique: async (args: {
-          where: { tenantId_representativeUserId_planDate: { planDate: Date } };
-        }) => {
-          const day = args.where.tenantId_representativeUserId_planDate.planDate
-            .toISOString()
-            .slice(0, 10);
-          return day === "2026-09-10" ? { id: "existing-plan" } : null;
+        findMany: async (query: { where: Record<string, unknown> }) => {
+          findManyWheres.push(query.where);
+          // The source-days query is the only one filtered on
+          // routeTemplateId; the occupied-days query only scopes by date.
+          return query.where.routeTemplateId
+            ? sourcePlans
+            : existingPlansInTargetMonth;
         },
       },
       routeTemplate: {
-        findFirst: async () => template,
+        findMany: async () => {
+          templateFindManyCallCount += 1;
+          return [template];
+        },
       },
       $transaction: async (
         callback: (tx: {
@@ -436,29 +572,16 @@ describe("route plan copy-month", () => {
               );
               return { id: `plan-${createdPlanDates.length}` };
             },
-            findUniqueOrThrow: async () => ({
-              id: "plan-x",
-              representativeUserId: "rep-a",
-              representative: {
-                id: "rep-a",
-                email: "rep@example.com",
-                name: "Rep A",
-              },
-              planDate: new Date("2026-09-05T00:00:00.000Z"),
-              status: "draft",
-              publishedAt: null,
-              createdByUserId: null,
-              routeTemplateId: "template-a",
-              routeTemplate: { id: "template-a", name: "Стрий" },
-              createdAt: new Date("2026-09-05T00:00:00.000Z"),
-              updatedAt: new Date("2026-09-05T00:00:00.000Z"),
-              items: [],
-            }),
+            findUniqueOrThrow: async () =>
+              buildMaterializedPlan({
+                id: "plan-x",
+                planDate: new Date("2026-09-05T00:00:00.000Z"),
+              }),
           },
           routeItem: { createMany: async () => ({ count: 1 }) },
         }),
     };
-    const service = new RouteTemplatesService(prisma as never);
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
     const result = await service.copyRoutePlans(
       representativeContext as never,
@@ -467,12 +590,77 @@ describe("route plan copy-month", () => {
       },
     );
 
-    assert.deepEqual(result, { createdCount: 1, skippedCount: 3 });
+    assert.deepEqual(result, { createdCount: 1, skippedCount: 2 });
     assert.deepEqual(createdPlanDates, ["2026-09-05"]);
+    // One findMany for source days, one for occupied days — not one call
+    // per day in the month.
+    assert.equal(findManyWheres.length, 2);
+    assert.deepEqual(findManyWheres[0].routeTemplateId, { not: null });
+    // Three source days all reference the same template: fetched once, not
+    // re-read on every iteration.
+    assert.equal(templateFindManyCallCount, 1);
+  });
+
+  it("counts a concurrent assign race as skipped instead of aborting the rest of the batch", async () => {
+    const sourcePlans = [
+      {
+        planDate: new Date("2026-08-05T00:00:00.000Z"),
+        routeTemplateId: "template-a",
+      },
+      {
+        planDate: new Date("2026-08-06T00:00:00.000Z"),
+        routeTemplateId: "template-a",
+      },
+    ];
+    const template = buildTemplate({ items: [] });
+    let transactionCallCount = 0;
+    const prisma = {
+      user: { findFirst: async () => activeRepUser },
+      routePlan: {
+        findMany: async (query: { where: Record<string, unknown> }) =>
+          query.where.routeTemplateId ? sourcePlans : [],
+      },
+      routeTemplate: {
+        findMany: async () => [template],
+      },
+      $transaction: async (
+        callback: (tx: {
+          routePlan: {
+            create: () => Promise<{ id: string }>;
+            findUniqueOrThrow: () => Promise<Record<string, unknown>>;
+          };
+          routeItem: { createMany: () => Promise<unknown> };
+        }) => Promise<unknown>,
+      ) => {
+        transactionCallCount += 1;
+
+        // Simulate a second tab (or a manager) winning the race for the
+        // second day between this batch's snapshot and its own create.
+        if (transactionCallCount === 2) {
+          throw p2002();
+        }
+
+        return callback({
+          routePlan: {
+            create: async () => ({ id: "plan-x" }),
+            findUniqueOrThrow: async () => buildMaterializedPlan(),
+          },
+          routeItem: { createMany: async () => ({ count: 0 }) },
+        });
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    const result = await service.copyRoutePlans(
+      representativeContext as never,
+      { month: "2026-09" },
+    );
+
+    assert.deepEqual(result, { createdCount: 1, skippedCount: 1 });
   });
 
   it("rejects a malformed month", async () => {
-    const service = new RouteTemplatesService({} as never);
+    const service = new RouteTemplatesService({} as never, noopAudit as never);
 
     await assert.rejects(
       service.copyRoutePlans(representativeContext as never, {

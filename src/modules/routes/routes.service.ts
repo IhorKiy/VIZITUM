@@ -16,6 +16,7 @@ import {
   type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
@@ -25,6 +26,11 @@ import {
   assertTenantLocation,
   throwAuthenticationContextMissing,
 } from "./route-access";
+import {
+  normalizeId,
+  normalizePositiveInteger,
+  parseDateOnly,
+} from "./route-parsing";
 import type {
   CreateRouteItemRequestBody,
   CreateRoutePlanRequestBody,
@@ -48,7 +54,10 @@ export type RoutePlanWithRelations = Prisma.RoutePlanGetPayload<{
 
 @Injectable()
 export class RoutesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async getTodayRoutes(context: RequestContext): Promise<RoutePlanResponse[]> {
     const today = parseRequiredDateOnly(new Date().toISOString().slice(0, 10));
@@ -188,7 +197,22 @@ export class RoutesService {
       });
     }
 
-    await this.prisma.routePlan.delete({ where: { id: plan.id } });
+    // One transaction with the audit event: a delete must never exist
+    // without its `route_plan.deleted` trail, nor a trail without the delete
+    // (mirrors TasksService.deleteTask).
+    await this.prisma.$transaction(async (tx) => {
+      await tx.routePlan.delete({ where: { id: plan.id } });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "route_plan",
+          entityId: plan.id,
+          eventType: "route_plan.deleted",
+        },
+        tx,
+      );
+    });
 
     return { deleted: true };
   }
@@ -360,24 +384,6 @@ function buildRoutePlanWhere(
   };
 }
 
-function normalizeId(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalizedValue = value.trim();
-
-  return normalizedValue || null;
-}
-
-function normalizePositiveInteger(value: unknown): number | null {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
-    return null;
-  }
-
-  return value;
-}
-
 function normalizeOptionalString(value: unknown): string | null {
   if (value === undefined || value === null) {
     return null;
@@ -412,14 +418,6 @@ function normalizeRouteItemStatus(value: unknown): RouteItemStatus | null {
   }
 
   return null;
-}
-
-function parseDateOnly(value: unknown): Date | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-
-  return new Date(`${value}T00:00:00.000Z`);
 }
 
 function parseRequiredDateOnly(value: unknown): Date {

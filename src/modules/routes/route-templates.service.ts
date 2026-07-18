@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
@@ -15,6 +16,11 @@ import {
   assertTenantLocation,
   throwAuthenticationContextMissing,
 } from "./route-access";
+import {
+  normalizeId,
+  normalizePositiveInteger,
+  parseDateOnly,
+} from "./route-parsing";
 import { routePlanInclude, toRoutePlanResponse } from "./routes.service";
 import type {
   AssignRouteTemplateRequestBody,
@@ -35,7 +41,10 @@ type RouteTemplateWithItems = Prisma.RouteTemplateGetPayload<{
 
 @Injectable()
 export class RouteTemplatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listRouteTemplates(
     context: RequestContext,
@@ -129,8 +138,23 @@ export class RouteTemplatesService {
 
     // route_plans.routeTemplateId is ON DELETE SET NULL, so plans already
     // assigned from this template keep their items and just lose the back
-    // link — deleting a template never touches scheduled or past plans.
-    await this.prisma.routeTemplate.delete({ where: { id: template.id } });
+    // link — deleting a template never touches scheduled or past plans. One
+    // transaction with the audit event, same reasoning as
+    // RoutesService.deleteRoutePlan: a delete must never exist without its
+    // `route_template.deleted` trail, nor a trail without the delete.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.routeTemplate.delete({ where: { id: template.id } });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "route_template",
+          entityId: template.id,
+          eventType: "route_template.deleted",
+        },
+        tx,
+      );
+    });
 
     return { deleted: true };
   }
@@ -153,14 +177,18 @@ export class RouteTemplatesService {
 
     await assertTenantLocation(this.prisma, context.tenantId, locationId);
 
-    await this.prisma.routeTemplateItem.create({
-      data: {
-        tenantId: context.tenantId,
-        routeTemplateId: template.id,
-        locationId,
-        sequence,
-      },
-    });
+    try {
+      await this.prisma.routeTemplateItem.create({
+        data: {
+          tenantId: context.tenantId,
+          routeTemplateId: template.id,
+          locationId,
+          sequence,
+        },
+      });
+    } catch (error) {
+      throw toSequenceConflictOrRethrow(error);
+    }
 
     return this.getRouteTemplateResponse(template.id);
   }
@@ -184,13 +212,17 @@ export class RouteTemplatesService {
       await assertTenantLocation(this.prisma, context.tenantId, locationId);
     }
 
-    await this.prisma.routeTemplateItem.update({
-      where: { id: item.id },
-      data: {
-        ...(locationId ? { locationId } : {}),
-        ...(sequence ? { sequence } : {}),
-      },
-    });
+    try {
+      await this.prisma.routeTemplateItem.update({
+        where: { id: item.id },
+        data: {
+          ...(locationId ? { locationId } : {}),
+          ...(sequence ? { sequence } : {}),
+        },
+      });
+    } catch (error) {
+      throw toSequenceConflictOrRethrow(error);
+    }
 
     return this.getRouteTemplateResponse(template.id);
   }
@@ -257,19 +289,53 @@ export class RouteTemplatesService {
 
     const representativeUserId = context.userId;
     const previousMonth = shiftMonth(month, -1);
-    const sourcePlans = await this.prisma.routePlan.findMany({
-      where: {
-        tenantId: context.tenantId,
-        representativeUserId,
-        routeTemplateId: { not: null },
-        planDate: {
-          gte: monthStart(previousMonth),
-          lt: monthStart(month),
+    const nextMonth = shiftMonth(month, 1);
+
+    // Both queries below are flat lookups (no per-day round trip): the
+    // occupied-dates set and the referenced-templates map are each fetched
+    // once, however many days are in the source month.
+    const [sourcePlans, existingPlans] = await Promise.all([
+      this.prisma.routePlan.findMany({
+        where: {
+          tenantId: context.tenantId,
+          representativeUserId,
+          routeTemplateId: { not: null },
+          planDate: {
+            gte: monthStart(previousMonth),
+            lt: monthStart(month),
+          },
         },
-      },
-      select: { planDate: true, routeTemplateId: true },
-      orderBy: { planDate: "asc" },
+        select: { planDate: true, routeTemplateId: true },
+        orderBy: { planDate: "asc" },
+      }),
+      this.prisma.routePlan.findMany({
+        where: {
+          tenantId: context.tenantId,
+          representativeUserId,
+          planDate: {
+            gte: monthStart(month),
+            lt: monthStart(nextMonth),
+          },
+        },
+        select: { planDate: true },
+      }),
+    ]);
+
+    const occupiedDates = new Set(
+      existingPlans.map((plan) => dateKey(plan.planDate)),
+    );
+    const templateIds = [
+      ...new Set(
+        sourcePlans
+          .map((plan) => plan.routeTemplateId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    const templates = await this.prisma.routeTemplate.findMany({
+      where: { id: { in: templateIds }, tenantId: context.tenantId },
+      include: routeTemplateInclude,
     });
+    const templateById = new Map(templates.map((t) => [t.id, t]));
 
     let createdCount = 0;
     let skippedCount = 0;
@@ -282,38 +348,38 @@ export class RouteTemplatesService {
         continue;
       }
 
-      const existingPlan = await this.prisma.routePlan.findUnique({
-        where: {
-          tenantId_representativeUserId_planDate: {
-            tenantId: context.tenantId,
-            representativeUserId,
-            planDate: targetDate,
-          },
-        },
-        select: { id: true },
-      });
-
-      if (existingPlan) {
+      if (occupiedDates.has(dateKey(targetDate))) {
         skippedCount += 1;
         continue;
       }
 
-      const template = await this.prisma.routeTemplate.findFirst({
-        where: { id: sourcePlan.routeTemplateId, tenantId: context.tenantId },
-        include: routeTemplateInclude,
-      });
+      const template = templateById.get(sourcePlan.routeTemplateId);
 
       if (!template) {
         skippedCount += 1;
         continue;
       }
 
-      await this.materializeTemplateAssignment(
-        context.tenantId,
-        template,
-        targetDate,
-      );
-      createdCount += 1;
+      try {
+        await this.materializeTemplateAssignment(
+          context.tenantId,
+          template,
+          targetDate,
+        );
+        occupiedDates.add(dateKey(targetDate));
+        createdCount += 1;
+      } catch (error) {
+        // A concurrent assign (another tab, a manager) can still take this
+        // exact date between the occupied-dates snapshot above and this
+        // create — treat it the same as any other already-planned day
+        // instead of aborting the rest of the batch with a 409.
+        if (error instanceof ConflictException) {
+          skippedCount += 1;
+          continue;
+        }
+
+        throw error;
+      }
     }
 
     return { createdCount, skippedCount };
@@ -324,6 +390,15 @@ export class RouteTemplatesService {
     template: RouteTemplateWithItems,
     planDate: Date,
   ): Promise<RoutePlanResponse> {
+    // Assign/copy-month can run long after the template was created, so the
+    // representative it targets might have since been deactivated — the
+    // same check createRoutePlan/createRouteTemplate already do up front.
+    await assertFieldRepresentative(
+      this.prisma,
+      tenantId,
+      template.representativeUserId,
+    );
+
     try {
       const plan = await this.prisma.$transaction(async (tx) => {
         const createdPlan = await tx.routePlan.create({
@@ -438,6 +513,24 @@ const routeTemplateInclude = {
   },
 } satisfies Prisma.RouteTemplateInclude;
 
+// The frontend computes the next sequence client-side (current max + 1), so
+// two concurrent edits on the same route can race for the same slot; without
+// this the unique (tenantId, routeTemplateId, sequence) index would surface
+// as an unhandled 500 instead of a 409 the client can react to.
+function toSequenceConflictOrRethrow(error: unknown): unknown {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    return new ConflictException({
+      code: "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN",
+      message: "Another stop already uses that position in this route.",
+    });
+  }
+
+  return error;
+}
+
 function toRouteTemplateResponse(
   template: RouteTemplateWithItems,
 ): RouteTemplateResponse {
@@ -463,16 +556,6 @@ function toRouteTemplateResponse(
   };
 }
 
-function normalizeId(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalizedValue = value.trim();
-
-  return normalizedValue || null;
-}
-
 function normalizeTemplateName(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -481,22 +564,6 @@ function normalizeTemplateName(value: unknown): string | null {
   const normalizedValue = value.trim();
 
   return normalizedValue || null;
-}
-
-function normalizePositiveInteger(value: unknown): number | null {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
-    return null;
-  }
-
-  return value;
-}
-
-function parseDateOnly(value: unknown): Date | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-
-  return new Date(`${value}T00:00:00.000Z`);
 }
 
 function normalizeMonth(value: unknown): string | null {
@@ -515,6 +582,10 @@ function normalizeMonth(value: unknown): string | null {
 
 function monthStart(month: string): Date {
   return new Date(`${month}-01T00:00:00.000Z`);
+}
+
+function dateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
 
 function shiftMonth(month: string, delta: number): string {
