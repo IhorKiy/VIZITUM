@@ -39,7 +39,7 @@ export function AssignTaskModal({
   assigneeOptions,
   locationOptions,
 }: AssignTaskModalProps) {
-  const t = useTranslations("manager.overview");
+  const t = useTranslations("manager.assignTask");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const searchParams = useSearchParams();
@@ -112,7 +112,7 @@ export function AssignTaskModal({
         onClick={openDialog}
         type="button"
       >
-        {t("assignTask")}
+        {t("title")}
       </button>
 
       <dialog
@@ -122,7 +122,7 @@ export function AssignTaskModal({
       >
         <div className="modal-header">
           <div>
-            <h2 id="assign-task-title">{t("assignTask")}</h2>
+            <h2 id="assign-task-title">{t("title")}</h2>
           </div>
           <button
             aria-label={tCommon("cancel")}
