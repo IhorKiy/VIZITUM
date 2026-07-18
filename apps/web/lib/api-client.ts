@@ -108,6 +108,7 @@ export type Location = {
   name: string;
   type: string | null;
   status: LocationStatus;
+  archived: boolean;
   chainId: string | null;
   chain: ChainSummary | null;
   addressLine: string;
@@ -600,6 +601,18 @@ export async function updateAdminLocation(
   },
 ): Promise<ApiResult<Location>> {
   return apiPatch<Location>(`/locations/${locationId}`, input);
+}
+
+export async function archiveAdminLocation(
+  locationId: string,
+): Promise<ApiResult<Location>> {
+  return apiDelete<Location>(`/locations/${locationId}`);
+}
+
+export async function restoreAdminLocation(
+  locationId: string,
+): Promise<ApiResult<Location>> {
+  return apiPost<Location>(`/locations/${locationId}/restore`, {});
 }
 
 export async function createAdminLocationContact(

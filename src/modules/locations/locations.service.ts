@@ -176,6 +176,68 @@ export class LocationsService {
     return toLocationResponse(updatedLocation);
   }
 
+  // Soft-archive: the row keeps all its history (visits, tasks, reports) and
+  // drops out of the default lists, so nothing referencing it is orphaned.
+  async archiveLocation(
+    context: RequestContext,
+    locationId: string,
+  ): Promise<LocationResponse> {
+    // Existence guard only — the full row is hydrated once, by the update.
+    const location = await this.prisma.location.findFirst({
+      where: {
+        id: locationId,
+        tenantId: context.tenantId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!location) {
+      throw new NotFoundException({
+        code: "LOCATION_NOT_FOUND",
+        message: "Location was not found.",
+      });
+    }
+
+    const archivedLocation = await this.prisma.location.update({
+      where: { id: location.id },
+      data: { deletedAt: new Date() },
+      include: LOCATION_INCLUDE,
+    });
+
+    return toLocationResponse(archivedLocation);
+  }
+
+  async restoreLocation(
+    context: RequestContext,
+    locationId: string,
+  ): Promise<LocationResponse> {
+    // Existence guard only — the full row is hydrated once, by the update.
+    const location = await this.prisma.location.findFirst({
+      where: {
+        id: locationId,
+        tenantId: context.tenantId,
+        deletedAt: { not: null },
+      },
+      select: { id: true },
+    });
+
+    if (!location) {
+      throw new NotFoundException({
+        code: "LOCATION_NOT_FOUND",
+        message: "Archived location was not found.",
+      });
+    }
+
+    const restoredLocation = await this.prisma.location.update({
+      where: { id: location.id },
+      data: { deletedAt: null },
+      include: LOCATION_INCLUDE,
+    });
+
+    return toLocationResponse(restoredLocation);
+  }
+
   async listContacts(
     context: RequestContext,
     locationId: string,
@@ -523,10 +585,13 @@ function buildLocationWhere(
   tenantId: string,
   query: ListLocationsQuery,
 ): Prisma.LocationWhereInput {
+  // `archived` is not a real status — it means the row is soft-deleted. Every
+  // other filter runs against live rows only.
   return {
     tenantId,
-    deletedAt: null,
-    ...(query.status ? { status: query.status } : {}),
+    ...(query.status === "archived"
+      ? { deletedAt: { not: null } }
+      : { deletedAt: null, ...(query.status ? { status: query.status } : {}) }),
     ...(query.city ? { city: query.city } : {}),
     ...(query.region ? { region: query.region } : {}),
     ...(query.territory ? { territory: query.territory } : {}),
@@ -746,8 +811,10 @@ function normalizeCoordinate(value: unknown): number | null {
   return coordinate;
 }
 
+// Only active/inactive are writable. Archiving is a dedicated action
+// (`archiveLocation`); `archived` is never accepted as a status on a write.
 function normalizeLocationStatus(value: unknown): LocationStatus | null {
-  if (value === "active" || value === "inactive" || value === "archived") {
+  if (value === "active" || value === "inactive") {
     return value;
   }
 
@@ -761,6 +828,7 @@ function toLocationResponse(location: LocationWithChain): LocationResponse {
     name: location.name,
     type: location.type,
     status: location.status,
+    archived: location.deletedAt !== null,
     chainId: location.chainId,
     chain: location.chain
       ? { id: location.chain.id, name: location.chain.name }

@@ -5,6 +5,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { AddChainModal } from "../../../../components/add-chain-modal";
 import { AppShell } from "../../../../components/app-shell";
 import { ArchiveChainButton } from "../../../../components/archive-chain-button";
+import { ArchiveLocationButton } from "../../../../components/archive-location-button";
 import { CreateLocationModal } from "../../../../components/create-location-modal";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
@@ -19,6 +20,7 @@ import { MapIcon, SearchIcon } from "../../../../components/icons";
 import { InlineFieldEditor } from "../../../../components/inline-field-editor";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
+  archiveAdminLocation,
   createAdminChain,
   createAdminLocation,
   createAdminLocationAssignment,
@@ -28,6 +30,7 @@ import {
   listAdminChains,
   listAdminLocations,
   listAdminUsers,
+  restoreAdminLocation,
   updateAdminChain,
   updateAdminLocation,
   updateAdminLocationContact,
@@ -70,7 +73,10 @@ type AdminLocationsPageProps = {
   }>;
 };
 
+// The list filter can select archived rows; the edit form can only set a live
+// status. Archiving is a dedicated action, not a status choice.
 const locationStatuses: LocationStatus[] = ["active", "inactive", "archived"];
+const editableLocationStatuses: LocationStatus[] = ["active", "inactive"];
 const chainStatuses: ChainStatus[] = ["active", "archived"];
 
 export default async function AdminLocationsPage({
@@ -270,6 +276,46 @@ export default async function AdminLocationsPage({
     redirect(`/${tenantSlug}/admin/locations?locUpdated=1&open=locations`);
   }
 
+  async function archiveLocationAction(formData: FormData) {
+    "use server";
+
+    const locationId = getFormString(formData, "locationId").trim();
+    const errorHref = `/${tenantSlug}/admin/locations?locError=1&open=locations`;
+
+    if (!locationId) {
+      redirect(errorHref);
+    }
+
+    const result = await archiveAdminLocation(locationId);
+
+    if (!result.ok) {
+      redirect(errorHref);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?locUpdated=1&open=locations`);
+  }
+
+  async function restoreLocationAction(formData: FormData) {
+    "use server";
+
+    const locationId = getFormString(formData, "locationId").trim();
+    const errorHref = `/${tenantSlug}/admin/locations?locError=1&open=locations`;
+
+    if (!locationId) {
+      redirect(errorHref);
+    }
+
+    const result = await restoreAdminLocation(locationId);
+
+    if (!result.ok) {
+      redirect(errorHref);
+    }
+
+    redirect(
+      `/${tenantSlug}/admin/locations?locUpdated=1&open=locations&locStatus=archived`,
+    );
+  }
+
   async function createChainAction(formData: FormData) {
     "use server";
 
@@ -463,8 +509,11 @@ export default async function AdminLocationsPage({
             <p className="metric-value">{locationsResult.data.total}</p>
             <p className="small-label">
               {t("activeCount", {
+                // Archived rows keep their pre-archive status, so status alone
+                // would count them (the archived filter loads only such rows).
                 count: locationsResult.data.items.filter(
-                  (location) => location.status === "active",
+                  (location) =>
+                    location.status === "active" && !location.archived,
                 ).length,
               })}
             </p>
@@ -508,6 +557,7 @@ export default async function AdminLocationsPage({
             {locationsResult.ok ? (
               <LocationsSection
                 allChains={chainsResult.ok ? chainsResult.data.items : []}
+                archiveLocationAction={archiveLocationAction}
                 carryParams={chainCarryParams}
                 chains={pickerChains}
                 createLocationAction={createLocationAction}
@@ -516,6 +566,7 @@ export default async function AdminLocationsPage({
                 locale={locale}
                 locations={locationsResult.data.items}
                 representatives={representatives}
+                restoreLocationAction={restoreLocationAction}
                 saveLocationAction={saveLocationAction}
                 search={locSearch}
                 selectedChain={locChain}
@@ -584,6 +635,7 @@ export default async function AdminLocationsPage({
 
 function LocationsSection({
   allChains,
+  archiveLocationAction,
   carryParams,
   chains,
   createLocationAction,
@@ -592,6 +644,7 @@ function LocationsSection({
   locale,
   locations,
   representatives,
+  restoreLocationAction,
   saveLocationAction,
   search,
   selectedChain,
@@ -600,6 +653,7 @@ function LocationsSection({
   total,
 }: {
   allChains: Chain[];
+  archiveLocationAction: (formData: FormData) => Promise<void>;
   carryParams: Record<string, string>;
   chains: Chain[];
   createLocationAction: (formData: FormData) => Promise<void>;
@@ -608,6 +662,7 @@ function LocationsSection({
   locale: string;
   locations: Location[];
   representatives: TenantUser[];
+  restoreLocationAction: (formData: FormData) => Promise<void>;
   saveLocationAction: (formData: FormData) => Promise<void>;
   search: string | null;
   selectedChain: string | null;
@@ -750,9 +805,11 @@ function LocationsSection({
                     {group.items.map((location) => (
                       <LocationRow
                         key={location.id}
+                        archiveLocationAction={archiveLocationAction}
                         chains={chains}
                         location={location}
                         representatives={representatives}
+                        restoreLocationAction={restoreLocationAction}
                         saveLocationAction={saveLocationAction}
                       />
                     ))}
@@ -765,9 +822,11 @@ function LocationsSection({
               {locations.map((location) => (
                 <LocationRow
                   key={location.id}
+                  archiveLocationAction={archiveLocationAction}
                   chains={chains}
                   location={location}
                   representatives={representatives}
+                  restoreLocationAction={restoreLocationAction}
                   saveLocationAction={saveLocationAction}
                 />
               ))}
@@ -922,14 +981,18 @@ function ChainsSection({
 }
 
 function LocationRow({
+  archiveLocationAction,
   chains,
   location,
   representatives,
+  restoreLocationAction,
   saveLocationAction,
 }: {
+  archiveLocationAction: (formData: FormData) => Promise<void>;
   chains: Chain[];
   location: Location;
   representatives: TenantUser[];
+  restoreLocationAction: (formData: FormData) => Promise<void>;
   saveLocationAction: (formData: FormData) => Promise<void>;
 }) {
   const t = useTranslations("admin.locations");
@@ -965,6 +1028,8 @@ function LocationRow({
         ]
       : repChoices;
 
+  const displayStatus = location.archived ? "archived" : location.status;
+
   return (
     // Exclusive-accordion disclosure: the shared `name` keeps only one location
     // expanded at a time; collapsed rows show just the name/address summary and
@@ -981,141 +1046,165 @@ function LocationRow({
           </p>
         </div>
         <div className="admin-user-summary-meta">
-          <span className={`status-pill ${statusTone(location.status)}`}>
-            {formatEnumLabel(tCommon, location.status)}
+          <span className={`status-pill ${statusTone(displayStatus)}`}>
+            {formatEnumLabel(tCommon, displayStatus)}
           </span>
           <span className="disclosure-chevron" aria-hidden="true" />
         </div>
       </summary>
 
       <div className="admin-user-body">
-        <form
-          action={saveLocationAction}
-          className="visit-form compact visit-form-2col"
-        >
-          <input name="locationId" type="hidden" value={location.id} />
-          <label>
-            {t("number")}
-            <input
-              defaultValue={location.externalCode ?? ""}
-              name="externalCode"
-            />
-          </label>
-          <label>
-            {t("name")}
-            <input defaultValue={location.name} name="name" required />
-          </label>
-          <label>
-            {t("address")}
-            <input
-              defaultValue={location.addressLine}
-              name="addressLine"
-              required
-            />
-          </label>
-          <label>
-            {t("city")}
-            <input defaultValue={location.city} name="city" required />
-          </label>
-          <label>
-            {t("chain")}
-            <select defaultValue={location.chainId ?? ""} name="chainId">
-              <option value="">{t("chainNone")}</option>
-              {chainOptions.map((chain) => (
-                <option key={chain.id} value={chain.id}>
-                  {chain.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("region")}
-            <input defaultValue={location.region ?? ""} name="region" />
-          </label>
-          <label>
-            {t("category")}
-            <input defaultValue={location.type ?? ""} name="type" />
-          </label>
-          <label>
-            {t("status")}
-            <select defaultValue={location.status} name="status" required>
-              {locationStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {formatEnumLabel(tCommon, status)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <input name="contact1Id" type="hidden" value={contact1?.id ?? ""} />
-          <label>
-            {t("contactPerson")}
-            <input defaultValue={contact1?.name ?? ""} name="contact1Name" />
-          </label>
-          <label>
-            {t("phone")}
-            <input
-              defaultValue={contact1?.phone ?? ""}
-              name="contact1Phone"
-              type="tel"
-            />
-          </label>
-
-          <input name="contact2Id" type="hidden" value={contact2?.id ?? ""} />
-          <label>
-            {t("contactPerson2")}
-            <input defaultValue={contact2?.name ?? ""} name="contact2Name" />
-          </label>
-          <label>
-            {t("phone2")}
-            <input
-              defaultValue={contact2?.phone ?? ""}
-              name="contact2Phone"
-              type="tel"
-            />
-          </label>
-
-          <input
-            name="assignmentId"
-            type="hidden"
-            value={activeAssignment?.id ?? ""}
-          />
-          <input
-            name="currentRepId"
-            type="hidden"
-            value={activeAssignment?.representativeUserId ?? ""}
-          />
-          <label className="visit-form-full">
-            {t("assignedUser")}
-            <select
-              defaultValue={activeAssignment?.representativeUserId ?? ""}
-              name="representativeUserId"
-            >
-              <option value="">{t("notAssigned")}</option>
-              {representativeOptions.map((rep) => (
-                <option key={rep.id} value={rep.id}>
-                  {rep.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="visit-form-full">
-            {t("notes")}
-            <textarea
-              defaultValue={location.notes ?? ""}
-              name="notes"
-              rows={3}
-            />
-          </label>
-
-          <PendingSubmitButton
-            className="secondary-button visit-form-full"
-            pendingLabel={tCommon("saving")}
+        {/* The backend refuses writes to an archived row (404), so the edit
+            form is only offered for live rows — restore first, then edit. */}
+        {!location.archived ? (
+          <form
+            action={saveLocationAction}
+            className="visit-form compact visit-form-2col"
           >
-            {t("saveLocation")}
-          </PendingSubmitButton>
-        </form>
+            <input name="locationId" type="hidden" value={location.id} />
+            <label>
+              {t("number")}
+              <input
+                defaultValue={location.externalCode ?? ""}
+                name="externalCode"
+              />
+            </label>
+            <label>
+              {t("name")}
+              <input defaultValue={location.name} name="name" required />
+            </label>
+            <label>
+              {t("address")}
+              <input
+                defaultValue={location.addressLine}
+                name="addressLine"
+                required
+              />
+            </label>
+            <label>
+              {t("city")}
+              <input defaultValue={location.city} name="city" required />
+            </label>
+            <label>
+              {t("chain")}
+              <select defaultValue={location.chainId ?? ""} name="chainId">
+                <option value="">{t("chainNone")}</option>
+                {chainOptions.map((chain) => (
+                  <option key={chain.id} value={chain.id}>
+                    {chain.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("region")}
+              <input defaultValue={location.region ?? ""} name="region" />
+            </label>
+            <label>
+              {t("category")}
+              <input defaultValue={location.type ?? ""} name="type" />
+            </label>
+            <label>
+              {t("status")}
+              <select defaultValue={location.status} name="status" required>
+                {editableLocationStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {formatEnumLabel(tCommon, status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <input name="contact1Id" type="hidden" value={contact1?.id ?? ""} />
+            <label>
+              {t("contactPerson")}
+              <input defaultValue={contact1?.name ?? ""} name="contact1Name" />
+            </label>
+            <label>
+              {t("phone")}
+              <input
+                defaultValue={contact1?.phone ?? ""}
+                name="contact1Phone"
+                type="tel"
+              />
+            </label>
+
+            <input name="contact2Id" type="hidden" value={contact2?.id ?? ""} />
+            <label>
+              {t("contactPerson2")}
+              <input defaultValue={contact2?.name ?? ""} name="contact2Name" />
+            </label>
+            <label>
+              {t("phone2")}
+              <input
+                defaultValue={contact2?.phone ?? ""}
+                name="contact2Phone"
+                type="tel"
+              />
+            </label>
+
+            <input
+              name="assignmentId"
+              type="hidden"
+              value={activeAssignment?.id ?? ""}
+            />
+            <input
+              name="currentRepId"
+              type="hidden"
+              value={activeAssignment?.representativeUserId ?? ""}
+            />
+            <label className="visit-form-full">
+              {t("assignedUser")}
+              <select
+                defaultValue={activeAssignment?.representativeUserId ?? ""}
+                name="representativeUserId"
+              >
+                <option value="">{t("notAssigned")}</option>
+                {representativeOptions.map((rep) => (
+                  <option key={rep.id} value={rep.id}>
+                    {rep.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="visit-form-full">
+              {t("notes")}
+              <textarea
+                defaultValue={location.notes ?? ""}
+                name="notes"
+                rows={3}
+              />
+            </label>
+
+            <PendingSubmitButton
+              className="secondary-button visit-form-full"
+              pendingLabel={tCommon("saving")}
+            >
+              {t("saveLocation")}
+            </PendingSubmitButton>
+          </form>
+        ) : null}
+
+        {location.archived ? (
+          <form action={restoreLocationAction} className="product-row-footer">
+            <input name="locationId" type="hidden" value={location.id} />
+            <PendingSubmitButton
+              className="secondary-button"
+              pendingLabel={tCommon("saving")}
+            >
+              {t("restoreLocation")}
+            </PendingSubmitButton>
+          </form>
+        ) : (
+          <div className="product-row-footer">
+            <ArchiveLocationButton
+              archiveAction={archiveLocationAction}
+              locationId={location.id}
+              locationName={location.name}
+            />
+          </div>
+        )}
       </div>
     </details>
   );

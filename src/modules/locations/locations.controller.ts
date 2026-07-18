@@ -10,7 +10,6 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { LocationStatus } from "@prisma/client";
 import type { Request } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
@@ -22,6 +21,7 @@ import type {
   CreateLocationAssignmentRequestBody,
   CreateLocationContactRequestBody,
   CreateLocationRequestBody,
+  LocationListStatus,
   UpdateLocationContactRequestBody,
   UpdateLocationRequestBody,
 } from "./locations.types";
@@ -84,6 +84,30 @@ export class LocationsController {
       getRequestContext(request),
       locationId,
       body,
+    );
+  }
+
+  @Delete(":locationId")
+  @RequirePermissions(PERMISSIONS.LOCATIONS_MANAGE)
+  archiveLocation(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+  ) {
+    return this.locationsService.archiveLocation(
+      getRequestContext(request),
+      locationId,
+    );
+  }
+
+  @Post(":locationId/restore")
+  @RequirePermissions(PERMISSIONS.LOCATIONS_MANAGE)
+  restoreLocation(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+  ) {
+    return this.locationsService.restoreLocation(
+      getRequestContext(request),
+      locationId,
     );
   }
 
@@ -206,7 +230,7 @@ function parsePositiveInteger(value: string | undefined): number | undefined {
 
 function parseLocationStatus(
   value: string | undefined,
-): LocationStatus | undefined {
+): LocationListStatus | undefined {
   if (value === "active" || value === "inactive" || value === "archived") {
     return value;
   }

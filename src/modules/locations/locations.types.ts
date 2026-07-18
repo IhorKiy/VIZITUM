@@ -5,12 +5,17 @@ export type LocationChainSummary = {
   name: string;
 };
 
+// Archived locations carry `deletedAt`; the enum stays active/inactive, so
+// list filters and responses surface archival through a separate boolean.
+export type LocationListStatus = LocationStatus | "archived";
+
 export type LocationResponse = {
   id: string;
   externalCode: string | null;
   name: string;
   type: string | null;
   status: LocationStatus;
+  archived: boolean;
   chainId: string | null;
   chain: LocationChainSummary | null;
   addressLine: string;
@@ -32,7 +37,7 @@ export type LocationResponse = {
 export type ListLocationsQuery = {
   page?: number;
   pageSize?: number;
-  status?: LocationStatus;
+  status?: LocationListStatus;
   city?: string;
   region?: string;
   territory?: string;

@@ -8,7 +8,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 
 - IDs: `cuid()` strings.
 - Tenant-owned tables: `tenantId` + `createdAt` + `updatedAt`; soft delete via `deletedAt` where user-facing records can be removed (`users`, `chains`, `locations`, `location_contacts`, `products`, `tasks`, `visit_notes`, `storage_objects`).
-- Uniqueness is tenant-scoped where it matters: `users @@unique([tenantId, email])`, `locations @@unique([tenantId, externalCode])`, `route_plans @@unique([tenantId, representativeUserId, planDate])`, `tenant_settings @@unique([tenantId, key])`. `products` uniqueness on `(tenantId, externalCode)` is a **partial** unique index scoped to live rows (`WHERE deletedAt IS NULL`, migration `20260713120000_product_external_code_partial_unique`) — not a plain `@@unique`, so a soft-deleted product frees its externalCode for re-import/re-create (matches the `deletedAt: null` create + import pre-checks). Prisma can't express partial unique indexes, so it's managed via raw SQL and omitted from `schema.prisma`.
+- Uniqueness is tenant-scoped where it matters: `users @@unique([tenantId, email])`, `route_plans @@unique([tenantId, representativeUserId, planDate])`, `tenant_settings @@unique([tenantId, key])`. `products` and `locations` uniqueness on `(tenantId, externalCode)` is a **partial** unique index scoped to live rows (`WHERE deletedAt IS NULL`, migrations `20260713120000_product_external_code_partial_unique` and `20260718090000_location_external_code_partial_unique`) — not a plain `@@unique`, so a soft-deleted row frees its externalCode for re-import/re-create (matches the `deletedAt: null` create + import pre-checks). Prisma can't express partial unique indexes, so they're managed via raw SQL and omitted from `schema.prisma`.
 
 ## Platform group
 
@@ -36,7 +36,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 | Model | Table | Purpose |
 | --- | --- | --- |
 | `Chain` | `chains` | Retail chain/network a location belongs to (ChainStatus active/archived). Canonical per-tenant list, unique on `(tenant, name)` and `(tenant, externalCode)`; `Location.chainId` → `Chain` is optional and `SetNull` on chain delete. |
-| `Location` | `locations` | Visit points: address fields, `region`/`territory`, optional lat/long, LocationStatus, optional `chainId` → `Chain`. |
+| `Location` | `locations` | Visit points: address fields, `region`/`territory`, optional lat/long, LocationStatus (active/inactive only — deactivation), optional `chainId` → `Chain`. Archival is the shared soft-delete (`deletedAt`), exposed as `archived` on responses and the `status=archived` list filter; `DELETE /locations/:id` archives, `POST /locations/:id/restore` reverses it. Legacy rows written with `status='archived'` before this model are backfilled to `deletedAt`+`inactive` by migration `20260718090500_location_legacy_archived_backfill`. |
 | `LocationContact` | `location_contacts` | Contacts attached to a location. |
 | `LocationAssignment` | `location_assignments` | Representative ↔ location link with AssignmentStatus; unique per (tenant, location, representative). |
 | `Product` | `products` | SKU catalog. `notApplicable` is a **deprecated** legacy flag — no longer read/written by the web UI (kept as a column, still accepted by the API); see api-reference Products note. Soft-deleted via `deletedAt` (all reads filter `deletedAt: null`). |

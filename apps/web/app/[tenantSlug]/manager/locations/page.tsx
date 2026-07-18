@@ -360,13 +360,14 @@ function LocationsCards({
           location.territory ?? t("unassignedTerritory"),
           location.region ?? location.type ?? t("noRegion"),
         ].join(" · ");
+        const displayStatus = location.archived ? "archived" : location.status;
 
         return (
           <li className="list-card" key={location.id}>
             <div className="list-card-top">
               <h3 className="list-card-title">{location.name}</h3>
-              <span className={`status-pill ${statusTone(location.status)}`}>
-                {formatEnumLabel(tCommon, location.status)}
+              <span className={`status-pill ${statusTone(displayStatus)}`}>
+                {formatEnumLabel(tCommon, displayStatus)}
               </span>
             </div>
             <dl className="list-card-facts">
@@ -482,7 +483,11 @@ function buildLocationCounters(
   detail: string;
   tone: "active" | "info" | "warning";
 }> {
-  const active = locations.filter((location) => location.status === "active");
+  // Archived rows keep their pre-archive status, so status alone would count
+  // them (the archived filter loads only such rows).
+  const active = locations.filter(
+    (location) => location.status === "active" && !location.archived,
+  );
   const withVisits = locations.filter(
     (location) => (activityByLocation.get(location.id)?.visitCount ?? 0) > 0,
   );
