@@ -8,6 +8,7 @@ import {
   type AssignTaskActionResult,
 } from "../../../../components/assign-task-modal";
 import { CardFact } from "../../../../components/card-fact";
+import { DeleteTaskButton } from "../../../../components/delete-task-button";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDateRange } from "../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
@@ -29,6 +30,8 @@ import { TaskDetailsEditor } from "../../../../components/task-details-editor";
 import { TaskStatusEditor } from "../../../../components/task-status-editor";
 import {
   createTask,
+  deleteTask,
+  getCurrentSession,
   listAdminLocations,
   listTodayRoutes,
   listTasks,
@@ -57,6 +60,7 @@ type ManagerTasksPageProps = {
   searchParams: Promise<{
     assign?: string;
     assignedToUserId?: string;
+    deleted?: string;
     dueFrom?: string;
     dueTo?: string;
     error?: string;
@@ -213,6 +217,24 @@ export default async function ManagerTasksPage({
     redirect(`/${tenantSlug}/manager/tasks?updated=1`);
   }
 
+  async function deleteTaskAction(formData: FormData) {
+    "use server";
+
+    const taskId = getFormString(formData, "taskId").trim();
+
+    if (!taskId) {
+      redirect(`/${tenantSlug}/manager/tasks?error=delete`);
+    }
+
+    const result = await deleteTask(taskId);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/manager/tasks?error=delete`);
+    }
+
+    redirect(`/${tenantSlug}/manager/tasks?deleted=1`);
+  }
+
   const tasksPromise = listTasks(query.toString());
   const [
     tasksResult,
@@ -220,6 +242,7 @@ export default async function ManagerTasksPage({
     routesResult,
     locationsResult,
     visitsResult,
+    sessionResult,
   ] = await Promise.all([
     tasksPromise,
     hasFilters ? listTasks("pageSize=100") : tasksPromise,
@@ -230,6 +253,7 @@ export default async function ManagerTasksPage({
     // API's maximum page, the way every other manager list does — the default
     // page would silently drop assignable people past the 50th visit.
     listVisits("pageSize=100"),
+    getCurrentSession(),
   ]);
 
   if (!tasksResult.ok) {
@@ -263,6 +287,11 @@ export default async function ManagerTasksPage({
   }
 
   const tasks = tasksResult.data.items;
+  // Deleting needs team scope, which an own-scope viewer on this page lacks —
+  // showing them a button that can only 403 is worse than not showing it.
+  const canDeleteTasks = sessionResult.ok
+    ? sessionResult.data.permissions.includes("tasks.update_team")
+    : false;
   const counters = buildTaskCounters(
     tasks,
     tasksResult.data.total,
@@ -346,13 +375,32 @@ export default async function ManagerTasksPage({
         />
       ) : null}
 
+      {pageState.deleted ? (
+        <DismissableNotice
+          ariaLabel={t("deletedAria")}
+          body={t("deletedBody")}
+          clearParams={["deleted"]}
+          eyebrow={t("deletedEyebrow")}
+          title={t("deletedTitle")}
+          tone="success"
+        />
+      ) : null}
+
       {pageState.error ? (
         <DismissableNotice
           ariaLabel={t("errorAria")}
           body={t("errorBody")}
           clearParams={["error"]}
-          eyebrow={t("errorEyebrow")}
-          title={t("errorTitle")}
+          eyebrow={
+            pageState.error === "delete"
+              ? t("deleteErrorEyebrow")
+              : t("errorEyebrow")
+          }
+          title={
+            pageState.error === "delete"
+              ? t("deleteErrorTitle")
+              : t("errorTitle")
+          }
           tone="danger"
         />
       ) : null}
@@ -479,6 +527,7 @@ export default async function ManagerTasksPage({
             todayIsoDate={todayIsoDate}
             updateTaskStatusAction={updateTaskStatusAction}
             updateTaskDetailsAction={updateTaskDetailsAction}
+            deleteTaskAction={canDeleteTasks ? deleteTaskAction : undefined}
           />
         ) : (
           <div className="empty-state-panel">
@@ -531,11 +580,14 @@ function TasksCards({
   todayIsoDate,
   updateTaskStatusAction,
   updateTaskDetailsAction,
+  deleteTaskAction,
 }: {
   tasks: Task[];
   todayIsoDate: string;
   updateTaskStatusAction: (formData: FormData) => Promise<void>;
   updateTaskDetailsAction: (formData: FormData) => Promise<void>;
+  // Absent when the viewer lacks team scope: no delete affordance at all.
+  deleteTaskAction?: (formData: FormData) => Promise<void>;
 }) {
   const t = useTranslations("manager.tasks");
   const tCommon = useTranslations("common");
@@ -591,6 +643,15 @@ function TasksCards({
               taskId={task.id}
               value={task.description ?? ""}
               updateAction={updateTaskDetailsAction}
+              actions={
+                deleteTaskAction ? (
+                  <DeleteTaskButton
+                    taskId={task.id}
+                    taskTitle={task.title}
+                    deleteAction={deleteTaskAction}
+                  />
+                ) : null
+              }
             />
           </li>
         );

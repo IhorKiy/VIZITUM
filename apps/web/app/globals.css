@@ -2780,6 +2780,29 @@ textarea {
   gap: 4px;
 }
 
+/* The delete button is muted like the pencil until hovered, then turns the
+   danger color so it reads as the destructive one of the two. */
+.name-edit-button.is-danger:hover {
+  background: var(--danger-surface);
+  color: var(--danger);
+}
+
+/* Confirm step: the prompt and the two buttons wrap under the description on a
+   narrow card instead of forcing it wider. */
+.task-delete-confirm {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.task-delete-prompt {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .report-detail-list {
   display: grid;
   gap: 12px;

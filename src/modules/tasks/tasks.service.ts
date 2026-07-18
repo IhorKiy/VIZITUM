@@ -11,6 +11,7 @@ import {
   type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
@@ -48,7 +49,10 @@ type TaskUpdateData = Partial<
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listTasks(
     context: RequestContext,
@@ -128,6 +132,41 @@ export class TasksService {
     });
 
     return toTaskResponse(updatedTask);
+  }
+
+  async deleteTask(
+    context: RequestContext,
+    taskId: string,
+  ): Promise<{ deleted: true }> {
+    if (!context.permissions.includes(PERMISSIONS.TASKS_UPDATE_TEAM)) {
+      throwMissingTaskPermission();
+    }
+
+    const task = await this.findTenantTask(context.tenantId, taskId);
+
+    // Soft delete: `deletedAt` hides the task from every read path (both
+    // `findTenantTask` and `buildTaskWhere` filter `deletedAt: null`) while
+    // preserving the row, so a mistaken delete stays recoverable. One
+    // transaction with the audit event: a delete must never exist without
+    // its `task.deleted` trail, nor a trail without the delete.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.task.update({
+        where: { id: task.id },
+        data: { deletedAt: new Date() },
+      });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "task",
+          entityId: task.id,
+          eventType: "task.deleted",
+        },
+        tx,
+      );
+    });
+
+    return { deleted: true };
   }
 
   private async findTenantTask(

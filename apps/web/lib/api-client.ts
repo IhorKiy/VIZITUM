@@ -945,6 +945,12 @@ export async function updateTask(
   return apiPatch<Task>(`/tasks/${taskId}`, input);
 }
 
+export async function deleteTask(
+  taskId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(`/tasks/${taskId}`);
+}
+
 export async function listHighPriorityTasks(): Promise<
   ApiResult<PaginatedResponse<Task>>
 > {

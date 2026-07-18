@@ -81,6 +81,10 @@ export class PilotReviewService {
       this.prisma.task.count({
         where: {
           tenantId: context.tenantId,
+          // Soft-deleted tasks are excluded: a mistakenly created task that
+          // was deleted must not count as manager engagement (the delete
+          // itself bumps `updatedAt` into the window).
+          deletedAt: null,
           OR: [{ createdAt: createdAtWindow }, { updatedAt: createdAtWindow }],
           createdBy: {
             tenantId: context.tenantId,

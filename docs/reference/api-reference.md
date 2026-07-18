@@ -128,6 +128,7 @@ The platform owner manages only the tenant's superadmin now — Company Admin in
 | `GET /tasks`           | any: `tasks.read_own`, `tasks.read_team`     | query: `page, pageSize, assignedToUserId, status (open\|in_progress\|done\|cancelled), priority (low\|normal\|high), locationId, visitId, routePlanId, dueFrom, dueTo` | paginated `Task` (includes `assignedTo` and `location` summaries) |
 | `POST /tasks`          | all: `tasks.create`                          | `{ title, description?, priority?, assignedToUserId?, locationId?, visitId?, reportId?, dueDate? }`                                                                    | `Task`                                                            |
 | `PATCH /tasks/:taskId` | any: `tasks.update_own`, `tasks.update_team` | any create field plus `status?, completedAt?`                                                                                                                          | `Task`                                                            |
+| `DELETE /tasks/:taskId` | all: `tasks.update_team`                    | —                                                                                                                                                                      | `{ deleted: true }` — soft delete (sets `deletedAt`), audited as `task.deleted`; for mistakenly created tasks (retire a real task with the `cancelled` status instead) |
 
 ### Locations — `/locations` (`locations.controller.ts`)
 
@@ -246,4 +247,4 @@ Purpose-level access checks inside `StorageService` are stricter than the guard-
 
 ## Endpoint count
 
-93 endpoints across 20 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 3, locations 11, chains 4, products 5, product-categories 4, routes 6, imports 6, admin users 8, admin settings 5, storage 3).
+94 endpoints across 20 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 4, locations 11, chains 4, products 5, product-categories 4, routes 6, imports 6, admin users 8, admin settings 5, storage 3).

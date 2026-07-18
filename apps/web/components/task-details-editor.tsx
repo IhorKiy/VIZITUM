@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useTranslations } from "next-intl";
 
 import { CheckIcon, CloseIcon, PencilIcon } from "./icons";
@@ -10,6 +16,10 @@ type TaskDetailsEditorProps = {
   // Current description ("" when the task has none).
   value: string;
   updateAction: (formData: FormData) => Promise<void>;
+  // Rendered next to the pencil once the disclosure is open. The delete button
+  // rides along here so it stays out of reach of a stray click on a collapsed
+  // card, and the caller decides whether the viewer may see it at all.
+  actions?: ReactNode;
 };
 
 // The description is its own disclosure: collapsed it shows a single clamped
@@ -19,6 +29,7 @@ export function TaskDetailsEditor({
   taskId,
   value,
   updateAction,
+  actions,
 }: TaskDetailsEditorProps) {
   const t = useTranslations("manager.tasks");
   const tCommon = useTranslations("common");
@@ -74,16 +85,19 @@ export function TaskDetailsEditor({
           </span>
         </button>
         {expanded ? (
-          <button
-            aria-label={t("editDetails")}
-            className="name-edit-button"
-            disabled={pending}
-            onClick={() => setEditing(true)}
-            title={t("editDetails")}
-            type="button"
-          >
-            <PencilIcon />
-          </button>
+          <div className="task-details-actions">
+            <button
+              aria-label={t("editDetails")}
+              className="name-edit-button"
+              disabled={pending}
+              onClick={() => setEditing(true)}
+              title={t("editDetails")}
+              type="button"
+            >
+              <PencilIcon />
+            </button>
+            {actions}
+          </div>
         ) : null}
       </div>
     );
