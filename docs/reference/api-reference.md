@@ -136,8 +136,8 @@ The platform owner manages only the tenant's superadmin now — Company Admin in
 | ------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------- |
 | `GET /locations`                                                    | all: `locations.read`   | query: `page, pageSize, status (active\|inactive\|archived), city, territory, chainId, search`; `status=archived` returns soft-deleted rows (`deletedAt` set), every other value returns live rows only |
 | `GET /locations/:locationId`                                        | all: `locations.read`   | —                                                                                                       |
-| `POST /locations`                                                   | all: `locations.manage` | `{ externalCode?, name, type?, chainId?, addressLine, city, territory?, latitude?, longitude?, notes? }`; `chainId` must reference a chain in the same tenant (400 `LOCATION_CHAIN_INVALID`) |
-| `PATCH /locations/:locationId`                                      | all: `locations.manage` | any create field plus `status? (active\|inactive` only — `archived` is not a writable status); send `chainId: null` to clear the chain link |
+| `POST /locations`                                                   | all: `locations.manage` | `{ externalCode?, name, categoryId?, chainId?, addressLine, city, territory?, latitude?, longitude?, notes? }`; `chainId`/`categoryId` must reference a chain/category in the same tenant (400 `LOCATION_CHAIN_INVALID` / `LOCATION_CATEGORY_INVALID`) |
+| `PATCH /locations/:locationId`                                      | all: `locations.manage` | any create field plus `status? (active\|inactive` only — `archived` is not a writable status); send `chainId: null` / `categoryId: null` to clear the chain/category link |
 | `DELETE /locations/:locationId`                                     | all: `locations.manage` | archive (soft-delete): stamps `deletedAt`, drops the location from default lists while keeping its history; returns the archived `Location` (`archived: true`) |
 | `POST /locations/:locationId/restore`                               | all: `locations.manage` | clears `deletedAt`; 404 `LOCATION_NOT_FOUND` if the location is not archived                             |
 | `GET /locations/:locationId/contacts`                               | all: `contacts.read`    | —                                                                                                       |
@@ -148,7 +148,7 @@ The platform owner manages only the tenant's superadmin now — Company Admin in
 | `POST /locations/:locationId/assignments`                           | all: `locations.assign` | `{ representativeUserId }`                                                                              |
 | `PATCH /locations/:locationId/assignments/:assignmentId/deactivate` | all: `locations.assign` | —                                                                                                       |
 
-Location responses embed the linked chain as `chain: { id, name } | null` alongside the raw `chainId`, and carry an `archived` boolean (`deletedAt` is set) so the console can render archived rows and offer restore.
+Location responses embed the linked chain as `chain: { id, name } | null` alongside the raw `chainId`, and the linked category as `category: { id, name } | null` alongside the raw `categoryId`, and carry an `archived` boolean (`deletedAt` is set) so the console can render archived rows and offer restore. The former free-text `type` field is gone — category is now a strict dictionary reference; see Location categories below.
 
 ### Chains — `/chains` (`chains.controller.ts`)
 
@@ -160,6 +160,17 @@ Retail chains/networks a location can belong to. Reuses the locations permission
 | `GET /chains/:chainId`   | all: `locations.read`   | —                                                                               |
 | `POST /chains`           | all: `locations.manage` | `{ name, externalCode?, notes? }`; `name` unique per tenant, case-insensitive (409 `CHAIN_NAME_EXISTS`); `externalCode` unique if given (409 `CHAIN_EXTERNAL_CODE_EXISTS`) |
 | `PATCH /chains/:chainId` | all: `locations.manage` | any create field plus `status? (active\|archived)`                              |
+
+### Location categories — `/location-categories` (`location-categories.controller.ts`)
+
+Strict, admin-managed vocabulary of category labels per tenant (unlike `ProductCategory`, `Location.categoryId` is a real FK — locations can only reference a category that exists in the tenant's dictionary). Reuses the locations permissions (`locations.read`/`locations.manage`), same as Chains. A per-tenant `location_categories_enabled` setting (see Admin settings below) controls only whether the category UI/field is shown — the API keeps working and data is preserved regardless.
+
+| Method & path                             | Permissions             | Body / query        |
+| ------------------------------------------ | ----------------------- | -------------------- |
+| `GET /location-categories`                | all: `locations.read`   | — (all, name asc)   |
+| `POST /location-categories`               | all: `locations.manage` | `{ name }` — unique per tenant case-insensitively, 409 `LOCATION_CATEGORY_EXISTS` on duplicate |
+| `PATCH /location-categories/:categoryId`  | all: `locations.manage` | `{ name }` — rename; no cascade needed (the FK means every location referencing it reads the new name on next fetch); 409 on duplicate |
+| `DELETE /location-categories/:categoryId` | all: `locations.manage` | — → `{ deleted: true }`; 409 `LOCATION_CATEGORY_IN_USE` (with `details.locationCount`) if any location still references it, including archived ones |
 
 ### Products — `/products` (`products.controller.ts`)
 
@@ -199,7 +210,7 @@ Managed vocabulary of category labels per tenant, used by the admin Products scr
 
 ### Imports — `/imports` (`imports.controller.ts`)
 
-Template types: `users`, `locations`, `contacts`, `products`, `initial_visit_task_plan`. The `locations` template has an optional `chain` column: its value is resolved to a `Chain` by name (case-insensitive) and the chain is created on first use, so a location import can populate the canonical chain list without a separate upload. `createdCounts` on confirm includes a `chains` counter for chains created this way.
+Template types: `users`, `locations`, `contacts`, `products`, `initial_visit_task_plan`. The `locations` template has optional `chain` and `category` columns: each value is resolved by name (case-insensitive) against the tenant's `Chain`/`LocationCategory` dictionary and created on first use, so a location import can populate both canonical lists without a separate upload; `createdCounts` on confirm includes `chains` and `locationCategories` counters for rows created this way. The validation preview surfaces a `LOCATION_CATEGORY_WILL_BE_CREATED` warning (non-blocking) once per distinct new category name in the file, so auto-creation is explicit rather than silent. The `category` column replaced the legacy `type` column — uploads with an old `type` header are still accepted as an alias and parsed into `category`, but the downloadable template and samples only ever advertise `category`.
 
 | Method & path                             | Permissions            | Body                        | Returns                                                                                                                      |
 | ----------------------------------------- | ---------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -231,8 +242,8 @@ Admin-management actions — inviting, suspending/reactivating, deleting or role
 
 | Method & path           | Permissions                   | Body                                                                                                                                 | Returns                                                                 |
 | ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `GET /admin/settings`   | all: `tenant.settings.read`   | —                                                                                                                                    | `{ tenantId, name, timezone, language, productMode, productsEnabled, colorScheme, logo, updatedAt }` — `logo` is `{ storageObjectId, contentType, url, urlExpiresAt }` (presigned GET for the admin preview) or `null` |
-| `PATCH /admin/settings` | all: `tenant.settings.manage` | `{ name?, timezone?, language?, productsEnabled?, colorScheme? }` — timezone must be a valid IANA zone; language must be one of the supported UI languages (`en`, `uk` — drives the next-intl locale of the whole tenant workspace); colorScheme must be one of the four presets; errors use code `SETTINGS_INVALID` with `fieldErrors` | updated settings                                                        |
+| `GET /admin/settings`   | all: `tenant.settings.read`   | —                                                                                                                                    | `{ tenantId, name, timezone, language, productMode, productsEnabled, locationCategoriesEnabled, colorScheme, logo, updatedAt }` — `logo` is `{ storageObjectId, contentType, url, urlExpiresAt }` (presigned GET for the admin preview) or `null` |
+| `PATCH /admin/settings` | all: `tenant.settings.manage` | `{ name?, timezone?, language?, productsEnabled?, locationCategoriesEnabled?, colorScheme? }` — timezone must be a valid IANA zone; language must be one of the supported UI languages (`en`, `uk` — drives the next-intl locale of the whole tenant workspace); colorScheme must be one of the four presets; errors use code `SETTINGS_INVALID` with `fieldErrors` | updated settings                                                        |
 | `POST /admin/settings/logo/register` | all: `tenant.settings.manage` | `{ fileName, contentType?, sizeBytes? }` — contentType allowlist `image/png`, `image/jpeg`, `image/webp`, `image/svg+xml` (falls back to the file extension); size cap 1 MB; errors `BRANDING_LOGO_INVALID` / `BRANDING_LOGO_SIZE_INVALID` | `{ storageObject, uploadUrl }` — creates a persistent `branding_logo` StorageObject (also sweeps abandoned unconfirmed branding uploads) and returns a presigned PUT |
 | `POST /admin/settings/logo/confirm` | all: `tenant.settings.manage` | `{ storageObjectId }` — must be this tenant's active `branding_logo` object (404 `STORAGE_OBJECT_NOT_FOUND`, 400 `BRANDING_LOGO_INVALID` otherwise) | updated settings — swaps the logo pointer and best-effort deletes the previous logo object (R2 + row) |
 | `DELETE /admin/settings/logo` | all: `tenant.settings.manage` | — | updated settings — clears the logo pointer and best-effort deletes the object; idempotent (200 with no logo configured) |
@@ -249,4 +260,4 @@ Purpose-level access checks inside `StorageService` are stricter than the guard-
 
 ## Endpoint count
 
-96 endpoints across 20 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 4, locations 13, chains 4, products 5, product-categories 4, routes 6, imports 6, admin users 8, admin settings 5, storage 3).
+100 endpoints across 21 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 4, locations 13, chains 4, location-categories 4, products 5, product-categories 4, routes 6, imports 6, admin users 8, admin settings 5, storage 3).

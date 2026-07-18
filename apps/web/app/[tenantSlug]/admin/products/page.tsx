@@ -393,6 +393,7 @@ export default async function AdminProductsPage({
           pageState.created === "categoryRemoved"
         }
         deleteAction={deleteCategoryAction}
+        namespace="admin.products"
         updateAction={updateCategoryAction}
       />
 

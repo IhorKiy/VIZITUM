@@ -6,6 +6,7 @@ import { AddChainModal } from "../../../../components/add-chain-modal";
 import { AppShell } from "../../../../components/app-shell";
 import { ArchiveChainButton } from "../../../../components/archive-chain-button";
 import { ArchiveLocationButton } from "../../../../components/archive-location-button";
+import { CategoriesAccordion } from "../../../../components/categories-accordion";
 import { CreateLocationModal } from "../../../../components/create-location-modal";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
@@ -25,18 +26,24 @@ import {
   createAdminLocation,
   createAdminLocationAssignment,
   createAdminLocationContact,
+  createLocationCategory,
   deactivateAdminLocationAssignment,
   deleteAdminLocationContact,
+  deleteLocationCategory,
+  getCurrentSession,
   listAdminChains,
   listAdminLocations,
   listAdminUsers,
+  listLocationCategories,
   restoreAdminLocation,
   updateAdminChain,
   updateAdminLocation,
   updateAdminLocationContact,
+  updateLocationCategory,
   type Chain,
   type ChainStatus,
   type Location,
+  type LocationCategory,
   type LocationStatus,
   type TenantUser,
 } from "../../../../lib/api-client";
@@ -65,6 +72,8 @@ type AdminLocationsPageProps = {
     locStatus?: string;
     locChain?: string;
     locView?: string;
+    locCatCreated?: string;
+    locCatError?: string;
     chainCreated?: string;
     chainUpdated?: string;
     chainError?: string;
@@ -138,8 +147,7 @@ export default async function AdminLocationsPage({
       addressLine,
       city,
       externalCode: normalizeOptionalField(formData.get("externalCode")),
-      // "Category" reuses the existing free-text `type` column.
-      type: normalizeOptionalField(formData.get("type")),
+      categoryId: normalizeOptionalField(formData.get("categoryId")),
       chainId: normalizeOptionalField(formData.get("chainId")),
       notes: normalizeOptionalField(formData.get("notes")),
     });
@@ -177,8 +185,13 @@ export default async function AdminLocationsPage({
     const addressLine = getFormString(formData, "addressLine").trim();
     const city = getFormString(formData, "city").trim();
     const externalCode = normalizeOptionalField(formData.get("externalCode"));
-    // "Category" reuses the existing free-text `type` column.
-    const type = normalizeOptionalField(formData.get("type"));
+    // The category <select> is only rendered when the category toggle is on
+    // (see LocationRow), so `null` here means "control absent, leave the
+    // location's category untouched" — distinct from "" ("present but
+    // cleared to no category"). Only send categoryId when the control was
+    // actually in the form, or a save with the toggle off would silently
+    // wipe the location's category.
+    const categoryIdRaw = formData.get("categoryId");
     const chainId = normalizeOptionalField(formData.get("chainId"));
     const notes = normalizeOptionalField(formData.get("notes"));
     const status = normalizeLocationStatus(getFormString(formData, "status"));
@@ -192,7 +205,9 @@ export default async function AdminLocationsPage({
       externalCode,
       addressLine,
       city,
-      type,
+      ...(categoryIdRaw !== null
+        ? { categoryId: normalizeOptionalField(categoryIdRaw) }
+        : {}),
       chainId,
       notes,
       status,
@@ -402,17 +417,89 @@ export default async function AdminLocationsPage({
     redirect(`/${tenantSlug}/admin/locations?chainUpdated=1&open=chains`);
   }
 
-  const [locationsResult, chainsResult, pickerChainsResult, usersResult] =
-    await Promise.all([
-      listAdminLocations(locQuery.toString()),
-      listAdminChains(chainQuery.toString()),
-      // The location editor's chain picker always offers active chains,
-      // regardless of how the Chains section itself is currently filtered.
-      // When that section is unfiltered its (all-status, same page cap) result
-      // already contains them, so skip the second fetch and derive in memory.
-      chainHasFilters ? listAdminChains("pageSize=100&status=active") : null,
-      listAdminUsers(),
-    ]);
+  async function createLocationCategoryAction(formData: FormData) {
+    "use server";
+
+    const name = getFormString(formData, "name").trim();
+
+    if (!name) {
+      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+    }
+
+    const result = await createLocationCategory({ name });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?locCatCreated=1`);
+  }
+
+  async function updateLocationCategoryAction(formData: FormData) {
+    "use server";
+
+    const categoryId = getFormString(formData, "categoryId").trim();
+    const name = getFormString(formData, "name").trim();
+
+    if (!categoryId || !name) {
+      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+    }
+
+    const result = await updateLocationCategory(categoryId, { name });
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?locCatCreated=updated`);
+  }
+
+  async function deleteLocationCategoryAction(formData: FormData) {
+    "use server";
+
+    const categoryId = getFormString(formData, "categoryId").trim();
+
+    if (!categoryId) {
+      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+    }
+
+    const result = await deleteLocationCategory(categoryId);
+
+    if (!result.ok) {
+      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+    }
+
+    redirect(`/${tenantSlug}/admin/locations?locCatCreated=removed`);
+  }
+
+  const [
+    locationsResult,
+    chainsResult,
+    pickerChainsResult,
+    usersResult,
+    categoriesResult,
+    sessionResult,
+  ] = await Promise.all([
+    listAdminLocations(locQuery.toString()),
+    listAdminChains(chainQuery.toString()),
+    // The location editor's chain picker always offers active chains,
+    // regardless of how the Chains section itself is currently filtered.
+    // When that section is unfiltered its (all-status, same page cap) result
+    // already contains them, so skip the second fetch and derive in memory.
+    chainHasFilters ? listAdminChains("pageSize=100&status=active") : null,
+    listAdminUsers(),
+    listLocationCategories(),
+    getCurrentSession(),
+  ]);
+
+  const categories: LocationCategory[] = categoriesResult.ok
+    ? categoriesResult.data
+    : [];
+  // Absent/unreadable session fails open (category field shown) rather than
+  // silently hiding a field the tenant actually has enabled.
+  const locationCategoriesEnabled = sessionResult.ok
+    ? sessionResult.data.locationCategoriesEnabled
+    : true;
 
   const pickerChains = pickerChainsResult
     ? pickerChainsResult.ok
@@ -536,6 +623,53 @@ export default async function AdminLocationsPage({
         ) : null}
       </section>
 
+      {pageState.locCatCreated ? (
+        <DismissableNotice
+          ariaLabel={t("categoryCreatedAria")}
+          body={
+            pageState.locCatCreated === "updated"
+              ? t("updatedCategoryBody")
+              : pageState.locCatCreated === "removed"
+                ? t("removedCategoryBody")
+                : t("createdCategoryBody")
+          }
+          clearParams={["locCatCreated"]}
+          eyebrow={t("categoryCreatedEyebrow")}
+          title={
+            pageState.locCatCreated === "updated"
+              ? t("updatedCategoryTitle")
+              : pageState.locCatCreated === "removed"
+                ? t("removedCategoryTitle")
+                : t("createdCategoryTitle")
+          }
+          tone="success"
+        />
+      ) : null}
+
+      {pageState.locCatError ? (
+        <DismissableNotice
+          ariaLabel={t("categoryErrorAria")}
+          body={t("categoryErrorBody")}
+          clearParams={["locCatError"]}
+          eyebrow={t("categoryErrorEyebrow")}
+          title={t("categoryErrorTitle")}
+          tone="danger"
+        />
+      ) : null}
+
+      {locationCategoriesEnabled ? (
+        <CategoriesAccordion
+          categories={categories}
+          createAction={createLocationCategoryAction}
+          defaultOpen={Boolean(
+            pageState.locCatCreated || pageState.locCatError,
+          )}
+          deleteAction={deleteLocationCategoryAction}
+          namespace="admin.locations"
+          updateAction={updateLocationCategoryAction}
+        />
+      ) : null}
+
       <div className="section-stack">
         <details className="panel panel-collapsible" open={locationsOpen}>
           <summary className="panel-summary">
@@ -556,11 +690,13 @@ export default async function AdminLocationsPage({
                 allChains={chainsResult.ok ? chainsResult.data.items : []}
                 archiveLocationAction={archiveLocationAction}
                 carryParams={chainCarryParams}
+                categories={categories}
                 chains={pickerChains}
                 createLocationAction={createLocationAction}
                 groupByChain={locGroupByChain}
                 hasFilters={locHasFilters}
                 locale={locale}
+                locationCategoriesEnabled={locationCategoriesEnabled}
                 locations={locationsResult.data.items}
                 representatives={representatives}
                 restoreLocationAction={restoreLocationAction}
@@ -634,11 +770,13 @@ function LocationsSection({
   allChains,
   archiveLocationAction,
   carryParams,
+  categories,
   chains,
   createLocationAction,
   groupByChain,
   hasFilters,
   locale,
+  locationCategoriesEnabled,
   locations,
   representatives,
   restoreLocationAction,
@@ -652,11 +790,13 @@ function LocationsSection({
   allChains: Chain[];
   archiveLocationAction: (formData: FormData) => Promise<void>;
   carryParams: Record<string, string>;
+  categories: LocationCategory[];
   chains: Chain[];
   createLocationAction: (formData: FormData) => Promise<void>;
   groupByChain: boolean;
   hasFilters: boolean;
   locale: string;
+  locationCategoriesEnabled: boolean;
   locations: Location[];
   representatives: TenantUser[];
   restoreLocationAction: (formData: FormData) => Promise<void>;
@@ -706,7 +846,9 @@ function LocationsSection({
       <div className="toolbar">
         <CreateLocationModal
           action={createLocationAction}
+          categories={categories}
           chains={chains}
+          locationCategoriesEnabled={locationCategoriesEnabled}
           representatives={representatives}
         />
       </div>
@@ -803,8 +945,10 @@ function LocationsSection({
                       <LocationRow
                         key={location.id}
                         archiveLocationAction={archiveLocationAction}
+                        categories={categories}
                         chains={chains}
                         location={location}
+                        locationCategoriesEnabled={locationCategoriesEnabled}
                         representatives={representatives}
                         restoreLocationAction={restoreLocationAction}
                         saveLocationAction={saveLocationAction}
@@ -820,8 +964,10 @@ function LocationsSection({
                 <LocationRow
                   key={location.id}
                   archiveLocationAction={archiveLocationAction}
+                  categories={categories}
                   chains={chains}
                   location={location}
+                  locationCategoriesEnabled={locationCategoriesEnabled}
                   representatives={representatives}
                   restoreLocationAction={restoreLocationAction}
                   saveLocationAction={saveLocationAction}
@@ -979,15 +1125,19 @@ function ChainsSection({
 
 function LocationRow({
   archiveLocationAction,
+  categories,
   chains,
   location,
+  locationCategoriesEnabled,
   representatives,
   restoreLocationAction,
   saveLocationAction,
 }: {
   archiveLocationAction: (formData: FormData) => Promise<void>;
+  categories: LocationCategory[];
   chains: Chain[];
   location: Location;
+  locationCategoriesEnabled: boolean;
   representatives: TenantUser[];
   restoreLocationAction: (formData: FormData) => Promise<void>;
   saveLocationAction: (formData: FormData) => Promise<void>;
@@ -1093,10 +1243,22 @@ function LocationRow({
                 ))}
               </select>
             </label>
-            <label>
-              {t("category")}
-              <input defaultValue={location.type ?? ""} name="type" />
-            </label>
+            {locationCategoriesEnabled ? (
+              <label>
+                {t("category")}
+                <select
+                  defaultValue={location.categoryId ?? ""}
+                  name="categoryId"
+                >
+                  <option value="">{t("noCategoryOption")}</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label>
               {t("status")}
               <select defaultValue={location.status} name="status" required>

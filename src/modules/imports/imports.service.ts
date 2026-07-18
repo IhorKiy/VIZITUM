@@ -31,6 +31,7 @@ const DEFAULT_IMPORT_COUNTS: ImportApplyResult["createdCounts"] = {
   users: 0,
   userRoles: 0,
   chains: 0,
+  locationCategories: 0,
   locations: 0,
   locationAssignments: 0,
   contacts: 0,
@@ -90,7 +91,12 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         required: false,
         description: "Optional source-system location identifier.",
       },
-      { key: "type", required: false, description: "Optional location type." },
+      {
+        key: "category",
+        required: false,
+        description:
+          "Optional category name from the tenant's location category dictionary; unresolved names are created automatically on confirm.",
+      },
       {
         key: "chain",
         required: false,
@@ -252,6 +258,30 @@ const IMPORT_TEMPLATE_TYPES = new Set(
   IMPORT_TEMPLATES.map((template) => template.type),
 );
 
+// The locations template's `type` column was renamed to `category` (it now
+// resolves against the tenant's category dictionary instead of being stored
+// as free text). Existing exports/files built against the old template still
+// carry a `type` header — accept it as an alias so those files keep working,
+// while templates/samples only ever advertise `category`.
+const LEGACY_COLUMN_ALIASES: Partial<
+  Record<ImportTemplateType, Record<string, string>>
+> = {
+  locations: { type: "category" },
+};
+
+function applyLegacyColumnAliases(
+  templateType: ImportTemplateType,
+  columns: readonly string[],
+): string[] {
+  const aliases = LEGACY_COLUMN_ALIASES[templateType];
+
+  if (!aliases) {
+    return [...columns];
+  }
+
+  return columns.map((column) => aliases[column] ?? column);
+}
+
 @Injectable()
 export class ImportsService {
   constructor(private readonly prisma?: PrismaService) {}
@@ -301,7 +331,10 @@ export class ImportsService {
     const worksheetXml = readXlsxEntry(filePath, FIRST_WORKSHEET_PATH);
     const rows = parseWorksheetRows(worksheetXml, sharedStrings);
     const [rawHeader, ...rawDataRows] = rows;
-    const columns = normalizeHeader(rawHeader ?? []);
+    const columns = applyLegacyColumnAliases(
+      templateType,
+      normalizeHeader(rawHeader ?? []),
+    );
 
     assertApprovedHeader(template, columns);
 
@@ -321,7 +354,10 @@ export class ImportsService {
     const template = getTemplateDefinition(templateType);
     const rows = parseCsvRows(content.toString("utf8"));
     const [rawHeader, ...rawDataRows] = rows;
-    const columns = normalizeHeader(rawHeader ?? []);
+    const columns = applyLegacyColumnAliases(
+      templateType,
+      normalizeHeader(rawHeader ?? []),
+    );
 
     assertApprovedHeader(template, columns);
 
@@ -697,14 +733,20 @@ export class ImportsService {
         row.chain,
         counts,
       );
+      const categoryId = await this.resolveLocationCategoryReference(
+        transaction,
+        context,
+        row.category,
+        counts,
+      );
 
       const location = await transaction.location.create({
         data: {
           tenantId: context.tenantId,
           chainId,
+          categoryId,
           externalCode: optionalString(row.external_code),
           name: requiredString(row.name),
-          type: optionalString(row.type),
           addressLine: requiredString(row.address_line),
           city: requiredString(row.city),
           territory: optionalString(row.territory),
@@ -957,6 +999,52 @@ export class ImportsService {
     return chain.id;
   }
 
+  // Resolve a location category by name for a location import row, creating
+  // it in the tenant's dictionary on first use — an import is run by an
+  // admin, so authorship of the auto-created category stays with them. The
+  // lookup is case-insensitive, so repeated or case-variant names within the
+  // same file collapse onto one category (each row's lookup already sees
+  // prior rows' inserts within this transaction), but unlike
+  // `resolveChainReference`, the display name is stored exactly as typed —
+  // matching the "stored exactly as typed" rule the rest of the category
+  // dictionary follows (manual create/rename, migration backfill). Returns
+  // null when no category is given.
+  private async resolveLocationCategoryReference(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    nameInput: string | undefined,
+    counts: ImportCreatedCounts,
+  ): Promise<string | null> {
+    const name = optionalString(nameInput);
+
+    if (!name) {
+      return null;
+    }
+
+    const existingCategory = await transaction.locationCategory.findFirst({
+      where: {
+        tenantId: context.tenantId,
+        name: { equals: name, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+
+    if (existingCategory) {
+      return existingCategory.id;
+    }
+
+    const category = await transaction.locationCategory.create({
+      data: {
+        tenantId: context.tenantId,
+        name,
+      },
+      select: { id: true },
+    });
+    counts.locationCategories += 1;
+
+    return category.id;
+  }
+
   private async resolveLocationReference(
     transaction: PrismaTransaction,
     tenantId: string,
@@ -1087,6 +1175,7 @@ export class ImportsService {
       parsedFile.rows,
       "assigned_representative_email",
     );
+    const categoryNames = collectNormalizedValues(parsedFile.rows, "category");
     const existingExternalCodes = await this.findExistingLocationExternalCodes(
       prisma,
       context.tenantId,
@@ -1097,6 +1186,16 @@ export class ImportsService {
       context.tenantId,
       [...representativeEmails],
     );
+    const existingCategoryNames = await this.findExistingLocationCategoryNames(
+      prisma,
+      context.tenantId,
+      [...categoryNames],
+    );
+    // One warning per distinct new category name (not per row), attached to
+    // the first row that introduces it — so a repeated or case-variant name
+    // later in the file doesn't announce the same to-be-created category
+    // again.
+    const announcedNewCategoryKeys = new Set<string>();
 
     parsedFile.rows.forEach((row, index) => {
       const rowNumber = index + 2;
@@ -1173,6 +1272,26 @@ export class ImportsService {
             row.name,
           ),
         );
+      }
+
+      const categoryName = normalizeValue(row.category);
+
+      if (
+        categoryName &&
+        !existingCategoryNames.has(categoryName) &&
+        !announcedNewCategoryKeys.has(categoryName)
+      ) {
+        issues.push(
+          createIssue(
+            rowNumber,
+            "category",
+            "warning",
+            "LOCATION_CATEGORY_WILL_BE_CREATED",
+            "Category does not exist yet and will be created on confirm.",
+            row.category,
+          ),
+        );
+        announcedNewCategoryKeys.add(categoryName);
       }
     });
 
@@ -1521,6 +1640,26 @@ export class ImportsService {
     );
   }
 
+  private async findExistingLocationCategoryNames(
+    prisma: PrismaService,
+    tenantId: string,
+    names: string[],
+  ): Promise<Set<string>> {
+    if (names.length === 0) {
+      return new Set();
+    }
+
+    const categories = await prisma.locationCategory.findMany({
+      where: {
+        tenantId,
+        name: { in: names, mode: "insensitive" },
+      },
+      select: { name: true },
+    });
+
+    return new Set(categories.map((category) => normalizeValue(category.name)));
+  }
+
   private async findExistingUsersByEmail(
     prisma: PrismaService,
     tenantId: string,
@@ -1622,6 +1761,7 @@ function readAppliedCounts(
     users: readNumber(summary.appliedCounts.users),
     userRoles: readNumber(summary.appliedCounts.userRoles),
     chains: readNumber(summary.appliedCounts.chains),
+    locationCategories: readNumber(summary.appliedCounts.locationCategories),
     locations: readNumber(summary.appliedCounts.locations),
     locationAssignments: readNumber(summary.appliedCounts.locationAssignments),
     contacts: readNumber(summary.appliedCounts.contacts),

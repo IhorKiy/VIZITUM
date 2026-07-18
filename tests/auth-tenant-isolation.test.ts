@@ -27,7 +27,7 @@ describe("auth tenant isolation", () => {
         },
       },
       tenantSetting: {
-        findUnique: async () => null,
+        findMany: async () => [],
       },
       platformTenant: {
         findUnique: async () => null,

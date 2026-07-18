@@ -331,6 +331,7 @@ describe("import validation preview", () => {
       users: 2,
       userRoles: 3,
       chains: 0,
+      locationCategories: 0,
       locations: 0,
       locationAssignments: 0,
       contacts: 0,

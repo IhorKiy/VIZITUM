@@ -3,15 +3,23 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
-import type { ProductCategory } from "../lib/api-client";
 import { CheckIcon, CloseIcon, PencilIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 
+type CategoryLike = { id: string; name: string };
+
+// Message namespaces wired to this accordion; each must provide the same
+// category-management key set (categoriesTitle, categoryName, addCategory,
+// cancelEdit, editCategory, deleteCategory, deletingCategory, ...). Add a
+// namespace here when a new screen adopts the accordion.
+type CategoriesNamespace = "admin.products" | "admin.locations";
+
 type CategoriesAccordionProps = {
-  categories: ProductCategory[];
+  categories: CategoryLike[];
   createAction: (formData: FormData) => Promise<void>;
   updateAction: (formData: FormData) => Promise<void>;
   deleteAction: (formData: FormData) => Promise<void>;
+  namespace: CategoriesNamespace;
   defaultOpen?: boolean;
 };
 
@@ -20,9 +28,10 @@ export function CategoriesAccordion({
   createAction,
   updateAction,
   deleteAction,
+  namespace,
   defaultOpen = false,
 }: CategoriesAccordionProps) {
-  const t = useTranslations("admin.products");
+  const t = useTranslations(namespace);
   const tCommon = useTranslations("common");
   const [adding, setAdding] = useState(false);
   // A category action redirects the whole page, which would reset an
@@ -86,6 +95,7 @@ export function CategoriesAccordion({
                 category={category}
                 deleteAction={deleteAction}
                 key={category.id}
+                namespace={namespace}
                 updateAction={updateAction}
               />
             ))}
@@ -102,12 +112,14 @@ function CategoryRow({
   category,
   updateAction,
   deleteAction,
+  namespace,
 }: {
-  category: ProductCategory;
+  category: CategoryLike;
   updateAction: (formData: FormData) => Promise<void>;
   deleteAction: (formData: FormData) => Promise<void>;
+  namespace: CategoriesNamespace;
 }) {
-  const t = useTranslations("admin.products");
+  const t = useTranslations(namespace);
   const tCommon = useTranslations("common");
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();

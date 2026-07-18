@@ -167,6 +167,8 @@ export default async function ManagerLocationsPage({
   const locations = locationsResult.data.items;
   const locationOptionsSource =
     allLocations.length > 0 ? allLocations : locations;
+  const locationCategoriesEnabled =
+    sessionResult.data.locationCategoriesEnabled;
   const visits = visitsResult.ok ? visitsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
   const activityByLocation = buildLocationActivity(visits, tasks);
@@ -283,6 +285,7 @@ export default async function ManagerLocationsPage({
         {locations.length > 0 ? (
           <LocationsCards
             activityByLocation={activityByLocation}
+            locationCategoriesEnabled={locationCategoriesEnabled}
             locations={locations}
             tenantSlug={tenantSlug}
           />
@@ -312,10 +315,12 @@ export default async function ManagerLocationsPage({
 
 function LocationsCards({
   activityByLocation,
+  locationCategoriesEnabled,
   locations,
   tenantSlug,
 }: {
   activityByLocation: Map<string, LocationActivity>;
+  locationCategoriesEnabled: boolean;
   locations: Location[];
   tenantSlug: string;
 }) {
@@ -330,11 +335,20 @@ function LocationsCards({
       {locations.map((location) => {
         const activity = activityByLocation.get(location.id);
         const visitCount = activity?.visitCount ?? 0;
+        // When the category toggle is off, the segment is omitted entirely
+        // (matching the field screen) rather than showing a "no category"
+        // placeholder on every card.
         const area = [
           location.territory
             ? formatEnumLabel(tCommon, location.territory)
             : t("unassignedTerritory"),
-          location.type ? formatEnumLabel(tCommon, location.type) : t("noType"),
+          ...(locationCategoriesEnabled
+            ? [
+                location.category
+                  ? formatEnumLabel(tCommon, location.category.name)
+                  : t("noType"),
+              ]
+            : []),
         ].join(" · ");
         const displayStatus = location.archived ? "archived" : location.status;
 

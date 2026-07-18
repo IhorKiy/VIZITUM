@@ -22,10 +22,15 @@ import {
   upsertColorSchemeSetting,
 } from "./branding";
 import {
+  locationCategoriesEnabledFromSetting,
+  upsertLocationCategoriesEnabledSetting,
+} from "./location-categories-enabled";
+import {
   productsEnabledFromSetting,
   upsertProductsEnabledSetting,
 } from "./products-enabled";
 import {
+  LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
   PRODUCTS_ENABLED_SETTING_KEY,
   SUPPORTED_TENANT_LANGUAGES,
   type ConfirmLogoUploadRequestBody,
@@ -65,6 +70,7 @@ export class SettingsService {
           key: {
             in: [
               PRODUCTS_ENABLED_SETTING_KEY,
+              LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
               BRANDING_COLOR_SCHEME_SETTING_KEY,
               BRANDING_LOGO_OBJECT_SETTING_KEY,
             ],
@@ -83,6 +89,9 @@ export class SettingsService {
       productMode: tenant.productMode,
       productsEnabled: productsEnabledFromSetting(
         byKey.get(PRODUCTS_ENABLED_SETTING_KEY),
+      ),
+      locationCategoriesEnabled: locationCategoriesEnabledFromSetting(
+        byKey.get(LOCATION_CATEGORIES_ENABLED_SETTING_KEY),
       ),
       colorScheme: colorSchemeFromSetting(
         byKey.get(BRANDING_COLOR_SCHEME_SETTING_KEY),
@@ -103,6 +112,9 @@ export class SettingsService {
     const timezone = normalizeTimezone(body.timezone);
     const language = normalizeLanguage(body.language);
     const productsEnabled = normalizeProductsEnabled(body.productsEnabled);
+    const locationCategoriesEnabled = normalizeLocationCategoriesEnabled(
+      body.locationCategoriesEnabled,
+    );
     const colorScheme = normalizeColorScheme(body.colorScheme);
 
     if (body.name !== undefined && name === null) {
@@ -141,6 +153,19 @@ export class SettingsService {
       });
     }
 
+    if (
+      body.locationCategoriesEnabled !== undefined &&
+      locationCategoriesEnabled === null
+    ) {
+      throw new BadRequestException({
+        code: "SETTINGS_INVALID",
+        message: "Location categories enabled must be a boolean.",
+        fieldErrors: {
+          locationCategoriesEnabled: ["Must be true or false."],
+        },
+      });
+    }
+
     if (body.colorScheme !== undefined && colorScheme === null) {
       throw new BadRequestException({
         code: "SETTINGS_INVALID",
@@ -166,6 +191,18 @@ export class SettingsService {
           tx,
           context.tenantId,
           productsEnabled,
+          context.userId ?? null,
+        );
+      }
+
+      if (
+        locationCategoriesEnabled !== null &&
+        locationCategoriesEnabled !== undefined
+      ) {
+        await upsertLocationCategoriesEnabledSetting(
+          tx,
+          context.tenantId,
+          locationCategoriesEnabled,
           context.userId ?? null,
         );
       }
@@ -491,6 +528,16 @@ function normalizeLanguage(value: unknown): TenantLanguage | null | undefined {
 }
 
 function normalizeProductsEnabled(value: unknown): boolean | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return typeof value === "boolean" ? value : null;
+}
+
+function normalizeLocationCategoriesEnabled(
+  value: unknown,
+): boolean | null | undefined {
   if (value === undefined) {
     return undefined;
   }

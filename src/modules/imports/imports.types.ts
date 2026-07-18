@@ -118,6 +118,7 @@ export type ImportApplyResult = {
     users: number;
     userRoles: number;
     chains: number;
+    locationCategories: number;
     locations: number;
     locationAssignments: number;
     contacts: number;
