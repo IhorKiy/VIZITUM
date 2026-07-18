@@ -107,10 +107,7 @@ export default async function ManagerLocationsPage({
   const search = normalizeFilterValue(pageState.search);
   const query = new URLSearchParams({ pageSize: "100" });
   const hasFilters = Boolean(
-    selectedStatus ||
-    selectedCity ||
-    selectedTerritory ||
-    search,
+    selectedStatus || selectedCity || selectedTerritory || search,
   );
 
   if (selectedStatus) {
