@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
+
+import { ConfirmActionButton } from "./confirm-action-button";
 
 type DeleteProductButtonProps = {
   productId: string;
@@ -15,54 +16,26 @@ export function DeleteProductButton({
   deleteAction,
 }: DeleteProductButtonProps) {
   const t = useTranslations("admin.products");
-  const [confirming, setConfirming] = useState(false);
-  const [pending, startTransition] = useTransition();
 
-  function remove() {
-    const formData = new FormData();
-    formData.set("productId", productId);
-    startTransition(() => {
-      void deleteAction(formData);
-    });
-  }
-
-  if (!confirming) {
-    return (
-      <div className="product-delete">
+  return (
+    <ConfirmActionButton
+      action={deleteAction}
+      cancelLabel={t("cancelEdit")}
+      confirmLabel={t("deleteProduct")}
+      fieldName="productId"
+      id={productId}
+      pendingLabel={t("deletingProduct")}
+      promptText={t("deleteProductPrompt", { name: productName })}
+      renderTrigger={({ onClick, ref }) => (
         <button
           className="secondary-button danger"
-          onClick={() => setConfirming(true)}
+          onClick={onClick}
+          ref={ref}
           type="button"
         >
           {t("deleteProduct")}
         </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="product-delete confirming">
-      <span className="product-delete-prompt">
-        {t("deleteProductPrompt", { name: productName })}
-      </span>
-      <div className="product-delete-actions">
-        <button
-          className="secondary-button danger"
-          disabled={pending}
-          onClick={remove}
-          type="button"
-        >
-          {pending ? t("deletingProduct") : t("deleteProduct")}
-        </button>
-        <button
-          className="secondary-button"
-          disabled={pending}
-          onClick={() => setConfirming(false)}
-          type="button"
-        >
-          {t("cancelEdit")}
-        </button>
-      </div>
-    </div>
+      )}
+    />
   );
 }
