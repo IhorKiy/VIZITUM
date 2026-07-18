@@ -66,7 +66,10 @@ export function ConfirmActionButton({
   }
 
   if (!confirming) {
-    return renderTrigger({ onClick: () => setConfirming(true), ref: triggerRef });
+    return renderTrigger({
+      onClick: () => setConfirming(true),
+      ref: triggerRef,
+    });
   }
 
   return (
