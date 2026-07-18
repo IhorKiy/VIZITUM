@@ -20,7 +20,6 @@ export type LocationResponse = {
   chain: LocationChainSummary | null;
   addressLine: string;
   city: string;
-  region: string | null;
   territory: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -39,7 +38,6 @@ export type ListLocationsQuery = {
   pageSize?: number;
   status?: LocationListStatus;
   city?: string;
-  region?: string;
   territory?: string;
   chainId?: string;
   search?: string;
@@ -52,7 +50,6 @@ export type CreateLocationRequestBody = {
   chainId?: unknown;
   addressLine?: unknown;
   city?: unknown;
-  region?: unknown;
   territory?: unknown;
   latitude?: unknown;
   longitude?: unknown;

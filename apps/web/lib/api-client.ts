@@ -113,7 +113,6 @@ export type Location = {
   chain: ChainSummary | null;
   addressLine: string;
   city: string;
-  region: string | null;
   territory: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -579,7 +578,6 @@ export async function createAdminLocation(input: {
   externalCode?: string | null;
   type?: string | null;
   chainId?: string | null;
-  region?: string | null;
   notes?: string | null;
 }): Promise<ApiResult<Location>> {
   return apiPost<Location>("/locations", input);
@@ -594,7 +592,6 @@ export async function updateAdminLocation(
     chainId?: string | null;
     addressLine?: string;
     city?: string;
-    region?: string | null;
     territory?: string | null;
     notes?: string | null;
     status?: LocationStatus;
