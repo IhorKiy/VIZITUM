@@ -25,6 +25,7 @@ import type {
   CopyRouteTemplatePlansRequestBody,
   CreateRouteTemplateItemRequestBody,
   CreateRouteTemplateRequestBody,
+  MoveRouteTemplateItemRequestBody,
   UpdateRouteTemplateItemRequestBody,
   UpdateRouteTemplateRequestBody,
 } from "./routes.types";
@@ -43,8 +44,22 @@ export class RouteTemplatesController {
     return this.routeTemplatesService.listRouteTemplates(
       getRequestContext(request),
       {
+        page: parsePositiveInteger(query.page),
+        pageSize: parsePositiveInteger(query.pageSize),
         representativeUserId: normalizeQueryString(query.representativeUserId),
       },
+    );
+  }
+
+  @Get(":templateId")
+  @RequirePermissions(PERMISSIONS.ROUTES_READ)
+  getRouteTemplate(
+    @Req() request: Request,
+    @Param("templateId") templateId: string,
+  ) {
+    return this.routeTemplatesService.getRouteTemplate(
+      getRequestContext(request),
+      templateId,
     );
   }
 
@@ -146,6 +161,25 @@ export class RouteTemplatesController {
     );
   }
 
+  @Post(":templateId/items/:itemId/move")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  moveRouteTemplateItem(
+    @Req() request: Request,
+    @Param("templateId") templateId: string,
+    @Param("itemId") itemId: string,
+    @Body() body: MoveRouteTemplateItemRequestBody,
+  ) {
+    return this.routeTemplatesService.moveRouteTemplateItem(
+      getRequestContext(request),
+      templateId,
+      itemId,
+      body,
+    );
+  }
+
   @Delete(":templateId/items/:itemId")
   @RequireAnyPermissions(
     PERMISSIONS.ROUTES_MANAGE_TEAM,
@@ -193,4 +227,16 @@ function normalizeQueryString(value: string | undefined): string | undefined {
   const normalizedValue = value?.trim();
 
   return normalizedValue || undefined;
+}
+
+function parsePositiveInteger(value: string | undefined): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsedValue = Number(value);
+
+  return Number.isInteger(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : undefined;
 }

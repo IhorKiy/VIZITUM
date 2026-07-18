@@ -22,10 +22,11 @@ import {
   deleteRouteTemplate,
   deleteRouteTemplateItem,
   getCurrentSession,
+  getRouteTemplate,
   listLocations,
   listRouteTemplates,
   listRoutes,
-  updateRouteTemplateItem,
+  moveRouteTemplateItem,
   type Location,
   type RoutePlan,
   type RouteTemplate,
@@ -142,46 +143,16 @@ export default async function PlanningPage({
     const itemId = getFormString(formData, "itemId").trim();
     const direction = formData.get("direction") === "up" ? "up" : "down";
 
-    if (!templateId) {
-      redirect(routesTabHref(tenantSlug, undefined, "failed"));
+    if (!templateId || !itemId) {
+      redirect(routesTabHref(tenantSlug, templateId || undefined, "failed"));
     }
 
-    const activeTemplate = await findOwnRouteTemplate(templateId);
+    // The swap (temp slot + two final updates) runs atomically on the
+    // server, in one transaction — a mid-swap failure can no longer strand
+    // an item at a temporary sequence.
+    const result = await moveRouteTemplateItem(templateId, itemId, direction);
 
-    if (!activeTemplate) {
-      redirect(routesTabHref(tenantSlug, undefined, "failed"));
-    }
-
-    const items = [...activeTemplate.items].sort(
-      (a, b) => a.sequence - b.sequence,
-    );
-    const index = items.findIndex((item) => item.id === itemId);
-    const otherIndex = direction === "up" ? index - 1 : index + 1;
-
-    if (index < 0 || otherIndex < 0 || otherIndex >= items.length) {
-      redirect(routesTabHref(tenantSlug, templateId));
-    }
-
-    const item = items[index];
-    const other = items[otherIndex];
-    // Sequence is unique per template, so swap through a free temporary slot.
-    const tempSequence = Math.max(...items.map((row) => row.sequence)) + 1;
-
-    const step1 = await updateRouteTemplateItem(templateId, item.id, {
-      sequence: tempSequence,
-    });
-    const step2 = step1.ok
-      ? await updateRouteTemplateItem(templateId, other.id, {
-          sequence: item.sequence,
-        })
-      : step1;
-    const step3 = step2.ok
-      ? await updateRouteTemplateItem(templateId, item.id, {
-          sequence: other.sequence,
-        })
-      : step2;
-
-    if (!step3.ok) {
+    if (!result.ok) {
       redirect(routesTabHref(tenantSlug, templateId, "failed"));
     }
 
@@ -304,11 +275,11 @@ export default async function PlanningPage({
   // filter as "team view" and requires the param instead of defaulting to self.
   const ownRepresentativeQuery = `representativeUserId=${sessionResult.data.user.id}`;
   const [templatesResult, routesResult, locationsResult] = await Promise.all([
-    listRouteTemplates(ownRepresentativeQuery),
+    listRouteTemplates(`pageSize=100&${ownRepresentativeQuery}`),
     listRoutes(`pageSize=200&${ownRepresentativeQuery}`),
     listLocations(),
   ]);
-  const routeTemplates = templatesResult.ok ? templatesResult.data : [];
+  const routeTemplates = templatesResult.ok ? templatesResult.data.items : [];
   const routePlans = routesResult.ok ? routesResult.data.items : [];
   const locations = locationsResult.ok ? locationsResult.data.items : [];
 
@@ -1021,19 +992,12 @@ function buildPlanningStatusNotice(
 async function findOwnRouteTemplate(
   templateId: string,
 ): Promise<RouteTemplate | undefined> {
-  const sessionResult = await getCurrentSession();
+  // findTenantRouteTemplate (behind this endpoint) already scopes by
+  // ownership server-side, so this needs no representativeUserId of its
+  // own — just the one template, not the caller's whole list.
+  const result = await getRouteTemplate(templateId);
 
-  if (!sessionResult.ok) {
-    return undefined;
-  }
-
-  const templatesResult = await listRouteTemplates(
-    `representativeUserId=${sessionResult.data.user.id}`,
-  );
-
-  return templatesResult.ok
-    ? templatesResult.data.find((item) => item.id === templateId)
-    : undefined;
+  return result.ok ? result.data : undefined;
 }
 
 function routesTabHref(

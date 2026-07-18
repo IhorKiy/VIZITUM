@@ -129,6 +129,7 @@ describe("route templates permissions", () => {
       RouteTemplatesController.prototype.deleteRouteTemplate,
       RouteTemplatesController.prototype.createRouteTemplateItem,
       RouteTemplatesController.prototype.updateRouteTemplateItem,
+      RouteTemplatesController.prototype.moveRouteTemplateItem,
       RouteTemplatesController.prototype.deleteRouteTemplateItem,
       RouteTemplatesController.prototype.assignRouteTemplate,
     ];
@@ -142,34 +143,65 @@ describe("route templates permissions", () => {
     }
   });
 
-  it("requires only routes.read on the list endpoint", () => {
-    assert.deepEqual(
-      Reflect.getMetadata(
-        REQUIRED_PERMISSIONS_METADATA,
-        RouteTemplatesController.prototype.listRouteTemplates,
-      ),
-      [PERMISSIONS.ROUTES_READ],
-    );
+  it("requires only routes.read on the list and single-get endpoints", () => {
+    const readHandlers = [
+      RouteTemplatesController.prototype.listRouteTemplates,
+      RouteTemplatesController.prototype.getRouteTemplate,
+    ];
+
+    for (const handler of readHandlers) {
+      assert.deepEqual(
+        Reflect.getMetadata(REQUIRED_PERMISSIONS_METADATA, handler),
+        [PERMISSIONS.ROUTES_READ],
+        `${handler.name} must require routes.read`,
+      );
+    }
   });
 });
 
 describe("route template tenant isolation", () => {
-  it("scopes listRouteTemplates reads by tenantId", async () => {
-    const queries: Array<{ where: { tenantId: string } }> = [];
+  it("scopes listRouteTemplates reads by tenantId and returns a paginated response, matching /routes", async () => {
+    const findManyQueries: Array<{
+      where: { tenantId: string };
+      skip: number;
+      take: number;
+    }> = [];
+    const countQueries: Array<{ where: { tenantId: string } }> = [];
     const prisma = {
       routeTemplate: {
-        findMany: async (query: { where: { tenantId: string } }) => {
-          queries.push(query);
-          return [];
+        findMany: async (query: {
+          where: { tenantId: string };
+          skip: number;
+          take: number;
+        }) => {
+          findManyQueries.push(query);
+          return [buildTemplate()];
+        },
+        count: async (query: { where: { tenantId: string } }) => {
+          countQueries.push(query);
+          return 1;
         },
       },
     };
     const service = new RouteTemplatesService(prisma as never, noopAudit as never);
 
-    await service.listRouteTemplates(representativeContext as never, {});
+    const response = await service.listRouteTemplates(
+      representativeContext as never,
+      { page: 2, pageSize: 10 },
+    );
 
-    assert.equal(queries.length, 1);
-    assert.equal(queries[0].where.tenantId, "tenant-a");
+    assert.equal(findManyQueries.length, 1);
+    assert.equal(findManyQueries[0].where.tenantId, "tenant-a");
+    // page 2 at pageSize 10 -> skip the first 10 rows.
+    assert.equal(findManyQueries[0].skip, 10);
+    assert.equal(findManyQueries[0].take, 10);
+    assert.equal(countQueries.length, 1);
+    assert.equal(response.items.length, 1);
+    assert.equal(response.items[0].id, "template-a");
+    assert.deepEqual(
+      { page: response.page, pageSize: response.pageSize, total: response.total, totalPages: response.totalPages },
+      { page: 2, pageSize: 10, total: 1, totalPages: 1 },
+    );
   });
 
   it("404s instead of leaking a template that belongs to another tenant", async () => {
@@ -366,6 +398,166 @@ describe("route template item sequence conflicts", () => {
       ),
       (error: unknown) => {
         assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN");
+        return true;
+      },
+    );
+  });
+});
+
+describe("get a single route template", () => {
+  it("returns the caller's own template by id", async () => {
+    const template = buildTemplate();
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    const response = await service.getRouteTemplate(
+      representativeContext as never,
+      "template-a",
+    );
+
+    assert.equal(response.id, "template-a");
+  });
+
+  it("forbids fetching another representative's template", async () => {
+    const prisma = {
+      routeTemplate: {
+        findFirst: async () => buildTemplate({ representativeUserId: "rep-b" }),
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.getRouteTemplate(representativeContext as never, "template-a"),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_SCOPE_FORBIDDEN");
+        return true;
+      },
+    );
+  });
+});
+
+describe("route template item reorder", () => {
+  it("swaps an item with its upward neighbor in one transaction", async () => {
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+        buildTemplateItem({ id: "item-3", sequence: 3 }),
+      ],
+    });
+    const updateCalls: Array<{ where: { id: string }; data: { sequence: number } }> = [];
+    let transactionCallCount = 0;
+    const prisma = {
+      routeTemplate: {
+        findFirst: async () => template,
+        findUniqueOrThrow: async () => template,
+      },
+      $transaction: async (
+        callback: (tx: {
+          routeTemplateItem: {
+            update: (args: {
+              where: { id: string };
+              data: { sequence: number };
+            }) => Promise<unknown>;
+          };
+        }) => Promise<unknown>,
+      ) => {
+        transactionCallCount += 1;
+        return callback({
+          routeTemplateItem: {
+            update: async (args) => {
+              updateCalls.push(args);
+              return {};
+            },
+          },
+        });
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await service.moveRouteTemplateItem(
+      representativeContext as never,
+      "template-a",
+      "item-2",
+      { direction: "up" },
+    );
+
+    // All three sequence updates run inside a single transaction.
+    assert.equal(transactionCallCount, 1);
+    assert.deepEqual(
+      updateCalls.map((call) => ({ id: call.where.id, sequence: call.data.sequence })),
+      [
+        { id: "item-2", sequence: 4 }, // bumped to a free temp slot first
+        { id: "item-1", sequence: 2 }, // neighbor takes the moved item's old slot
+        { id: "item-2", sequence: 1 }, // moved item settles into the neighbor's old slot
+      ],
+    );
+  });
+
+  it("is a no-op when the item is already at that edge of the list", async () => {
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+      ],
+    });
+    let transactionCalled = false;
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+      $transaction: async () => {
+        transactionCalled = true;
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    const response = await service.moveRouteTemplateItem(
+      representativeContext as never,
+      "template-a",
+      "item-1",
+      { direction: "up" },
+    );
+
+    assert.equal(transactionCalled, false);
+    assert.equal(response.id, "template-a");
+  });
+
+  it("rejects a direction other than up or down", async () => {
+    const service = new RouteTemplatesService({} as never, noopAudit as never);
+
+    await assert.rejects(
+      service.moveRouteTemplateItem(
+        representativeContext as never,
+        "template-a",
+        "item-1",
+        { direction: "sideways" },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_MOVE_INVALID");
+        return true;
+      },
+    );
+  });
+
+  it("404s when the item doesn't belong to the template", async () => {
+    const template = buildTemplate({
+      items: [buildTemplateItem({ id: "item-1", sequence: 1 })],
+    });
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.moveRouteTemplateItem(
+        representativeContext as never,
+        "template-a",
+        "item-does-not-exist",
+        { direction: "down" },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_NOT_FOUND");
         return true;
       },
     );

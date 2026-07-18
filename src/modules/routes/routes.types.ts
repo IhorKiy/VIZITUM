@@ -93,6 +93,8 @@ export type RouteTemplateResponse = {
 };
 
 export type ListRouteTemplatesQuery = {
+  page?: number;
+  pageSize?: number;
   representativeUserId?: string;
 };
 
@@ -113,6 +115,10 @@ export type CreateRouteTemplateItemRequestBody = {
 export type UpdateRouteTemplateItemRequestBody = {
   locationId?: unknown;
   sequence?: unknown;
+};
+
+export type MoveRouteTemplateItemRequestBody = {
+  direction?: unknown;
 };
 
 export type AssignRouteTemplateRequestBody = {

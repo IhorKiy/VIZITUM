@@ -862,11 +862,17 @@ export async function updateRouteItem(
 }
 
 export async function listRouteTemplates(
-  query = "",
-): Promise<ApiResult<RouteTemplate[]>> {
-  return apiGet<RouteTemplate[]>(
+  query = "pageSize=100",
+): Promise<ApiResult<PaginatedResponse<RouteTemplate>>> {
+  return apiGet<PaginatedResponse<RouteTemplate>>(
     `/routes/templates${query ? `?${query}` : ""}`,
   );
+}
+
+export async function getRouteTemplate(
+  templateId: string,
+): Promise<ApiResult<RouteTemplate>> {
+  return apiGet<RouteTemplate>(`/routes/templates/${templateId}`);
 }
 
 export async function createRouteTemplate(input: {
@@ -904,6 +910,17 @@ export async function updateRouteTemplateItem(
   return apiPatch<RouteTemplate>(
     `/routes/templates/${templateId}/items/${itemId}`,
     input,
+  );
+}
+
+export async function moveRouteTemplateItem(
+  templateId: string,
+  itemId: string,
+  direction: "up" | "down",
+): Promise<ApiResult<RouteTemplate>> {
+  return apiPost<RouteTemplate>(
+    `/routes/templates/${templateId}/items/${itemId}/move`,
+    { direction },
   );
 }
 

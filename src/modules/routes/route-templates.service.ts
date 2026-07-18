@@ -6,6 +6,11 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 
+import {
+  createPaginatedResponse,
+  type PaginatedResponse,
+  resolvePagination,
+} from "../../common/pagination";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
@@ -29,6 +34,7 @@ import type {
   CreateRouteTemplateItemRequestBody,
   CreateRouteTemplateRequestBody,
   ListRouteTemplatesQuery,
+  MoveRouteTemplateItemRequestBody,
   RoutePlanResponse,
   RouteTemplateResponse,
   UpdateRouteTemplateItemRequestBody,
@@ -49,7 +55,7 @@ export class RouteTemplatesService {
   async listRouteTemplates(
     context: RequestContext,
     query: ListRouteTemplatesQuery,
-  ): Promise<RouteTemplateResponse[]> {
+  ): Promise<PaginatedResponse<RouteTemplateResponse>> {
     const requestedRepresentativeId = normalizeId(query.representativeUserId);
     const representativeFilter = context.permissions.includes(
       PERMISSIONS.ROUTES_MANAGE_TEAM,
@@ -61,16 +67,36 @@ export class RouteTemplatesService {
       throwAuthenticationContextMissing();
     }
 
-    const templates = await this.prisma.routeTemplate.findMany({
-      where: {
-        tenantId: context.tenantId,
-        representativeUserId: representativeFilter,
-      },
-      include: routeTemplateInclude,
-      orderBy: { createdAt: "desc" },
-    });
+    const pagination = resolvePagination(query);
+    const where = {
+      tenantId: context.tenantId,
+      representativeUserId: representativeFilter,
+    };
+    const [templates, total] = await Promise.all([
+      this.prisma.routeTemplate.findMany({
+        where,
+        include: routeTemplateInclude,
+        orderBy: { createdAt: "desc" },
+        skip: pagination.skip,
+        take: pagination.take,
+      }),
+      this.prisma.routeTemplate.count({ where }),
+    ]);
 
-    return templates.map(toRouteTemplateResponse);
+    return createPaginatedResponse(
+      templates.map(toRouteTemplateResponse),
+      pagination,
+      total,
+    );
+  }
+
+  async getRouteTemplate(
+    context: RequestContext,
+    templateId: string,
+  ): Promise<RouteTemplateResponse> {
+    const template = await this.findTenantRouteTemplate(context, templateId);
+
+    return toRouteTemplateResponse(template);
   }
 
   async createRouteTemplate(
@@ -223,6 +249,65 @@ export class RouteTemplatesService {
     } catch (error) {
       throw toSequenceConflictOrRethrow(error);
     }
+
+    return this.getRouteTemplateResponse(template.id);
+  }
+
+  // Swaps an item with its neighbor above/below. All three sequence updates
+  // run in one transaction: a mid-swap failure rolls the whole thing back
+  // instead of leaving the item stranded at the temporary sequence (the
+  // frontend used to orchestrate this as three separate PATCH requests).
+  async moveRouteTemplateItem(
+    context: RequestContext,
+    templateId: string,
+    itemId: string,
+    body: MoveRouteTemplateItemRequestBody,
+  ): Promise<RouteTemplateResponse> {
+    const direction = normalizeDirection(body.direction);
+
+    if (!direction) {
+      throw new BadRequestException({
+        code: "ROUTE_TEMPLATE_ITEM_MOVE_INVALID",
+        message: 'Direction must be "up" or "down".',
+      });
+    }
+
+    const template = await this.findTenantRouteTemplate(context, templateId);
+    const items = [...template.items].sort((a, b) => a.sequence - b.sequence);
+    const index = items.findIndex((item) => item.id === itemId);
+
+    if (index < 0) {
+      throw new NotFoundException({
+        code: "ROUTE_TEMPLATE_ITEM_NOT_FOUND",
+        message: "Route template stop was not found.",
+      });
+    }
+
+    const otherIndex = direction === "up" ? index - 1 : index + 1;
+
+    if (otherIndex < 0 || otherIndex >= items.length) {
+      // Already at that edge of the list — nothing to swap with.
+      return toRouteTemplateResponse(template);
+    }
+
+    const item = items[index];
+    const other = items[otherIndex];
+    const tempSequence = Math.max(...items.map((row) => row.sequence)) + 1;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.routeTemplateItem.update({
+        where: { id: item.id },
+        data: { sequence: tempSequence },
+      });
+      await tx.routeTemplateItem.update({
+        where: { id: other.id },
+        data: { sequence: item.sequence },
+      });
+      await tx.routeTemplateItem.update({
+        where: { id: item.id },
+        data: { sequence: other.sequence },
+      });
+    });
 
     return this.getRouteTemplateResponse(template.id);
   }
@@ -564,6 +649,10 @@ function normalizeTemplateName(value: unknown): string | null {
   const normalizedValue = value.trim();
 
   return normalizedValue || null;
+}
+
+function normalizeDirection(value: unknown): "up" | "down" | null {
+  return value === "up" || value === "down" ? value : null;
 }
 
 function normalizeMonth(value: unknown): string | null {
