@@ -178,7 +178,8 @@ export default async function ManagerLocationsPage({
   const locations = locationsResult.data.items;
   const locationOptionsSource =
     allLocations.length > 0 ? allLocations : locations;
-  const locationCategoriesEnabled = sessionResult.data.locationCategoriesEnabled;
+  const locationCategoriesEnabled =
+    sessionResult.data.locationCategoriesEnabled;
   const visits = visitsResult.ok ? visitsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
   const activityByLocation = buildLocationActivity(visits, tasks);

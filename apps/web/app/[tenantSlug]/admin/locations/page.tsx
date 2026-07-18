@@ -656,7 +656,9 @@ export default async function AdminLocationsPage({
         <CategoriesAccordion
           categories={categories}
           createAction={createLocationCategoryAction}
-          defaultOpen={Boolean(pageState.locCatCreated || pageState.locCatError)}
+          defaultOpen={Boolean(
+            pageState.locCatCreated || pageState.locCatError,
+          )}
           deleteAction={deleteLocationCategoryAction}
           namespace="admin.locations"
           updateAction={updateLocationCategoryAction}

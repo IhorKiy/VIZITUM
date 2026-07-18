@@ -118,7 +118,8 @@ export default async function GeneralPage({
   const locations = locationsResult.ok ? locationsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
   const products = productsResult.ok ? productsResult.data.items : [];
-  const locationCategoriesEnabled = sessionResult.data.locationCategoriesEnabled;
+  const locationCategoriesEnabled =
+    sessionResult.data.locationCategoriesEnabled;
 
   const routeStops = routes.flatMap((plan) =>
     plan.items.filter((item) => item.status !== "skipped"),

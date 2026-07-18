@@ -414,36 +414,40 @@ export class AuthService {
       throwAuthenticationRequired();
     }
 
-    const [user, productsEnabledSetting, locationCategoriesEnabledSetting, tenant] =
-      await Promise.all([
-        this.prisma.user.findFirst({
-          where: {
-            id: session.userId,
+    const [
+      user,
+      productsEnabledSetting,
+      locationCategoriesEnabledSetting,
+      tenant,
+    ] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: {
+          id: session.userId,
+          tenantId: session.tenantId,
+        },
+        include: { roles: true },
+      }),
+      this.prisma.tenantSetting.findUnique({
+        where: {
+          tenantId_key: {
             tenantId: session.tenantId,
+            key: PRODUCTS_ENABLED_SETTING_KEY,
           },
-          include: { roles: true },
-        }),
-        this.prisma.tenantSetting.findUnique({
-          where: {
-            tenantId_key: {
-              tenantId: session.tenantId,
-              key: PRODUCTS_ENABLED_SETTING_KEY,
-            },
+        },
+      }),
+      this.prisma.tenantSetting.findUnique({
+        where: {
+          tenantId_key: {
+            tenantId: session.tenantId,
+            key: LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
           },
-        }),
-        this.prisma.tenantSetting.findUnique({
-          where: {
-            tenantId_key: {
-              tenantId: session.tenantId,
-              key: LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
-            },
-          },
-        }),
-        this.prisma.platformTenant.findUnique({
-          where: { id: session.tenantId },
-          select: { timezone: true, status: true },
-        }),
-      ]);
+        },
+      }),
+      this.prisma.platformTenant.findUnique({
+        where: { id: session.tenantId },
+        select: { timezone: true, status: true },
+      }),
+    ]);
 
     if (!user || user.status !== "active") {
       throwAuthenticationRequired();
