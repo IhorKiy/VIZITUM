@@ -433,6 +433,7 @@ textarea {
 
 .manager-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 16px;
 }
 
 .import-grid {
@@ -3907,19 +3908,23 @@ textarea {
   border-color: transparent;
 }
 
-.calendar-cell.today .calendar-day-number {
-  color: var(--accent);
-  font-weight: 800;
-}
-
 .calendar-cell.selected {
-  background: var(--accent);
+  background: var(--accent-soft);
   border-color: var(--accent);
-  color: #f7fbf8;
 }
 
-.calendar-cell.selected .calendar-day-number {
+/* Today gets its own filled badge so it stays legible as "today" even when a
+   different day is also selected — the two states must not collapse into one. */
+.calendar-cell.today .calendar-day-number {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 999px;
   color: #f7fbf8;
+  display: flex;
+  font-weight: 800;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
 }
 
 .calendar-day-number {
@@ -3934,8 +3939,135 @@ textarea {
   width: 5px;
 }
 
-.calendar-cell.selected .calendar-dot {
-  background: #f7fbf8;
+/* Field planning: "Мої маршрути" two-tab surface (route builder + calendar
+   assignment) — apps/web/app/[tenantSlug]/field/planning/page.tsx. */
+
+.tab-switcher {
+  background: var(--surface-muted);
+  border-radius: 12px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 4px;
+}
+
+.tab-switcher-link {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--muted);
+  display: flex;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px 12px;
+}
+
+.tab-switcher-link.is-active {
+  background: var(--surface);
+  border-color: var(--blue);
+  box-shadow: 0 1px 3px rgba(22, 30, 26, 0.1);
+  color: var(--ink);
+}
+
+/* Full-width dashed CTA: "copy last month's routes" and "assign a route to
+   this day" both defer to a picker/confirmation rather than acting instantly,
+   so they read as an invitation to open something, not a committed action. */
+.dashed-action-button {
+  align-items: center;
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--accent);
+  display: flex;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+  padding: 14px 16px;
+  text-align: center;
+  width: 100%;
+}
+
+.dashed-action-button:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.dashed-action-button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.route-card-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.route-card {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: inherit;
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  text-decoration: none;
+}
+
+a.route-card:hover {
+  border-color: var(--accent);
+}
+
+.route-card-icon {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  color: var(--accent);
+  display: flex;
+  flex-shrink: 0;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.route-card-body {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.route-card-body h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.route-card-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 4px;
+}
+
+a.metric-card {
+  color: inherit;
+  text-decoration: none;
+}
+
+a.metric-card:hover {
+  border-color: var(--accent);
+}
+
+.metric-card-chevron {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
 }
 
 /* Tenant branding settings (admin/settings): color-scheme picker + logo. */

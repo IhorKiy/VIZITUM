@@ -30,6 +30,8 @@ export type RoutePlanResponse = {
   status: RouteStatus;
   publishedAt: string | null;
   createdByUserId: string | null;
+  routeTemplateId: string | null;
+  routeTemplate: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
   items: RouteItemResponse[];
@@ -66,3 +68,68 @@ export type UpdateRouteItemRequestBody = Partial<
     skipReason?: unknown;
   }
 >;
+
+export type RouteTemplateItemResponse = {
+  id: string;
+  locationId: string;
+  location: {
+    id: string;
+    name: string;
+    addressLine: string;
+    city: string;
+  };
+  sequence: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RouteTemplateResponse = {
+  id: string;
+  representativeUserId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  items: RouteTemplateItemResponse[];
+};
+
+export type ListRouteTemplatesQuery = {
+  page?: number;
+  pageSize?: number;
+  representativeUserId?: string;
+};
+
+export type CreateRouteTemplateRequestBody = {
+  representativeUserId?: unknown;
+  name?: unknown;
+};
+
+export type UpdateRouteTemplateRequestBody = {
+  name?: unknown;
+};
+
+export type CreateRouteTemplateItemRequestBody = {
+  locationId?: unknown;
+  sequence?: unknown;
+};
+
+export type UpdateRouteTemplateItemRequestBody = {
+  locationId?: unknown;
+  sequence?: unknown;
+};
+
+export type MoveRouteTemplateItemRequestBody = {
+  direction?: unknown;
+};
+
+export type AssignRouteTemplateRequestBody = {
+  planDate?: unknown;
+};
+
+export type CopyRouteTemplatePlansRequestBody = {
+  month?: unknown;
+};
+
+export type CopyRouteTemplatePlansResponse = {
+  createdCount: number;
+  skippedCount: number;
+};

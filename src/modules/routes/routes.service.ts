@@ -1,6 +1,6 @@
 import {
   BadRequestException,
-  ForbiddenException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -16,9 +16,21 @@ import {
   type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  assertCanManageRouteForRepresentative,
+  assertFieldRepresentative,
+  assertTenantLocation,
+  throwAuthenticationContextMissing,
+} from "./route-access";
+import {
+  normalizeId,
+  normalizePositiveInteger,
+  parseDateOnly,
+} from "./route-parsing";
 import type {
   CreateRouteItemRequestBody,
   CreateRoutePlanRequestBody,
@@ -28,9 +40,10 @@ import type {
   UpdateRoutePlanRequestBody,
 } from "./routes.types";
 
-type RoutePlanWithRelations = Prisma.RoutePlanGetPayload<{
+export type RoutePlanWithRelations = Prisma.RoutePlanGetPayload<{
   include: {
     representative: true;
+    routeTemplate: true;
     items: {
       include: {
         location: true;
@@ -41,7 +54,10 @@ type RoutePlanWithRelations = Prisma.RoutePlanGetPayload<{
 
 @Injectable()
 export class RoutesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async getTodayRoutes(context: RequestContext): Promise<RoutePlanResponse[]> {
     const today = parseRequiredDateOnly(new Date().toISOString().slice(0, 10));
@@ -114,8 +130,9 @@ export class RoutesService {
       });
     }
 
-    this.assertCanManageRouteForRepresentative(context, representativeUserId);
-    await this.assertFieldRepresentative(
+    assertCanManageRouteForRepresentative(context, representativeUserId);
+    await assertFieldRepresentative(
+      this.prisma,
       context.tenantId,
       representativeUserId,
     );
@@ -162,6 +179,44 @@ export class RoutesService {
     return toRoutePlanResponse(updatedPlan);
   }
 
+  // Draft-only: a plan that's been published/started/completed represents
+  // real field work (visits may already reference its items), so it can't be
+  // pulled out from under a representative this way. Draft is exactly the
+  // pre-execution window — freshly template-assigned plans start there and
+  // stay there until the representative (or a manager) publishes them.
+  async deleteRoutePlan(
+    context: RequestContext,
+    routePlanId: string,
+  ): Promise<{ deleted: true }> {
+    const plan = await this.findTenantRoutePlan(context, routePlanId);
+
+    if (plan.status !== "draft") {
+      throw new ConflictException({
+        code: "ROUTE_PLAN_NOT_REMOVABLE",
+        message: "Only a draft route plan can be removed.",
+      });
+    }
+
+    // One transaction with the audit event: a delete must never exist
+    // without its `route_plan.deleted` trail, nor a trail without the delete
+    // (mirrors TasksService.deleteTask).
+    await this.prisma.$transaction(async (tx) => {
+      await tx.routePlan.delete({ where: { id: plan.id } });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "route_plan",
+          entityId: plan.id,
+          eventType: "route_plan.deleted",
+        },
+        tx,
+      );
+    });
+
+    return { deleted: true };
+  }
+
   async createRouteItem(
     context: RequestContext,
     routePlanId: string,
@@ -178,7 +233,7 @@ export class RoutesService {
       });
     }
 
-    await this.assertTenantLocation(context.tenantId, locationId);
+    await assertTenantLocation(this.prisma, context.tenantId, locationId);
 
     await this.prisma.routeItem.create({
       data: {
@@ -211,7 +266,7 @@ export class RoutesService {
     const status = normalizeRouteItemStatus(body.status);
 
     if (locationId) {
-      await this.assertTenantLocation(context.tenantId, locationId);
+      await assertTenantLocation(this.prisma, context.tenantId, locationId);
     }
 
     await this.prisma.routeItem.update({
@@ -253,10 +308,7 @@ export class RoutesService {
       });
     }
 
-    this.assertCanManageRouteForRepresentative(
-      context,
-      plan.representativeUserId,
-    );
+    assertCanManageRouteForRepresentative(context, plan.representativeUserId);
 
     return plan;
   }
@@ -270,76 +322,6 @@ export class RoutesService {
     });
 
     return toRoutePlanResponse(plan);
-  }
-
-  private assertCanManageRouteForRepresentative(
-    context: RequestContext,
-    representativeUserId: string,
-  ): void {
-    if (context.permissions.includes(PERMISSIONS.ROUTES_MANAGE_TEAM)) {
-      return;
-    }
-
-    if (
-      context.permissions.includes(PERMISSIONS.ROUTES_MANAGE_OWN) &&
-      context.userId === representativeUserId
-    ) {
-      return;
-    }
-
-    throw new ForbiddenException({
-      code: "ROUTE_SCOPE_FORBIDDEN",
-      message: "You cannot manage this representative route.",
-    });
-  }
-
-  private async assertFieldRepresentative(
-    tenantId: string,
-    userId: string,
-  ): Promise<void> {
-    const representative = await this.prisma.user.findFirst({
-      where: {
-        id: userId,
-        tenantId,
-        deletedAt: null,
-        status: "active",
-        roles: {
-          some: {
-            tenantId,
-            roleCode: "field_representative",
-          },
-        },
-      },
-      select: { id: true },
-    });
-
-    if (!representative) {
-      throw new BadRequestException({
-        code: "REPRESENTATIVE_INVALID",
-        message: "Representative must be an active field representative.",
-      });
-    }
-  }
-
-  private async assertTenantLocation(
-    tenantId: string,
-    locationId: string,
-  ): Promise<void> {
-    const location = await this.prisma.location.findFirst({
-      where: {
-        id: locationId,
-        tenantId,
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-
-    if (!location) {
-      throw new BadRequestException({
-        code: "LOCATION_INVALID",
-        message: "Location must exist in this tenant.",
-      });
-    }
   }
 
   private async findTenantRouteItem(
@@ -366,8 +348,9 @@ export class RoutesService {
   }
 }
 
-const routePlanInclude = {
+export const routePlanInclude = {
   representative: true,
+  routeTemplate: true,
   items: {
     include: {
       location: true,
@@ -399,24 +382,6 @@ function buildRoutePlanWhere(
       : {}),
     ...(query.status ? { status: query.status } : {}),
   };
-}
-
-function normalizeId(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalizedValue = value.trim();
-
-  return normalizedValue || null;
-}
-
-function normalizePositiveInteger(value: unknown): number | null {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
-    return null;
-  }
-
-  return value;
 }
 
 function normalizeOptionalString(value: unknown): string | null {
@@ -453,14 +418,6 @@ function normalizeRouteItemStatus(value: unknown): RouteItemStatus | null {
   }
 
   return null;
-}
-
-function parseDateOnly(value: unknown): Date | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-
-  return new Date(`${value}T00:00:00.000Z`);
 }
 
 function parseRequiredDateOnly(value: unknown): Date {
@@ -500,7 +457,9 @@ function parseOptionalDateTime(value: unknown): Date | null {
   return date;
 }
 
-function toRoutePlanResponse(plan: RoutePlanWithRelations): RoutePlanResponse {
+export function toRoutePlanResponse(
+  plan: RoutePlanWithRelations,
+): RoutePlanResponse {
   return {
     id: plan.id,
     representativeUserId: plan.representativeUserId,
@@ -513,6 +472,10 @@ function toRoutePlanResponse(plan: RoutePlanWithRelations): RoutePlanResponse {
     status: plan.status,
     publishedAt: plan.publishedAt?.toISOString() ?? null,
     createdByUserId: plan.createdByUserId,
+    routeTemplateId: plan.routeTemplateId,
+    routeTemplate: plan.routeTemplate
+      ? { id: plan.routeTemplate.id, name: plan.routeTemplate.name }
+      : null,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
     items: plan.items.map((item) => ({
@@ -533,11 +496,4 @@ function toRoutePlanResponse(plan: RoutePlanWithRelations): RoutePlanResponse {
       updatedAt: item.updatedAt.toISOString(),
     })),
   };
-}
-
-function throwAuthenticationContextMissing(): never {
-  throw new ForbiddenException({
-    code: "AUTHENTICATION_CONTEXT_MISSING",
-    message: "Authentication context is missing.",
-  });
 }

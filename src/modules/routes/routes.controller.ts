@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -76,6 +77,21 @@ export class RoutesController {
       getRequestContext(request),
       routePlanId,
       body,
+    );
+  }
+
+  @Delete(":routePlanId")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  deleteRoutePlan(
+    @Req() request: Request,
+    @Param("routePlanId") routePlanId: string,
+  ) {
+    return this.routesService.deleteRoutePlan(
+      getRequestContext(request),
+      routePlanId,
     );
   }
 

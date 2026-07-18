@@ -168,6 +168,8 @@ export type RoutePlan = {
   status: RouteStatus;
   publishedAt: string | null;
   createdByUserId: string | null;
+  routeTemplateId: string | null;
+  routeTemplate: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
   items: Array<{
@@ -184,6 +186,27 @@ export type RoutePlan = {
     plannedStartTime: string | null;
     plannedEndTime: string | null;
     skipReason: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+};
+
+export type RouteTemplate = {
+  id: string;
+  representativeUserId: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  items: Array<{
+    id: string;
+    locationId: string;
+    location: {
+      id: string;
+      name: string;
+      addressLine: string;
+      city: string;
+    };
+    sequence: number;
     createdAt: string;
     updatedAt: string;
   }>;
@@ -814,6 +837,12 @@ export async function createRoutePlan(input: {
   return apiPost<RoutePlan>("/routes", input);
 }
 
+export async function deleteRoutePlan(
+  routePlanId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(`/routes/${routePlanId}`);
+}
+
 export async function addRouteItem(
   routePlanId: string,
   input: { locationId: string; sequence: number },
@@ -828,6 +857,94 @@ export async function updateRouteItem(
 ): Promise<ApiResult<RoutePlan>> {
   return apiPatch<RoutePlan>(
     `/routes/${routePlanId}/items/${routeItemId}`,
+    input,
+  );
+}
+
+export async function listRouteTemplates(
+  query = "pageSize=100",
+): Promise<ApiResult<PaginatedResponse<RouteTemplate>>> {
+  return apiGet<PaginatedResponse<RouteTemplate>>(
+    `/routes/templates${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function getRouteTemplate(
+  templateId: string,
+): Promise<ApiResult<RouteTemplate>> {
+  return apiGet<RouteTemplate>(`/routes/templates/${templateId}`);
+}
+
+export async function createRouteTemplate(input: {
+  representativeUserId: string;
+  name: string;
+}): Promise<ApiResult<RouteTemplate>> {
+  return apiPost<RouteTemplate>("/routes/templates", input);
+}
+
+export async function updateRouteTemplate(
+  templateId: string,
+  input: { name: string },
+): Promise<ApiResult<RouteTemplate>> {
+  return apiPatch<RouteTemplate>(`/routes/templates/${templateId}`, input);
+}
+
+export async function deleteRouteTemplate(
+  templateId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(`/routes/templates/${templateId}`);
+}
+
+export async function addRouteTemplateItem(
+  templateId: string,
+  input: { locationId: string; sequence: number },
+): Promise<ApiResult<RouteTemplate>> {
+  return apiPost<RouteTemplate>(`/routes/templates/${templateId}/items`, input);
+}
+
+export async function updateRouteTemplateItem(
+  templateId: string,
+  itemId: string,
+  input: { locationId?: string; sequence?: number },
+): Promise<ApiResult<RouteTemplate>> {
+  return apiPatch<RouteTemplate>(
+    `/routes/templates/${templateId}/items/${itemId}`,
+    input,
+  );
+}
+
+export async function moveRouteTemplateItem(
+  templateId: string,
+  itemId: string,
+  direction: "up" | "down",
+): Promise<ApiResult<RouteTemplate>> {
+  return apiPost<RouteTemplate>(
+    `/routes/templates/${templateId}/items/${itemId}/move`,
+    { direction },
+  );
+}
+
+export async function deleteRouteTemplateItem(
+  templateId: string,
+  itemId: string,
+): Promise<ApiResult<RouteTemplate>> {
+  return apiDelete<RouteTemplate>(
+    `/routes/templates/${templateId}/items/${itemId}`,
+  );
+}
+
+export async function assignRouteTemplate(
+  templateId: string,
+  input: { planDate: string },
+): Promise<ApiResult<RoutePlan>> {
+  return apiPost<RoutePlan>(`/routes/templates/${templateId}/assign`, input);
+}
+
+export async function copyRoutePlansFromLastMonth(input: {
+  month: string;
+}): Promise<ApiResult<{ createdCount: number; skippedCount: number }>> {
+  return apiPost<{ createdCount: number; skippedCount: number }>(
+    "/routes/templates/copy-month",
     input,
   );
 }
