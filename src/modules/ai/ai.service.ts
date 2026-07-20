@@ -9,7 +9,9 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import {
+  extractTasksToCreate,
   findReportCreatedTasks,
+  isRecord,
   toReportResponse,
 } from "../visits/report-response.util";
 import { JsonLogger } from "../../common/json-logger.service";
@@ -26,10 +28,21 @@ import type {
   AiJobResponse,
   ConfirmAiDraftResponse,
   ExtractionInput,
+  FieldReportProductCatalogEntry,
+  TranscribeFieldReportResult,
   TranscriptionAudioInput,
 } from "./ai.types";
+import {
+  emptyFieldReportExtractedData,
+  FIELD_REPORT_EXTRACTION_SCHEMA,
+  FIELD_REPORT_EXTRACTION_SCHEMA_NAME,
+  FIELD_REPORT_EXTRACTION_SYSTEM_PROMPT,
+  normalizeFieldReportExtraction,
+} from "./field-report-extraction.schema";
 import { OpenAiExtractionClient } from "./openai-extraction.client";
 import { OpenAiTranscriptionClient } from "./openai-transcription.client";
+
+const MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE = 300;
 
 const AI_TEMPORARY_DATA_TTL_HOURS = 24;
 const OPENAI_PROVIDER = "openai";
@@ -620,6 +633,108 @@ export class AiService {
     };
   }
 
+  // Synchronous voice-to-form flow for the field visit-report screen: unlike
+  // the transcription-jobs/extraction-jobs pair above, this never persists an
+  // AiJob row — it transcribes and extracts in one request and returns the
+  // draft straight to the client to prefill the form. Manual report
+  // confirmation (reports/confirm) must keep working even when this fails or
+  // OPENAI_API_KEY is absent, so every failure degrades to an empty draft
+  // instead of throwing.
+  async transcribeFieldReport(
+    context: RequestContext,
+    visitId: string,
+    input: {
+      audioBase64: string;
+      mimeType: string | null;
+      products: FieldReportProductCatalogEntry[];
+    },
+  ): Promise<TranscribeFieldReportResult> {
+    const visit = await this.prisma.visit.findFirst({
+      where: { id: visitId, tenantId: context.tenantId },
+      select: { id: true, representativeUserId: true },
+    });
+
+    if (!visit) {
+      throw new NotFoundException({
+        code: "VISIT_NOT_FOUND",
+        message: "Visit was not found.",
+      });
+    }
+
+    if (
+      !context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) ||
+      !context.permissions.includes(PERMISSIONS.AI_USE_REPORTING) ||
+      context.userId !== visit.representativeUserId
+    ) {
+      throw new BadRequestException({
+        code: "AI_VISIT_SCOPE_INVALID",
+        message: "Field report transcription can only run for own visits.",
+      });
+    }
+
+    let transcript: string;
+
+    try {
+      const audioData = Buffer.from(input.audioBase64, "base64");
+      const transcription = await this.transcriptionClient.transcribe(
+        {
+          fileName: "recording.webm",
+          contentType: input.mimeType || "audio/webm",
+          data: new Uint8Array(audioData),
+        },
+        getTranscriptionModel(),
+      );
+      transcript = transcription.text;
+    } catch (error) {
+      this.logger.log({
+        message: "Field report transcription failed",
+        tenantId: context.tenantId,
+        visitId,
+        requestId: context.requestId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return { transcript: "", extractedData: emptyFieldReportExtractedData() };
+    }
+
+    if (!transcript.trim()) {
+      return { transcript, extractedData: emptyFieldReportExtractedData() };
+    }
+
+    try {
+      const extraction = await this.extractionClient.extract(
+        {
+          transcript,
+          schemaName: FIELD_REPORT_EXTRACTION_SCHEMA_NAME,
+          schema: FIELD_REPORT_EXTRACTION_SCHEMA,
+          systemPrompt: FIELD_REPORT_EXTRACTION_SYSTEM_PROMPT,
+          extraContext: {
+            productCatalog: input.products.slice(
+              0,
+              MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE,
+            ),
+          },
+        },
+        getExtractionModel(),
+      );
+
+      return {
+        transcript,
+        extractedData: normalizeFieldReportExtraction(extraction.draft),
+      };
+    } catch (error) {
+      this.logger.log({
+        message: "Field report extraction failed",
+        tenantId: context.tenantId,
+        visitId,
+        requestId: context.requestId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return { transcript, extractedData: emptyFieldReportExtractedData() };
+    }
+  }
+
   async cleanupExpiredFailedAiJobs(now = new Date()): Promise<AiCleanupResult> {
     const failedJobs = await this.prisma.aiJob.findMany({
       where: {
@@ -807,57 +922,12 @@ function buildExtractionInput(
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function normalizeJsonObject(value: unknown): Prisma.InputJsonObject | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
 
   return value;
-}
-
-type AiDraftTask = {
-  title: string;
-  description: string | null;
-  priority: "low" | "normal" | "high";
-  assignee: "representative" | "manager" | "unassigned";
-  dueDate: Date | null;
-};
-
-function extractTasksToCreate(
-  confirmedData: Prisma.InputJsonObject,
-): AiDraftTask[] {
-  const tasks = confirmedData.tasksToCreate;
-
-  if (!Array.isArray(tasks)) {
-    return [];
-  }
-
-  return tasks.flatMap((task): AiDraftTask[] => {
-    if (
-      !isRecord(task) ||
-      typeof task.title !== "string" ||
-      !task.title.trim()
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        title: task.title.trim(),
-        description:
-          typeof task.description === "string" && task.description.trim()
-            ? task.description.trim()
-            : null,
-        priority: parseTaskPriority(task.priority),
-        assignee: parseTaskAssignee(task.assignee),
-        dueDate: parseDateOnly(task.dueDate),
-      },
-    ];
-  });
 }
 
 async function cleanupTemporaryAiDataAfterConfirmation(
@@ -917,38 +987,6 @@ async function cleanupTemporaryAiDataAfterConfirmation(
       expiresAt: input.confirmedAt,
     },
   });
-}
-
-function parseTaskPriority(value: unknown): "low" | "normal" | "high" {
-  if (value === "low" || value === "normal" || value === "high") {
-    return value;
-  }
-
-  return "normal";
-}
-
-function parseTaskAssignee(
-  value: unknown,
-): "representative" | "manager" | "unassigned" {
-  if (
-    value === "representative" ||
-    value === "manager" ||
-    value === "unassigned"
-  ) {
-    return value;
-  }
-
-  return "unassigned";
-}
-
-function parseDateOnly(value: unknown): Date | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-
-  const date = new Date(`${value}T00:00:00.000Z`);
-
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function toAiJobResponse(job: AiJob): AiJobResponse {

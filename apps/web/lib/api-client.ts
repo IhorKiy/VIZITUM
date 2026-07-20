@@ -489,6 +489,45 @@ export type Report = {
   createdTasks: ReportCreatedTask[];
 };
 
+// Structured draft returned by the field report voice capture endpoint
+// (POST /visits/:visitId/ai/field-report-transcriptions). Every field is
+// nullable/empty when nothing was said or recognized — the form only
+// prefills fields it actually got a value for.
+export type FieldReportProductUpdateDraft = {
+  productName: string | null;
+  productCode: string | null;
+  status: "in_stock" | "out_of_stock" | "to_order" | "not_relevant" | null;
+  stock: number | null;
+  order: number | null;
+  sale: number | null;
+  comment: string | null;
+};
+
+export type FieldReportExtractedTasks = {
+  dueDate: string | null;
+  assortment: string | null;
+  merchandising: string | null;
+  recommendation: string | null;
+  special: string | null;
+  note: string | null;
+};
+
+export type FieldReportExtractedData = {
+  outcome: "positive" | "neutral" | "negative" | null;
+  visitDate: string | null;
+  productsPresented: string[];
+  stockStatus: "in_stock" | "low_stock" | "out_of_stock" | null;
+  notes: string | null;
+  nextAction: string | null;
+  productUpdates: FieldReportProductUpdateDraft[];
+  tasks: FieldReportExtractedTasks;
+};
+
+export type TranscribeFieldReportResult = {
+  transcript: string;
+  extractedData: FieldReportExtractedData;
+};
+
 export type VisitNote = {
   id: string;
   visitId: string;
@@ -1380,6 +1419,35 @@ export async function confirmManualReport(
 ): Promise<ApiResult<Report>> {
   return apiPost<Report>(`/visits/${visitId}/reports/confirm`, {
     schemaVersion: "manual.v1",
+    confirmedData,
+  });
+}
+
+export async function transcribeFieldVisitReport(
+  visitId: string,
+  input: {
+    audioBase64: string;
+    mimeType: string;
+    products: Array<{
+      id: string;
+      name: string;
+      sku: string | null;
+      category: string | null;
+    }>;
+  },
+): Promise<ApiResult<TranscribeFieldReportResult>> {
+  return apiPost<TranscribeFieldReportResult>(
+    `/visits/${visitId}/ai/field-report-transcriptions`,
+    input,
+  );
+}
+
+export async function confirmFieldVisitReport(
+  visitId: string,
+  confirmedData: Record<string, unknown>,
+): Promise<ApiResult<Report>> {
+  return apiPost<Report>(`/visits/${visitId}/reports/confirm`, {
+    schemaVersion: "field-report.v1",
     confirmedData,
   });
 }

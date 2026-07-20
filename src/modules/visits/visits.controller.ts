@@ -18,6 +18,8 @@ import type {
   ConfirmAiDraftRequestBody,
   CreateExtractionJobRequestBody,
   CreateTranscriptionJobRequestBody,
+  FieldReportProductCatalogEntry,
+  TranscribeFieldReportRequestBody,
 } from "../ai/ai.types";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
@@ -183,6 +185,27 @@ export class VisitsController {
     );
   }
 
+  @Post(":visitId/ai/field-report-transcriptions")
+  @RequirePermissions(
+    PERMISSIONS.VISITS_UPDATE_OWN,
+    PERMISSIONS.AI_USE_REPORTING,
+  )
+  transcribeFieldReport(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: TranscribeFieldReportRequestBody,
+  ) {
+    return this.aiService.transcribeFieldReport(
+      getRequestContext(request),
+      visitId,
+      {
+        audioBase64: parseRequiredBodyString(body.audioBase64, "audioBase64"),
+        mimeType: typeof body.mimeType === "string" ? body.mimeType : null,
+        products: parseProductCatalog(body.products),
+      },
+    );
+  }
+
   @Post(":visitId/reports/confirm")
   @RequirePermissions(PERMISSIONS.REPORTS_CONFIRM_OWN)
   confirmReport(
@@ -235,6 +258,34 @@ function normalizeQueryString(value: string | undefined): string | undefined {
   const normalizedValue = value?.trim();
 
   return normalizedValue || undefined;
+}
+
+function parseProductCatalog(value: unknown): FieldReportProductCatalogEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item): FieldReportProductCatalogEntry[] => {
+    if (
+      !item ||
+      typeof item !== "object" ||
+      typeof (item as Record<string, unknown>).id !== "string" ||
+      typeof (item as Record<string, unknown>).name !== "string"
+    ) {
+      return [];
+    }
+
+    const row = item as Record<string, unknown>;
+
+    return [
+      {
+        id: row.id as string,
+        name: row.name as string,
+        sku: typeof row.sku === "string" ? row.sku : null,
+        category: typeof row.category === "string" ? row.category : null,
+      },
+    ];
+  });
 }
 
 function parseRequiredBodyString(value: unknown, fieldName: string): string {

@@ -1,4 +1,9 @@
-import type { PrismaClient, TaskPriority, TaskStatus } from "@prisma/client";
+import type {
+  Prisma,
+  PrismaClient,
+  TaskPriority,
+  TaskStatus,
+} from "@prisma/client";
 
 import type { ReportResponse } from "./visits.types";
 
@@ -70,4 +75,85 @@ export function toReportResponse(
       dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : null,
     })),
   };
+}
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export type ReportDraftTask = {
+  title: string;
+  description: string | null;
+  priority: "low" | "normal" | "high";
+  assignee: "representative" | "manager" | "unassigned";
+  dueDate: Date | null;
+};
+
+// Shared by the AI-draft confirm flow (ai.service.ts) and the manual
+// reports/confirm flow (visits.service.ts): both accept a freeform
+// `confirmedData.tasksToCreate` array and turn it into real Task rows the
+// same way, regardless of which schemaVersion produced the confirmed data.
+export function extractTasksToCreate(
+  confirmedData: Prisma.InputJsonObject,
+): ReportDraftTask[] {
+  const tasks = confirmedData.tasksToCreate;
+
+  if (!Array.isArray(tasks)) {
+    return [];
+  }
+
+  return tasks.flatMap((task): ReportDraftTask[] => {
+    if (
+      !isRecord(task) ||
+      typeof task.title !== "string" ||
+      !task.title.trim()
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        title: task.title.trim(),
+        description:
+          typeof task.description === "string" && task.description.trim()
+            ? task.description.trim()
+            : null,
+        priority: parseTaskPriority(task.priority),
+        assignee: parseTaskAssignee(task.assignee),
+        dueDate: parseDateOnly(task.dueDate),
+      },
+    ];
+  });
+}
+
+function parseTaskPriority(value: unknown): "low" | "normal" | "high" {
+  if (value === "low" || value === "normal" || value === "high") {
+    return value;
+  }
+
+  return "normal";
+}
+
+function parseTaskAssignee(
+  value: unknown,
+): "representative" | "manager" | "unassigned" {
+  if (
+    value === "representative" ||
+    value === "manager" ||
+    value === "unassigned"
+  ) {
+    return value;
+  }
+
+  return "unassigned";
+}
+
+function parseDateOnly(value: unknown): Date | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
 }
