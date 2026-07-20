@@ -110,24 +110,32 @@ export default async function ManagerLocationsPage({
   const selectedTerritory = normalizeFilterValue(pageState.territory);
   const search = normalizeFilterValue(pageState.search);
   const query = new URLSearchParams({ pageSize: "100" });
+  // User-facing filter params only — kept separate from `query` above so the
+  // sort links' href doesn't leak the API-only `pageSize` param into the
+  // browser URL.
+  const filterParams = new URLSearchParams();
   const hasFilters = Boolean(
     selectedStatus || selectedCity || selectedTerritory || search,
   );
 
   if (selectedStatus) {
     query.set("status", selectedStatus);
+    filterParams.set("status", selectedStatus);
   }
 
   if (selectedCity) {
     query.set("city", selectedCity);
+    filterParams.set("city", selectedCity);
   }
 
   if (selectedTerritory) {
     query.set("territory", selectedTerritory);
+    filterParams.set("territory", selectedTerritory);
   }
 
   if (search) {
     query.set("search", search);
+    filterParams.set("search", search);
   }
 
   const sortKey = normalizeSortKey(pageState.sort);
@@ -197,6 +205,9 @@ export default async function ManagerLocationsPage({
       ? summaryResult.data.locations.map((entry) => [entry.locationId, entry])
       : [],
   );
+  // Sorts only `locations` — the single ≤100-row page already fetched above
+  // — not the tenant's full location set. Real server-side sort/pagination
+  // is out of scope here; don't mistake this for a full-dataset sort later.
   const sortedLocations = sortKey
     ? [...locations].sort((a, b) => {
         const aValue = insightsByLocation.get(a.id)?.[sortKey] ?? 0;
@@ -322,7 +333,7 @@ export default async function ManagerLocationsPage({
             locations={sortedLocations}
             productsEnabled={productsEnabled}
             sortDir={sortDir}
-            sortHrefBase={`/${tenantSlug}/manager/locations?${query.toString()}`}
+            sortHrefBase={`/${tenantSlug}/manager/locations?${filterParams.toString()}`}
             sortKey={sortKey}
             tenantSlug={tenantSlug}
           />
@@ -370,11 +381,12 @@ function SortableColumnHeader({
   const [path] = hrefBase.split("?");
 
   return (
-    <th>
+    <th
+      aria-sort={
+        active ? (dir === "asc" ? "ascending" : "descending") : undefined
+      }
+    >
       <a
-        aria-sort={
-          active ? (dir === "asc" ? "ascending" : "descending") : undefined
-        }
         className="sortable-column-header"
         href={`${path}?${params.toString()}`}
       >
@@ -441,7 +453,9 @@ function LocationsTable({
                 </SortableColumnHeader>
               </>
             ) : null}
-            <th aria-hidden="true" />
+            <th>
+              <span className="sr-only">{t("tableLinks")}</span>
+            </th>
           </tr>
         </thead>
         <tbody>

@@ -176,6 +176,10 @@ export function LocationAssortmentPanel({
               ))}
             </select>
           </label>
+          <label className="checkbox-label visit-form-full">
+            <input defaultChecked name="shouldBeListed" type="checkbox" />
+            {t("shouldBeListed")}
+          </label>
           <label>
             {t("status")}
             <select defaultValue="in_stock" name="status">

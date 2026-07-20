@@ -12,10 +12,10 @@ import {
   deleteLocationPotential,
   getCurrentSession,
   getLocation,
+  listAllProducts,
   listLocationAssortment,
   listLocationPotential,
   listProductCategories,
-  listProducts,
   listTasks,
   listVisits,
   updateRouteItem,
@@ -397,7 +397,7 @@ export default async function LocationDetailPage({
           listLocationPotential(locationId),
           listLocationAssortment(locationId),
           listProductCategories(),
-          listProducts(),
+          listAllProducts(),
         ]);
 
   const potentialRows = potentialResult.ok ? potentialResult.data.items : [];
@@ -422,7 +422,7 @@ export default async function LocationDetailPage({
         inStock: assortmentResult.data.inStockCount,
       }
     : { pct: 0, required: 0, inStock: 0 };
-  const availableProducts = (productsResult.ok ? productsResult.data.items : [])
+  const availableProducts = (productsResult.ok ? productsResult.data : [])
     .filter(
       (product) => !assortmentRows.some((row) => row.productId === product.id),
     )

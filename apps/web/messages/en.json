@@ -144,7 +144,10 @@
       "errorTitle": "Something went wrong",
       "savedAria": "Saved",
       "savedBody": "Your change has been saved.",
-      "savedTitle": "Saved"
+      "savedTitle": "Saved",
+      "archivedAria": "Not available for archived locations",
+      "archivedTitle": "Not tracked while archived",
+      "archivedBody": "Potential and assortment are not tracked for archived locations. Restore the location to view or edit them again."
     }
   },
   "auth": {
@@ -359,7 +362,8 @@
       "noVisitsYet": "No visits yet",
       "filterResultCount": "{count, plural, =0 {No locations found} one {Found <b>#</b> location} other {Found <b>#</b> locations}}",
       "tableTotalPotential": "Total potential",
-      "tableCoverage": "Coverage"
+      "tableCoverage": "Coverage",
+      "tableLinks": "Links"
     },
     "representatives": {
       "title": "Representatives",

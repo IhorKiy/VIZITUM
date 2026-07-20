@@ -10,10 +10,10 @@ import {
   deleteLocationPotential,
   getCurrentSession,
   getLocation,
+  listAllProducts,
   listLocationAssortment,
   listLocationPotential,
   listProductCategories,
-  listProducts,
   upsertLocationAssortment,
   upsertLocationPotential,
   type AssortmentStatus,
@@ -172,13 +172,18 @@ export default async function AdminLocationDetailPage({
     ? sessionResult.data.productsEnabled
     : false;
 
+  // The insights endpoints 404 for an archived location (they resolve
+  // through the same tenant-scoped lookup as GET /locations/:id, which
+  // excludes soft-deleted rows) — skip the calls entirely rather than firing
+  // requests that can only fail, and show a neutral notice below instead of
+  // the two panels.
   const [potentialResult, assortmentResult, categoriesResult, productsResult] =
-    productsEnabled
+    productsEnabled && !location.archived
       ? await Promise.all([
           listLocationPotential(locationId),
           listLocationAssortment(locationId),
           listProductCategories(),
-          listProducts(),
+          listAllProducts(),
         ])
       : [
           { ok: false as const, status: 0, message: "Not available" },
@@ -209,7 +214,7 @@ export default async function AdminLocationDetailPage({
         inStock: assortmentResult.data.inStockCount,
       }
     : { pct: 0, required: 0, inStock: 0 };
-  const availableProducts = (productsResult.ok ? productsResult.data.items : [])
+  const availableProducts = (productsResult.ok ? productsResult.data : [])
     .filter(
       (product) => !assortmentRows.some((row) => row.productId === product.id),
     )
@@ -259,7 +264,20 @@ export default async function AdminLocationDetailPage({
         </p>
       </div>
 
-      {productsEnabled ? (
+      {productsEnabled && location.archived ? (
+        <section
+          aria-label={tLocationInsights("archivedAria")}
+          className="notice-panel"
+        >
+          <div>
+            <p className="eyebrow">{t("detailEyebrow")}</p>
+            <h2>{tLocationInsights("archivedTitle")}</h2>
+            <p>{tLocationInsights("archivedBody")}</p>
+          </div>
+        </section>
+      ) : null}
+
+      {productsEnabled && !location.archived ? (
         <>
           <details className="panel location-feature">
             <summary className="location-feature-summary">

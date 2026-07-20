@@ -5,6 +5,7 @@ import {
   getCurrentSession,
   getLocationInsightsSummary,
 } from "../../../../lib/api-client";
+import { availableZones } from "../../../../lib/navigation";
 
 type ManagerPotentialPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -89,6 +90,21 @@ export default async function ManagerPotentialPage({
   }
 
   const summary = summaryResult.data;
+  // A team_manager without the admin zone (locations.manage etc.) can still
+  // load /admin/locations/:id — reads are permitted and the panels render
+  // read-only — but landing there in admin chrome for a zone their session
+  // can't switch into is a nav inconsistency. Only send them there when the
+  // admin zone is actually available; otherwise the manager coverage list is
+  // the useful equivalent.
+  const hasAdminZone = availableZones(
+    sessionResult.data.permissions,
+    sessionResult.data.productsEnabled,
+    sessionResult.data.pilotActive,
+  ).includes("admin");
+  const highPotentialLocationHref = (locationId: string) =>
+    hasAdminZone
+      ? `/${tenantSlug}/admin/locations/${locationId}`
+      : `/${tenantSlug}/manager/locations`;
 
   return (
     <AppShell activeArea="manager-potential" tenantSlug={tenantSlug}>
@@ -149,7 +165,7 @@ export default async function ManagerPotentialPage({
                 <div className="list-card-links">
                   <a
                     className="list-card-open"
-                    href={`/${tenantSlug}/admin/locations/${entry.locationId}`}
+                    href={highPotentialLocationHref(entry.locationId)}
                   >
                     {tLocationInsights("assortmentTitle")}
                   </a>

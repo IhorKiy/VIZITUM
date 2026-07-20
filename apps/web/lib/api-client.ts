@@ -763,6 +763,43 @@ export async function listProducts(): Promise<
   return apiGet<PaginatedResponse<Product>>("/products?pageSize=100");
 }
 
+const MAX_ALL_PRODUCTS = 300;
+
+// The location assortment add-product picker (both the field and admin
+// location detail screens) needs the full catalog, not one 100-item page
+// (listProducts's fixed pageSize) — tenants past that would silently lose
+// products from the picker. Pages until the server reports no more pages or
+// the cap above is hit; a failure after at least one page still returns what
+// was fetched, since a partial catalog is strictly better than the empty
+// `[]` fallback a hard failure would give the caller.
+// TODO: unify with listAllFieldReportProducts (same shape, same 300 cap)
+// once both are on main — this branch predates that one landing.
+export async function listAllProducts(): Promise<ApiResult<Product[]>> {
+  const pageSize = 100;
+  const items: Product[] = [];
+  let page = 1;
+
+  for (;;) {
+    const result = await apiGet<PaginatedResponse<Product>>(
+      `/products?page=${page}&pageSize=${pageSize}`,
+    );
+
+    if (!result.ok) {
+      return items.length > 0 ? { ok: true, data: items } : result;
+    }
+
+    items.push(...result.data.items);
+
+    if (items.length >= MAX_ALL_PRODUCTS || page >= result.data.totalPages) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return { ok: true, data: items.slice(0, MAX_ALL_PRODUCTS) };
+}
+
 // Cheap active-product count for the launch checklist: the paginated `total`
 // reflects the full filtered count server-side (prisma.product.count over the
 // same `status=active` where clause), so we don't have to page through or count

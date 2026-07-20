@@ -144,7 +144,10 @@
       "errorTitle": "Щось пішло не так",
       "savedAria": "Збережено",
       "savedBody": "Зміну збережено.",
-      "savedTitle": "Збережено"
+      "savedTitle": "Збережено",
+      "archivedAria": "Недоступно для архівних точок",
+      "archivedTitle": "Не відстежується в архіві",
+      "archivedBody": "Потенціал і асортимент не відстежуються для архівних точок. Відновіть точку, щоб знову переглядати або редагувати ці дані."
     }
   },
   "auth": {
@@ -359,7 +362,8 @@
       "noVisitsYet": "Візитів ще немає",
       "filterResultCount": "{count, plural, =0 {Точок не знайдено} one {Знайдено <b>#</b> точку} few {Знайдено <b>#</b> точки} many {Знайдено <b>#</b> точок} other {Знайдено <b>#</b> точки}}",
       "tableTotalPotential": "Загальний потенціал",
-      "tableCoverage": "Покриття"
+      "tableCoverage": "Покриття",
+      "tableLinks": "Посилання"
     },
     "representatives": {
       "title": "Представники",
