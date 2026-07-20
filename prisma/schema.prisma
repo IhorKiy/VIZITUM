@@ -663,7 +663,6 @@ model LocationPotential {
   productCategory ProductCategory @relation(fields: [productCategoryId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, locationId, productCategoryId])
-  @@index([tenantId, locationId])
   @@map("location_potentials")
 }
 
@@ -690,7 +689,6 @@ model LocationAssortment {
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, locationId, productId])
-  @@index([tenantId, locationId])
   @@index([tenantId, productId, status])
   @@map("location_assortment")
 }

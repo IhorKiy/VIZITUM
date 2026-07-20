@@ -39,13 +39,7 @@ CREATE TABLE "location_assortment" (
 );
 
 -- CreateIndex
-CREATE INDEX "location_potentials_tenantId_locationId_idx" ON "location_potentials"("tenantId", "locationId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "location_potentials_tenantId_locationId_productCategoryId_key" ON "location_potentials"("tenantId", "locationId", "productCategoryId");
-
--- CreateIndex
-CREATE INDEX "location_assortment_tenantId_locationId_idx" ON "location_assortment"("tenantId", "locationId");
 
 -- CreateIndex
 CREATE INDEX "location_assortment_tenantId_productId_status_idx" ON "location_assortment"("tenantId", "productId", "status");
