@@ -8,8 +8,6 @@ import { LocationPotentialPanel } from "../../../../../components/location-poten
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import {
   createVisit,
-  deleteLocationAssortment,
-  deleteLocationPotential,
   getCurrentSession,
   getLocation,
   listAllProducts,
@@ -19,9 +17,6 @@ import {
   listTasks,
   listVisits,
   updateRouteItem,
-  upsertLocationAssortment,
-  upsertLocationPotential,
-  type AssortmentStatus,
   type Task,
   type Visit,
 } from "../../../../../lib/api-client";
@@ -31,12 +26,13 @@ import {
   formatEnumLabel,
   statusPillTone,
 } from "../../../../../lib/format";
+import { getFormString } from "../../../../../lib/form";
 import {
-  getFormBoolean,
-  getFormOptionalNumber,
-  getFormOptionalString,
-  getFormString,
-} from "../../../../../lib/form";
+  deleteLocationAssortmentAction,
+  deleteLocationPotentialAction,
+  upsertLocationAssortmentAction,
+  upsertLocationPotentialAction,
+} from "../../../../../lib/location-insights-actions";
 
 type LocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
@@ -130,150 +126,42 @@ export default async function LocationDetailPage({
     );
   }
 
-  // Server Actions can only close over serializable data and other Server
-  // Actions — not a plain helper function — so the redirect-path
-  // construction is inlined into each action below rather than shared.
-
-  async function upsertPotentialAction(formData: FormData) {
-    "use server";
-
-    const params = new URLSearchParams();
-    if (routePlanId) {
-      params.set("routePlanId", routePlanId);
-    }
-    if (routeItemId) {
-      params.set("routeItemId", routeItemId);
-    }
-
-    const productCategoryId = getFormString(
-      formData,
-      "productCategoryId",
-    ).trim();
-
-    if (!productCategoryId) {
-      params.set("error", "locationInsights");
-      redirect(
-        `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
-      );
-    }
-
-    const result = await upsertLocationPotential(
-      locationId,
-      productCategoryId,
-      {
-        potentialDate: getFormOptionalString(formData, "potentialDate"),
-        potentialAmount: getFormOptionalNumber(formData, "potentialAmount"),
-        planMonth1: getFormOptionalNumber(formData, "planMonth1"),
-        planMonth2: getFormOptionalNumber(formData, "planMonth2"),
-        planMonth3: getFormOptionalNumber(formData, "planMonth3"),
-        comment: getFormOptionalString(formData, "comment"),
-      },
-    );
-
-    if (result.ok) {
-      params.set("locationInsights", "updated");
-    } else {
-      params.set("error", "locationInsights");
-    }
-    redirect(
-      `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
-    );
+  // The four potential/assortment actions are shared with the admin detail
+  // screen via lib/location-insights-actions.ts — bound here with this
+  // zone's basePath plus routePlanId/routeItemId so returning to a route
+  // stop keeps its context through the redirect (admin has no such params).
+  const basePath = `/${tenantSlug}/field/locations/${locationId}`;
+  const extraParams: [string, string][] = [];
+  if (routePlanId) {
+    extraParams.push(["routePlanId", routePlanId]);
   }
-
-  async function deletePotentialAction(formData: FormData) {
-    "use server";
-
-    const params = new URLSearchParams();
-    if (routePlanId) {
-      params.set("routePlanId", routePlanId);
-    }
-    if (routeItemId) {
-      params.set("routeItemId", routeItemId);
-    }
-
-    const productCategoryId = getFormString(
-      formData,
-      "productCategoryId",
-    ).trim();
-    const result = productCategoryId
-      ? await deleteLocationPotential(locationId, productCategoryId)
-      : { ok: false as const, status: 0, message: "Missing category" };
-
-    if (result.ok) {
-      params.set("locationInsights", "deleted");
-    } else {
-      params.set("error", "locationInsights");
-    }
-    redirect(
-      `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
-    );
+  if (routeItemId) {
+    extraParams.push(["routeItemId", routeItemId]);
   }
-
-  async function upsertAssortmentAction(formData: FormData) {
-    "use server";
-
-    const params = new URLSearchParams();
-    if (routePlanId) {
-      params.set("routePlanId", routePlanId);
-    }
-    if (routeItemId) {
-      params.set("routeItemId", routeItemId);
-    }
-
-    const productId = getFormString(formData, "productId").trim();
-
-    if (!productId) {
-      params.set("error", "locationInsights");
-      redirect(
-        `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
-      );
-    }
-
-    const result = await upsertLocationAssortment(locationId, productId, {
-      shouldBeListed: getFormBoolean(formData, "shouldBeListed"),
-      status: getFormString(formData, "status") as AssortmentStatus,
-      lastStock: getFormOptionalNumber(formData, "lastStock"),
-      lastOrder: getFormOptionalNumber(formData, "lastOrder"),
-      lastSale: getFormOptionalNumber(formData, "lastSale"),
-      lastCheckedAt: getFormOptionalString(formData, "lastCheckedAt"),
-      comment: getFormOptionalString(formData, "comment"),
-    });
-
-    if (result.ok) {
-      params.set("locationInsights", "updated");
-    } else {
-      params.set("error", "locationInsights");
-    }
-    redirect(
-      `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
-    );
-  }
-
-  async function deleteAssortmentAction(formData: FormData) {
-    "use server";
-
-    const params = new URLSearchParams();
-    if (routePlanId) {
-      params.set("routePlanId", routePlanId);
-    }
-    if (routeItemId) {
-      params.set("routeItemId", routeItemId);
-    }
-
-    const productId = getFormString(formData, "productId").trim();
-    const result = productId
-      ? await deleteLocationAssortment(locationId, productId)
-      : { ok: false as const, status: 0, message: "Missing product" };
-
-    if (result.ok) {
-      params.set("locationInsights", "deleted");
-    } else {
-      params.set("error", "locationInsights");
-    }
-    redirect(
-      `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
-    );
-  }
+  const upsertPotentialAction = upsertLocationPotentialAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
+  const deletePotentialAction = deleteLocationPotentialAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
+  const upsertAssortmentAction = upsertLocationAssortmentAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
+  const deleteAssortmentAction = deleteLocationAssortmentAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
 
   const [sessionResult, locationResult] = await Promise.all([
     getCurrentSession(),

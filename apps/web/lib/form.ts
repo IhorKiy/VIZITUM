@@ -20,7 +20,19 @@ export function getFormOptionalNumber(
   name: string,
 ): number | null {
   const value = getFormString(formData, name).trim();
-  return value ? Number(value) : null;
+
+  if (!value) {
+    return null;
+  }
+
+  // Unparseable input maps to null explicitly, rather than relying on
+  // JSON.stringify silently turning a NaN into null on the wire — the
+  // `type="number"` inputs this feeds make it nearly unreachable in
+  // practice (the browser sends "" for invalid input), and the backend
+  // validates regardless, but the null here should be a deliberate "not
+  // set", not an accident of serialization.
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 // Checkboxes only appear in FormData when checked; an absent field means

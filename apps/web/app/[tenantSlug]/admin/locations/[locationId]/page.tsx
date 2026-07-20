@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
@@ -6,24 +5,19 @@ import { DismissableNotice } from "../../../../../components/dismissable-notice"
 import { LocationAssortmentPanel } from "../../../../../components/location-assortment-panel";
 import { LocationPotentialPanel } from "../../../../../components/location-potential-panel";
 import {
-  deleteLocationAssortment,
-  deleteLocationPotential,
   getCurrentSession,
   getLocation,
   listAllProducts,
   listLocationAssortment,
   listLocationPotential,
   listProductCategories,
-  upsertLocationAssortment,
-  upsertLocationPotential,
-  type AssortmentStatus,
 } from "../../../../../lib/api-client";
 import {
-  getFormBoolean,
-  getFormOptionalNumber,
-  getFormOptionalString,
-  getFormString,
-} from "../../../../../lib/form";
+  deleteLocationAssortmentAction,
+  deleteLocationPotentialAction,
+  upsertLocationAssortmentAction,
+  upsertLocationPotentialAction,
+} from "../../../../../lib/location-insights-actions";
 
 type AdminLocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
@@ -47,104 +41,35 @@ export default async function AdminLocationDetailPage({
       getLocation(locationId),
     ]);
 
-  // Server Actions can only close over serializable data and other Server
-  // Actions — not a plain helper function — so the redirect-path
-  // construction is inlined into each action below rather than shared.
-
-  async function upsertPotentialAction(formData: FormData) {
-    "use server";
-
-    const productCategoryId = getFormString(
-      formData,
-      "productCategoryId",
-    ).trim();
-
-    if (!productCategoryId) {
-      redirect(
-        `/${tenantSlug}/admin/locations/${locationId}?error=locationInsights`,
-      );
-    }
-
-    const result = await upsertLocationPotential(
-      locationId,
-      productCategoryId,
-      {
-        potentialDate: getFormOptionalString(formData, "potentialDate"),
-        potentialAmount: getFormOptionalNumber(formData, "potentialAmount"),
-        planMonth1: getFormOptionalNumber(formData, "planMonth1"),
-        planMonth2: getFormOptionalNumber(formData, "planMonth2"),
-        planMonth3: getFormOptionalNumber(formData, "planMonth3"),
-        comment: getFormOptionalString(formData, "comment"),
-      },
-    );
-
-    redirect(
-      result.ok
-        ? `/${tenantSlug}/admin/locations/${locationId}?locationInsights=updated`
-        : `/${tenantSlug}/admin/locations/${locationId}?error=locationInsights`,
-    );
-  }
-
-  async function deletePotentialAction(formData: FormData) {
-    "use server";
-
-    const productCategoryId = getFormString(
-      formData,
-      "productCategoryId",
-    ).trim();
-    const result = productCategoryId
-      ? await deleteLocationPotential(locationId, productCategoryId)
-      : { ok: false as const, status: 0, message: "Missing category" };
-
-    redirect(
-      result.ok
-        ? `/${tenantSlug}/admin/locations/${locationId}?locationInsights=deleted`
-        : `/${tenantSlug}/admin/locations/${locationId}?error=locationInsights`,
-    );
-  }
-
-  async function upsertAssortmentAction(formData: FormData) {
-    "use server";
-
-    const productId = getFormString(formData, "productId").trim();
-
-    if (!productId) {
-      redirect(
-        `/${tenantSlug}/admin/locations/${locationId}?error=locationInsights`,
-      );
-    }
-
-    const result = await upsertLocationAssortment(locationId, productId, {
-      shouldBeListed: getFormBoolean(formData, "shouldBeListed"),
-      status: getFormString(formData, "status") as AssortmentStatus,
-      lastStock: getFormOptionalNumber(formData, "lastStock"),
-      lastOrder: getFormOptionalNumber(formData, "lastOrder"),
-      lastSale: getFormOptionalNumber(formData, "lastSale"),
-      lastCheckedAt: getFormOptionalString(formData, "lastCheckedAt"),
-      comment: getFormOptionalString(formData, "comment"),
-    });
-
-    redirect(
-      result.ok
-        ? `/${tenantSlug}/admin/locations/${locationId}?locationInsights=updated`
-        : `/${tenantSlug}/admin/locations/${locationId}?error=locationInsights`,
-    );
-  }
-
-  async function deleteAssortmentAction(formData: FormData) {
-    "use server";
-
-    const productId = getFormString(formData, "productId").trim();
-    const result = productId
-      ? await deleteLocationAssortment(locationId, productId)
-      : { ok: false as const, status: 0, message: "Missing product" };
-
-    redirect(
-      result.ok
-        ? `/${tenantSlug}/admin/locations/${locationId}?locationInsights=deleted`
-        : `/${tenantSlug}/admin/locations/${locationId}?error=locationInsights`,
-    );
-  }
+  // The four potential/assortment actions are shared with the field detail
+  // screen via lib/location-insights-actions.ts — bound here with this
+  // zone's basePath and no extra redirect params (the field screen also
+  // threads routePlanId/routeItemId through).
+  const basePath = `/${tenantSlug}/admin/locations/${locationId}`;
+  const upsertPotentialAction = upsertLocationPotentialAction.bind(
+    null,
+    basePath,
+    locationId,
+    [],
+  );
+  const deletePotentialAction = deleteLocationPotentialAction.bind(
+    null,
+    basePath,
+    locationId,
+    [],
+  );
+  const upsertAssortmentAction = upsertLocationAssortmentAction.bind(
+    null,
+    basePath,
+    locationId,
+    [],
+  );
+  const deleteAssortmentAction = deleteLocationAssortmentAction.bind(
+    null,
+    basePath,
+    locationId,
+    [],
+  );
 
   if (!locationResult.ok) {
     return (

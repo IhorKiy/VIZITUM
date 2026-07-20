@@ -96,6 +96,28 @@ describe("location archive", () => {
     );
   });
 
+  it("returns an archived location through getLocation, unlike every other lookup", async () => {
+    let findWhere: Record<string, unknown> | undefined;
+    const service = new LocationsService({
+      location: {
+        findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+          findWhere = where;
+          return locationRow({
+            deletedAt: new Date("2026-07-18T00:00:00.000Z"),
+          });
+        },
+      },
+    } as never);
+
+    const result = await service.getLocation(context as never, "location-a");
+
+    // GET /locations/:id is the one read that must not filter out archived
+    // rows — the detail screen shows a restore-first notice instead of
+    // 404ing. Every write and every other lookup keeps filtering deletedAt.
+    assert.equal("deletedAt" in (findWhere ?? {}), false);
+    assert.equal(result.archived, true);
+  });
+
   it("restores an archived location by clearing deletedAt", async () => {
     let findWhere: Record<string, unknown> | undefined;
     let updateData: Record<string, unknown> | undefined;
