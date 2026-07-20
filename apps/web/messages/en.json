@@ -1001,6 +1001,7 @@
       "startVisit": "Start visit",
       "starting": "Starting...",
       "alreadyVisited": "This stop is already marked visited today.",
+      "archivedNoVisit": "This location has been archived — new visits can't be started here.",
       "markVisited": "Mark as visited",
       "openTasks": "Open tasks",
       "taskCount": "{count, plural, one {# task} other {# tasks}}",

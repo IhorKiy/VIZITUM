@@ -230,6 +230,12 @@ export default async function LocationDetailPage({
         .filter(Boolean)
         .join(", ")
     : (demoAddress ?? "");
+  // GET /locations/:id stays reachable for an archived location (unlike the
+  // insights endpoints below), so a field rep with a stale assignment to a
+  // since-archived location lands here instead of on "not found" — treat it
+  // the same way the admin detail screen does: skip the insights calls and
+  // the "start visit" CTA rather than offering actions that can only fail.
+  const isArchivedLocation = locationResult.ok && locationResult.data.archived;
   const representativeName = sessionResult.ok
     ? sessionResult.data.user.name
     : t("location.demoRepresentative");
@@ -271,7 +277,8 @@ export default async function LocationDetailPage({
   const productsEnabled = sessionResult.ok
     ? sessionResult.data.productsEnabled
     : false;
-  const skipLocationInsights = isDemoLocation || !productsEnabled;
+  const skipLocationInsights =
+    isDemoLocation || !productsEnabled || isArchivedLocation;
 
   const [potentialResult, assortmentResult, categoriesResult, productsResult] =
     skipLocationInsights
@@ -405,7 +412,20 @@ export default async function LocationDetailPage({
         <span className="location-header-rep">{representativeName}</span>
       </div>
 
-      {productsEnabled ? (
+      {productsEnabled && isArchivedLocation ? (
+        <section
+          aria-label={tLocationInsights("archivedAria")}
+          className="notice-panel"
+        >
+          <div>
+            <p className="eyebrow">{t("flowEyebrow")}</p>
+            <h2>{tLocationInsights("archivedTitle")}</h2>
+            <p>{tLocationInsights("archivedBody")}</p>
+          </div>
+        </section>
+      ) : null}
+
+      {productsEnabled && !isArchivedLocation ? (
         <>
           <details className="panel location-feature">
             <summary className="location-feature-summary">
@@ -492,6 +512,8 @@ export default async function LocationDetailPage({
         </a>
       ) : stopAlreadyVisited ? (
         <p className="empty-state">{t("location.alreadyVisited")}</p>
+      ) : isArchivedLocation ? (
+        <p className="empty-state">{t("location.archivedNoVisit")}</p>
       ) : (
         <form action={startVisitAction}>
           <input name="routeItemId" type="hidden" value={routeItemId ?? ""} />

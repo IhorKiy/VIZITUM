@@ -97,11 +97,12 @@ export default async function AdminLocationDetailPage({
     ? sessionResult.data.productsEnabled
     : false;
 
-  // The insights endpoints 404 for an archived location (they resolve
-  // through the same tenant-scoped lookup as GET /locations/:id, which
-  // excludes soft-deleted rows) — skip the calls entirely rather than firing
-  // requests that can only fail, and show a neutral notice below instead of
-  // the two panels.
+  // The insights endpoints 404 for an archived location — they resolve
+  // through findTenantLocationOrThrow (location-insights-access.ts), which
+  // still excludes soft-deleted rows, unlike GET /locations/:id itself
+  // (see findTenantLocationIncludingArchived in locations.service.ts). Skip
+  // the calls entirely rather than firing requests that can only fail, and
+  // show a neutral notice below instead of the two panels.
   const [potentialResult, assortmentResult, categoriesResult, productsResult] =
     productsEnabled && !location.archived
       ? await Promise.all([
