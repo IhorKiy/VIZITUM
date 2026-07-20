@@ -115,6 +115,13 @@ function p2002(): Prisma.PrismaClientKnownRequestError {
   });
 }
 
+function p2025(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Record to update not found", {
+    code: "P2025",
+    clientVersion: "test",
+  });
+}
+
 function errorCode(error: unknown): unknown {
   return (error as { getResponse?: () => { code?: string } }).getResponse?.()
     .code;
@@ -752,6 +759,37 @@ describe("route template item full reorder (drag-and-drop)", () => {
       ),
       (error: unknown) => {
         assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN");
+        return true;
+      },
+    );
+  });
+
+  it("turns a stop deleted mid-transaction into a 400 instead of an unhandled 500", async () => {
+    // template.items is a pre-transaction snapshot: another session deleting
+    // one of these stops between the validation and the transaction itself
+    // surfaces here as the update on its now-gone id 404ing at the DB level.
+    const template = buildTemplate({
+      items: [
+        buildTemplateItem({ id: "item-1", sequence: 1 }),
+        buildTemplateItem({ id: "item-2", sequence: 2 }),
+      ],
+    });
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+      $transaction: async () => {
+        throw p2025();
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteTemplateItems(
+        representativeContext as never,
+        "template-a",
+        { itemIds: ["item-2", "item-1"] },
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_ITEM_REORDER_INVALID");
         return true;
       },
     );

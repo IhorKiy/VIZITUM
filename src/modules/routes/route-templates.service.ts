@@ -370,6 +370,21 @@ export class RouteTemplatesService {
         }
       });
     } catch (error) {
+      // template.items is a pre-transaction snapshot: if another session
+      // deletes one of these stops between the validation above and this
+      // transaction, the update on its now-gone id 404s at the DB level
+      // (P2025). The submitted order no longer matches reality either way,
+      // so it's the same 400 as any other stale/invalid itemIds list.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        throw new BadRequestException({
+          code: "ROUTE_TEMPLATE_ITEM_REORDER_INVALID",
+          message: "itemIds must list every stop in this route exactly once.",
+        });
+      }
+
       throw toSequenceConflictOrRethrow(error);
     }
 
