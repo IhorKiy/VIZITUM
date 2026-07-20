@@ -137,6 +137,98 @@ export type LocationCategory = {
   updatedAt: string;
 };
 
+export type LocationPotential = {
+  id: string;
+  locationId: string;
+  productCategoryId: string;
+  productCategory: { id: string; name: string };
+  potentialDate: string | null;
+  potentialAmount: number | null;
+  planMonth1: number | null;
+  planMonth2: number | null;
+  planMonth3: number | null;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LocationPotentialList = {
+  items: LocationPotential[];
+  canManage: boolean;
+};
+
+export type AssortmentStatus =
+  "in_stock" | "out_of_stock" | "to_order" | "not_relevant";
+
+export type LocationAssortment = {
+  id: string;
+  locationId: string;
+  productId: string;
+  product: {
+    id: string;
+    name: string;
+    sku: string | null;
+    category: string | null;
+    status: ProductStatus;
+  };
+  shouldBeListed: boolean;
+  status: AssortmentStatus;
+  lastStock: number | null;
+  lastOrder: number | null;
+  lastSale: number | null;
+  lastCheckedAt: string | null;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LocationAssortmentList = {
+  items: LocationAssortment[];
+  canManage: boolean;
+  coveragePct: number;
+  requiredCount: number;
+  inStockCount: number;
+};
+
+export type LocationInsightsLocationSummary = {
+  locationId: string;
+  name: string;
+  totalPotential: number;
+  coveragePct: number;
+  requiredCount: number;
+  inStockCount: number;
+};
+
+export type LocationInsightsProblemProduct = {
+  productId: string;
+  name: string;
+  sku: string | null;
+  problemCount: number;
+};
+
+export type LocationInsightsCategoryPotential = {
+  productCategoryId: string;
+  name: string;
+  totalPotential: number;
+  planMonth1: number;
+  planMonth2: number;
+  planMonth3: number;
+};
+
+export type LocationInsightsSummary = {
+  totalPotential: number;
+  planMonth1: number;
+  planMonth2: number;
+  planMonth3: number;
+  overallCoveragePct: number;
+  requiredCount: number;
+  inStockCount: number;
+  locations: LocationInsightsLocationSummary[];
+  highPotentialLowCoverage: LocationInsightsLocationSummary[];
+  topProblemProducts: LocationInsightsProblemProduct[];
+  potentialByCategory: LocationInsightsCategoryPotential[];
+};
+
 export type Product = {
   id: string;
   externalCode: string | null;
@@ -590,6 +682,79 @@ export async function getLocation(
   locationId: string,
 ): Promise<ApiResult<Location>> {
   return apiGet<Location>(`/locations/${locationId}`);
+}
+
+export async function listLocationPotential(
+  locationId: string,
+): Promise<ApiResult<LocationPotentialList>> {
+  return apiGet<LocationPotentialList>(`/locations/${locationId}/potential`);
+}
+
+export async function upsertLocationPotential(
+  locationId: string,
+  productCategoryId: string,
+  input: {
+    potentialDate?: string | null;
+    potentialAmount?: number | null;
+    planMonth1?: number | null;
+    planMonth2?: number | null;
+    planMonth3?: number | null;
+    comment?: string | null;
+  },
+): Promise<ApiResult<LocationPotential>> {
+  return apiPut<LocationPotential>(
+    `/locations/${locationId}/potential/${productCategoryId}`,
+    input,
+  );
+}
+
+export async function deleteLocationPotential(
+  locationId: string,
+  productCategoryId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(
+    `/locations/${locationId}/potential/${productCategoryId}`,
+  );
+}
+
+export async function listLocationAssortment(
+  locationId: string,
+): Promise<ApiResult<LocationAssortmentList>> {
+  return apiGet<LocationAssortmentList>(`/locations/${locationId}/assortment`);
+}
+
+export async function upsertLocationAssortment(
+  locationId: string,
+  productId: string,
+  input: {
+    shouldBeListed?: boolean;
+    status?: AssortmentStatus;
+    lastStock?: number | null;
+    lastOrder?: number | null;
+    lastSale?: number | null;
+    lastCheckedAt?: string | null;
+    comment?: string | null;
+  },
+): Promise<ApiResult<LocationAssortment>> {
+  return apiPut<LocationAssortment>(
+    `/locations/${locationId}/assortment/${productId}`,
+    input,
+  );
+}
+
+export async function deleteLocationAssortment(
+  locationId: string,
+  productId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(
+    `/locations/${locationId}/assortment/${productId}`,
+  );
+}
+
+export async function getLocationInsightsSummary(): Promise<
+  ApiResult<LocationInsightsSummary>
+> {
+  return apiGet<LocationInsightsSummary>("/location-insights/summary");
 }
 
 export async function listProducts(): Promise<
@@ -1509,6 +1674,45 @@ async function apiPatch<TData>(
   try {
     response = await fetch(`${baseUrl}${path}`, {
       method: "PATCH",
+      cache: "no-store",
+      headers: {
+        ...(await buildRequestHeaders(path)),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      status: 0,
+      message: error instanceof Error ? error.message : "API request failed.",
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      ...(await readErrorPayload(response)),
+    };
+  }
+
+  return {
+    ok: true,
+    data: (await response.json()) as TData,
+  };
+}
+
+async function apiPut<TData>(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<ApiResult<TData>> {
+  const baseUrl = getApiBaseUrl();
+  let response: Response;
+
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method: "PUT",
       cache: "no-store",
       headers: {
         ...(await buildRequestHeaders(path)),

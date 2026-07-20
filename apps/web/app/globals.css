@@ -3007,6 +3007,21 @@ textarea {
   text-transform: uppercase;
 }
 
+.locations-table-wrap {
+  overflow-x: auto;
+}
+
+.sortable-column-header {
+  color: inherit;
+  display: inline-flex;
+  gap: 4px;
+  text-decoration: none;
+}
+
+.sortable-column-header:hover {
+  text-decoration: underline;
+}
+
 .mobile-nav {
   background: rgba(255, 255, 255, 0.94);
   border-top: 1px solid var(--line);

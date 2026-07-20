@@ -1,5 +1,8 @@
+import { useFormatter, useTranslations } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
+import type { ReactNode } from "react";
+
 import { AppShell } from "../../../../components/app-shell";
-import { CardFact } from "../../../../components/card-fact";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
 import {
@@ -8,26 +11,19 @@ import {
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
-import {
-  CalendarIcon,
-  FlagIcon,
-  MapPinIcon,
-  SearchIcon,
-  TagIcon,
-} from "../../../../components/icons";
+import { MapPinIcon, SearchIcon, TagIcon } from "../../../../components/icons";
 import {
   getCurrentSession,
+  getLocationInsightsSummary,
   listAdminLocations,
   listTasks,
   listVisits,
   type Location,
+  type LocationInsightsLocationSummary,
   type LocationStatus,
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
-import { useFormatter, useTranslations } from "next-intl";
-import { getLocale, getTranslations } from "next-intl/server";
-
 import { buildLocationFieldOptions } from "../../../../lib/filter-options";
 import {
   formatDateTime,
@@ -43,8 +39,16 @@ type ManagerLocationsPageProps = {
     search?: string;
     status?: string;
     territory?: string;
+    sort?: string;
+    dir?: string;
   }>;
 };
+
+type LocationSortKey = "totalPotential" | "coveragePct";
+
+function normalizeSortKey(value: string | undefined): LocationSortKey | null {
+  return value === "totalPotential" || value === "coveragePct" ? value : null;
+}
 
 const locationStatuses: LocationStatus[] = ["active", "inactive", "archived"];
 
@@ -126,13 +130,29 @@ export default async function ManagerLocationsPage({
     query.set("search", search);
   }
 
-  const [locationsResult, allLocations, visitsResult, tasksResult] =
-    await Promise.all([
-      listAdminLocations(query.toString()),
-      fetchAllLocations(),
-      listVisits("pageSize=100"),
-      listTasks("pageSize=100"),
-    ]);
+  const sortKey = normalizeSortKey(pageState.sort);
+  const sortDir = pageState.dir === "asc" ? "asc" : "desc";
+  const productsEnabled = sessionResult.data.productsEnabled;
+
+  const [
+    locationsResult,
+    allLocations,
+    visitsResult,
+    tasksResult,
+    summaryResult,
+  ] = await Promise.all([
+    listAdminLocations(query.toString()),
+    fetchAllLocations(),
+    listVisits("pageSize=100"),
+    listTasks("pageSize=100"),
+    productsEnabled
+      ? getLocationInsightsSummary()
+      : Promise.resolve({
+          ok: false as const,
+          status: 0,
+          message: "Not available",
+        }),
+  ]);
 
   if (!locationsResult.ok) {
     return (
@@ -172,6 +192,18 @@ export default async function ManagerLocationsPage({
   const visits = visitsResult.ok ? visitsResult.data.items : [];
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
   const activityByLocation = buildLocationActivity(visits, tasks);
+  const insightsByLocation = new Map<string, LocationInsightsLocationSummary>(
+    summaryResult.ok
+      ? summaryResult.data.locations.map((entry) => [entry.locationId, entry])
+      : [],
+  );
+  const sortedLocations = sortKey
+    ? [...locations].sort((a, b) => {
+        const aValue = insightsByLocation.get(a.id)?.[sortKey] ?? 0;
+        const bValue = insightsByLocation.get(b.id)?.[sortKey] ?? 0;
+        return sortDir === "asc" ? aValue - bValue : bValue - aValue;
+      })
+    : locations;
   const counters = buildLocationCounters(
     locations,
     locationsResult.data.total,
@@ -283,10 +315,15 @@ export default async function ManagerLocationsPage({
         </FilterForm>
 
         {locations.length > 0 ? (
-          <LocationsCards
+          <LocationsTable
             activityByLocation={activityByLocation}
+            insightsByLocation={insightsByLocation}
             locationCategoriesEnabled={locationCategoriesEnabled}
-            locations={locations}
+            locations={sortedLocations}
+            productsEnabled={productsEnabled}
+            sortDir={sortDir}
+            sortHrefBase={`/${tenantSlug}/manager/locations?${query.toString()}`}
+            sortKey={sortKey}
             tenantSlug={tenantSlug}
           />
         ) : (
@@ -313,91 +350,171 @@ export default async function ManagerLocationsPage({
   );
 }
 
-function LocationsCards({
+function SortableColumnHeader({
+  active,
+  children,
+  column,
+  dir,
+  hrefBase,
+}: {
+  active: boolean;
+  children: ReactNode;
+  column: LocationSortKey;
+  dir: "asc" | "desc";
+  hrefBase: string;
+}) {
+  const nextDir = active && dir === "desc" ? "asc" : "desc";
+  const params = new URLSearchParams(hrefBase.split("?")[1] ?? "");
+  params.set("sort", column);
+  params.set("dir", nextDir);
+  const [path] = hrefBase.split("?");
+
+  return (
+    <th>
+      <a
+        aria-sort={
+          active ? (dir === "asc" ? "ascending" : "descending") : undefined
+        }
+        className="sortable-column-header"
+        href={`${path}?${params.toString()}`}
+      >
+        {children}
+        {active ? (
+          <span aria-hidden="true">{dir === "asc" ? " ▲" : " ▼"}</span>
+        ) : null}
+      </a>
+    </th>
+  );
+}
+
+function LocationsTable({
   activityByLocation,
+  insightsByLocation,
   locationCategoriesEnabled,
   locations,
+  productsEnabled,
+  sortDir,
+  sortHrefBase,
+  sortKey,
   tenantSlug,
 }: {
   activityByLocation: Map<string, LocationActivity>;
+  insightsByLocation: Map<string, LocationInsightsLocationSummary>;
   locationCategoriesEnabled: boolean;
   locations: Location[];
+  productsEnabled: boolean;
+  sortDir: "asc" | "desc";
+  sortHrefBase: string;
+  sortKey: LocationSortKey | null;
   tenantSlug: string;
 }) {
   const t = useTranslations("manager.locations");
   const tCommon = useTranslations("common");
   const format = useFormatter();
 
-  // The location is the title, the status pill sits top-right, and the footer
-  // holds the per-location drill-down links.
   return (
-    <ul className="list-cards">
-      {locations.map((location) => {
-        const activity = activityByLocation.get(location.id);
-        const visitCount = activity?.visitCount ?? 0;
-        // When the category toggle is off, the segment is omitted entirely
-        // (matching the field screen) rather than showing a "no category"
-        // placeholder on every card.
-        const area = [
-          location.territory
-            ? formatEnumLabel(tCommon, location.territory)
-            : t("unassignedTerritory"),
-          ...(locationCategoriesEnabled
-            ? [
-                location.category
-                  ? formatEnumLabel(tCommon, location.category.name)
-                  : t("noType"),
-              ]
-            : []),
-        ].join(" · ");
-        const displayStatus = location.archived ? "archived" : location.status;
+    <div className="locations-table-wrap">
+      <table className="table">
+        <thead>
+          <tr>
+            <th>{t("tableLocation")}</th>
+            <th>{t("tableArea")}</th>
+            <th>{t("tableVisits")}</th>
+            <th>{t("tableOpenTasks")}</th>
+            {productsEnabled ? (
+              <>
+                <SortableColumnHeader
+                  active={sortKey === "totalPotential"}
+                  column="totalPotential"
+                  dir={sortDir}
+                  hrefBase={sortHrefBase}
+                >
+                  {t("tableTotalPotential")}
+                </SortableColumnHeader>
+                <SortableColumnHeader
+                  active={sortKey === "coveragePct"}
+                  column="coveragePct"
+                  dir={sortDir}
+                  hrefBase={sortHrefBase}
+                >
+                  {t("tableCoverage")}
+                </SortableColumnHeader>
+              </>
+            ) : null}
+            <th aria-hidden="true" />
+          </tr>
+        </thead>
+        <tbody>
+          {locations.map((location) => {
+            const activity = activityByLocation.get(location.id);
+            const visitCount = activity?.visitCount ?? 0;
+            const insights = insightsByLocation.get(location.id);
+            // When the category toggle is off, the segment is omitted
+            // entirely (matching the field screen) rather than showing a
+            // "no category" placeholder on every row.
+            const area = [
+              location.territory
+                ? formatEnumLabel(tCommon, location.territory)
+                : t("unassignedTerritory"),
+              ...(locationCategoriesEnabled
+                ? [
+                    location.category
+                      ? formatEnumLabel(tCommon, location.category.name)
+                      : t("noType"),
+                  ]
+                : []),
+            ].join(" · ");
+            const displayStatus = location.archived
+              ? "archived"
+              : location.status;
 
-        return (
-          <li className="list-card" key={location.id}>
-            <div className="list-card-top">
-              <h3 className="list-card-title">{location.name}</h3>
-              <span className={`status-pill ${statusTone(displayStatus)}`}>
-                {formatEnumLabel(tCommon, displayStatus)}
-              </span>
-            </div>
-            <dl className="list-card-facts">
-              <CardFact icon={<MapPinIcon />} label={t("tableLocation")}>
-                {location.addressLine}, {location.city}
-              </CardFact>
-              <CardFact icon={<TagIcon />} label={t("tableArea")}>
-                {area}
-              </CardFact>
-              <CardFact icon={<CalendarIcon />} label={t("tableVisits")}>
-                {visitCount > 0
-                  ? `${visitCount} · ${formatDateTime(
-                      format,
-                      activity?.lastVisitAt ?? null,
-                      t("noVisitsYet"),
-                    )}`
-                  : t("noVisitsYet")}
-              </CardFact>
-              <CardFact icon={<FlagIcon />} label={t("tableOpenTasks")}>
-                {activity?.openTaskCount ?? 0}
-              </CardFact>
-            </dl>
-            <div className="list-card-links">
-              <a
-                className="list-card-open"
-                href={`/${tenantSlug}/manager/visits?locationId=${location.id}`}
-              >
-                {t("visits")}
-              </a>
-              <a
-                className="list-card-open"
-                href={`/${tenantSlug}/manager/tasks?locationId=${location.id}`}
-              >
-                {t("tasks")}
-              </a>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+            return (
+              <tr key={location.id}>
+                <td>
+                  <span className={`status-pill ${statusTone(displayStatus)}`}>
+                    {formatEnumLabel(tCommon, displayStatus)}
+                  </span>{" "}
+                  <strong>{location.name}</strong>
+                  <br />
+                  {location.addressLine}, {location.city}
+                </td>
+                <td>{area}</td>
+                <td>
+                  {visitCount > 0
+                    ? `${visitCount} · ${formatDateTime(
+                        format,
+                        activity?.lastVisitAt ?? null,
+                        t("noVisitsYet"),
+                      )}`
+                    : t("noVisitsYet")}
+                </td>
+                <td>{activity?.openTaskCount ?? 0}</td>
+                {productsEnabled ? (
+                  <>
+                    <td>{format.number(insights?.totalPotential ?? 0)}</td>
+                    <td>{insights?.coveragePct ?? 0}%</td>
+                  </>
+                ) : null}
+                <td>
+                  <a
+                    className="list-card-open"
+                    href={`/${tenantSlug}/manager/visits?locationId=${location.id}`}
+                  >
+                    {t("visits")}
+                  </a>{" "}
+                  <a
+                    className="list-card-open"
+                    href={`/${tenantSlug}/manager/tasks?locationId=${location.id}`}
+                  >
+                    {t("tasks")}
+                  </a>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

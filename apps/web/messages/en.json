@@ -39,7 +39,11 @@
       "tenant_superadmin": "Tenant Superadmin",
       "company_admin": "Company Admin",
       "team_manager": "Team Manager",
-      "field_representative": "Field Representative"
+      "field_representative": "Field Representative",
+      "in_stock": "In stock",
+      "out_of_stock": "Out of stock",
+      "to_order": "To order",
+      "not_relevant": "Not relevant"
     },
     "tone": {
       "ok": "OK",
@@ -65,7 +69,8 @@
       "manager-tasks": "Tasks",
       "manager-locations": "Coverage",
       "manager-representatives": "Reps",
-      "operations": "Ops"
+      "operations": "Ops",
+      "manager-potential": "Potential"
     },
     "zone": {
       "names": {
@@ -106,7 +111,41 @@
       "error": "Error"
     },
     "anyOption": "—",
-    "datePlaceholder": "__.__.____"
+    "datePlaceholder": "__.__.____",
+    "locationInsights": {
+      "potentialTitle": "Potential",
+      "potentialCount": "{count, plural, one {# product category} other {# product categories}}",
+      "potentialEmpty": "Product category potential is not tracked yet.",
+      "assortmentTitle": "Assortment",
+      "assortmentCount": "{count, plural, one {# item} other {# items}}",
+      "assortmentEmpty": "Assortment tracking has no items yet.",
+      "coverageSummary": "{pct}% in stock ({inStock} of {required} required products)",
+      "category": "Product category",
+      "product": "Product",
+      "potentialAmount": "Potential amount",
+      "potentialDate": "Assessed on",
+      "planMonth1": "Month 1 plan",
+      "planMonth2": "Month 2 plan",
+      "planMonth3": "Month 3 plan",
+      "comment": "Comment",
+      "shouldBeListed": "Should be listed here",
+      "status": "Status",
+      "lastStock": "Last stock count",
+      "lastOrder": "Last order quantity",
+      "lastSale": "Last sale quantity",
+      "lastCheckedAt": "Last checked",
+      "selectCategory": "Choose a product category",
+      "selectProduct": "Choose a product",
+      "addCategory": "Add",
+      "addProduct": "Add",
+      "remove": "Remove",
+      "errorAria": "Save error",
+      "errorBody": "Could not save your change. Please try again.",
+      "errorTitle": "Something went wrong",
+      "savedAria": "Saved",
+      "savedBody": "Your change has been saved.",
+      "savedTitle": "Saved"
+    }
   },
   "auth": {
     "eyebrow": "Workspace access",
@@ -318,7 +357,9 @@
       "unassignedTerritory": "Unassigned",
       "noType": "No category",
       "noVisitsYet": "No visits yet",
-      "filterResultCount": "{count, plural, =0 {No locations found} one {Found <b>#</b> location} other {Found <b>#</b> locations}}"
+      "filterResultCount": "{count, plural, =0 {No locations found} one {Found <b>#</b> location} other {Found <b>#</b> locations}}",
+      "tableTotalPotential": "Total potential",
+      "tableCoverage": "Coverage"
     },
     "representatives": {
       "title": "Representatives",
@@ -413,6 +454,26 @@
       "qualityReportAvailable": "Confirmed report is available",
       "yes": "Yes",
       "no": "No"
+    },
+    "potential": {
+      "title": "Potential & assortment",
+      "metricsAria": "Potential and coverage totals",
+      "totalPotential": "Total potential",
+      "planTotals": "Plan: {m1} / {m2} / {m3}",
+      "overallCoverage": "Overall coverage",
+      "coverageDetail": "{inStock} of {required} required products in stock",
+      "highPotentialLowCoverage": "High potential, low coverage",
+      "highPotentialLowCoverageEmpty": "No locations are both high-potential and under-covered right now.",
+      "locationPotentialAmount": "Potential: {amount}",
+      "topProblemProducts": "Top problem products",
+      "topProblemProductsEmpty": "No out-of-stock or to-order products right now.",
+      "problemCount": "Problem count",
+      "potentialByCategory": "Potential by category",
+      "potentialByCategoryEmpty": "No potential has been recorded yet.",
+      "disabledAria": "Feature unavailable",
+      "disabledTitle": "Product tracking is off",
+      "disabledBody": "Ask a company admin to turn on product tracking for this tenant to use potential and assortment tracking.",
+      "notConnectedTitle": "Could not load the summary"
     }
   },
   "admin": {
@@ -551,7 +612,12 @@
       "categoryInUseErrorAria": "Category in use",
       "categoryInUseErrorEyebrow": "Delete failed",
       "categoryInUseErrorTitle": "Can't delete this category yet",
-      "categoryInUseErrorBody": "{count, plural, one {This category is still used by # location.} other {This category is still used by # locations.}} Remove the category from those locations first, then delete it."
+      "categoryInUseErrorBody": "{count, plural, one {This category is still used by # location.} other {This category is still used by # locations.}} Remove the category from those locations first, then delete it.",
+      "viewDetails": "View potential & assortment",
+      "detailEyebrow": "Location details",
+      "detailNotFoundTitle": "Location was not found",
+      "detailBackToList": "Back to locations",
+      "detailBackAria": "Back to locations"
     },
     "chains": {
       "title": "Chains",
@@ -917,14 +983,6 @@
       "demoLocationName": "Demo location",
       "demoRepresentative": "Demo representative",
       "backAria": "Back to route",
-      "potential": "Potential",
-      "productGroupCount": "{count, plural, one {# product group} other {# product groups}}",
-      "potentialEmpty": "Product group potential is not tracked yet.",
-      "addProductGroupAria": "Add product group (coming soon)",
-      "assortment": "Assortment",
-      "assortmentItemCount": "{count, plural, one {# item} other {# items}}",
-      "assortmentEmpty": "Assortment tracking is not available yet.",
-      "addAssortmentAria": "Add assortment item (coming soon)",
       "startVisitDemo": "Start visit (demo)",
       "continueVisit": "Continue visit",
       "startVisit": "Start visit",

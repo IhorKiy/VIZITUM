@@ -983,6 +983,7 @@ function LocationsSection({
                         representatives={representatives}
                         restoreLocationAction={restoreLocationAction}
                         saveLocationAction={saveLocationAction}
+                        tenantSlug={tenantSlug}
                       />
                     ))}
                   </div>
@@ -1002,6 +1003,7 @@ function LocationsSection({
                   representatives={representatives}
                   restoreLocationAction={restoreLocationAction}
                   saveLocationAction={saveLocationAction}
+                  tenantSlug={tenantSlug}
                 />
               ))}
             </div>
@@ -1163,6 +1165,7 @@ function LocationRow({
   representatives,
   restoreLocationAction,
   saveLocationAction,
+  tenantSlug,
 }: {
   archiveLocationAction: (formData: FormData) => Promise<void>;
   categories: LocationCategory[];
@@ -1172,6 +1175,7 @@ function LocationRow({
   representatives: TenantUser[];
   restoreLocationAction: (formData: FormData) => Promise<void>;
   saveLocationAction: (formData: FormData) => Promise<void>;
+  tenantSlug: string;
 }) {
   const t = useTranslations("admin.locations");
   const tCommon = useTranslations("common");
@@ -1232,6 +1236,13 @@ function LocationRow({
       </summary>
 
       <div className="admin-user-body">
+        <a
+          className="secondary-button"
+          href={`/${tenantSlug}/admin/locations/${location.id}`}
+        >
+          {t("viewDetails")}
+        </a>
+
         {/* The backend refuses writes to an archived row (404), so the edit
             form is only offered for live rows — restore first, then edit. */}
         {!location.archived ? (
