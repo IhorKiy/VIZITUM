@@ -265,7 +265,6 @@ async function seedLocations(tx, tenantId) {
     {
       externalCode: "demo-location-central",
       name: "Central Kyiv Market",
-      type: "retail",
       status: "active",
       addressLine: "12 Khreshchatyk Street",
       city: "Kyiv",
@@ -276,7 +275,6 @@ async function seedLocations(tx, tenantId) {
     {
       externalCode: "demo-location-left-bank",
       name: "Left Bank Partner",
-      type: "partner",
       status: "active",
       addressLine: "8 Sobornosti Avenue",
       city: "Kyiv",
@@ -287,7 +285,6 @@ async function seedLocations(tx, tenantId) {
     {
       externalCode: "demo-location-service",
       name: "Service Point Podil",
-      type: "service",
       status: "inactive",
       addressLine: "4 Kontraktova Square",
       city: "Kyiv",
@@ -299,24 +296,34 @@ async function seedLocations(tx, tenantId) {
 
   const locations = [];
   for (const row of rows) {
-    locations.push(
-      await tx.location.upsert({
-        where: {
-          tenantId_externalCode: {
-            tenantId,
-            externalCode: row.externalCode,
+    // Location's (tenantId, externalCode) uniqueness is a PARTIAL index scoped to
+    // `deletedAt IS NULL`, which Prisma can't target with `upsert`. Match only a
+    // LIVE row: a soft-deleted row must not be revived here, since a live row
+    // with the same code may coexist and reviving the deleted one would violate
+    // the partial index. If none is live, create a fresh row.
+    const existing = await tx.location.findFirst({
+      where: { tenantId, externalCode: row.externalCode, deletedAt: null },
+    });
+
+    if (existing) {
+      locations.push(
+        await tx.location.update({
+          where: { id: existing.id },
+          data: {
+            ...row,
           },
-        },
-        create: {
-          tenantId,
-          ...row,
-        },
-        update: {
-          ...row,
-          deletedAt: null,
-        },
-      }),
-    );
+        }),
+      );
+    } else {
+      locations.push(
+        await tx.location.create({
+          data: {
+            tenantId,
+            ...row,
+          },
+        }),
+      );
+    }
   }
 
   return locations;
