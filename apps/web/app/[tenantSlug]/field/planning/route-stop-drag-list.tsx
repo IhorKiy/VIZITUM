@@ -176,8 +176,14 @@ function RouteStopRow({
   tenantSlug,
 }: RouteStopRowProps) {
   const t = useTranslations("field.planning");
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: stop.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: stop.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
