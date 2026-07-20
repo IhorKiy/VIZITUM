@@ -121,6 +121,10 @@ export type MoveRouteTemplateItemRequestBody = {
   direction?: unknown;
 };
 
+export type ReorderRouteTemplateItemsRequestBody = {
+  itemIds?: unknown;
+};
+
 export type AssignRouteTemplateRequestBody = {
   planDate?: unknown;
 };

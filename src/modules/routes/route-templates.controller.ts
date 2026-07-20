@@ -26,6 +26,7 @@ import type {
   CreateRouteTemplateItemRequestBody,
   CreateRouteTemplateRequestBody,
   MoveRouteTemplateItemRequestBody,
+  ReorderRouteTemplateItemsRequestBody,
   UpdateRouteTemplateItemRequestBody,
   UpdateRouteTemplateRequestBody,
 } from "./routes.types";
@@ -157,6 +158,23 @@ export class RouteTemplatesController {
       getRequestContext(request),
       templateId,
       itemId,
+      body,
+    );
+  }
+
+  @Post(":templateId/items/reorder")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  reorderRouteTemplateItems(
+    @Req() request: Request,
+    @Param("templateId") templateId: string,
+    @Body() body: ReorderRouteTemplateItemsRequestBody,
+  ) {
+    return this.routeTemplatesService.reorderRouteTemplateItems(
+      getRequestContext(request),
+      templateId,
       body,
     );
   }

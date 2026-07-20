@@ -23,6 +23,7 @@ import {
 } from "./route-access";
 import {
   normalizeId,
+  normalizeIdList,
   normalizePositiveInteger,
   parseDateOnly,
 } from "./route-parsing";
@@ -35,6 +36,7 @@ import type {
   CreateRouteTemplateRequestBody,
   ListRouteTemplatesQuery,
   MoveRouteTemplateItemRequestBody,
+  ReorderRouteTemplateItemsRequestBody,
   RoutePlanResponse,
   RouteTemplateResponse,
   UpdateRouteTemplateItemRequestBody,
@@ -312,6 +314,60 @@ export class RouteTemplatesService {
           where: { id: item.id },
           data: { sequence: other.sequence },
         });
+      });
+    } catch (error) {
+      throw toSequenceConflictOrRethrow(error);
+    }
+
+    return this.getRouteTemplateResponse(template.id);
+  }
+
+  // Drag-and-drop reorder: the caller submits the full new item order, not a
+  // single move. Same temp-slot dance as moveRouteTemplateItem (bump every
+  // item to a free slot first, then assign final 1..N), generalized to N
+  // items and run sequentially — not Promise.all — inside one transaction,
+  // so no step can ever race the unique (tenantId, routeTemplateId, sequence)
+  // index against a slot this same call hasn't vacated yet.
+  async reorderRouteTemplateItems(
+    context: RequestContext,
+    templateId: string,
+    body: ReorderRouteTemplateItemsRequestBody,
+  ): Promise<RouteTemplateResponse> {
+    const template = await this.findTenantRouteTemplate(context, templateId);
+    const orderedIds = normalizeIdList(body.itemIds);
+    const currentIds = new Set(template.items.map((item) => item.id));
+    const isValidPermutation =
+      orderedIds !== null &&
+      orderedIds.length === template.items.length &&
+      new Set(orderedIds).size === orderedIds.length &&
+      orderedIds.every((id) => currentIds.has(id));
+
+    if (!orderedIds || !isValidPermutation) {
+      throw new BadRequestException({
+        code: "ROUTE_TEMPLATE_ITEM_REORDER_INVALID",
+        message: "itemIds must list every stop in this route exactly once.",
+      });
+    }
+
+    const maxSequence = Math.max(
+      ...template.items.map((item) => item.sequence),
+    );
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        for (const [index, id] of orderedIds.entries()) {
+          await tx.routeTemplateItem.update({
+            where: { id },
+            data: { sequence: maxSequence + index + 1 },
+          });
+        }
+
+        for (const [index, id] of orderedIds.entries()) {
+          await tx.routeTemplateItem.update({
+            where: { id },
+            data: { sequence: index + 1 },
+          });
+        }
       });
     } catch (error) {
       throw toSequenceConflictOrRethrow(error);

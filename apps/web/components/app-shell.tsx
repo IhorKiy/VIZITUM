@@ -98,39 +98,41 @@ export async function AppShell({
   return (
     <div className={shellClassName}>
       <header className="mobile-topbar" aria-label={tNav("ariaBrand")}>
-        <div className="brand-block">
-          <BrandMark logoUrl={branding.logoUrl} />
-          <div>
-            <p className="topbar-company-name">
-              {normalizeTenantName(tenantSlug)}
-            </p>
-            <p className="topbar-app-name">{tCommon("appName")}</p>
-          </div>
-        </div>
-
-        <div className="topbar-aside">
-          {currentUser && currentZone !== "field" ? (
-            // The field zone shows the signed-in name in its page greeting
-            // ("Hi, {firstName}!"), so the topbar name would just duplicate it.
-            <p className="topbar-user-name">{currentUser.name}</p>
-          ) : null}
-
-          {otherZones.length > 0 ? (
-            <div
-              aria-label={tZoneSwitcher("ariaLabel")}
-              className="zone-switcher-mobile"
-            >
-              {otherZones.map((zone) => (
-                <form action={selectZoneAction} key={zone}>
-                  <input name="tenantSlug" type="hidden" value={tenantSlug} />
-                  <input name="zone" type="hidden" value={zone} />
-                  <button className="zone-switcher-link" type="submit">
-                    {tZoneNames(zone)}
-                  </button>
-                </form>
-              ))}
+        <div className="mobile-topbar-inner">
+          <div className="brand-block">
+            <BrandMark logoUrl={branding.logoUrl} />
+            <div>
+              <p className="topbar-company-name">
+                {normalizeTenantName(tenantSlug)}
+              </p>
+              <p className="topbar-app-name">{tCommon("appName")}</p>
             </div>
-          ) : null}
+          </div>
+
+          <div className="topbar-aside">
+            {currentUser && currentZone !== "field" ? (
+              // The field zone shows the signed-in name in its page greeting
+              // ("Hi, {firstName}!"), so the topbar name would just duplicate it.
+              <p className="topbar-user-name">{currentUser.name}</p>
+            ) : null}
+
+            {otherZones.length > 0 ? (
+              <div
+                aria-label={tZoneSwitcher("ariaLabel")}
+                className="zone-switcher-mobile"
+              >
+                {otherZones.map((zone) => (
+                  <form action={selectZoneAction} key={zone}>
+                    <input name="tenantSlug" type="hidden" value={tenantSlug} />
+                    <input name="zone" type="hidden" value={zone} />
+                    <button className="zone-switcher-link" type="submit">
+                      {tZoneNames(zone)}
+                    </button>
+                  </form>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -203,17 +205,19 @@ export async function AppShell({
       <main className="main-surface">{children}</main>
 
       <nav className="mobile-nav" aria-label={tNav("ariaPrimaryMobile")}>
-        {navItems.map((item) => (
-          <Link
-            aria-current={item.area === activeArea ? "page" : undefined}
-            className="mobile-nav-link"
-            href={item.href}
-            key={item.href}
-          >
-            <NavIcon name={item.icon} />
-            <span>{tNav(item.area)}</span>
-          </Link>
-        ))}
+        <div className="mobile-nav-inner">
+          {navItems.map((item) => (
+            <Link
+              aria-current={item.area === activeArea ? "page" : undefined}
+              className="mobile-nav-link"
+              href={item.href}
+              key={item.href}
+            >
+              <NavIcon name={item.icon} />
+              <span>{tNav(item.area)}</span>
+            </Link>
+          ))}
+        </div>
       </nav>
     </div>
   );

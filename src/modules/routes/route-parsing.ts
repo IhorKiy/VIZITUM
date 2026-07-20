@@ -20,6 +20,26 @@ export function normalizePositiveInteger(value: unknown): number | null {
   return value;
 }
 
+export function normalizeIdList(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0) {
+    return null;
+  }
+
+  const ids: string[] = [];
+
+  for (const entry of value) {
+    const id = normalizeId(entry);
+
+    if (!id) {
+      return null;
+    }
+
+    ids.push(id);
+  }
+
+  return ids;
+}
+
 // Rejects both malformed strings ("not-a-date") and calendar-invalid ones
 // ("2026-02-31"): the regex only checks the shape, and an out-of-range date
 // component produces an Invalid Date object, which is still truthy — left
