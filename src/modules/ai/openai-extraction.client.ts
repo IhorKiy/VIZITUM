@@ -3,6 +3,8 @@ import { Injectable } from "@nestjs/common";
 import type { ExtractionInput, ExtractionResult } from "./ai.types";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+const DEFAULT_SYSTEM_PROMPT =
+  "Extract a structured visit report. Return only data that is supported by the transcript. Keep requiresUserConfirmation true.";
 
 @Injectable()
 export class OpenAiExtractionClient {
@@ -27,14 +29,14 @@ export class OpenAiExtractionClient {
         input: [
           {
             role: "system",
-            content:
-              "Extract a structured visit report. Return only data that is supported by the transcript. Keep requiresUserConfirmation true.",
+            content: input.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
           },
           {
             role: "user",
             content: JSON.stringify({
               transcript: input.transcript,
               visitContext: input.visitContext ?? {},
+              ...(input.extraContext ?? {}),
             }),
           },
         ],
