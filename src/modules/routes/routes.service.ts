@@ -4,11 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type {
+import {
   Prisma,
-  RouteItemStatus,
-  RoutePlan,
-  RouteStatus,
+  type RouteItemStatus,
+  type RoutePlan,
+  type RouteStatus,
 } from "@prisma/client";
 
 import {
@@ -28,6 +28,7 @@ import {
 } from "./route-access";
 import {
   normalizeId,
+  normalizeIdList,
   normalizePositiveInteger,
   parseDateOnly,
 } from "./route-parsing";
@@ -35,6 +36,7 @@ import type {
   CreateRouteItemRequestBody,
   CreateRoutePlanRequestBody,
   ListRoutesQuery,
+  ReorderRouteItemsRequestBody,
   RoutePlanResponse,
   UpdateRouteItemRequestBody,
   UpdateRoutePlanRequestBody,
@@ -46,7 +48,11 @@ export type RoutePlanWithRelations = Prisma.RoutePlanGetPayload<{
     routeTemplate: true;
     items: {
       include: {
-        location: true;
+        location: {
+          include: {
+            chain: true;
+          };
+        };
       };
     };
   };
@@ -290,6 +296,60 @@ export class RoutesService {
     return this.getRoutePlanResponse(plan.id);
   }
 
+  // Same two-phase update as RouteTemplatesService.reorderRouteTemplateItems:
+  // bump every item to a sequence beyond the current max first, then assign
+  // final positions, so no step can ever race the unique
+  // (tenantId, routePlanId, sequence) index against a slot this same call
+  // hasn't vacated yet.
+  async reorderRouteItems(
+    context: RequestContext,
+    routePlanId: string,
+    body: ReorderRouteItemsRequestBody,
+  ): Promise<RoutePlanResponse> {
+    const plan = await this.findTenantRoutePlan(context, routePlanId);
+    const items = await this.prisma.routeItem.findMany({
+      where: { tenantId: context.tenantId, routePlanId: plan.id },
+    });
+    const orderedIds = normalizeIdList(body.itemIds);
+    const currentIds = new Set(items.map((item) => item.id));
+    const isValidPermutation =
+      orderedIds !== null &&
+      orderedIds.length === items.length &&
+      new Set(orderedIds).size === orderedIds.length &&
+      orderedIds.every((id) => currentIds.has(id));
+
+    if (!orderedIds || !isValidPermutation) {
+      throw new BadRequestException({
+        code: "ROUTE_ITEM_REORDER_INVALID",
+        message: "itemIds must list every stop in this route exactly once.",
+      });
+    }
+
+    const maxSequence = Math.max(...items.map((item) => item.sequence));
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        for (const [index, id] of orderedIds.entries()) {
+          await tx.routeItem.update({
+            where: { id },
+            data: { sequence: maxSequence + index + 1 },
+          });
+        }
+
+        for (const [index, id] of orderedIds.entries()) {
+          await tx.routeItem.update({
+            where: { id },
+            data: { sequence: index + 1 },
+          });
+        }
+      });
+    } catch (error) {
+      throw toSequenceConflictOrRethrow(error);
+    }
+
+    return this.getRoutePlanResponse(plan.id);
+  }
+
   private async findTenantRoutePlan(
     context: RequestContext,
     routePlanId: string,
@@ -353,11 +413,33 @@ export const routePlanInclude = {
   routeTemplate: true,
   items: {
     include: {
-      location: true,
+      location: {
+        include: {
+          chain: true,
+        },
+      },
     },
     orderBy: { sequence: "asc" },
   },
 } satisfies Prisma.RoutePlanInclude;
+
+// The frontend computes the next sequence client-side (current max + 1), so
+// two concurrent edits on the same route plan can race for the same slot;
+// without this the unique (tenantId, routePlanId, sequence) index would
+// surface as an unhandled 500 instead of a 409 the client can react to.
+function toSequenceConflictOrRethrow(error: unknown): unknown {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  ) {
+    return new ConflictException({
+      code: "ROUTE_ITEM_SEQUENCE_TAKEN",
+      message: "Another stop already uses that position in this route.",
+    });
+  }
+
+  return error;
+}
 
 function buildRoutePlanWhere(
   context: RequestContext,
@@ -486,6 +568,9 @@ export function toRoutePlanResponse(
         name: item.location.name,
         addressLine: item.location.addressLine,
         city: item.location.city,
+        chain: item.location.chain
+          ? { id: item.location.chain.id, name: item.location.chain.name }
+          : null,
       },
       sequence: item.sequence,
       status: item.status,

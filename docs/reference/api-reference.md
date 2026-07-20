@@ -224,8 +224,11 @@ Managed vocabulary of category labels per tenant, used by the admin Products scr
 | `DELETE /routes/:routePlanId`                   | any: `routes.manage_team`, `routes.manage_own` | — → `{ deleted: true }`; 409 `ROUTE_PLAN_NOT_REMOVABLE` unless the plan is still `draft` (never published/started — a plan with real field work attached can't be pulled out this way); audited as `route_plan.deleted` |
 | `POST /routes/:routePlanId/items`               | any: `routes.manage_team`, `routes.manage_own` | `{ locationId, sequence, plannedStartTime?, plannedEndTime? }`                                                        |
 | `PATCH /routes/:routePlanId/items/:routeItemId` | any: `routes.manage_team`, `routes.manage_own` | partial item fields plus `status?, skipReason?`                                                                       |
+| `POST /routes/:routePlanId/items/reorder`       | any: `routes.manage_team`, `routes.manage_own` | `{ itemIds: string[] }` — the full new stop order (drag-and-drop, field home page); same validation/transaction/409 behavior as the template reorder below, scoped to this plan's items instead of a template's |
 
 `RoutePlanResponse` also carries `routeTemplateId: string | null` and an embedded `routeTemplate: { id, name } | null` summary — set when the plan was created via `POST /routes/templates/:templateId/assign` or `.../copy-month` below, `null` for a plan created directly via `POST /routes`.
+
+Each `RouteItem`'s (and, below, each `RouteTemplateItem`'s) embedded `location` also carries `chain: { id, name } | null` alongside `id, name, addressLine, city` — the same shape documented under Locations above.
 
 ### Route templates — `/routes/templates` (`route-templates.controller.ts`)
 
@@ -298,4 +301,4 @@ Purpose-level access checks inside `StorageService` are stricter than the guard-
 
 ## Endpoint count
 
-119 endpoints across 25 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 4, locations 13, location-potential 3, location-assortment 3, location-insights-summary 1, chains 4, location-categories 4, products 5, product-categories 4, routes 7, route templates 11, imports 6, admin users 8, admin settings 5, storage 3).
+120 endpoints across 25 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 11, tasks 4, locations 13, location-potential 3, location-assortment 3, location-insights-summary 1, chains 4, location-categories 4, products 5, product-categories 4, routes 8, route templates 11, imports 6, admin users 8, admin settings 5, storage 3).

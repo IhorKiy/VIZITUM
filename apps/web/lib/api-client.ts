@@ -180,6 +180,7 @@ export type RoutePlan = {
       name: string;
       addressLine: string;
       city: string;
+      chain: { id: string; name: string } | null;
     };
     sequence: number;
     status: RouteItemStatus;
@@ -205,6 +206,7 @@ export type RouteTemplate = {
       name: string;
       addressLine: string;
       city: string;
+      chain: { id: string; name: string } | null;
     };
     sequence: number;
     createdAt: string;
@@ -859,6 +861,15 @@ export async function updateRouteItem(
     `/routes/${routePlanId}/items/${routeItemId}`,
     input,
   );
+}
+
+export async function reorderRouteItems(
+  routePlanId: string,
+  itemIds: string[],
+): Promise<ApiResult<RoutePlan>> {
+  return apiPost<RoutePlan>(`/routes/${routePlanId}/items/reorder`, {
+    itemIds,
+  });
 }
 
 export async function listRouteTemplates(

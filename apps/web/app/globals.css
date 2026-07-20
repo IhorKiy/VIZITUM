@@ -3640,6 +3640,9 @@ textarea {
 .route-stop-body h3 {
   font-size: 15px;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .route-stop.visited .route-stop-body h3 {
@@ -3656,21 +3659,25 @@ textarea {
   white-space: nowrap;
 }
 
-/* Route builder only: an icon precedes the address text there (the field
-   home page's read-only stop list has no icon, so this only ever matches
-   inside route-stop-drag-list.tsx). */
 .route-stop-address svg {
   flex-shrink: 0;
   margin-right: 4px;
   vertical-align: -2px;
 }
 
-.route-stop-chevron {
+.route-stop-chain {
+  background: var(--surface-muted);
+  border-radius: 6px;
   color: var(--muted);
-  flex-shrink: 0;
-  font-size: 20px;
-  line-height: 1;
-  transition: transform 0.2s ease;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: fit-content;
 }
 
 .route-stop-detail {
@@ -3713,15 +3720,9 @@ textarea {
 
 .route-name-summary {
   align-items: flex-start;
-  cursor: pointer;
   display: flex;
   justify-content: space-between;
-  list-style: none;
   padding: 18px 20px;
-}
-
-.route-name-summary::-webkit-details-marker {
-  display: none;
 }
 
 .route-name-summary h2 {
@@ -3738,18 +3739,12 @@ textarea {
   margin: 6px 0 0;
 }
 
-.route-name-edit-icon {
-  color: var(--muted);
+.route-name-actions {
+  align-items: center;
+  display: flex;
   flex-shrink: 0;
+  gap: 8px;
   margin-left: 12px;
-}
-
-.route-name-card[open] .route-name-summary {
-  border-bottom: 1px solid var(--line);
-}
-
-.route-rename-form {
-  padding: 16px 20px 20px;
 }
 
 .route-add-stop {
@@ -3815,6 +3810,19 @@ textarea {
   flex-shrink: 0;
 }
 
+/* Shares a column with .route-stop-index (route-stop-drag-list.tsx only —
+   the read-only stop lists on field/page.tsx and planning/page.tsx have no
+   handle, so they never render this wrapper) to avoid spending two columns
+   of row width on drag affordance + position number. */
+.route-stop-drag-cell {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 8px 8px 8px 14px;
+}
+
 .route-stop-handle {
   align-items: center;
   background: none;
@@ -3822,9 +3830,8 @@ textarea {
   color: var(--muted);
   cursor: grab;
   display: flex;
-  flex-shrink: 0;
   justify-content: center;
-  padding: 12px 4px 12px 14px;
+  padding: 6px;
   touch-action: none;
 }
 
@@ -3838,19 +3845,15 @@ textarea {
 }
 
 .route-stop.dragging {
-  box-shadow: var(--shadow);
+  box-shadow:
+    0 0 0 2px var(--accent-soft),
+    0 24px 45px rgba(15, 23, 42, 0.22);
   opacity: 0.85;
 }
 
 .route-stop-remove-form {
   flex-shrink: 0;
   padding-right: 10px;
-}
-
-.route-delete-row {
-  display: flex;
-  justify-content: center;
-  margin-top: 16px;
 }
 
 .location-header {
