@@ -110,7 +110,7 @@ export class LocationsService {
     context: RequestContext,
     locationId: string,
   ): Promise<LocationResponse> {
-    const location = await this.findTenantLocation(
+    const location = await this.findTenantLocationIncludingArchived(
       context.tenantId,
       locationId,
     );
@@ -427,6 +427,35 @@ export class LocationsService {
         id: locationId,
         tenantId,
         deletedAt: null,
+      },
+      include: LOCATION_INCLUDE,
+    });
+
+    if (!location) {
+      throw new NotFoundException({
+        code: "LOCATION_NOT_FOUND",
+        message: "Location was not found.",
+      });
+    }
+
+    return location;
+  }
+
+  // Unlike findTenantLocation, intentionally omits the deletedAt filter.
+  // GET /locations/:id is the one place an archived location must still be
+  // readable — the location detail screens show a restore-first notice over
+  // the potential/assortment sections instead of 404ing the whole page — so
+  // only getLocation uses this. Every write and every other lookup
+  // (contacts, assignments, potential, assortment, ...) keeps rejecting
+  // archived rows via findTenantLocation / findTenantLocationOrThrow.
+  private async findTenantLocationIncludingArchived(
+    tenantId: string,
+    locationId: string,
+  ): Promise<LocationWithChain> {
+    const location = await this.prisma.location.findFirst({
+      where: {
+        id: locationId,
+        tenantId,
       },
       include: LOCATION_INCLUDE,
     });

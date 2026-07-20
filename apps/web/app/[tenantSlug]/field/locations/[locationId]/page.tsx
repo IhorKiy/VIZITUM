@@ -3,11 +3,17 @@ import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
 import { DismissableNotice } from "../../../../../components/dismissable-notice";
+import { LocationAssortmentPanel } from "../../../../../components/location-assortment-panel";
+import { LocationPotentialPanel } from "../../../../../components/location-potential-panel";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import {
   createVisit,
   getCurrentSession,
   getLocation,
+  listAllProducts,
+  listLocationAssortment,
+  listLocationPotential,
+  listProductCategories,
   listTasks,
   listVisits,
   updateRouteItem,
@@ -21,6 +27,12 @@ import {
   statusPillTone,
 } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
+import {
+  deleteLocationAssortmentAction,
+  deleteLocationPotentialAction,
+  upsertLocationAssortmentAction,
+  upsertLocationPotentialAction,
+} from "../../../../../lib/location-insights-actions";
 
 type LocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
@@ -30,6 +42,7 @@ type LocationDetailPageProps = {
     visited?: string;
     route?: string;
     error?: string;
+    locationInsights?: string;
     demoName?: string;
     demoAddress?: string;
   }>;
@@ -46,13 +59,15 @@ export default async function LocationDetailPage({
     visited,
     route,
     error,
+    locationInsights,
     demoName,
     demoAddress,
   } = await searchParams;
   const stopAlreadyVisited = visited === "1";
-  const [t, tCommon, format] = await Promise.all([
+  const [t, tCommon, tLocationInsights, format] = await Promise.all([
     getTranslations("field"),
     getTranslations("common"),
+    getTranslations("common.locationInsights"),
     getFormatter(),
   ]);
 
@@ -110,6 +125,43 @@ export default async function LocationDetailPage({
       `/${tenantSlug}/field/locations/${locationId}?route=visited&routePlanId=${formRoutePlanId}&routeItemId=${formRouteItemId}&visited=1`,
     );
   }
+
+  // The four potential/assortment actions are shared with the admin detail
+  // screen via lib/location-insights-actions.ts — bound here with this
+  // zone's basePath plus routePlanId/routeItemId so returning to a route
+  // stop keeps its context through the redirect (admin has no such params).
+  const basePath = `/${tenantSlug}/field/locations/${locationId}`;
+  const extraParams: [string, string][] = [];
+  if (routePlanId) {
+    extraParams.push(["routePlanId", routePlanId]);
+  }
+  if (routeItemId) {
+    extraParams.push(["routeItemId", routeItemId]);
+  }
+  const upsertPotentialAction = upsertLocationPotentialAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
+  const deletePotentialAction = deleteLocationPotentialAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
+  const upsertAssortmentAction = upsertLocationAssortmentAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
+  const deleteAssortmentAction = deleteLocationAssortmentAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
 
   const [sessionResult, locationResult] = await Promise.all([
     getCurrentSession(),
@@ -178,6 +230,12 @@ export default async function LocationDetailPage({
         .filter(Boolean)
         .join(", ")
     : (demoAddress ?? "");
+  // GET /locations/:id stays reachable for an archived location (unlike the
+  // insights endpoints below), so a field rep with a stale assignment to a
+  // since-archived location lands here instead of on "not found" — treat it
+  // the same way the admin detail screen does: skip the insights calls and
+  // the "start visit" CTA rather than offering actions that can only fail.
+  const isArchivedLocation = locationResult.ok && locationResult.data.archived;
   const representativeName = sessionResult.ok
     ? sessionResult.data.user.name
     : t("location.demoRepresentative");
@@ -216,6 +274,59 @@ export default async function LocationDetailPage({
     (item) => item.status === "open" || item.status === "in_progress",
   );
 
+  const productsEnabled = sessionResult.ok
+    ? sessionResult.data.productsEnabled
+    : false;
+  const skipLocationInsights =
+    isDemoLocation || !productsEnabled || isArchivedLocation;
+
+  const [potentialResult, assortmentResult, categoriesResult, productsResult] =
+    skipLocationInsights
+      ? [
+          { ok: false as const, status: 0, message: "Not available" },
+          { ok: false as const, status: 0, message: "Not available" },
+          { ok: false as const, status: 0, message: "Not available" },
+          { ok: false as const, status: 0, message: "Not available" },
+        ]
+      : await Promise.all([
+          listLocationPotential(locationId),
+          listLocationAssortment(locationId),
+          listProductCategories(),
+          listAllProducts(),
+        ]);
+
+  const potentialRows = potentialResult.ok ? potentialResult.data.items : [];
+  const canManagePotential = potentialResult.ok
+    ? potentialResult.data.canManage
+    : false;
+  const availableCategories = (
+    categoriesResult.ok ? categoriesResult.data : []
+  ).filter(
+    (category) =>
+      !potentialRows.some((row) => row.productCategoryId === category.id),
+  );
+
+  const assortmentRows = assortmentResult.ok ? assortmentResult.data.items : [];
+  const canManageAssortment = assortmentResult.ok
+    ? assortmentResult.data.canManage
+    : false;
+  const assortmentCoverage = assortmentResult.ok
+    ? {
+        pct: assortmentResult.data.coveragePct,
+        required: assortmentResult.data.requiredCount,
+        inStock: assortmentResult.data.inStockCount,
+      }
+    : { pct: 0, required: 0, inStock: 0 };
+  const availableProducts = (productsResult.ok ? productsResult.data : [])
+    .filter(
+      (product) => !assortmentRows.some((row) => row.productId === product.id),
+    )
+    .map((product) => ({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+    }));
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       {error === "visit" ? (
@@ -251,6 +362,28 @@ export default async function LocationDetailPage({
         />
       ) : null}
 
+      {error === "locationInsights" ? (
+        <DismissableNotice
+          ariaLabel={tLocationInsights("errorAria")}
+          body={tLocationInsights("errorBody")}
+          clearParams={["error"]}
+          eyebrow={t("flowEyebrow")}
+          title={tLocationInsights("errorTitle")}
+          tone="danger"
+        />
+      ) : null}
+
+      {locationInsights === "updated" || locationInsights === "deleted" ? (
+        <DismissableNotice
+          ariaLabel={tLocationInsights("savedAria")}
+          body={tLocationInsights("savedBody")}
+          clearParams={["locationInsights"]}
+          eyebrow={t("flowEyebrow")}
+          title={tLocationInsights("savedTitle")}
+          tone="success"
+        />
+      ) : null}
+
       {isDemoLocation ? (
         <section
           className="notice-panel"
@@ -279,79 +412,89 @@ export default async function LocationDetailPage({
         <span className="location-header-rep">{representativeName}</span>
       </div>
 
-      <div className="location-feature-wrap">
-        <details className="panel location-feature">
-          <summary className="location-feature-summary">
-            <span className="location-feature-heading">
-              <span className="location-feature-icon" aria-hidden="true">
-                💰
-              </span>
-              <span className="location-feature-titles">
-                <span className="location-feature-name">
-                  {t("location.potential")}
-                  <span className="location-feature-help" aria-hidden="true">
-                    ?
-                  </span>
-                </span>
-                <span className="location-feature-meta">
-                  {t("location.productGroupCount", { count: 0 })}
-                </span>
-              </span>
-            </span>
-            <span className="location-feature-actions">
-              <span className="location-feature-chevron" aria-hidden="true">
-                ›
-              </span>
-            </span>
-          </summary>
-          <p className="empty-state">{t("location.potentialEmpty")}</p>
-        </details>
-        <button
-          aria-label={t("location.addProductGroupAria")}
-          className="location-feature-add"
-          disabled
-          type="button"
+      {productsEnabled && isArchivedLocation ? (
+        <section
+          aria-label={tLocationInsights("archivedAria")}
+          className="notice-panel"
         >
-          +
-        </button>
-      </div>
+          <div>
+            <p className="eyebrow">{t("flowEyebrow")}</p>
+            <h2>{tLocationInsights("archivedTitle")}</h2>
+            <p>{tLocationInsights("archivedBody")}</p>
+          </div>
+        </section>
+      ) : null}
 
-      <div className="location-feature-wrap">
-        <details className="panel location-feature">
-          <summary className="location-feature-summary">
-            <span className="location-feature-heading">
-              <span className="location-feature-icon" aria-hidden="true">
-                📦
-              </span>
-              <span className="location-feature-titles">
-                <span className="location-feature-name">
-                  {t("location.assortment")}
-                  <span className="location-feature-help" aria-hidden="true">
-                    ?
+      {productsEnabled && !isArchivedLocation ? (
+        <>
+          <details className="panel location-feature">
+            <summary className="location-feature-summary">
+              <span className="location-feature-heading">
+                <span className="location-feature-icon" aria-hidden="true">
+                  💰
+                </span>
+                <span className="location-feature-titles">
+                  <span className="location-feature-name">
+                    {tLocationInsights("potentialTitle")}
+                  </span>
+                  <span className="location-feature-meta">
+                    {tLocationInsights("potentialCount", {
+                      count: potentialRows.length,
+                    })}
                   </span>
                 </span>
-                <span className="location-feature-meta">
-                  {t("location.assortmentItemCount", { count: 0 })}
+              </span>
+              <span className="location-feature-actions">
+                <span className="location-feature-chevron" aria-hidden="true">
+                  ›
                 </span>
               </span>
-            </span>
-            <span className="location-feature-actions">
-              <span className="location-feature-chevron" aria-hidden="true">
-                ›
+            </summary>
+            <LocationPotentialPanel
+              availableCategories={availableCategories}
+              canManage={canManagePotential}
+              deleteAction={deletePotentialAction}
+              rows={potentialRows}
+              upsertAction={upsertPotentialAction}
+            />
+          </details>
+
+          <details className="panel location-feature">
+            <summary className="location-feature-summary">
+              <span className="location-feature-heading">
+                <span className="location-feature-icon" aria-hidden="true">
+                  📦
+                </span>
+                <span className="location-feature-titles">
+                  <span className="location-feature-name">
+                    {tLocationInsights("assortmentTitle")}
+                  </span>
+                  <span className="location-feature-meta">
+                    {tLocationInsights("assortmentCount", {
+                      count: assortmentRows.length,
+                    })}
+                  </span>
+                </span>
               </span>
-            </span>
-          </summary>
-          <p className="empty-state">{t("location.assortmentEmpty")}</p>
-        </details>
-        <button
-          aria-label={t("location.addAssortmentAria")}
-          className="location-feature-add"
-          disabled
-          type="button"
-        >
-          +
-        </button>
-      </div>
+              <span className="location-feature-actions">
+                <span className="location-feature-chevron" aria-hidden="true">
+                  ›
+                </span>
+              </span>
+            </summary>
+            <LocationAssortmentPanel
+              availableProducts={availableProducts}
+              canManage={canManageAssortment}
+              coveragePct={assortmentCoverage.pct}
+              deleteAction={deleteAssortmentAction}
+              inStockCount={assortmentCoverage.inStock}
+              requiredCount={assortmentCoverage.required}
+              rows={assortmentRows}
+              upsertAction={upsertAssortmentAction}
+            />
+          </details>
+        </>
+      ) : null}
 
       {isDemoLocation ? (
         <a
@@ -369,6 +512,8 @@ export default async function LocationDetailPage({
         </a>
       ) : stopAlreadyVisited ? (
         <p className="empty-state">{t("location.alreadyVisited")}</p>
+      ) : isArchivedLocation ? (
+        <p className="empty-state">{t("location.archivedNoVisit")}</p>
       ) : (
         <form action={startVisitAction}>
           <input name="routeItemId" type="hidden" value={routeItemId ?? ""} />

@@ -39,7 +39,11 @@
       "tenant_superadmin": "Суперадмін простору",
       "company_admin": "Адміністратор компанії",
       "team_manager": "Менеджер команди",
-      "field_representative": "Польовий представник"
+      "field_representative": "Польовий представник",
+      "in_stock": "В наявності",
+      "out_of_stock": "Немає в наявності",
+      "to_order": "На замовлення",
+      "not_relevant": "Не актуально"
     },
     "tone": {
       "ok": "OK",
@@ -65,7 +69,8 @@
       "manager-tasks": "Задачі",
       "manager-locations": "Покриття",
       "manager-representatives": "Команда",
-      "operations": "Операції"
+      "operations": "Операції",
+      "manager-potential": "Потенціал"
     },
     "zone": {
       "names": {
@@ -106,7 +111,44 @@
       "error": "Помилка"
     },
     "anyOption": "—",
-    "datePlaceholder": "__.__.____"
+    "datePlaceholder": "__.__.____",
+    "locationInsights": {
+      "potentialTitle": "Потенціал",
+      "potentialCount": "{count, plural, one {# товарна категорія} few {# товарні категорії} many {# товарних категорій} other {# товарної категорії}}",
+      "potentialEmpty": "Потенціал товарних категорій ще не відстежується.",
+      "assortmentTitle": "Асортимент",
+      "assortmentCount": "{count, plural, one {# позиція} few {# позиції} many {# позицій} other {# позиції}}",
+      "assortmentEmpty": "Відстеження асортименту ще не має позицій.",
+      "coverageSummary": "{pct}% в наявності ({inStock} з {required} обов'язкових товарів)",
+      "category": "Категорія товару",
+      "product": "Товар",
+      "potentialAmount": "Сума потенціалу",
+      "potentialDate": "Дата оцінки",
+      "planMonth1": "План на 1-й місяць",
+      "planMonth2": "План на 2-й місяць",
+      "planMonth3": "План на 3-й місяць",
+      "comment": "Коментар",
+      "shouldBeListed": "Має бути в асортименті",
+      "status": "Статус",
+      "lastStock": "Останній залишок",
+      "lastOrder": "Остання кількість замовлення",
+      "lastSale": "Остання кількість продажу",
+      "lastCheckedAt": "Дата останньої перевірки",
+      "selectCategory": "Виберіть категорію товару",
+      "selectProduct": "Виберіть товар",
+      "addCategory": "Додати",
+      "addProduct": "Додати",
+      "remove": "Видалити",
+      "errorAria": "Помилка збереження",
+      "errorBody": "Не вдалося зберегти зміну. Спробуйте ще раз.",
+      "errorTitle": "Щось пішло не так",
+      "savedAria": "Збережено",
+      "savedBody": "Зміну збережено.",
+      "savedTitle": "Збережено",
+      "archivedAria": "Недоступно для архівних точок",
+      "archivedTitle": "Не відстежується в архіві",
+      "archivedBody": "Потенціал і асортимент не відстежуються для архівних точок. Відновіть точку, щоб знову переглядати або редагувати ці дані."
+    }
   },
   "auth": {
     "eyebrow": "Доступ до робочого простору",
@@ -318,7 +360,10 @@
       "unassignedTerritory": "Не призначено",
       "noType": "Без категорії",
       "noVisitsYet": "Візитів ще немає",
-      "filterResultCount": "{count, plural, =0 {Точок не знайдено} one {Знайдено <b>#</b> точку} few {Знайдено <b>#</b> точки} many {Знайдено <b>#</b> точок} other {Знайдено <b>#</b> точки}}"
+      "filterResultCount": "{count, plural, =0 {Точок не знайдено} one {Знайдено <b>#</b> точку} few {Знайдено <b>#</b> точки} many {Знайдено <b>#</b> точок} other {Знайдено <b>#</b> точки}}",
+      "tableTotalPotential": "Загальний потенціал",
+      "tableCoverage": "Покриття",
+      "tableLinks": "Посилання"
     },
     "representatives": {
       "title": "Представники",
@@ -413,6 +458,26 @@
       "qualityReportAvailable": "Підтверджений звіт доступний",
       "yes": "Так",
       "no": "Ні"
+    },
+    "potential": {
+      "title": "Потенціал і асортимент",
+      "metricsAria": "Підсумки потенціалу та покриття",
+      "totalPotential": "Загальний потенціал",
+      "planTotals": "План: {m1} / {m2} / {m3}",
+      "overallCoverage": "Загальне покриття",
+      "coverageDetail": "{inStock} з {required} обов'язкових товарів в наявності",
+      "highPotentialLowCoverage": "Високий потенціал, низьке покриття",
+      "highPotentialLowCoverageEmpty": "Наразі немає точок з високим потенціалом і низьким покриттям одночасно.",
+      "locationPotentialAmount": "Потенціал: {amount}",
+      "topProblemProducts": "Проблемні товари",
+      "topProblemProductsEmpty": "Наразі немає товарів у статусі «немає в наявності» або «на замовлення».",
+      "problemCount": "Кількість проблем",
+      "potentialByCategory": "Потенціал за категоріями",
+      "potentialByCategoryEmpty": "Потенціал ще не зафіксовано.",
+      "disabledAria": "Функція недоступна",
+      "disabledTitle": "Облік товарів вимкнено",
+      "disabledBody": "Попросіть адміністратора компанії увімкнути облік товарів для цього тенанта, щоб користуватися відстеженням потенціалу та асортименту.",
+      "notConnectedTitle": "Не вдалося завантажити підсумок"
     }
   },
   "admin": {
@@ -551,7 +616,12 @@
       "categoryInUseErrorAria": "Категорія використовується",
       "categoryInUseErrorEyebrow": "Видалення не вдалося",
       "categoryInUseErrorTitle": "Категорію поки не можна видалити",
-      "categoryInUseErrorBody": "{count, plural, one {Цю категорію ще використовує # точка.} few {Цю категорію ще використовують # точки.} many {Цю категорію ще використовують # точок.} other {Цю категорію ще використовують # точки.}} Спершу приберіть категорію з цих точок, а потім видаліть її."
+      "categoryInUseErrorBody": "{count, plural, one {Цю категорію ще використовує # точка.} few {Цю категорію ще використовують # точки.} many {Цю категорію ще використовують # точок.} other {Цю категорію ще використовують # точки.}} Спершу приберіть категорію з цих точок, а потім видаліть її.",
+      "viewDetails": "Переглянути потенціал і асортимент",
+      "detailEyebrow": "Деталі точки",
+      "detailNotFoundTitle": "Точку не знайдено",
+      "detailBackToList": "Назад до точок",
+      "detailBackAria": "Назад до точок"
     },
     "chains": {
       "title": "Мережі",
@@ -926,19 +996,12 @@
       "demoLocationName": "Демо-точка",
       "demoRepresentative": "Демо-представник",
       "backAria": "До маршруту",
-      "potential": "Потенціал",
-      "productGroupCount": "{count, plural, one {# товарна група} few {# товарні групи} many {# товарних груп} other {# товарної групи}}",
-      "potentialEmpty": "Потенціал товарних груп ще не відстежується.",
-      "addProductGroupAria": "Додати товарну групу (незабаром)",
-      "assortment": "Асортимент",
-      "assortmentItemCount": "{count, plural, one {# позиція} few {# позиції} many {# позицій} other {# позиції}}",
-      "assortmentEmpty": "Відстеження асортименту ще недоступне.",
-      "addAssortmentAria": "Додати позицію асортименту (незабаром)",
       "startVisitDemo": "Почати візит (demo)",
       "continueVisit": "Продовжити візит",
       "startVisit": "Почати візит",
       "starting": "Починаємо...",
       "alreadyVisited": "Цю точку вже позначено відвіданою сьогодні.",
+      "archivedNoVisit": "Цю точку заархівовано — нові візити тут розпочати не можна.",
       "markVisited": "Позначити відвіданим",
       "openTasks": "Відкриті задачі",
       "taskCount": "{count, plural, one {# задача} few {# задачі} many {# задач} other {# задачі}}",
