@@ -1,5 +1,21 @@
 "use client";
 
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, useTransition } from "react";
 
@@ -24,45 +40,6 @@ type RouteStopDragListProps = {
   reorderAction: (templateId: string, itemIds: string[]) => Promise<void>;
 };
 
-// Counts how many *other* items currently sit above `pointerY` (by their
-// midpoint) to get the dragged item's target index — simpler and more
-// robust than comparing against the dragged item's own shifting position.
-function targetIndexForPointer(
-  pointerY: number,
-  order: StopItem[],
-  draggingId: string,
-  itemEls: Map<string, HTMLLIElement>,
-): number {
-  let index = 0;
-
-  for (const item of order) {
-    if (item.id === draggingId) {
-      continue;
-    }
-
-    const el = itemEls.get(item.id);
-
-    if (!el) {
-      continue;
-    }
-
-    const rect = el.getBoundingClientRect();
-
-    if (pointerY > rect.top + rect.height / 2) {
-      index += 1;
-    }
-  }
-
-  return index;
-}
-
-function moveItem<T>(list: T[], fromIndex: number, toIndex: number): T[] {
-  const next = [...list];
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
-}
-
 export function RouteStopDragList({
   tenantSlug,
   templateId,
@@ -70,12 +47,9 @@ export function RouteStopDragList({
   removeAction,
   reorderAction,
 }: RouteStopDragListProps) {
-  const t = useTranslations("field.planning");
   const [order, setOrder] = useState(stops);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const orderRef = useRef(order);
-  const itemEls = useRef(new Map<string, HTMLLIElement>());
   const stopsKey = stops.map((stop) => stop.id).join(",");
 
   orderRef.current = order;
@@ -86,6 +60,13 @@ export function RouteStopDragList({
   useEffect(() => {
     setOrder(stops);
   }, [stopsKey]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 5 },
+    }),
+  );
 
   function commitOrder(nextOrder: StopItem[]) {
     const changed = nextOrder.some(
@@ -102,56 +83,24 @@ export function RouteStopDragList({
     }
   }
 
-  // Listens on window rather than relying on setPointerCapture redirecting
-  // events back to the handle: capture only engages for trusted (real
-  // mouse/touch) input, and a window-level listener tracks the pointer
-  // wherever it actually is once the drag has moved off the small handle.
-  useEffect(() => {
-    if (!draggingId) {
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
       return;
     }
 
-    const activeId = draggingId;
+    const currentOrder = orderRef.current;
+    const fromIndex = currentOrder.findIndex((item) => item.id === active.id);
+    const toIndex = currentOrder.findIndex((item) => item.id === over.id);
 
-    function handleMove(event: PointerEvent) {
-      const currentOrder = orderRef.current;
-      const currentIndex = currentOrder.findIndex(
-        (item) => item.id === activeId,
-      );
-      const targetIndex = targetIndexForPointer(
-        event.clientY,
-        currentOrder,
-        activeId,
-        itemEls.current,
-      );
-
-      if (targetIndex !== currentIndex) {
-        setOrder(moveItem(currentOrder, currentIndex, targetIndex));
-      }
+    if (fromIndex === -1 || toIndex === -1) {
+      return;
     }
 
-    function handleEnd() {
-      setDraggingId(null);
-      commitOrder(orderRef.current);
-    }
-
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleEnd);
-    window.addEventListener("pointercancel", handleEnd);
-
-    return () => {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleEnd);
-      window.removeEventListener("pointercancel", handleEnd);
-    };
-  }, [draggingId]);
-
-  function handlePointerDown(
-    event: React.PointerEvent<HTMLButtonElement>,
-    id: string,
-  ) {
-    event.preventDefault();
-    setDraggingId(id);
+    const nextOrder = arrayMove(currentOrder, fromIndex, toIndex);
+    setOrder(nextOrder);
+    commitOrder(nextOrder);
   }
 
   function handleHandleKeyDown(
@@ -172,72 +121,122 @@ export function RouteStopDragList({
       return;
     }
 
-    const nextOrder = moveItem(currentOrder, index, targetIndex);
+    const nextOrder = arrayMove(currentOrder, index, targetIndex);
     setOrder(nextOrder);
     commitOrder(nextOrder);
   }
 
   return (
-    <ol className="route-stop-list">
-      {order.map((stop, index) => (
-        <li
-          className={`route-stop${draggingId === stop.id ? " dragging" : ""}`}
-          key={stop.id}
-          ref={(el) => {
-            if (el) {
-              itemEls.current.set(stop.id, el);
-            } else {
-              itemEls.current.delete(stop.id);
-            }
-          }}
+    <DndContext
+      collisionDetection={closestCenter}
+      id={templateId}
+      sensors={sensors}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={order.map((stop) => stop.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <ol className="route-stop-list">
+          {order.map((stop, index) => (
+            <RouteStopRow
+              index={index}
+              key={stop.id}
+              onHandleKeyDown={handleHandleKeyDown}
+              removeAction={removeAction}
+              stop={stop}
+              templateId={templateId}
+              tenantSlug={tenantSlug}
+            />
+          ))}
+        </ol>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+type RouteStopRowProps = {
+  index: number;
+  onHandleKeyDown: (
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    id: string,
+  ) => void;
+  removeAction: (formData: FormData) => Promise<void>;
+  stop: StopItem;
+  templateId: string;
+  tenantSlug: string;
+};
+
+function RouteStopRow({
+  index,
+  onHandleKeyDown,
+  removeAction,
+  stop,
+  templateId,
+  tenantSlug,
+}: RouteStopRowProps) {
+  const t = useTranslations("field.planning");
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: stop.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <li
+      className={`route-stop${isDragging ? " dragging" : ""}`}
+      ref={setNodeRef}
+      style={style}
+    >
+      <button
+        aria-label={t("dragHandleAria", { name: stop.location.name })}
+        className="route-stop-handle"
+        type="button"
+        {...attributes}
+        {...listeners}
+        onKeyDown={(event) => onHandleKeyDown(event, stop.id)}
+      >
+        <GripIcon />
+      </button>
+
+      <a
+        className="route-stop-summary"
+        href={`/${tenantSlug}/field/locations/${stop.location.id}`}
+        aria-label={t("viewLocationAria", { name: stop.location.name })}
+      >
+        <span className="route-stop-index" aria-hidden="true">
+          {index + 1}
+        </span>
+        <span className="route-stop-body">
+          <h3>{stop.location.name}</h3>
+          <p className="route-stop-address">
+            <MapPinIcon />
+            <span>
+              {[stop.location.addressLine, stop.location.city]
+                .filter(Boolean)
+                .join(", ")}
+            </span>
+          </p>
+        </span>
+        <span className="route-stop-chevron" aria-hidden="true">
+          ›
+        </span>
+      </a>
+
+      <form action={removeAction} className="route-stop-remove-form">
+        <input name="templateId" type="hidden" value={templateId} />
+        <input name="itemId" type="hidden" value={stop.id} />
+        <PendingSubmitButton
+          aria-label={t("removeAria", { name: stop.location.name })}
+          className="icon-button"
+          pendingLabel={<TrashIcon />}
         >
-          <button
-            aria-label={t("dragHandleAria", { name: stop.location.name })}
-            className="route-stop-handle"
-            onKeyDown={(event) => handleHandleKeyDown(event, stop.id)}
-            onPointerDown={(event) => handlePointerDown(event, stop.id)}
-            type="button"
-          >
-            <GripIcon />
-          </button>
-
-          <a
-            className="route-stop-summary"
-            href={`/${tenantSlug}/field/locations/${stop.location.id}`}
-            aria-label={t("viewLocationAria", { name: stop.location.name })}
-          >
-            <span className="route-stop-index" aria-hidden="true">
-              {index + 1}
-            </span>
-            <span className="route-stop-body">
-              <h3>{stop.location.name}</h3>
-              <p className="route-stop-address">
-                <MapPinIcon />
-                <span>
-                  {[stop.location.addressLine, stop.location.city]
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
-              </p>
-            </span>
-            <span className="route-stop-chevron" aria-hidden="true">
-              ›
-            </span>
-          </a>
-
-          <form action={removeAction} className="route-stop-remove-form">
-            <input name="templateId" type="hidden" value={templateId} />
-            <input name="itemId" type="hidden" value={stop.id} />
-            <PendingSubmitButton
-              aria-label={t("removeAria", { name: stop.location.name })}
-              className="icon-button"
-              pendingLabel={<TrashIcon />}
-            >
-              <TrashIcon />
-            </PendingSubmitButton>
-          </form>
-        </li>
-      ))}
-    </ol>
+          <TrashIcon />
+        </PendingSubmitButton>
+      </form>
+    </li>
   );
 }
