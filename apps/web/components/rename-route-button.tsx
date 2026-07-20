@@ -3,27 +3,27 @@
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
-import { TrashIcon } from "./icons";
+import { PencilIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 
-type DeleteRouteButtonProps = {
-  routeId: string;
-  routeName: string;
-  deleteAction: (formData: FormData) => Promise<void>;
+type RenameRouteButtonProps = {
+  templateId: string;
+  templateName: string;
+  renameAction: (formData: FormData) => Promise<void>;
 };
 
-export function DeleteRouteButton({
-  routeId,
-  routeName,
-  deleteAction,
-}: DeleteRouteButtonProps) {
+export function RenameRouteButton({
+  templateId,
+  templateName,
+  renameAction,
+}: RenameRouteButtonProps) {
   const t = useTranslations("field.planning");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   function closeDialog() {
-    if (isDeleting) {
+    if (isSaving) {
       return;
     }
 
@@ -34,26 +34,28 @@ export function DeleteRouteButton({
     <>
       <button
         aria-haspopup="dialog"
-        aria-label={t("deleteRouteAria", { name: routeName })}
-        className="name-edit-button is-danger"
+        aria-label={t("editRouteNameAria")}
+        className="name-edit-button"
         onClick={() => dialogRef.current?.showModal()}
-        title={t("deleteRoute")}
+        title={t("editRouteNameAria")}
         type="button"
       >
-        <TrashIcon />
+        <PencilIcon />
       </button>
 
       <dialog
-        aria-labelledby={`delete-route-title-${routeId}`}
+        aria-labelledby={`rename-route-title-${templateId}`}
         className="modal-dialog"
         ref={dialogRef}
       >
         <div className="modal-header">
-          <h2 id={`delete-route-title-${routeId}`}>{t("deleteRoute")}</h2>
+          <h2 id={`rename-route-title-${templateId}`}>
+            {t("editRouteNameAria")}
+          </h2>
           <button
             aria-label={tCommon("close")}
             className="icon-button"
-            disabled={isDeleting}
+            disabled={isSaving}
             onClick={closeDialog}
             type="button"
           >
@@ -62,26 +64,35 @@ export function DeleteRouteButton({
         </div>
 
         <form
-          action={deleteAction}
+          action={renameAction}
           className="visit-form compact modal-form"
-          onSubmit={() => setIsDeleting(true)}
+          onSubmit={() => setIsSaving(true)}
         >
-          <input name="templateId" type="hidden" value={routeId} />
-          <p>{t("deleteRoutePrompt")}</p>
+          <input name="templateId" type="hidden" value={templateId} />
+          <label>
+            {t("createRouteNameLabel")}
+            <input
+              autoFocus
+              defaultValue={templateName}
+              name="name"
+              required
+              type="text"
+            />
+          </label>
           <div className="modal-actions">
             <button
               className="secondary-button"
-              disabled={isDeleting}
+              disabled={isSaving}
               onClick={closeDialog}
               type="button"
             >
               {tCommon("cancel")}
             </button>
             <PendingSubmitButton
-              className="secondary-button danger"
-              pendingLabel={t("deletingRoute")}
+              className="primary-button"
+              pendingLabel={tCommon("saving")}
             >
-              {t("deleteRouteConfirm")}
+              {tCommon("save")}
             </PendingSubmitButton>
           </div>
         </form>

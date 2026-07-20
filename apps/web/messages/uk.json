@@ -892,7 +892,10 @@
       "editPlan": "Редагувати план →",
       "emptyTitle": "На сьогодні маршрут не заплановано",
       "emptyBody": "Складіть маршрут у плануванні, щоб вишикувати сьогоднішні точки по порядку.",
-      "goToPlanning": "До планування →"
+      "goToPlanning": "До планування →",
+      "stopChainNone": "Без мережі",
+      "dragHandleAria": "Змінити порядок: {name}. Перетягніть або скористайтесь стрілками.",
+      "viewLocationAria": "Переглянути {name}"
     },
     "location": {
       "signedOutTitle": "Точка",
@@ -1088,6 +1091,7 @@
       "dragToReorderHint": "Тягніть для зміни порядку",
       "dragHandleAria": "Змінити порядок: {name}. Перетягніть або скористайтесь стрілками.",
       "viewLocationAria": "Переглянути {name}",
+      "stopChainNone": "Без мережі",
       "addStop": "Додати точку",
       "locationLabel": "Точка",
       "addToRoute": "Додати до маршруту",

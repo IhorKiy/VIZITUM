@@ -892,7 +892,10 @@
       "editPlan": "Edit plan →",
       "emptyTitle": "No route planned for today",
       "emptyBody": "Build a route in planning to line up today's stops in order.",
-      "goToPlanning": "Go to planning →"
+      "goToPlanning": "Go to planning →",
+      "stopChainNone": "No chain",
+      "dragHandleAria": "Reorder {name}. Use arrow keys or drag.",
+      "viewLocationAria": "View {name}"
     },
     "location": {
       "signedOutTitle": "Location",
@@ -1088,6 +1091,7 @@
       "dragToReorderHint": "Drag to reorder",
       "dragHandleAria": "Reorder {name}. Use arrow keys or drag.",
       "viewLocationAria": "View {name}",
+      "stopChainNone": "No chain",
       "addStop": "Add stop",
       "locationLabel": "Location",
       "addToRoute": "Add to route",

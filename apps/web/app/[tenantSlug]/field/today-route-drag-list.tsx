@@ -19,35 +19,100 @@ import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-import { GripIcon, MapPinIcon, TrashIcon } from "../../../../components/icons";
-import { PendingSubmitButton } from "../../../../components/pending-submit-button";
+import { GripIcon, MapPinIcon } from "../../../components/icons";
 
-type StopItem = {
+type TodayStop = {
   id: string;
-  location: {
-    id: string;
-    name: string;
-    addressLine: string;
-    city: string;
-    chain: { id: string; name: string } | null;
-  };
+  routePlanId: string;
+  locationId: string;
+  name: string;
+  address: string;
+  chain: { id: string; name: string } | null;
+  sequence: number;
+  visited: boolean;
 };
 
-type RouteStopDragListProps = {
+type TodayRouteDragListProps = {
   tenantSlug: string;
-  templateId: string;
-  stops: StopItem[];
-  removeAction: (formData: FormData) => Promise<void>;
-  reorderAction: (templateId: string, itemIds: string[]) => Promise<void>;
+  stops: TodayStop[];
+  isDemoMode: boolean;
+  reorderAction: (routePlanId: string, itemIds: string[]) => Promise<void>;
 };
 
-export function RouteStopDragList({
+export function TodayRouteDragList({
   tenantSlug,
-  templateId,
   stops,
-  removeAction,
+  isDemoMode,
   reorderAction,
-}: RouteStopDragListProps) {
+}: TodayRouteDragListProps) {
+  const groups = groupByRoutePlan(stops);
+  const indexById = new Map<string, number>();
+
+  stops.forEach((stop, index) => {
+    indexById.set(stop.id, index);
+  });
+
+  return (
+    <ol className="route-stop-list">
+      {groups.map((group) => (
+        <TodayRouteGroup
+          indexById={indexById}
+          isDemoMode={isDemoMode}
+          key={group.routePlanId}
+          reorderAction={reorderAction}
+          routePlanId={group.routePlanId}
+          stops={group.stops}
+          tenantSlug={tenantSlug}
+        />
+      ))}
+    </ol>
+  );
+}
+
+// A viewer with team-wide access sees every representative's plan for today
+// merged into one list (see getTodayRoutes), so each plan gets its own drag
+// context here — a stop can never be dragged into someone else's route.
+function groupByRoutePlan(
+  stops: TodayStop[],
+): Array<{ routePlanId: string; stops: TodayStop[] }> {
+  const order: string[] = [];
+  const byPlan = new Map<string, TodayStop[]>();
+
+  for (const stop of stops) {
+    let planStops = byPlan.get(stop.routePlanId);
+
+    if (!planStops) {
+      planStops = [];
+      byPlan.set(stop.routePlanId, planStops);
+      order.push(stop.routePlanId);
+    }
+
+    planStops.push(stop);
+  }
+
+  return order.map((routePlanId) => ({
+    routePlanId,
+    stops: byPlan.get(routePlanId) as TodayStop[],
+  }));
+}
+
+type TodayRouteGroupProps = {
+  indexById: Map<string, number>;
+  isDemoMode: boolean;
+  reorderAction: (routePlanId: string, itemIds: string[]) => Promise<void>;
+  routePlanId: string;
+  stops: TodayStop[];
+  tenantSlug: string;
+};
+
+function TodayRouteGroup({
+  indexById,
+  isDemoMode,
+  reorderAction,
+  routePlanId,
+  stops,
+  tenantSlug,
+}: TodayRouteGroupProps) {
   const [order, setOrder] = useState(stops);
   const [, startTransition] = useTransition();
   const orderRef = useRef(order);
@@ -56,8 +121,8 @@ export function RouteStopDragList({
   orderRef.current = order;
 
   // Resyncs only when the server's own item set/order actually changes
-  // (add/remove, or a redirect after a persisted reorder) — not on every
-  // incidental re-render, which would otherwise stomp a drag in progress.
+  // (a redirect after a persisted reorder) — not on every incidental
+  // re-render, which would otherwise stomp a drag in progress.
   useEffect(() => {
     setOrder(stops);
   }, [stopsKey]);
@@ -69,7 +134,7 @@ export function RouteStopDragList({
     }),
   );
 
-  function commitOrder(nextOrder: StopItem[]) {
+  function commitOrder(nextOrder: TodayStop[]) {
     const changed = nextOrder.some(
       (item, index) => item.id !== stops[index]?.id,
     );
@@ -77,7 +142,7 @@ export function RouteStopDragList({
     if (changed) {
       startTransition(() => {
         void reorderAction(
-          templateId,
+          routePlanId,
           nextOrder.map((item) => item.id),
         );
       });
@@ -130,7 +195,7 @@ export function RouteStopDragList({
   return (
     <DndContext
       collisionDetection={closestCenter}
-      id={templateId}
+      id={routePlanId}
       sensors={sensors}
       onDragEnd={handleDragEnd}
     >
@@ -138,45 +203,40 @@ export function RouteStopDragList({
         items={order.map((stop) => stop.id)}
         strategy={verticalListSortingStrategy}
       >
-        <ol className="route-stop-list">
-          {order.map((stop, index) => (
-            <RouteStopRow
-              index={index}
-              key={stop.id}
-              onHandleKeyDown={handleHandleKeyDown}
-              removeAction={removeAction}
-              stop={stop}
-              templateId={templateId}
-              tenantSlug={tenantSlug}
-            />
-          ))}
-        </ol>
+        {order.map((stop) => (
+          <TodayRouteStopRow
+            index={indexById.get(stop.id) ?? 0}
+            isDemoMode={isDemoMode}
+            key={stop.id}
+            onHandleKeyDown={handleHandleKeyDown}
+            stop={stop}
+            tenantSlug={tenantSlug}
+          />
+        ))}
       </SortableContext>
     </DndContext>
   );
 }
 
-type RouteStopRowProps = {
+type TodayRouteStopRowProps = {
   index: number;
+  isDemoMode: boolean;
   onHandleKeyDown: (
     event: React.KeyboardEvent<HTMLButtonElement>,
     id: string,
   ) => void;
-  removeAction: (formData: FormData) => Promise<void>;
-  stop: StopItem;
-  templateId: string;
+  stop: TodayStop;
   tenantSlug: string;
 };
 
-function RouteStopRow({
+function TodayRouteStopRow({
   index,
+  isDemoMode,
   onHandleKeyDown,
-  removeAction,
   stop,
-  templateId,
   tenantSlug,
-}: RouteStopRowProps) {
-  const t = useTranslations("field.planning");
+}: TodayRouteStopRowProps) {
+  const t = useTranslations("field.home");
   const {
     attributes,
     listeners,
@@ -192,19 +252,25 @@ function RouteStopRow({
     zIndex: isDragging ? 50 : undefined,
   };
 
+  const href = `/${tenantSlug}/field/locations/${stop.locationId}?routePlanId=${stop.routePlanId}&routeItemId=${stop.id}${stop.visited ? "&visited=1" : ""}${
+    isDemoMode
+      ? `&demoName=${encodeURIComponent(stop.name)}&demoAddress=${encodeURIComponent(stop.address)}`
+      : ""
+  }`;
+
   return (
     <li
-      className={`route-stop${isDragging ? " dragging" : ""}`}
+      className={`route-stop${isDragging ? " dragging" : ""}${stop.visited ? " visited" : ""}`}
       ref={setNodeRef}
       style={style}
     >
       <div className="route-stop-drag-cell">
         <span className="route-stop-index" aria-hidden="true">
-          {index + 1}
+          {stop.visited ? "✓" : index + 1}
         </span>
 
         <button
-          aria-label={t("dragHandleAria", { name: stop.location.name })}
+          aria-label={t("dragHandleAria", { name: stop.name })}
           className="route-stop-handle"
           type="button"
           {...attributes}
@@ -217,36 +283,20 @@ function RouteStopRow({
 
       <a
         className="route-stop-summary"
-        href={`/${tenantSlug}/field/locations/${stop.location.id}`}
-        aria-label={t("viewLocationAria", { name: stop.location.name })}
+        href={href}
+        aria-label={t("viewLocationAria", { name: stop.name })}
       >
         <span className="route-stop-body">
-          <h3>{stop.location.name}</h3>
+          <h3>{stop.name}</h3>
           <p className="route-stop-address">
             <MapPinIcon />
-            <span>
-              {[stop.location.addressLine, stop.location.city]
-                .filter(Boolean)
-                .join(", ")}
-            </span>
+            <span>{stop.address}</span>
           </p>
           <span className="route-stop-chain">
-            {stop.location.chain?.name ?? t("stopChainNone")}
+            {stop.chain?.name ?? t("stopChainNone")}
           </span>
         </span>
       </a>
-
-      <form action={removeAction} className="route-stop-remove-form">
-        <input name="templateId" type="hidden" value={templateId} />
-        <input name="itemId" type="hidden" value={stop.id} />
-        <PendingSubmitButton
-          aria-label={t("removeAria", { name: stop.location.name })}
-          className="name-edit-button is-danger"
-          pendingLabel={<TrashIcon />}
-        >
-          <TrashIcon />
-        </PendingSubmitButton>
-      </form>
     </li>
   );
 }

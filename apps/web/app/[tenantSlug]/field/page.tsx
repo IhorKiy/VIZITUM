@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../components/app-shell";
@@ -5,9 +6,11 @@ import { DismissableNotice } from "../../../components/dismissable-notice";
 import {
   getCurrentSession,
   listTodayRoutes,
+  reorderRouteItems,
   type RoutePlan,
 } from "../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
+import { TodayRouteDragList } from "./today-route-drag-list";
 
 type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -22,6 +25,7 @@ type FieldRouteStop = {
   locationId: string;
   name: string;
   address: string;
+  chain: { id: string; name: string } | null;
   sequence: number;
   visited: boolean;
 };
@@ -33,6 +37,7 @@ const demoRouteStops: FieldRouteStop[] = [
     locationId: "demo-location-1",
     name: "Silpo Obolon",
     address: "Heroiv Dnipra Ave, Kyiv",
+    chain: { id: "demo-chain-1", name: "Silpo" },
     sequence: 1,
     visited: true,
   },
@@ -42,6 +47,7 @@ const demoRouteStops: FieldRouteStop[] = [
     locationId: "demo-location-2",
     name: "Pharmacy 24",
     address: "Lvivska St, Kyiv",
+    chain: null,
     sequence: 2,
     visited: false,
   },
@@ -51,6 +57,7 @@ const demoRouteStops: FieldRouteStop[] = [
     locationId: "demo-location-3",
     name: "Partner Hub",
     address: "Volodymyrska St, Kyiv",
+    chain: null,
     sequence: 3,
     visited: false,
   },
@@ -123,6 +130,24 @@ export default async function FieldPage({
     ? (sessionResult.data.user.name.split(" ")[0] ??
       sessionResult.data.user.name)
     : t("home.guestName");
+
+  // Called directly from the client-side drag list (not a <form> submit)
+  // once a drag or arrow-key move settles on a new order — see
+  // today-route-drag-list.tsx. No success notice: the drag itself is
+  // already the feedback, and there's nowhere useful to send the rep on
+  // failure other than back to the same page.
+  async function reorderTodayRouteAction(
+    routePlanId: string,
+    itemIds: string[],
+  ) {
+    "use server";
+
+    if (routePlanId && itemIds.length > 0) {
+      await reorderRouteItems(routePlanId, itemIds);
+    }
+
+    redirect(`/${tenantSlug}/field`);
+  }
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -213,33 +238,12 @@ export default async function FieldPage({
                 </div>
               </div>
 
-              <ol className="route-stop-list">
-                {routeStops.map((stop, index) => (
-                  <li key={stop.id}>
-                    <a
-                      className={`route-stop${stop.visited ? " visited" : ""}`}
-                      href={`/${tenantSlug}/field/locations/${stop.locationId}?routePlanId=${stop.routePlanId}&routeItemId=${stop.id}${stop.visited ? "&visited=1" : ""}${
-                        isDemoMode
-                          ? `&demoName=${encodeURIComponent(stop.name)}&demoAddress=${encodeURIComponent(stop.address)}`
-                          : ""
-                      }`}
-                    >
-                      <span className="route-stop-summary">
-                        <span className="route-stop-index" aria-hidden="true">
-                          {stop.visited ? "✓" : index + 1}
-                        </span>
-                        <span className="route-stop-body">
-                          <h3>{stop.name}</h3>
-                          <p className="route-stop-address">{stop.address}</p>
-                        </span>
-                        <span className="route-stop-chevron" aria-hidden="true">
-                          ›
-                        </span>
-                      </span>
-                    </a>
-                  </li>
-                ))}
-              </ol>
+              <TodayRouteDragList
+                isDemoMode={isDemoMode}
+                reorderAction={reorderTodayRouteAction}
+                stops={routeStops}
+                tenantSlug={tenantSlug}
+              />
             </div>
           </>
         ) : (
@@ -272,6 +276,7 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
           address: [item.location.addressLine, item.location.city]
             .filter(Boolean)
             .join(", "),
+          chain: item.location.chain,
           sequence: item.sequence,
           visited: item.status === "visited",
         })),

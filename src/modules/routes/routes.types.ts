@@ -8,6 +8,7 @@ export type RouteItemResponse = {
     name: string;
     addressLine: string;
     city: string;
+    chain: { id: string; name: string } | null;
   };
   sequence: number;
   status: RouteItemStatus;
@@ -69,6 +70,10 @@ export type UpdateRouteItemRequestBody = Partial<
   }
 >;
 
+export type ReorderRouteItemsRequestBody = {
+  itemIds?: unknown;
+};
+
 export type RouteTemplateItemResponse = {
   id: string;
   locationId: string;
@@ -77,6 +82,7 @@ export type RouteTemplateItemResponse = {
     name: string;
     addressLine: string;
     city: string;
+    chain: { id: string; name: string } | null;
   };
   sequence: number;
   createdAt: string;
