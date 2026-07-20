@@ -69,7 +69,7 @@ describe("LocationAssortmentService tenant isolation", () => {
     );
   });
 
-  it("scopes the row list query by tenantId and locationId", async () => {
+  it("scopes the row list query by tenantId, locationId, and excludes soft-deleted products", async () => {
     let capturedWhere: unknown;
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
@@ -90,9 +90,55 @@ describe("LocationAssortmentService tenant isolation", () => {
     assert.deepEqual(capturedWhere, {
       tenantId: "tenant-a",
       locationId: "location-a",
+      product: { deletedAt: null },
     });
     assert.equal(response.items.length, 1);
     assert.equal(response.canManage, true);
+  });
+});
+
+describe("LocationAssortmentService soft-deleted product exclusion", () => {
+  it("excludes rows whose product is soft-deleted from items and coverage", async () => {
+    // Simulates the real query rather than mocking the filter away (same
+    // pattern as tests/products-create.test.ts): only rows that pass the
+    // `product: { deletedAt: null }` filter come back.
+    const entries = [
+      { row: buildAssortmentRow(), productDeleted: false },
+      {
+        row: buildAssortmentRow({
+          id: "assortment-b",
+          productId: "product-deleted",
+          shouldBeListed: true,
+          status: "out_of_stock",
+          product: { ...product, id: "product-deleted", name: "Discontinued Widget" },
+        }),
+        productDeleted: true,
+      },
+    ];
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssortment: {
+        findMany: async (query: { where: { product?: { deletedAt: null } } }) => {
+          const excludesSoftDeleted = query.where.product?.deletedAt === null;
+
+          return entries
+            .filter((entry) => !excludesSoftDeleted || !entry.productDeleted)
+            .map((entry) => entry.row);
+        },
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    const response = await service.listAssortment(
+      adminContext as never,
+      "location-a",
+    );
+
+    assert.equal(response.items.length, 1);
+    assert.equal(response.items[0]?.productId, "product-a");
+    assert.equal(response.requiredCount, 1);
+    assert.equal(response.inStockCount, 1);
+    assert.equal(response.coveragePct, 100);
   });
 });
 
