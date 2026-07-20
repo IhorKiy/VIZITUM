@@ -7,7 +7,7 @@ import {
   getCurrentSession,
   getVisit,
   getVisitReport,
-  listAllFieldReportProducts,
+  listAllProducts,
 } from "../../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
 
@@ -130,7 +130,7 @@ export default async function VisitDetailPage({
     .join(", ");
 
   const [productsResult, reportResult] = await Promise.all([
-    isLocked ? Promise.resolve(null) : listAllFieldReportProducts(),
+    isLocked ? Promise.resolve(null) : listAllProducts(),
     isLocked ? getVisitReport(visitId) : Promise.resolve(null),
   ]);
   // A cancelled visit legitimately never gets a confirmed report — that's

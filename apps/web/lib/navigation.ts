@@ -14,6 +14,7 @@ export type RoleArea =
   | "manager-tasks"
   | "manager-locations"
   | "manager-representatives"
+  | "manager-potential"
   | "operations";
 
 export type Zone = "field" | "manager" | "admin" | "operations";
@@ -187,6 +188,21 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     requiredPermissions: ["dashboard.manager.read"],
   },
   {
+    // Gated on dashboard.manager.read (team_manager only), not on the
+    // location_insights.summary endpoint's own location_insights.read —
+    // that permission is also held by field reps and admins (per the
+    // permission spec), and nav zone availability is an OR across every
+    // item in a zone, so gating on it here would newly surface the whole
+    // "manager" zone to those roles just for this one item. Every
+    // team_manager already holds both permissions, so this doesn't narrow
+    // who can actually load the screen.
+    path: "/manager/potential",
+    area: "manager-potential",
+    zone: "manager",
+    icon: "box",
+    requiredPermissions: ["dashboard.manager.read"],
+  },
+  {
     path: "/operations",
     area: "operations",
     zone: "operations",
@@ -195,6 +211,14 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
   },
 ];
 
+// Areas hidden entirely when the tenant's productsEnabled flag is off — both
+// depend on the product catalog (admin-products manages it directly;
+// manager-potential reports on per-location coverage against it).
+const PRODUCT_DEPENDENT_AREAS = new Set<RoleArea>([
+  "admin-products",
+  "manager-potential",
+]);
+
 function filterNavItemDefs(
   permissions?: string[],
   productsEnabled = true,
@@ -202,7 +226,7 @@ function filterNavItemDefs(
 ): NavItemDef[] {
   const visibleItems = NAV_ITEM_DEFS.filter(
     (item) =>
-      (productsEnabled || item.area !== "admin-products") &&
+      (productsEnabled || !PRODUCT_DEPENDENT_AREAS.has(item.area)) &&
       (pilotActive || item.area !== "admin-pilot"),
   );
 

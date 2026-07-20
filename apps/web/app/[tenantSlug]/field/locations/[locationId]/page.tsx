@@ -3,14 +3,25 @@ import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
 import { DismissableNotice } from "../../../../../components/dismissable-notice";
+import { LocationAssortmentPanel } from "../../../../../components/location-assortment-panel";
+import { LocationPotentialPanel } from "../../../../../components/location-potential-panel";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import {
   createVisit,
+  deleteLocationAssortment,
+  deleteLocationPotential,
   getCurrentSession,
   getLocation,
+  listAllProducts,
+  listLocationAssortment,
+  listLocationPotential,
+  listProductCategories,
   listTasks,
   listVisits,
   updateRouteItem,
+  upsertLocationAssortment,
+  upsertLocationPotential,
+  type AssortmentStatus,
   type Task,
   type Visit,
 } from "../../../../../lib/api-client";
@@ -20,7 +31,12 @@ import {
   formatEnumLabel,
   statusPillTone,
 } from "../../../../../lib/format";
-import { getFormString } from "../../../../../lib/form";
+import {
+  getFormBoolean,
+  getFormOptionalNumber,
+  getFormOptionalString,
+  getFormString,
+} from "../../../../../lib/form";
 
 type LocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
@@ -30,6 +46,7 @@ type LocationDetailPageProps = {
     visited?: string;
     route?: string;
     error?: string;
+    locationInsights?: string;
     demoName?: string;
     demoAddress?: string;
   }>;
@@ -46,13 +63,15 @@ export default async function LocationDetailPage({
     visited,
     route,
     error,
+    locationInsights,
     demoName,
     demoAddress,
   } = await searchParams;
   const stopAlreadyVisited = visited === "1";
-  const [t, tCommon, format] = await Promise.all([
+  const [t, tCommon, tLocationInsights, format] = await Promise.all([
     getTranslations("field"),
     getTranslations("common"),
+    getTranslations("common.locationInsights"),
     getFormatter(),
   ]);
 
@@ -108,6 +127,151 @@ export default async function LocationDetailPage({
 
     redirect(
       `/${tenantSlug}/field/locations/${locationId}?route=visited&routePlanId=${formRoutePlanId}&routeItemId=${formRouteItemId}&visited=1`,
+    );
+  }
+
+  // Server Actions can only close over serializable data and other Server
+  // Actions — not a plain helper function — so the redirect-path
+  // construction is inlined into each action below rather than shared.
+
+  async function upsertPotentialAction(formData: FormData) {
+    "use server";
+
+    const params = new URLSearchParams();
+    if (routePlanId) {
+      params.set("routePlanId", routePlanId);
+    }
+    if (routeItemId) {
+      params.set("routeItemId", routeItemId);
+    }
+
+    const productCategoryId = getFormString(
+      formData,
+      "productCategoryId",
+    ).trim();
+
+    if (!productCategoryId) {
+      params.set("error", "locationInsights");
+      redirect(
+        `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
+      );
+    }
+
+    const result = await upsertLocationPotential(
+      locationId,
+      productCategoryId,
+      {
+        potentialDate: getFormOptionalString(formData, "potentialDate"),
+        potentialAmount: getFormOptionalNumber(formData, "potentialAmount"),
+        planMonth1: getFormOptionalNumber(formData, "planMonth1"),
+        planMonth2: getFormOptionalNumber(formData, "planMonth2"),
+        planMonth3: getFormOptionalNumber(formData, "planMonth3"),
+        comment: getFormOptionalString(formData, "comment"),
+      },
+    );
+
+    if (result.ok) {
+      params.set("locationInsights", "updated");
+    } else {
+      params.set("error", "locationInsights");
+    }
+    redirect(
+      `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
+    );
+  }
+
+  async function deletePotentialAction(formData: FormData) {
+    "use server";
+
+    const params = new URLSearchParams();
+    if (routePlanId) {
+      params.set("routePlanId", routePlanId);
+    }
+    if (routeItemId) {
+      params.set("routeItemId", routeItemId);
+    }
+
+    const productCategoryId = getFormString(
+      formData,
+      "productCategoryId",
+    ).trim();
+    const result = productCategoryId
+      ? await deleteLocationPotential(locationId, productCategoryId)
+      : { ok: false as const, status: 0, message: "Missing category" };
+
+    if (result.ok) {
+      params.set("locationInsights", "deleted");
+    } else {
+      params.set("error", "locationInsights");
+    }
+    redirect(
+      `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
+    );
+  }
+
+  async function upsertAssortmentAction(formData: FormData) {
+    "use server";
+
+    const params = new URLSearchParams();
+    if (routePlanId) {
+      params.set("routePlanId", routePlanId);
+    }
+    if (routeItemId) {
+      params.set("routeItemId", routeItemId);
+    }
+
+    const productId = getFormString(formData, "productId").trim();
+
+    if (!productId) {
+      params.set("error", "locationInsights");
+      redirect(
+        `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
+      );
+    }
+
+    const result = await upsertLocationAssortment(locationId, productId, {
+      shouldBeListed: getFormBoolean(formData, "shouldBeListed"),
+      status: getFormString(formData, "status") as AssortmentStatus,
+      lastStock: getFormOptionalNumber(formData, "lastStock"),
+      lastOrder: getFormOptionalNumber(formData, "lastOrder"),
+      lastSale: getFormOptionalNumber(formData, "lastSale"),
+      lastCheckedAt: getFormOptionalString(formData, "lastCheckedAt"),
+      comment: getFormOptionalString(formData, "comment"),
+    });
+
+    if (result.ok) {
+      params.set("locationInsights", "updated");
+    } else {
+      params.set("error", "locationInsights");
+    }
+    redirect(
+      `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
+    );
+  }
+
+  async function deleteAssortmentAction(formData: FormData) {
+    "use server";
+
+    const params = new URLSearchParams();
+    if (routePlanId) {
+      params.set("routePlanId", routePlanId);
+    }
+    if (routeItemId) {
+      params.set("routeItemId", routeItemId);
+    }
+
+    const productId = getFormString(formData, "productId").trim();
+    const result = productId
+      ? await deleteLocationAssortment(locationId, productId)
+      : { ok: false as const, status: 0, message: "Missing product" };
+
+    if (result.ok) {
+      params.set("locationInsights", "deleted");
+    } else {
+      params.set("error", "locationInsights");
+    }
+    redirect(
+      `/${tenantSlug}/field/locations/${locationId}?${params.toString()}`,
     );
   }
 
@@ -216,6 +380,58 @@ export default async function LocationDetailPage({
     (item) => item.status === "open" || item.status === "in_progress",
   );
 
+  const productsEnabled = sessionResult.ok
+    ? sessionResult.data.productsEnabled
+    : false;
+  const skipLocationInsights = isDemoLocation || !productsEnabled;
+
+  const [potentialResult, assortmentResult, categoriesResult, productsResult] =
+    skipLocationInsights
+      ? [
+          { ok: false as const, status: 0, message: "Not available" },
+          { ok: false as const, status: 0, message: "Not available" },
+          { ok: false as const, status: 0, message: "Not available" },
+          { ok: false as const, status: 0, message: "Not available" },
+        ]
+      : await Promise.all([
+          listLocationPotential(locationId),
+          listLocationAssortment(locationId),
+          listProductCategories(),
+          listAllProducts(),
+        ]);
+
+  const potentialRows = potentialResult.ok ? potentialResult.data.items : [];
+  const canManagePotential = potentialResult.ok
+    ? potentialResult.data.canManage
+    : false;
+  const availableCategories = (
+    categoriesResult.ok ? categoriesResult.data : []
+  ).filter(
+    (category) =>
+      !potentialRows.some((row) => row.productCategoryId === category.id),
+  );
+
+  const assortmentRows = assortmentResult.ok ? assortmentResult.data.items : [];
+  const canManageAssortment = assortmentResult.ok
+    ? assortmentResult.data.canManage
+    : false;
+  const assortmentCoverage = assortmentResult.ok
+    ? {
+        pct: assortmentResult.data.coveragePct,
+        required: assortmentResult.data.requiredCount,
+        inStock: assortmentResult.data.inStockCount,
+      }
+    : { pct: 0, required: 0, inStock: 0 };
+  const availableProducts = (productsResult.ok ? productsResult.data : [])
+    .filter(
+      (product) => !assortmentRows.some((row) => row.productId === product.id),
+    )
+    .map((product) => ({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+    }));
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       {error === "visit" ? (
@@ -251,6 +467,28 @@ export default async function LocationDetailPage({
         />
       ) : null}
 
+      {error === "locationInsights" ? (
+        <DismissableNotice
+          ariaLabel={tLocationInsights("errorAria")}
+          body={tLocationInsights("errorBody")}
+          clearParams={["error"]}
+          eyebrow={t("flowEyebrow")}
+          title={tLocationInsights("errorTitle")}
+          tone="danger"
+        />
+      ) : null}
+
+      {locationInsights === "updated" || locationInsights === "deleted" ? (
+        <DismissableNotice
+          ariaLabel={tLocationInsights("savedAria")}
+          body={tLocationInsights("savedBody")}
+          clearParams={["locationInsights"]}
+          eyebrow={t("flowEyebrow")}
+          title={tLocationInsights("savedTitle")}
+          tone="success"
+        />
+      ) : null}
+
       {isDemoLocation ? (
         <section
           className="notice-panel"
@@ -279,79 +517,76 @@ export default async function LocationDetailPage({
         <span className="location-header-rep">{representativeName}</span>
       </div>
 
-      <div className="location-feature-wrap">
-        <details className="panel location-feature">
-          <summary className="location-feature-summary">
-            <span className="location-feature-heading">
-              <span className="location-feature-icon" aria-hidden="true">
-                💰
-              </span>
-              <span className="location-feature-titles">
-                <span className="location-feature-name">
-                  {t("location.potential")}
-                  <span className="location-feature-help" aria-hidden="true">
-                    ?
+      {productsEnabled ? (
+        <>
+          <details className="panel location-feature">
+            <summary className="location-feature-summary">
+              <span className="location-feature-heading">
+                <span className="location-feature-icon" aria-hidden="true">
+                  💰
+                </span>
+                <span className="location-feature-titles">
+                  <span className="location-feature-name">
+                    {tLocationInsights("potentialTitle")}
+                  </span>
+                  <span className="location-feature-meta">
+                    {tLocationInsights("potentialCount", {
+                      count: potentialRows.length,
+                    })}
                   </span>
                 </span>
-                <span className="location-feature-meta">
-                  {t("location.productGroupCount", { count: 0 })}
+              </span>
+              <span className="location-feature-actions">
+                <span className="location-feature-chevron" aria-hidden="true">
+                  ›
                 </span>
               </span>
-            </span>
-            <span className="location-feature-actions">
-              <span className="location-feature-chevron" aria-hidden="true">
-                ›
-              </span>
-            </span>
-          </summary>
-          <p className="empty-state">{t("location.potentialEmpty")}</p>
-        </details>
-        <button
-          aria-label={t("location.addProductGroupAria")}
-          className="location-feature-add"
-          disabled
-          type="button"
-        >
-          +
-        </button>
-      </div>
+            </summary>
+            <LocationPotentialPanel
+              availableCategories={availableCategories}
+              canManage={canManagePotential}
+              deleteAction={deletePotentialAction}
+              rows={potentialRows}
+              upsertAction={upsertPotentialAction}
+            />
+          </details>
 
-      <div className="location-feature-wrap">
-        <details className="panel location-feature">
-          <summary className="location-feature-summary">
-            <span className="location-feature-heading">
-              <span className="location-feature-icon" aria-hidden="true">
-                📦
-              </span>
-              <span className="location-feature-titles">
-                <span className="location-feature-name">
-                  {t("location.assortment")}
-                  <span className="location-feature-help" aria-hidden="true">
-                    ?
+          <details className="panel location-feature">
+            <summary className="location-feature-summary">
+              <span className="location-feature-heading">
+                <span className="location-feature-icon" aria-hidden="true">
+                  📦
+                </span>
+                <span className="location-feature-titles">
+                  <span className="location-feature-name">
+                    {tLocationInsights("assortmentTitle")}
+                  </span>
+                  <span className="location-feature-meta">
+                    {tLocationInsights("assortmentCount", {
+                      count: assortmentRows.length,
+                    })}
                   </span>
                 </span>
-                <span className="location-feature-meta">
-                  {t("location.assortmentItemCount", { count: 0 })}
+              </span>
+              <span className="location-feature-actions">
+                <span className="location-feature-chevron" aria-hidden="true">
+                  ›
                 </span>
               </span>
-            </span>
-            <span className="location-feature-actions">
-              <span className="location-feature-chevron" aria-hidden="true">
-                ›
-              </span>
-            </span>
-          </summary>
-          <p className="empty-state">{t("location.assortmentEmpty")}</p>
-        </details>
-        <button
-          aria-label={t("location.addAssortmentAria")}
-          className="location-feature-add"
-          disabled
-          type="button"
-        >
-          +
-        </button>
-      </div>
+            </summary>
+            <LocationAssortmentPanel
+              availableProducts={availableProducts}
+              canManage={canManageAssortment}
+              coveragePct={assortmentCoverage.pct}
+              deleteAction={deleteAssortmentAction}
+              inStockCount={assortmentCoverage.inStock}
+              requiredCount={assortmentCoverage.required}
+              rows={assortmentRows}
+              upsertAction={upsertAssortmentAction}
+            />
+          </details>
+        </>
+      ) : null}
 
       {isDemoLocation ? (
         <a
