@@ -24,6 +24,7 @@ import { RoutesService } from "./routes.service";
 import type {
   CreateRouteItemRequestBody,
   CreateRoutePlanRequestBody,
+  ReorderRouteItemsRequestBody,
   UpdateRouteItemRequestBody,
   UpdateRoutePlanRequestBody,
 } from "./routes.types";
@@ -127,6 +128,23 @@ export class RoutesController {
       getRequestContext(request),
       routePlanId,
       routeItemId,
+      body,
+    );
+  }
+
+  @Post(":routePlanId/items/reorder")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  reorderRouteItems(
+    @Req() request: Request,
+    @Param("routePlanId") routePlanId: string,
+    @Body() body: ReorderRouteItemsRequestBody,
+  ) {
+    return this.routesService.reorderRouteItems(
+      getRequestContext(request),
+      routePlanId,
       body,
     );
   }

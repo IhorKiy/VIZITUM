@@ -3,6 +3,8 @@ import "reflect-metadata";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { Prisma } from "@prisma/client";
+
 import {
   REQUIRED_ANY_PERMISSIONS_METADATA,
   REQUIRED_PERMISSIONS_METADATA,
@@ -60,6 +62,30 @@ function buildFullPlan(representativeUserId: string) {
   };
 }
 
+function buildRouteItem(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "item-1",
+    tenantId: "tenant-a",
+    routePlanId: "plan-a",
+    locationId: "loc-1",
+    sequence: 1,
+    status: "planned",
+    plannedStartTime: null,
+    plannedEndTime: null,
+    skipReason: null,
+    createdAt: planDate,
+    updatedAt: planDate,
+    ...overrides,
+  };
+}
+
+function p2002(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+    code: "P2002",
+    clientVersion: "test",
+  });
+}
+
 describe("routes permissions", () => {
   it("requires a manage permission on every mutation endpoint", () => {
     const mutationHandlers = [
@@ -68,6 +94,7 @@ describe("routes permissions", () => {
       RoutesController.prototype.deleteRoutePlan,
       RoutesController.prototype.createRouteItem,
       RoutesController.prototype.updateRouteItem,
+      RoutesController.prototype.reorderRouteItems,
     ];
 
     for (const handler of mutationHandlers) {
@@ -271,5 +298,187 @@ describe("route plan removal", () => {
     // Audited through the same transaction as the delete, so neither can
     // exist without the other.
     assert.deepEqual(auditClients, [prisma]);
+  });
+});
+
+describe("route item full reorder (drag-and-drop)", () => {
+  it("bumps every item to a free slot before settling final sequences, in one transaction", async () => {
+    const plan = { id: "plan-a", representativeUserId: "rep-a" };
+    const items = [
+      buildRouteItem({ id: "item-1", sequence: 1 }),
+      buildRouteItem({ id: "item-2", sequence: 2 }),
+      buildRouteItem({ id: "item-3", sequence: 3 }),
+    ];
+    const updateCalls: Array<{
+      where: { id: string };
+      data: { sequence: number };
+    }> = [];
+    let transactionCallCount = 0;
+    const prisma = {
+      routePlan: {
+        findFirst: async () => plan,
+        findUniqueOrThrow: async () => buildFullPlan("rep-a"),
+      },
+      routeItem: {
+        findMany: async () => items,
+      },
+      $transaction: async (
+        callback: (tx: {
+          routeItem: {
+            update: (args: {
+              where: { id: string };
+              data: { sequence: number };
+            }) => Promise<unknown>;
+          };
+        }) => Promise<unknown>,
+      ) => {
+        transactionCallCount += 1;
+        return callback({
+          routeItem: {
+            update: async (args) => {
+              updateCalls.push(args);
+              return {};
+            },
+          },
+        });
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await service.reorderRouteItems(representativeContext as never, "plan-a", {
+      itemIds: ["item-3", "item-1", "item-2"],
+    });
+
+    assert.equal(transactionCallCount, 1);
+    assert.deepEqual(
+      updateCalls.map((call) => ({
+        id: call.where.id,
+        sequence: call.data.sequence,
+      })),
+      [
+        // Phase 1: every item bumped to a temp slot past the current max (3),
+        // in submitted order — none of these can collide with each other or
+        // with a still-occupied 1..3 slot.
+        { id: "item-3", sequence: 4 },
+        { id: "item-1", sequence: 5 },
+        { id: "item-2", sequence: 6 },
+        // Phase 2: final 1..N assigned in the submitted (new) order.
+        { id: "item-3", sequence: 1 },
+        { id: "item-1", sequence: 2 },
+        { id: "item-2", sequence: 3 },
+      ],
+    );
+  });
+
+  it("rejects a reorder that omits one of the plan's stops", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({ id: "plan-a", representativeUserId: "rep-a" }),
+      },
+      routeItem: {
+        findMany: async () => [
+          buildRouteItem({ id: "item-1", sequence: 1 }),
+          buildRouteItem({ id: "item-2", sequence: 2 }),
+        ],
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteItems(representativeContext as never, "plan-a", {
+        itemIds: ["item-1"],
+      }),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(
+          error.getResponse?.().code,
+          "ROUTE_ITEM_REORDER_INVALID",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("rejects a reorder with a duplicated id", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({ id: "plan-a", representativeUserId: "rep-a" }),
+      },
+      routeItem: {
+        findMany: async () => [
+          buildRouteItem({ id: "item-1", sequence: 1 }),
+          buildRouteItem({ id: "item-2", sequence: 2 }),
+        ],
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteItems(representativeContext as never, "plan-a", {
+        itemIds: ["item-1", "item-1"],
+      }),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(
+          error.getResponse?.().code,
+          "ROUTE_ITEM_REORDER_INVALID",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("rejects a reorder that references a stop from another plan", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({ id: "plan-a", representativeUserId: "rep-a" }),
+      },
+      routeItem: {
+        findMany: async () => [
+          buildRouteItem({ id: "item-1", sequence: 1 }),
+          buildRouteItem({ id: "item-2", sequence: 2 }),
+        ],
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteItems(representativeContext as never, "plan-a", {
+        itemIds: ["item-1", "item-from-another-plan"],
+      }),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(
+          error.getResponse?.().code,
+          "ROUTE_ITEM_REORDER_INVALID",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("turns a concurrent reorder collision into a 409 instead of an unhandled 500", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({ id: "plan-a", representativeUserId: "rep-a" }),
+      },
+      routeItem: {
+        findMany: async () => [
+          buildRouteItem({ id: "item-1", sequence: 1 }),
+          buildRouteItem({ id: "item-2", sequence: 2 }),
+        ],
+      },
+      $transaction: async () => {
+        throw p2002();
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.reorderRouteItems(representativeContext as never, "plan-a", {
+        itemIds: ["item-2", "item-1"],
+      }),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(error.getResponse?.().code, "ROUTE_ITEM_SEQUENCE_TAKEN");
+        return true;
+      },
+    );
   });
 });

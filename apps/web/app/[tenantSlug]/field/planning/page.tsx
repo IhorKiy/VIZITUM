@@ -10,10 +10,10 @@ import {
   CopyIcon,
   GripIcon,
   MapPinIcon,
-  PencilIcon,
   RouteIcon,
 } from "../../../../components/icons";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
+import { RenameRouteButton } from "../../../../components/rename-route-button";
 import { UnassignRouteButton } from "../../../../components/unassign-route-button";
 import {
   addRouteTemplateItem,
@@ -490,8 +490,8 @@ function RoutesTabView({
           <span aria-hidden="true">‹</span> {t("routeEditorBack")}
         </Link>
 
-        <details className="route-name-card">
-          <summary className="route-name-summary">
+        <div className="route-name-card">
+          <div className="route-name-summary">
             <div>
               <h2>{activeTemplate.name}</h2>
               <p className="route-name-meta">
@@ -499,35 +499,20 @@ function RoutesTabView({
                 {t("routeStopsCount", { count: stops.length })}
               </p>
             </div>
-            <span className="route-name-edit-icon" aria-hidden="true">
-              <PencilIcon />
-            </span>
-          </summary>
-          <form
-            action={renameRouteTemplateAction}
-            className="visit-form compact route-rename-form"
-          >
-            <input name="templateId" type="hidden" value={activeTemplate.id} />
-            <label>
-              {t("createRouteNameLabel")}
-              <input
-                autoFocus
-                defaultValue={activeTemplate.name}
-                name="name"
-                required
-                type="text"
+            <span className="route-name-actions">
+              <RenameRouteButton
+                renameAction={renameRouteTemplateAction}
+                templateId={activeTemplate.id}
+                templateName={activeTemplate.name}
               />
-            </label>
-            <div className="toolbar">
-              <PendingSubmitButton
-                className="primary-button"
-                pendingLabel={tCommon("saving")}
-              >
-                {tCommon("save")}
-              </PendingSubmitButton>
-            </div>
-          </form>
-        </details>
+              <DeleteRouteButton
+                deleteAction={deleteRouteTemplateAction}
+                routeId={activeTemplate.id}
+                routeName={activeTemplate.name}
+              />
+            </span>
+          </div>
+        </div>
 
         <details className="route-add-stop">
           <summary className="route-add-stop-trigger">
@@ -589,14 +574,6 @@ function RoutesTabView({
         ) : (
           <p className="empty-state">{t("noStops")}</p>
         )}
-
-        <div className="route-delete-row">
-          <DeleteRouteButton
-            deleteAction={deleteRouteTemplateAction}
-            routeId={activeTemplate.id}
-            routeName={activeTemplate.name}
-          />
-        </div>
       </>
     );
   }
