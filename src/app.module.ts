@@ -6,6 +6,7 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { ChainsModule } from "./modules/chains/chains.module";
 import { HealthModule } from "./modules/health/health.module";
 import { ImportsModule } from "./modules/imports/imports.module";
+import { LocationInsightsModule } from "./modules/location-insights/location-insights.module";
 import { LocationsModule } from "./modules/locations/locations.module";
 import { OperationsModule } from "./modules/operations/operations.module";
 import { PilotReviewModule } from "./modules/pilot-review/pilot-review.module";
@@ -31,6 +32,7 @@ import { VisitsModule } from "./modules/visits/visits.module";
     UsersModule,
     RolesModule,
     LocationsModule,
+    LocationInsightsModule,
     ChainsModule,
     ProductsModule,
     RoutesModule,

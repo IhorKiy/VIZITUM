@@ -1,0 +1,32 @@
+import { Controller, Get, Req, UseGuards } from "@nestjs/common";
+import type { Request } from "express";
+
+import { PermissionGuard } from "../auth/permission.guard";
+import { RequirePermissions } from "../auth/permissions.decorator";
+import { PERMISSIONS } from "../roles/permissions";
+import type { RequestContext } from "../tenancy/request-context";
+import { LocationInsightsSummaryService } from "./location-insights-summary.service";
+
+@Controller("location-insights")
+@UseGuards(PermissionGuard)
+export class LocationInsightsSummaryController {
+  constructor(
+    private readonly locationInsightsSummaryService: LocationInsightsSummaryService,
+  ) {}
+
+  @Get("summary")
+  @RequirePermissions(PERMISSIONS.LOCATION_INSIGHTS_READ)
+  getSummary(@Req() request: Request) {
+    return this.locationInsightsSummaryService.getSummary(
+      getRequestContext(request),
+    );
+  }
+}
+
+function getRequestContext(request: Request): RequestContext {
+  if (!request.context) {
+    throw new Error("Request context was not initialized.");
+  }
+
+  return request.context;
+}

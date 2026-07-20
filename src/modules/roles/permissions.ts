@@ -17,6 +17,10 @@ export const PERMISSIONS = {
   LOCATIONS_MANAGE: "locations.manage",
   LOCATIONS_ASSIGN: "locations.assign",
 
+  LOCATION_INSIGHTS_READ: "location_insights.read",
+  LOCATION_INSIGHTS_MANAGE: "location_insights.manage",
+  LOCATION_INSIGHTS_MANAGE_OWN: "location_insights.manage_own",
+
   CONTACTS_READ: "contacts.read",
   CONTACTS_MANAGE: "contacts.manage",
 
