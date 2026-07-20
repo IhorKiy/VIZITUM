@@ -46,6 +46,14 @@ export function DeleteRouteButton({
       <dialog
         aria-labelledby={`delete-route-title-${routeId}`}
         className="modal-dialog"
+        onCancel={(event) => {
+          // Blocks Escape while the delete is in flight, matching the
+          // disabled Cancel/close buttons below.
+          if (isDeleting) {
+            event.preventDefault();
+          }
+        }}
+        onClose={() => setIsDeleting(false)}
         ref={dialogRef}
       >
         <div className="modal-header">

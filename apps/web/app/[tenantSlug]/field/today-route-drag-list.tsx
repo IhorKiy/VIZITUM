@@ -8,6 +8,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -113,6 +114,7 @@ function TodayRouteGroup({
   stops,
   tenantSlug,
 }: TodayRouteGroupProps) {
+  const t = useTranslations("field.home");
   const [order, setOrder] = useState(stops);
   const [, startTransition] = useTransition();
   const orderRef = useRef(order);
@@ -133,6 +135,38 @@ function TodayRouteGroup({
       activationConstraint: { delay: 150, tolerance: 5 },
     }),
   );
+
+  // dnd-kit's default screen-reader strings are English-only regardless of
+  // tenant locale, and reference raw stop ids rather than a name a listener
+  // would recognize — both replaced with translated, name-based text.
+  function nameById(id: UniqueIdentifier): string {
+    return orderRef.current.find((item) => item.id === id)?.name ?? "";
+  }
+
+  const accessibility = {
+    screenReaderInstructions: { draggable: t("dragInstructions") },
+    announcements: {
+      onDragStart: ({ active }: { active: { id: UniqueIdentifier } }) =>
+        t("dragStartedAnnouncement", { name: nameById(active.id) }),
+      onDragOver: ({
+        active,
+        over,
+      }: {
+        active: { id: UniqueIdentifier };
+        over: { id: UniqueIdentifier } | null;
+      }) =>
+        over
+          ? t("dragOverAnnouncement", {
+              name: nameById(active.id),
+              overName: nameById(over.id),
+            })
+          : t("dragAwayAnnouncement", { name: nameById(active.id) }),
+      onDragEnd: ({ active }: { active: { id: UniqueIdentifier } }) =>
+        t("dragDroppedAnnouncement", { name: nameById(active.id) }),
+      onDragCancel: ({ active }: { active: { id: UniqueIdentifier } }) =>
+        t("dragCancelledAnnouncement", { name: nameById(active.id) }),
+    },
+  };
 
   function commitOrder(nextOrder: TodayStop[]) {
     const changed = nextOrder.some(
@@ -194,6 +228,7 @@ function TodayRouteGroup({
 
   return (
     <DndContext
+      accessibility={accessibility}
       collisionDetection={closestCenter}
       id={routePlanId}
       sensors={sensors}

@@ -895,7 +895,13 @@
       "goToPlanning": "До планування →",
       "stopChainNone": "Без мережі",
       "dragHandleAria": "Змінити порядок: {name}. Перетягніть або скористайтесь стрілками.",
-      "viewLocationAria": "Переглянути {name}"
+      "viewLocationAria": "Переглянути {name}",
+      "dragInstructions": "Щоб підняти зупинку, натисніть пробіл. Під час перетягування використовуйте стрілки, щоб перемістити її. Натисніть пробіл ще раз, щоб опустити на новому місці, або escape, щоб скасувати.",
+      "dragStartedAnnouncement": "Піднято {name}.",
+      "dragOverAnnouncement": "{name} тепер поруч із {overName}.",
+      "dragAwayAnnouncement": "{name} більше не над списком.",
+      "dragDroppedAnnouncement": "{name} відпущено.",
+      "dragCancelledAnnouncement": "Перетягування скасовано. {name} повернено на початкову позицію."
     },
     "location": {
       "signedOutTitle": "Точка",
@@ -1092,6 +1098,12 @@
       "dragHandleAria": "Змінити порядок: {name}. Перетягніть або скористайтесь стрілками.",
       "viewLocationAria": "Переглянути {name}",
       "stopChainNone": "Без мережі",
+      "dragInstructions": "Щоб підняти зупинку, натисніть пробіл. Під час перетягування використовуйте стрілки, щоб перемістити її. Натисніть пробіл ще раз, щоб опустити на новому місці, або escape, щоб скасувати.",
+      "dragStartedAnnouncement": "Піднято {name}.",
+      "dragOverAnnouncement": "{name} тепер поруч із {overName}.",
+      "dragAwayAnnouncement": "{name} більше не над списком.",
+      "dragDroppedAnnouncement": "{name} відпущено.",
+      "dragCancelledAnnouncement": "Перетягування скасовано. {name} повернено на початкову позицію.",
       "addStop": "Додати точку",
       "locationLabel": "Точка",
       "addToRoute": "Додати до маршруту",

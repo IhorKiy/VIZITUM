@@ -46,6 +46,14 @@ export function RenameRouteButton({
       <dialog
         aria-labelledby={`rename-route-title-${templateId}`}
         className="modal-dialog"
+        onCancel={(event) => {
+          // Blocks Escape while the save is in flight, matching the
+          // disabled Cancel/close buttons below.
+          if (isSaving) {
+            event.preventDefault();
+          }
+        }}
+        onClose={() => setIsSaving(false)}
         ref={dialogRef}
       >
         <div className="modal-header">
