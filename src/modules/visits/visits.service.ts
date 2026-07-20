@@ -17,6 +17,7 @@ import { PERMISSIONS } from "../roles/permissions";
 import { StorageService } from "../storage/storage.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
+  extractTasksToCreate,
   findReportCreatedTasks,
   toReportResponse,
 } from "./report-response.util";
@@ -465,6 +466,42 @@ export class VisitsService {
         await tx.routeItem.update({
           where: { id: visit.routeItemId },
           data: { status: "visited" },
+        });
+      }
+
+      // Same `confirmedData.tasksToCreate` contract as the AI-draft confirm
+      // flow (ai.service.ts) — reused so the field-report form's "tasks for
+      // the next visit" block creates real Task rows the same way. Only
+      // touch tasks when the payload actually carries some: this keeps a
+      // resubmit idempotent (old ones tied to this report are replaced)
+      // without deleting anything for schemas that never set this field
+      // (e.g. manual.v1).
+      const tasksToCreate = extractTasksToCreate(confirmedData);
+
+      if (tasksToCreate.length > 0) {
+        await tx.task.deleteMany({
+          where: {
+            tenantId: context.tenantId,
+            reportId: result.id,
+          },
+        });
+
+        await tx.task.createMany({
+          data: tasksToCreate.map((task) => ({
+            tenantId: context.tenantId,
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            assignedToUserId:
+              task.assignee === "representative"
+                ? visit.representativeUserId
+                : null,
+            createdByUserId: confirmedByUserId,
+            locationId: visit.locationId,
+            visitId: visit.id,
+            reportId: result.id,
+            dueDate: task.dueDate,
+          })),
         });
       }
 

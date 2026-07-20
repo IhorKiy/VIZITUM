@@ -489,6 +489,45 @@ export type Report = {
   createdTasks: ReportCreatedTask[];
 };
 
+// Structured draft returned by the field report voice capture endpoint
+// (POST /visits/:visitId/ai/field-report-transcriptions). Every field is
+// nullable/empty when nothing was said or recognized — the form only
+// prefills fields it actually got a value for.
+export type FieldReportProductUpdateDraft = {
+  productName: string | null;
+  productCode: string | null;
+  status: "in_stock" | "out_of_stock" | "to_order" | "not_relevant" | null;
+  stock: number | null;
+  order: number | null;
+  sale: number | null;
+  comment: string | null;
+};
+
+export type FieldReportExtractedTasks = {
+  dueDate: string | null;
+  assortment: string | null;
+  merchandising: string | null;
+  recommendation: string | null;
+  special: string | null;
+  note: string | null;
+};
+
+export type FieldReportExtractedData = {
+  outcome: "positive" | "neutral" | "negative" | null;
+  visitDate: string | null;
+  productsPresented: string[];
+  stockStatus: "in_stock" | "low_stock" | "out_of_stock" | null;
+  notes: string | null;
+  nextAction: string | null;
+  productUpdates: FieldReportProductUpdateDraft[];
+  tasks: FieldReportExtractedTasks;
+};
+
+export type TranscribeFieldReportResult = {
+  transcript: string;
+  extractedData: FieldReportExtractedData;
+};
+
 export type VisitNote = {
   id: string;
   visitId: string;
@@ -598,6 +637,54 @@ export async function listProducts(): Promise<
   ApiResult<PaginatedResponse<Product>>
 > {
   return apiGet<PaginatedResponse<Product>>("/products?pageSize=100");
+}
+
+// Matches MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE in src/modules/ai/ai.service.ts
+// — the backend caps the product catalog it forwards to the extraction model
+// at the same size, so paging past it here would only build a longer list
+// the field-report form's multi-select can show but the voice flow can never
+// match against.
+const MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE = 300;
+
+// The field-report form's product multi-select and SKU-update picker need
+// the full catalog, not one 100-item page (listProducts's fixed pageSize) —
+// tenants past that would silently lose products from both. Pages until the
+// server reports no more pages or the cap above is hit; a failure after at
+// least one page still returns what was fetched, since a partial catalog is
+// strictly better than the empty one `products: []` fallback would give the
+// caller for a hard failure.
+export async function listAllFieldReportProducts(): Promise<
+  ApiResult<Product[]>
+> {
+  const pageSize = 100;
+  const items: Product[] = [];
+  let page = 1;
+
+  for (;;) {
+    const result = await apiGet<PaginatedResponse<Product>>(
+      `/products?page=${page}&pageSize=${pageSize}`,
+    );
+
+    if (!result.ok) {
+      return items.length > 0 ? { ok: true, data: items } : result;
+    }
+
+    items.push(...result.data.items);
+
+    if (
+      items.length >= MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE ||
+      page >= result.data.totalPages
+    ) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return {
+    ok: true,
+    data: items.slice(0, MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE),
+  };
 }
 
 // Cheap active-product count for the launch checklist: the paginated `total`
@@ -1380,6 +1467,55 @@ export async function confirmManualReport(
 ): Promise<ApiResult<Report>> {
   return apiPost<Report>(`/visits/${visitId}/reports/confirm`, {
     schemaVersion: "manual.v1",
+    confirmedData,
+  });
+}
+
+// Register-only counterpart to uploadAudioVisitNote: it stops short of the
+// presigned PUT so the caller can do that PUT itself, directly from the
+// browser to storage. That split matters here — unlike uploadAudioVisitNote,
+// which is only ever invoked from a plain <form action> for short voice
+// notes, the field-report recorder can produce audio well past Next.js's
+// default 1 MB Server Actions body limit, and that limit applies to
+// anything sent *to* a Server Action (JSON or FormData) regardless of
+// encoding. Keeping the actual bytes off that path entirely — client
+// records, registers this way, PUTs to the returned presigned URL itself,
+// then calls transcribeFieldVisitReport with just the resulting object id —
+// is the only way around it.
+export async function registerFieldReportAudioUpload(
+  visitId: string,
+  input: { fileName: string; contentType: string; sizeBytes: number },
+): Promise<ApiResult<RegisteredAudioUpload>> {
+  return apiPost<RegisteredAudioUpload>(
+    `/visits/${visitId}/notes/audio/register`,
+    input,
+  );
+}
+
+export async function transcribeFieldVisitReport(
+  visitId: string,
+  input: {
+    audioObjectId: string;
+    products: Array<{
+      id: string;
+      name: string;
+      sku: string | null;
+      category: string | null;
+    }>;
+  },
+): Promise<ApiResult<TranscribeFieldReportResult>> {
+  return apiPost<TranscribeFieldReportResult>(
+    `/visits/${visitId}/ai/field-report-transcriptions`,
+    input,
+  );
+}
+
+export async function confirmFieldVisitReport(
+  visitId: string,
+  confirmedData: Record<string, unknown>,
+): Promise<ApiResult<Report>> {
+  return apiPost<Report>(`/visits/${visitId}/reports/confirm`, {
+    schemaVersion: "field-report.v1",
     confirmedData,
   });
 }

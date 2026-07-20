@@ -4380,3 +4380,379 @@ a.metric-card:hover {
   text-align: center;
   width: 64px;
 }
+
+/* Field visit-report form (voice capture + presented products + SKU updates
+   + next-visit tasks). Renders inside the field zone's 430px phone frame
+   (.app-shell--mobile-only), so these are sized for a touch screen. */
+
+.voice-capture {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 22px 16px;
+}
+
+.voice-capture-hint {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+}
+
+.voice-capture-button {
+  align-items: center;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  height: 88px;
+  justify-content: center;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
+  width: 88px;
+}
+
+.voice-capture-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.voice-capture-button.recording {
+  animation: voice-capture-pulse 1.6s ease-in-out infinite;
+  background: var(--danger);
+}
+
+@keyframes voice-capture-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(159, 58, 58, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgba(159, 58, 58, 0);
+  }
+}
+
+.voice-capture-status {
+  align-items: center;
+  color: var(--accent);
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.field-panel-card {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.field-panel-card-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  display: flex;
+  font-size: 14px;
+  font-weight: 800;
+  gap: 8px;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+button.field-panel-card-toggle {
+  cursor: pointer;
+}
+
+.field-panel-card-toggle .eyebrow {
+  margin-left: auto;
+}
+
+.field-panel-card-toggle svg:last-child {
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 160ms ease;
+}
+
+.field-panel-card-toggle[aria-expanded="true"] svg:last-child {
+  transform: rotate(180deg);
+}
+
+.field-label-row {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 8px 5px 10px;
+}
+
+.chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-remove {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.combo-field {
+  position: relative;
+}
+
+.combo-trigger {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.combo-trigger svg:last-child {
+  flex-shrink: 0;
+  transition: transform 160ms ease;
+}
+
+.combo-trigger[aria-expanded="true"] svg:last-child {
+  transform: rotate(180deg);
+}
+
+.combo-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  left: 0;
+  margin-top: 4px;
+  overflow: hidden;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+}
+
+.combo-search {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+}
+
+.combo-search input {
+  background: none;
+  border: 0;
+  color: var(--ink);
+  flex: 1;
+  font-size: 13px;
+  min-width: 0;
+  outline: none;
+}
+
+.combo-search svg,
+.combo-search button {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.combo-search button {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0;
+}
+
+.combo-list {
+  display: grid;
+  max-height: 208px;
+  overflow-y: auto;
+}
+
+.combo-empty {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 18px;
+  text-align: center;
+}
+
+.combo-option {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  padding: 9px 12px;
+  text-align: left;
+}
+
+.combo-option:hover {
+  background: var(--surface-muted);
+}
+
+.combo-option.selected {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.combo-option-check {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: #ffffff;
+  display: flex;
+  flex-shrink: 0;
+  height: 16px;
+  justify-content: center;
+  width: 16px;
+}
+
+.combo-option.selected .combo-option-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.combo-option span:first-of-type {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.combo-option-meta {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.combo-footer {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  padding: 8px 12px;
+}
+
+.combo-footer button {
+  background: none;
+  border: 0;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 0;
+}
+
+.sku-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sku-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.sku-card-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.sku-card-header p {
+  margin: 0;
+}
+
+.sku-card-header button {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.sku-card-quantities {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sku-card label {
+  display: grid;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 4px;
+}
+
+.field-report-submit {
+  font-size: 16px;
+  gap: 8px;
+  margin-top: 4px;
+  min-height: 52px;
+  width: 100%;
+}
+
+.spin-icon {
+  animation: spin-icon-rotate 0.8s linear infinite;
+}
+
+@keyframes spin-icon-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}

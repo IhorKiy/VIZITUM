@@ -92,6 +92,33 @@ export class S3StorageClient {
       );
     }
   }
+
+  // Server-side download used by the field-report transcription flow: the
+  // audio itself already reached storage via a client-side presigned PUT
+  // (see visits.controller.ts's notes/audio/register), so this is a
+  // short-lived signed GET the backend follows itself to hand the bytes to
+  // the transcription client — never a second client-facing hop.
+  async downloadObject(bucket: string, objectKey: string): Promise<Buffer> {
+    const signedUrl = this.createPresignedObjectUrl({
+      bucket,
+      objectKey,
+      method: "GET",
+      expiresInSeconds: 60,
+    });
+    const response = await fetch(signedUrl.url, {
+      headers: signedUrl.headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `S3 download failed with status ${response.status} ${response.statusText}.`,
+      );
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+
+    return Buffer.from(arrayBuffer);
+  }
 }
 
 function buildSignedHeaders(
