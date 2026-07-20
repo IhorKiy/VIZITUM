@@ -14,31 +14,51 @@ const context = {
   permissions: ["visits.update_own", "ai.use_reporting"],
 };
 
-const audioBase64 = Buffer.from("fake-audio-bytes").toString("base64");
+const defaultStorageObject = {
+  id: "audio-object-a",
+  bucket: "vizitum",
+  objectKey: "tenants/tenant-a/visits/visit-a/audio/audio-object-a.webm",
+  contentType: "audio/webm",
+};
 
-function buildPrisma(
-  visit: unknown = { id: "visit-a", representativeUserId: "rep-a" },
-) {
+function buildPrisma(overrides: {
+  visit?: unknown;
+  storageObject?: unknown;
+  visitNote?: unknown;
+} = {}) {
+  const {
+    visit = { id: "visit-a", representativeUserId: "rep-a" },
+    storageObject = defaultStorageObject,
+    visitNote = { id: "note-a" },
+  } = overrides;
+
   return {
-    visit: {
-      findFirst: async () => visit,
-    },
+    visit: { findFirst: async () => visit },
+    storageObject: { findFirst: async () => storageObject },
+    visitNote: { findFirst: async () => visitNote },
+  };
+}
+
+function buildS3StorageClient(overrides: Record<string, unknown> = {}) {
+  return {
+    downloadObject: async () => Buffer.from("fake-audio-bytes"),
+    ...overrides,
   };
 }
 
 describe("field report transcription", () => {
   it("rejects when the visit does not belong to the tenant", async () => {
     const service = new AiService(
-      buildPrisma(null) as never,
+      buildPrisma({ visit: null }) as never,
       {} as never,
       {} as never,
+      buildS3StorageClient() as never,
     );
 
     await assert.rejects(
       () =>
         service.transcribeFieldReport(context as never, "visit-a", {
-          audioBase64,
-          mimeType: "audio/webm",
+          audioObjectId: "audio-object-a",
           products: [],
         }),
       (error: unknown) => {
@@ -51,18 +71,17 @@ describe("field report transcription", () => {
   it("rejects when the caller is not the visit's representative", async () => {
     const service = new AiService(
       buildPrisma({
-        id: "visit-a",
-        representativeUserId: "someone-else",
+        visit: { id: "visit-a", representativeUserId: "someone-else" },
       }) as never,
       {} as never,
       {} as never,
+      buildS3StorageClient() as never,
     );
 
     await assert.rejects(
       () =>
         service.transcribeFieldReport(context as never, "visit-a", {
-          audioBase64,
-          mimeType: "audio/webm",
+          audioObjectId: "audio-object-a",
           products: [],
         }),
       (error: unknown) => {
@@ -76,6 +95,81 @@ describe("field report transcription", () => {
     );
   });
 
+  it("rejects when the audio object is not an active temporary audio object", async () => {
+    const service = new AiService(
+      buildPrisma({ storageObject: null }) as never,
+      {} as never,
+      {} as never,
+      buildS3StorageClient() as never,
+    );
+
+    await assert.rejects(
+      () =>
+        service.transcribeFieldReport(context as never, "visit-a", {
+          audioObjectId: "audio-object-a",
+          products: [],
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        assert.equal(
+          (error.getResponse() as { code: string }).code,
+          "TRANSCRIPTION_INPUT_INVALID",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("rejects when the audio object is not registered as a note on this visit", async () => {
+    const service = new AiService(
+      buildPrisma({ visitNote: null }) as never,
+      {} as never,
+      {} as never,
+      buildS3StorageClient() as never,
+    );
+
+    await assert.rejects(
+      () =>
+        service.transcribeFieldReport(context as never, "visit-a", {
+          audioObjectId: "audio-object-a",
+          products: [],
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        assert.equal(
+          (error.getResponse() as { code: string }).code,
+          "TRANSCRIPTION_INPUT_INVALID",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("degrades to an empty draft when the audio download fails, without throwing", async () => {
+    const s3StorageClient = buildS3StorageClient({
+      downloadObject: async () => {
+        throw new Error("object not found in bucket");
+      },
+    });
+    const service = new AiService(
+      buildPrisma() as never,
+      {} as never,
+      {} as never,
+      s3StorageClient as never,
+    );
+
+    const result = await service.transcribeFieldReport(
+      context as never,
+      "visit-a",
+      { audioObjectId: "audio-object-a", products: [] },
+    );
+
+    assert.deepEqual(result, {
+      transcript: "",
+      extractedData: emptyFieldReportExtractedData(),
+    });
+  });
+
   it("degrades to an empty draft when transcription fails, without throwing", async () => {
     const transcriptionClient = {
       transcribe: async () => {
@@ -86,12 +180,13 @@ describe("field report transcription", () => {
       buildPrisma() as never,
       transcriptionClient as never,
       {} as never,
+      buildS3StorageClient() as never,
     );
 
     const result = await service.transcribeFieldReport(
       context as never,
       "visit-a",
-      { audioBase64, mimeType: "audio/webm", products: [] },
+      { audioObjectId: "audio-object-a", products: [] },
     );
 
     assert.deepEqual(result, {
@@ -111,12 +206,13 @@ describe("field report transcription", () => {
       buildPrisma() as never,
       transcriptionClient as never,
       extractionClient as never,
+      buildS3StorageClient() as never,
     );
 
     const result = await service.transcribeFieldReport(
       context as never,
       "visit-a",
-      { audioBase64, mimeType: "audio/webm", products: [] },
+      { audioObjectId: "audio-object-a", products: [] },
     );
 
     assert.equal(result.transcript, "   ");
@@ -136,19 +232,20 @@ describe("field report transcription", () => {
       buildPrisma() as never,
       transcriptionClient as never,
       extractionClient as never,
+      buildS3StorageClient() as never,
     );
 
     const result = await service.transcribeFieldReport(
       context as never,
       "visit-a",
-      { audioBase64, mimeType: "audio/webm", products: [] },
+      { audioObjectId: "audio-object-a", products: [] },
     );
 
     assert.equal(result.transcript, "Talked about vitamin C stock.");
     assert.deepEqual(result.extractedData, emptyFieldReportExtractedData());
   });
 
-  it("passes the product catalog as extraction context and normalizes the draft", async () => {
+  it("downloads the registered object and passes the product catalog as extraction context", async () => {
     const transcriptionClient = {
       transcribe: async () => ({ text: "Presented vitamin C, stock is low." }),
     };
@@ -178,10 +275,19 @@ describe("field report transcription", () => {
         };
       },
     };
+    const downloadCalls: unknown[] = [];
+    const s3StorageClient = buildS3StorageClient({
+      downloadObject: async (bucket: string, objectKey: string) => {
+        downloadCalls.push({ bucket, objectKey });
+
+        return Buffer.from("fake-audio-bytes");
+      },
+    });
     const service = new AiService(
       buildPrisma() as never,
       transcriptionClient as never,
       extractionClient as never,
+      s3StorageClient as never,
     );
     const products = [
       { id: "product-a", name: "Vitamin C", sku: "VTC-100", category: "OTC" },
@@ -190,9 +296,15 @@ describe("field report transcription", () => {
     const result = await service.transcribeFieldReport(
       context as never,
       "visit-a",
-      { audioBase64, mimeType: "audio/webm", products },
+      { audioObjectId: "audio-object-a", products },
     );
 
+    assert.deepEqual(downloadCalls, [
+      {
+        bucket: defaultStorageObject.bucket,
+        objectKey: defaultStorageObject.objectKey,
+      },
+    ]);
     assert.equal(result.transcript, "Presented vitamin C, stock is low.");
     assert.equal(result.extractedData.outcome, "positive");
     assert.deepEqual(result.extractedData.productsPresented, ["Vitamin C"]);

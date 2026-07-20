@@ -7,6 +7,7 @@ import { Prisma, type AiJob, type SegmentTemplate } from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
+import { S3StorageClient } from "../storage/s3-storage.client";
 import type { RequestContext } from "../tenancy/request-context";
 import {
   extractTasksToCreate,
@@ -58,6 +59,7 @@ export class AiService {
     private readonly prisma: PrismaService,
     private readonly transcriptionClient: OpenAiTranscriptionClient,
     private readonly extractionClient: OpenAiExtractionClient,
+    private readonly s3StorageClient: S3StorageClient,
   ) {}
 
   getExtractionSchema(segmentTemplate: SegmentTemplate): AiExtractionSchema {
@@ -644,8 +646,7 @@ export class AiService {
     context: RequestContext,
     visitId: string,
     input: {
-      audioBase64: string;
-      mimeType: string | null;
+      audioObjectId: string;
       products: FieldReportProductCatalogEntry[];
     },
   ): Promise<TranscribeFieldReportResult> {
@@ -672,15 +673,58 @@ export class AiService {
       });
     }
 
+    // The audio itself already reached storage via a client-side presigned
+    // PUT (POST /visits/:visitId/notes/audio/register), the same way the
+    // async transcription-jobs pipeline requires it — mirrored here rather
+    // than reused since this flow never creates an AiJob row.
+    const audioObject = await this.prisma.storageObject.findFirst({
+      where: {
+        id: input.audioObjectId,
+        tenantId: context.tenantId,
+        purpose: "temporary_audio",
+        status: "active",
+      },
+      select: { id: true, bucket: true, objectKey: true, contentType: true },
+    });
+
+    if (!audioObject) {
+      throw new BadRequestException({
+        code: "TRANSCRIPTION_INPUT_INVALID",
+        message: "Input object must be an active temporary audio object.",
+      });
+    }
+
+    const audioNote = await this.prisma.visitNote.findFirst({
+      where: {
+        tenantId: context.tenantId,
+        visitId: visit.id,
+        inputType: "audio",
+        temporaryAudioObjectId: audioObject.id,
+        createdByUserId: context.userId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!audioNote) {
+      throw new BadRequestException({
+        code: "TRANSCRIPTION_INPUT_INVALID",
+        message: "Input object must be registered on this visit.",
+      });
+    }
+
     let transcript: string;
 
     try {
-      const audioData = Buffer.from(input.audioBase64, "base64");
+      const audioBuffer = await this.s3StorageClient.downloadObject(
+        audioObject.bucket,
+        audioObject.objectKey,
+      );
       const transcription = await this.transcriptionClient.transcribe(
         {
           fileName: "recording.webm",
-          contentType: input.mimeType || "audio/webm",
-          data: new Uint8Array(audioData),
+          contentType: audioObject.contentType || "audio/webm",
+          data: audioBuffer,
         },
         getTranscriptionModel(),
       );

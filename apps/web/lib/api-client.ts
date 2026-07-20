@@ -639,6 +639,54 @@ export async function listProducts(): Promise<
   return apiGet<PaginatedResponse<Product>>("/products?pageSize=100");
 }
 
+// Matches MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE in src/modules/ai/ai.service.ts
+// — the backend caps the product catalog it forwards to the extraction model
+// at the same size, so paging past it here would only build a longer list
+// the field-report form's multi-select can show but the voice flow can never
+// match against.
+const MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE = 300;
+
+// The field-report form's product multi-select and SKU-update picker need
+// the full catalog, not one 100-item page (listProducts's fixed pageSize) —
+// tenants past that would silently lose products from both. Pages until the
+// server reports no more pages or the cap above is hit; a failure after at
+// least one page still returns what was fetched, since a partial catalog is
+// strictly better than the empty one `products: []` fallback would give the
+// caller for a hard failure.
+export async function listAllFieldReportProducts(): Promise<
+  ApiResult<Product[]>
+> {
+  const pageSize = 100;
+  const items: Product[] = [];
+  let page = 1;
+
+  for (;;) {
+    const result = await apiGet<PaginatedResponse<Product>>(
+      `/products?page=${page}&pageSize=${pageSize}`,
+    );
+
+    if (!result.ok) {
+      return items.length > 0 ? { ok: true, data: items } : result;
+    }
+
+    items.push(...result.data.items);
+
+    if (
+      items.length >= MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE ||
+      page >= result.data.totalPages
+    ) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return {
+    ok: true,
+    data: items.slice(0, MAX_FIELD_REPORT_PRODUCT_CATALOG_SIZE),
+  };
+}
+
 // Cheap active-product count for the launch checklist: the paginated `total`
 // reflects the full filtered count server-side (prisma.product.count over the
 // same `status=active` where clause), so we don't have to page through or count
@@ -1423,11 +1471,31 @@ export async function confirmManualReport(
   });
 }
 
+// Register-only counterpart to uploadAudioVisitNote: it stops short of the
+// presigned PUT so the caller can do that PUT itself, directly from the
+// browser to storage. That split matters here — unlike uploadAudioVisitNote,
+// which is only ever invoked from a plain <form action> for short voice
+// notes, the field-report recorder can produce audio well past Next.js's
+// default 1 MB Server Actions body limit, and that limit applies to
+// anything sent *to* a Server Action (JSON or FormData) regardless of
+// encoding. Keeping the actual bytes off that path entirely — client
+// records, registers this way, PUTs to the returned presigned URL itself,
+// then calls transcribeFieldVisitReport with just the resulting object id —
+// is the only way around it.
+export async function registerFieldReportAudioUpload(
+  visitId: string,
+  input: { fileName: string; contentType: string; sizeBytes: number },
+): Promise<ApiResult<RegisteredAudioUpload>> {
+  return apiPost<RegisteredAudioUpload>(
+    `/visits/${visitId}/notes/audio/register`,
+    input,
+  );
+}
+
 export async function transcribeFieldVisitReport(
   visitId: string,
   input: {
-    audioBase64: string;
-    mimeType: string;
+    audioObjectId: string;
     products: Array<{
       id: string;
       name: string;

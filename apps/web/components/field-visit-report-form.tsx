@@ -6,8 +6,9 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import type { FieldReportExtractedData, Product } from "../lib/api-client";
 import {
-  transcribeFieldReportAction,
   confirmFieldReportAction,
+  registerFieldReportAudioAction,
+  transcribeFieldReportAction,
 } from "../lib/field-report-actions";
 import {
   CheckIcon,
@@ -47,7 +48,13 @@ type FieldVisitReportFormProps = {
 };
 
 function todayIsoDate(): string {
-  return new Date().toISOString().split("T")[0];
+  // Local date, not UTC: new Date().toISOString() would prefill yesterday
+  // between 00:00 and ~03:00 Kyiv time (UTC+2/+3).
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${now.getFullYear()}-${month}-${day}`;
 }
 
 function createEmptyProductUpdate(productId: string): ProductUpdateDraft {
@@ -137,16 +144,10 @@ function formatProductDisplayName(product: Product): string {
   return [product.sku, product.name].filter(Boolean).join(" · ");
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Could not read audio"));
-    reader.onloadend = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      resolve(result.split(",")[1] ?? "");
-    };
-    reader.readAsDataURL(blob);
-  });
+function buildRecordingFileName(mimeType: string): string {
+  const extension = mimeType.includes("mp4") ? "m4a" : "webm";
+
+  return `voice-note.${extension}`;
 }
 
 function hasAnyExtractedField(data: FieldReportExtractedData): boolean {
@@ -166,6 +167,12 @@ function hasAnyExtractedField(data: FieldReportExtractedData): boolean {
     Boolean(data.tasks.note)
   );
 }
+
+// Auto-stops a recording rather than letting it grow indefinitely — an
+// unbounded recording (and its later transcript) has no fixed cap on the
+// server side, so this is the one thing standing between an inattentive tap
+// and an opaque transport failure much later.
+const MAX_RECORDING_DURATION_MS = 5 * 60 * 1000;
 
 function resolveMediaRecorderMimeType(): string | undefined {
   if (typeof MediaRecorder === "undefined") return undefined;
@@ -221,9 +228,16 @@ export function FieldVisitReportForm({
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 
+  const [recordingCapNotice, setRecordingCapNotice] = useState<string | null>(
+    null,
+  );
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const productDropdownRef = useRef<HTMLDivElement>(null);
   const productUpdateDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -399,10 +413,42 @@ export function FieldVisitReportForm({
     setTranscriptionMessage(null);
 
     try {
-      const audioBase64 = await blobToBase64(blob);
+      // Register the object, then PUT the recording straight from the
+      // browser to storage using the presigned URL that comes back — the
+      // bytes never pass through a Next.js Server Action, which caps request
+      // bodies at ~1 MB by default regardless of encoding. Only the small
+      // JSON register/transcribe calls go through field-report-actions.ts.
+      const registerResult = await registerFieldReportAudioAction(visitId, {
+        fileName: buildRecordingFileName(mimeType),
+        contentType: mimeType,
+        sizeBytes: blob.size,
+      });
+
+      if (!registerResult.ok) {
+        setError(registerResult.message);
+        return;
+      }
+
+      const uploadUrl = registerResult.data.uploadUrl;
+
+      if (!uploadUrl) {
+        setError(t("voiceErrorNotice"));
+        return;
+      }
+
+      const uploadResponse = await fetch(uploadUrl.url, {
+        method: uploadUrl.method,
+        headers: uploadUrl.headers,
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) {
+        setError(t("voiceErrorNotice"));
+        return;
+      }
+
       const result = await transcribeFieldReportAction(visitId, {
-        audioBase64,
-        mimeType,
+        audioObjectId: registerResult.data.storageObject.id,
         products: products.map((product) => ({
           id: product.id,
           name: product.name,
@@ -467,12 +513,21 @@ export function FieldVisitReportForm({
       setIsRecording(true);
       setError(null);
       setTranscriptionMessage(null);
+      setRecordingCapNotice(null);
+      recordingTimeoutRef.current = setTimeout(() => {
+        setRecordingCapNotice(t("voiceMaxDurationNotice"));
+        stopRecording();
+      }, MAX_RECORDING_DURATION_MS);
     } catch {
       setError(t("voiceUnsupported"));
     }
   }
 
   function stopRecording() {
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -489,6 +544,21 @@ export function FieldVisitReportForm({
     );
     if (invalidProductUpdate) {
       setError(t("invalidSkuNumbersError"));
+      return;
+    }
+
+    // One accidental tap on "Save report" would otherwise permanently lock
+    // the visit as completed with a content-free report — require at least
+    // one real piece of the report before letting it through.
+    const hasReportContent =
+      Boolean(notes.trim()) ||
+      Boolean(nextAction.trim()) ||
+      selectedProductIds.size > 0 ||
+      productUpdateDrafts.length > 0 ||
+      taskTypeOptions.some((option) => taskDescriptions[option.value].trim());
+
+    if (!hasReportContent) {
+      setError(t("emptyReportError"));
       return;
     }
 
@@ -657,6 +727,9 @@ export function FieldVisitReportForm({
               <LoaderIcon />
               {t("voiceProcessing")}
             </div>
+          ) : null}
+          {recordingCapNotice ? (
+            <p className="form-hint">{recordingCapNotice}</p>
           ) : null}
         </div>
 

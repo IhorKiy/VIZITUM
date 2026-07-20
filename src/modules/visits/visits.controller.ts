@@ -199,8 +199,10 @@ export class VisitsController {
       getRequestContext(request),
       visitId,
       {
-        audioBase64: parseRequiredBodyString(body.audioBase64, "audioBase64"),
-        mimeType: typeof body.mimeType === "string" ? body.mimeType : null,
+        audioObjectId: parseRequiredBodyString(
+          body.audioObjectId,
+          "audioObjectId",
+        ),
         products: parseProductCatalog(body.products),
       },
     );

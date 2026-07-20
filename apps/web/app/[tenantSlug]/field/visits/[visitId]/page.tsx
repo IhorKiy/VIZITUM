@@ -7,7 +7,7 @@ import {
   getCurrentSession,
   getVisit,
   getVisitReport,
-  listProducts,
+  listAllFieldReportProducts,
 } from "../../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
 
@@ -130,9 +130,17 @@ export default async function VisitDetailPage({
     .join(", ");
 
   const [productsResult, reportResult] = await Promise.all([
-    isLocked ? Promise.resolve(null) : listProducts(),
+    isLocked ? Promise.resolve(null) : listAllFieldReportProducts(),
     isLocked ? getVisitReport(visitId) : Promise.resolve(null),
   ]);
+  // A cancelled visit legitimately never gets a confirmed report — that's
+  // not a load failure, so it gets a neutral notice instead of the danger
+  // one a completed visit missing its report (a real error) still shows.
+  const isCancelledWithoutReport =
+    visit.status === "cancelled" &&
+    reportResult !== null &&
+    !reportResult.ok &&
+    reportResult.code === "REPORT_NOT_FOUND";
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -160,6 +168,17 @@ export default async function VisitDetailPage({
               confirmedData={reportResult.data.confirmedData}
             />
           </article>
+        ) : isCancelledWithoutReport ? (
+          <section
+            className="notice-panel"
+            aria-label={t("cancelledNoReportAria")}
+          >
+            <div>
+              <p className="eyebrow">{t("cancelledNoReportEyebrow")}</p>
+              <h2>{t("cancelledNoReportTitle")}</h2>
+              <p>{t("cancelledNoReportBody")}</p>
+            </div>
+          </section>
         ) : (
           <section
             className="notice-panel danger"
@@ -176,7 +195,7 @@ export default async function VisitDetailPage({
         <FieldVisitReportForm
           locationAddress={locationAddress}
           locationName={visit.location.name}
-          products={productsResult?.ok ? productsResult.data.items : []}
+          products={productsResult?.ok ? productsResult.data : []}
           tenantSlug={tenantSlug}
           visitId={visitId}
         />

@@ -87,8 +87,7 @@ export type FieldReportProductCatalogEntry = {
 };
 
 export type TranscribeFieldReportRequestBody = {
-  audioBase64?: unknown;
-  mimeType?: unknown;
+  audioObjectId?: unknown;
   products?: unknown;
 };
 
