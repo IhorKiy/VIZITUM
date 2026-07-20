@@ -1,6 +1,6 @@
 # Roles & Permissions
 
-Reference for the implemented access model. Source of truth: `src/modules/roles/permissions.ts`, `src/modules/roles/role-permission.matrix.ts` (matrix version `2026-07-07-tenant-superadmin-v1`), `src/modules/auth/permission.guard.ts`. Update this document in the same change as any permission or matrix change.
+Reference for the implemented access model. Source of truth: `src/modules/roles/permissions.ts`, `src/modules/roles/role-permission.matrix.ts` (matrix version `2026-07-20-location-insights-v1`), `src/modules/auth/permission.guard.ts`. Update this document in the same change as any permission or matrix change.
 
 ## How enforcement works
 
@@ -41,6 +41,10 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 <!-- Chains (`/chains`, retail networks) are part of the location domain and have no dedicated permission: reads use `locations.read`, create/update use `locations.manage`. -->
 <!-- Location categories (`/location-categories`) are the same: no dedicated permission, reuses `locations.read`/`locations.manage`. -->
 
+| `location_insights.read` | | x | x | x | x |
+| `location_insights.manage` | | x | x | | |
+| `location_insights.manage_own` | | | | | x |
+
 | `contacts.read` | | x | x | x | x |
 | `contacts.manage` | | x | x | | |
 | `products.read` | | x | x | x | x |
@@ -73,6 +77,7 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 
 - `routes.manage_team` vs `routes.manage_own`: route mutations (`POST /routes`, `PATCH /routes/:routePlanId`, item create/update) require either one at the guard level (`@RequireAnyPermissions`); `assertCanManageRouteForRepresentative` (`src/modules/routes/route-access.ts`) then enforces ownership. `routes.manage_team` may manage any plan in the tenant; `routes.manage_own` only plans whose `representativeUserId` equals the caller (403 `ROUTE_SCOPE_FORBIDDEN` otherwise). `RouteTemplatesService` (`/routes/templates/*`) calls the same shared helper against a template's `representativeUserId`, so route-plan and route-template ownership can never drift apart into two different checks.
 - The `visits.*_own` / `tasks.*_own` permissions are scoped the same way inside their services.
+- `location_insights.manage` vs `location_insights.manage_own`: writes to `PUT`/`DELETE /locations/:locationId/potential[/:productCategoryId]` and `.../assortment[/:productId]` require either one at the guard level (`@RequireAnyPermissions`); `assertCanManageLocationInsights` (`src/modules/location-insights/location-insights-access.ts`) then enforces ownership. `location_insights.manage` may manage any location in the tenant; `location_insights.manage_own` only a location the caller (a `field_representative`) has an **active `LocationAssignment`** for — a live query per request, not a column stamped on the row, since potential/assortment rows have no representative field of their own (403 `LOCATION_INSIGHTS_SCOPE_FORBIDDEN` otherwise). `LocationPotentialService` and `LocationAssortmentService` call the same shared helper, so the two tables' ownership rules can never drift apart. Reads (`location_insights.read`) stay tenant-wide for all four roles, same as `locations.read` — only writes are ownership-scoped. Each list response also exposes a computed `canManage: boolean` (from the same helper's non-throwing form) so the frontend can hide edit affordances a field rep can't use, without re-deriving the rule client-side.
 - `tenant.settings.manage` also covers tenant branding: the color-scheme field on `PATCH /admin/settings` and the logo endpoints `/admin/settings/logo/*`; inside `StorageService`, `branding_logo` objects require it to write and `tenant.settings.read` to read (the login page reads branding via the public unguarded `GET /tenants/:slug/branding` instead).
 - `admins.invite`/`admins.manage` are role-target-scoped inside `UsersService` rather than guard-level: the guard only requires the baseline `users.invite`/`users.manage`/`roles.assign` (or `admins.manage` directly for `DELETE /admin/users/:userId`), and the service checks the finer-grained permission only when the request targets (or would grant) `company_admin`, and unconditionally blocks any request targeting a `tenant_superadmin` user regardless of the actor's permissions.
 

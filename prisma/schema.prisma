@@ -113,6 +113,13 @@ enum ProductStatus {
   archived
 }
 
+enum AssortmentStatus {
+  in_stock
+  out_of_stock
+  to_order
+  not_relevant
+}
+
 enum RouteStatus {
   draft
   published
@@ -503,6 +510,8 @@ model Location {
   visits             Visit[]
   reports            Report[]
   tasks              Task[]
+  potentials         LocationPotential[]
+  assortmentEntries  LocationAssortment[]
 
   // Uniqueness on (tenantId, externalCode) is enforced by a PARTIAL unique index
   // scoped to `deletedAt IS NULL` (see the
@@ -596,6 +605,8 @@ model Product {
   updatedAt     DateTime      @updatedAt
   deletedAt     DateTime?
 
+  assortmentEntries LocationAssortment[]
+
   // Uniqueness on (tenantId, externalCode) is enforced by a PARTIAL unique index
   // scoped to `deletedAt IS NULL` (see the
   // `20260713120000_product_external_code_partial_unique` migration). Prisma
@@ -617,6 +628,8 @@ model ProductCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  locationPotentials LocationPotential[]
+
   // Uniqueness on (tenantId, name) is enforced CASE-INSENSITIVELY by a functional
   // unique index on (tenantId, lower(name)) (see the
   // `20260713000000_product_category_case_insensitive_name` migration). Prisma
@@ -626,6 +639,58 @@ model ProductCategory {
   // "Beverages" + "beverages" coexist again.
   @@index([tenantId])
   @@map("product_categories")
+}
+
+// One row per (location, product category): the rep/admin's estimate of sales
+// potential at that location for that category, plus a 3-month plan. Hard
+// rows, no soft delete — this is an attribute table like LocationAssignment,
+// not a document.
+model LocationPotential {
+  id                String    @id @default(cuid())
+  tenantId          String
+  locationId        String
+  productCategoryId String
+  potentialDate     DateTime? @db.Date
+  potentialAmount   Int?
+  planMonth1        Int?
+  planMonth2        Int?
+  planMonth3        Int?
+  comment           String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  location        Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  productCategory ProductCategory @relation(fields: [productCategoryId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, locationId, productCategoryId])
+  @@map("location_potentials")
+}
+
+// One row per (location, product): whether the product should be listed
+// there and its last-known stock/order/sale status. Coverage is computed
+// purely from these rows (should_be_listed + status) — Product.category is
+// free text, never joined for this purpose. Hard rows, no soft delete.
+model LocationAssortment {
+  id             String           @id @default(cuid())
+  tenantId       String
+  locationId     String
+  productId      String
+  shouldBeListed Boolean          @default(true)
+  status         AssortmentStatus @default(in_stock)
+  lastStock      Int?
+  lastOrder      Int?
+  lastSale       Int?
+  lastCheckedAt  DateTime?        @db.Date
+  comment        String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, locationId, productId])
+  @@index([tenantId, productId, status])
+  @@map("location_assortment")
 }
 
 model RoutePlan {
