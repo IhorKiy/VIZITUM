@@ -76,7 +76,11 @@ export class LocationAssortmentService {
 
     const [rows, canManage] = await Promise.all([
       this.prisma.locationAssortment.findMany({
-        where: { tenantId: context.tenantId, locationId },
+        where: {
+          tenantId: context.tenantId,
+          locationId,
+          product: { deletedAt: null },
+        },
         include: ASSORTMENT_INCLUDE,
         orderBy: { createdAt: "asc" },
       }),

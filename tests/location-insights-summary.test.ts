@@ -55,7 +55,12 @@ function buildScenarioPrisma() {
     },
     locationPotential: {
       groupBy: async (args: GroupByArgs) => {
-        assert.equal(args.where.tenantId, "tenant-a");
+        // Both the locationId and productCategoryId groupBys must exclude
+        // archived locations' rows — the where shape is identical for both.
+        assert.deepEqual(args.where, {
+          tenantId: "tenant-a",
+          location: { deletedAt: null },
+        });
         if (args.by[0] === "locationId") {
           return [
             { locationId: "loc-1", _sum: { potentialAmount: 1000 } },
@@ -86,7 +91,10 @@ function buildScenarioPrisma() {
         ];
       },
       aggregate: async (args: { where: unknown }) => {
-        assert.deepEqual(args.where, { tenantId: "tenant-a" });
+        assert.deepEqual(args.where, {
+          tenantId: "tenant-a",
+          location: { deletedAt: null },
+        });
         return {
           _sum: {
             potentialAmount: 1200,
@@ -99,36 +107,81 @@ function buildScenarioPrisma() {
     },
     locationAssortment: {
       groupBy: async (args: GroupByArgs) => {
-        assert.equal(args.where.tenantId, "tenant-a");
         if (args.by[0] === "productId") {
+          assert.deepEqual(args.where, {
+            tenantId: "tenant-a",
+            status: { in: ["out_of_stock", "to_order"] },
+            location: { deletedAt: null },
+            product: { deletedAt: null },
+          });
           capturedTakes.topProblemProducts = args.take;
           capturedOrderBys.topProblemProducts = args.orderBy;
+          // product-c is soft-deleted — it must fall out once product.findMany
+          // below applies its own deletedAt: null filter.
           return [
             { productId: "product-a", _count: { productId: 5 } },
             { productId: "product-b", _count: { productId: 3 } },
+            { productId: "product-c", _count: { productId: 2 } },
           ];
         }
         if (args.where.status === "in_stock") {
+          assert.deepEqual(args.where, {
+            tenantId: "tenant-a",
+            shouldBeListed: true,
+            status: "in_stock",
+            location: { deletedAt: null },
+            product: { deletedAt: null },
+          });
           return [
             { locationId: "loc-1", _count: { _all: 3 } },
             { locationId: "loc-2", _count: { _all: 4 } },
           ];
         }
+        assert.deepEqual(args.where, {
+          tenantId: "tenant-a",
+          shouldBeListed: true,
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        });
         return [
           { locationId: "loc-1", _count: { _all: 10 } },
           { locationId: "loc-2", _count: { _all: 4 } },
         ];
       },
       count: async (args: { where: Record<string, unknown> }) => {
-        assert.equal(args.where.tenantId, "tenant-a");
-        return args.where.status === "in_stock" ? 7 : 14;
+        if (args.where.status === "in_stock") {
+          assert.deepEqual(args.where, {
+            tenantId: "tenant-a",
+            shouldBeListed: true,
+            status: "in_stock",
+            location: { deletedAt: null },
+            product: { deletedAt: null },
+          });
+          return 7;
+        }
+        assert.deepEqual(args.where, {
+          tenantId: "tenant-a",
+          shouldBeListed: true,
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        });
+        return 14;
       },
     },
     product: {
-      findMany: async () => [
-        { id: "product-a", name: "Widget A", sku: "SKU-A" },
-        { id: "product-b", name: "Widget B", sku: "SKU-B" },
-      ],
+      findMany: async (args: { where: Record<string, unknown> }) => {
+        assert.deepEqual(args.where, {
+          id: { in: ["product-a", "product-b", "product-c"] },
+          tenantId: "tenant-a",
+          deletedAt: null,
+        });
+        // Simulates the real query: product-c is soft-deleted so it's absent
+        // from the result, which must make it fall out of topProblemProducts.
+        return [
+          { id: "product-a", name: "Widget A", sku: "SKU-A" },
+          { id: "product-b", name: "Widget B", sku: "SKU-B" },
+        ];
+      },
     },
     productCategory: {
       findMany: async () => [
@@ -189,6 +242,8 @@ describe("LocationInsightsSummaryService", () => {
     // coverage and loc-3 has 0 potential, so neither qualifies.
     assert.deepEqual(response.highPotentialLowCoverage, [byId.get("loc-1")]);
 
+    // product-c (soft-deleted) is correctly absent — see the product.findMany
+    // mock above.
     assert.deepEqual(response.topProblemProducts, [
       { productId: "product-a", name: "Widget A", sku: "SKU-A", problemCount: 5 },
       { productId: "product-b", name: "Widget B", sku: "SKU-B", problemCount: 3 },

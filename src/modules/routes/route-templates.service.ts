@@ -656,7 +656,11 @@ export class RouteTemplatesService {
 const routeTemplateInclude = {
   items: {
     include: {
-      location: true,
+      location: {
+        include: {
+          chain: true,
+        },
+      },
     },
     orderBy: { sequence: "asc" },
   },
@@ -697,6 +701,9 @@ function toRouteTemplateResponse(
         name: item.location.name,
         addressLine: item.location.addressLine,
         city: item.location.city,
+        chain: item.location.chain
+          ? { id: item.location.chain.id, name: item.location.chain.name }
+          : null,
       },
       sequence: item.sequence,
       createdAt: item.createdAt.toISOString(),

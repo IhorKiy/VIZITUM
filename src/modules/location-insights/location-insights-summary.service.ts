@@ -42,21 +42,32 @@ export class LocationInsightsSummaryService {
       }),
       this.prisma.locationPotential.groupBy({
         by: ["locationId"],
-        where: { tenantId },
+        where: { tenantId, location: { deletedAt: null } },
         _sum: { potentialAmount: true },
       }),
       this.prisma.locationAssortment.groupBy({
         by: ["locationId"],
-        where: { tenantId, shouldBeListed: true },
+        where: {
+          tenantId,
+          shouldBeListed: true,
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        },
         _count: { _all: true },
       }),
       this.prisma.locationAssortment.groupBy({
         by: ["locationId"],
-        where: { tenantId, shouldBeListed: true, status: "in_stock" },
+        where: {
+          tenantId,
+          shouldBeListed: true,
+          status: "in_stock",
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        },
         _count: { _all: true },
       }),
       this.prisma.locationPotential.aggregate({
-        where: { tenantId },
+        where: { tenantId, location: { deletedAt: null } },
         _sum: {
           potentialAmount: true,
           planMonth1: true,
@@ -65,21 +76,37 @@ export class LocationInsightsSummaryService {
         },
       }),
       this.prisma.locationAssortment.count({
-        where: { tenantId, shouldBeListed: true },
+        where: {
+          tenantId,
+          shouldBeListed: true,
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        },
       }),
       this.prisma.locationAssortment.count({
-        where: { tenantId, shouldBeListed: true, status: "in_stock" },
+        where: {
+          tenantId,
+          shouldBeListed: true,
+          status: "in_stock",
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        },
       }),
       this.prisma.locationAssortment.groupBy({
         by: ["productId"],
-        where: { tenantId, status: { in: ["out_of_stock", "to_order"] } },
+        where: {
+          tenantId,
+          status: { in: ["out_of_stock", "to_order"] },
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        },
         _count: { productId: true },
         orderBy: { _count: { productId: "desc" } },
         take: TOP_N,
       }),
       this.prisma.locationPotential.groupBy({
         by: ["productCategoryId"],
-        where: { tenantId },
+        where: { tenantId, location: { deletedAt: null } },
         _sum: {
           potentialAmount: true,
           planMonth1: true,
@@ -158,7 +185,11 @@ export class LocationInsightsSummaryService {
     }
 
     const products = await this.prisma.product.findMany({
-      where: { id: { in: groups.map((group) => group.productId) }, tenantId },
+      where: {
+        id: { in: groups.map((group) => group.productId) },
+        tenantId,
+        deletedAt: null,
+      },
       select: { id: true, name: true, sku: true },
     });
     const productById = new Map(
