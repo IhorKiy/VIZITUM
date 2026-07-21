@@ -3461,7 +3461,9 @@ textarea {
 }
 
 .app-shell--mobile-only .filter-form,
-.app-shell--mobile-only .field-history-filter-form {
+.app-shell--mobile-only .field-history-filter-form,
+.app-shell--mobile-only .locations-filter-form,
+.app-shell--mobile-only .products-filter-form {
   grid-template-columns: 1fr;
 }
 
