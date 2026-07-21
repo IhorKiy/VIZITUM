@@ -354,6 +354,30 @@ describe("route template ownership scope", () => {
     // exist without the other.
     assert.deepEqual(auditClients, [prisma]);
   });
+
+  it("turns the ON DELETE SET NULL cascade colliding with an unrouted plan into a 409 instead of an unhandled 500", async () => {
+    // route_plans_rep_date_no_template_key (partial unique, routeTemplateId
+    // IS NULL) can collide with the cascade that nulls this template's
+    // plans' routeTemplateId, if the same rep already holds a template-less
+    // plan on one of those same dates — see deleteRouteTemplate.
+    const prisma = {
+      routeTemplate: {
+        findFirst: async () => buildTemplate({ representativeUserId: "rep-b" }),
+      },
+      $transaction: async () => {
+        throw p2002();
+      },
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.deleteRouteTemplate(managerContext as never, "template-a"),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "ROUTE_TEMPLATE_DELETE_CONFLICT");
+        return true;
+      },
+    );
+  });
 });
 
 describe("route template item sequence conflicts", () => {

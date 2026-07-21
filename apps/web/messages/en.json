@@ -1156,7 +1156,6 @@
       "assignRoute": "Assign route",
       "assignRouteDialogTitle": "Choose a route",
       "addAnotherRoute": "Add another route",
-      "assigningRoute": "Assigning...",
       "assignedTitle": "Route assigned",
       "assignedBody": "This day now follows the selected route.",
       "noTemplatesForAssignBody": "You don't have any routes yet.",

@@ -27,6 +27,7 @@ import {
   throwAuthenticationContextMissing,
 } from "./route-access";
 import {
+  isUniqueConstraintViolation,
   normalizeId,
   normalizeIdList,
   normalizePositiveInteger,
@@ -177,10 +178,7 @@ export class RoutesService {
 
       return toRoutePlanResponse(plan);
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
+      if (isUniqueConstraintViolation(error)) {
         // A concurrent create raced this exact (rep, date) pair between the
         // findFirst above and this create. The upsert this replaced was
         // atomic and returned the existing row on a race instead of
@@ -475,10 +473,7 @@ export const routePlanInclude = {
 // without this the unique (tenantId, routePlanId, sequence) index would
 // surface as an unhandled 500 instead of a 409 the client can react to.
 function toSequenceConflictOrRethrow(error: unknown): unknown {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  ) {
+  if (isUniqueConstraintViolation(error)) {
     return new ConflictException({
       code: "ROUTE_ITEM_SEQUENCE_TAKEN",
       message: "Another stop already uses that position in this route.",

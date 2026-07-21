@@ -1,10 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
 import { MapPinIcon, RouteIcon } from "./icons";
-import { PendingSubmitButton } from "./pending-submit-button";
 import type { RouteTemplate } from "../lib/api-client";
 
 type AssignRouteButtonProps = {
@@ -23,11 +22,29 @@ export function AssignRouteButton({
   const t = useTranslations("field.planning");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  // Shared across the trigger and every row (rather than per-row form
+  // pending state) so re-opening the dialog and picking again — the same
+  // template or another one — is blocked for the whole window between
+  // closing the dialog on submit and the resulting redirect landing, not
+  // just while an individual row's own request is in flight.
+  const [isPending, startTransition] = useTransition();
+
+  function assign(routeTemplateId: string) {
+    const formData = new FormData();
+    formData.set("planDate", planDate);
+    formData.set("routeTemplateId", routeTemplateId);
+    dialogRef.current?.close();
+    startTransition(async () => {
+      await assignAction(formData);
+    });
+  }
 
   return (
     <>
       <button
+        aria-haspopup="dialog"
         className="dashed-action-button"
+        disabled={isPending}
         onClick={() => dialogRef.current?.showModal()}
         type="button"
       >
@@ -56,41 +73,25 @@ export function AssignRouteButton({
           <ul className="route-card-list modal-admin-list">
             {routeTemplates.map((routeTemplate) => (
               <li key={routeTemplate.id}>
-                {/* Own form per template (not one shared form with a
-                    JS-set hidden field), matching the one-form-per-row
-                    convention used elsewhere for this pattern — even
-                    though the dialog closes immediately on submit below,
-                    so PendingSubmitButton's pending state below is never
-                    actually seen; the redirect this action triggers
-                    repaints the page with its own status notice instead. */}
-                <form
-                  action={assignAction}
-                  onSubmit={() => dialogRef.current?.close()}
+                <button
+                  className="route-card route-card-button"
+                  disabled={isPending}
+                  onClick={() => assign(routeTemplate.id)}
+                  type="button"
                 >
-                  <input name="planDate" type="hidden" value={planDate} />
-                  <input
-                    name="routeTemplateId"
-                    type="hidden"
-                    value={routeTemplate.id}
-                  />
-                  <PendingSubmitButton
-                    className="route-card route-card-button"
-                    pendingLabel={t("assigningRoute")}
-                  >
-                    <span className="route-card-icon" aria-hidden="true">
-                      <RouteIcon />
+                  <span className="route-card-icon" aria-hidden="true">
+                    <RouteIcon />
+                  </span>
+                  <span className="route-card-body">
+                    <h3>{routeTemplate.name}</h3>
+                    <span className="route-card-meta">
+                      <MapPinIcon />
+                      {t("routeStopsCount", {
+                        count: routeTemplate.items.length,
+                      })}
                     </span>
-                    <span className="route-card-body">
-                      <h3>{routeTemplate.name}</h3>
-                      <span className="route-card-meta">
-                        <MapPinIcon />
-                        {t("routeStopsCount", {
-                          count: routeTemplate.items.length,
-                        })}
-                      </span>
-                    </span>
-                  </PendingSubmitButton>
-                </form>
+                  </span>
+                </button>
               </li>
             ))}
           </ul>

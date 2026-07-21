@@ -2,6 +2,19 @@
 // RouteTemplatesService so a fix — or a bug — in one can't silently diverge
 // from the other.
 
+import { Prisma } from "@prisma/client";
+
+// Both services convert a unique-index collision (a sequence slot, a
+// (rep, date[, template]) pair, ...) into a 409 instead of letting Prisma's
+// raw error surface as an unhandled 500 — this is the one check every one of
+// those call sites shares.
+export function isUniqueConstraintViolation(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002"
+  );
+}
+
 export function normalizeId(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
