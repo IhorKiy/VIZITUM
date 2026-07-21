@@ -42,7 +42,6 @@ export class LocationsController {
       pageSize: parsePositiveInteger(query.pageSize),
       status: parseLocationStatus(query.status),
       city: normalizeQueryString(query.city),
-      territory: normalizeQueryString(query.territory),
       chainId: normalizeQueryString(query.chainId),
       search: normalizeQueryString(query.search),
     });

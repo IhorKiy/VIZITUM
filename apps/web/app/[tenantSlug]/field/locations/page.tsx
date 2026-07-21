@@ -9,7 +9,7 @@ import {
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
-import { MapPinIcon, SearchIcon, TagIcon } from "../../../../components/icons";
+import { MapPinIcon, SearchIcon } from "../../../../components/icons";
 import {
   getCurrentSession,
   // Same GET /locations endpoint as listLocations(), just with caller-supplied
@@ -32,7 +32,6 @@ type FieldLocationsPageProps = {
     city?: string;
     search?: string;
     status?: string;
-    territory?: string;
   }>;
 };
 
@@ -87,12 +86,9 @@ export default async function FieldLocationsPage({
   const pageState = await searchParams;
   const selectedStatus = normalizeLocationStatus(pageState.status);
   const selectedCity = normalizeFilterValue(pageState.city);
-  const selectedTerritory = normalizeFilterValue(pageState.territory);
   const search = normalizeFilterValue(pageState.search);
   const query = new URLSearchParams({ pageSize: "100" });
-  const hasFilters = Boolean(
-    selectedStatus || selectedCity || selectedTerritory || search,
-  );
+  const hasFilters = Boolean(selectedStatus || selectedCity || search);
 
   if (selectedStatus) {
     query.set("status", selectedStatus);
@@ -100,10 +96,6 @@ export default async function FieldLocationsPage({
 
   if (selectedCity) {
     query.set("city", selectedCity);
-  }
-
-  if (selectedTerritory) {
-    query.set("territory", selectedTerritory);
   }
 
   if (search) {
@@ -152,11 +144,6 @@ export default async function FieldLocationsPage({
   const locationCategoriesEnabled =
     sessionResult.data.locationCategoriesEnabled;
   const cityOptions = buildLocationFieldOptions(allLocations, "city", locale);
-  const territoryOptions = buildLocationFieldOptions(
-    allLocations,
-    "territory",
-    locale,
-  );
 
   return (
     <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
@@ -213,16 +200,6 @@ export default async function FieldLocationsPage({
                   ))}
                 </select>
               </FilterField>
-              <FilterField icon={<TagIcon />} label={t("territory")}>
-                <select defaultValue={selectedTerritory ?? ""} name="territory">
-                  <option value="">{tCommon("anyOption")}</option>
-                  {territoryOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </FilterField>
               <FilterFooter
                 resetHref={
                   hasFilters ? `/${tenantSlug}/field/locations` : undefined
@@ -257,13 +234,9 @@ export default async function FieldLocationsPage({
                   </span>
                 </header>
                 <p className="visit-meta">
-                  {[
-                    locationCategoriesEnabled ? location.category?.name : null,
-                    location.territory,
-                  ]
-                    .filter(Boolean)
-                    .map((value) => formatEnumLabel(tCommon, String(value)))
-                    .join(" · ") || t("noSegmentDetails")}
+                  {locationCategoriesEnabled && location.category
+                    ? formatEnumLabel(tCommon, location.category.name)
+                    : t("noSegmentDetails")}
                 </p>
                 <a
                   className="list-card-open"

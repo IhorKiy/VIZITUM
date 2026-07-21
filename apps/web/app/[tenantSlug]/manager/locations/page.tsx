@@ -11,7 +11,7 @@ import {
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
-import { MapPinIcon, SearchIcon, TagIcon } from "../../../../components/icons";
+import { MapPinIcon, SearchIcon } from "../../../../components/icons";
 import {
   getCurrentSession,
   getLocationInsightsSummary,
@@ -40,7 +40,6 @@ type ManagerLocationsPageProps = {
     city?: string;
     search?: string;
     status?: string;
-    territory?: string;
     sort?: string;
     dir?: string;
   }>;
@@ -109,16 +108,13 @@ export default async function ManagerLocationsPage({
   const pageState = await searchParams;
   const selectedStatus = normalizeLocationStatus(pageState.status);
   const selectedCity = normalizeFilterValue(pageState.city);
-  const selectedTerritory = normalizeFilterValue(pageState.territory);
   const search = normalizeFilterValue(pageState.search);
   const query = new URLSearchParams({ pageSize: "100" });
   // User-facing filter params only — kept separate from `query` above so the
   // sort links' href doesn't leak the API-only `pageSize` param into the
   // browser URL.
   const filterParams = new URLSearchParams();
-  const hasFilters = Boolean(
-    selectedStatus || selectedCity || selectedTerritory || search,
-  );
+  const hasFilters = Boolean(selectedStatus || selectedCity || search);
 
   if (selectedStatus) {
     query.set("status", selectedStatus);
@@ -128,11 +124,6 @@ export default async function ManagerLocationsPage({
   if (selectedCity) {
     query.set("city", selectedCity);
     filterParams.set("city", selectedCity);
-  }
-
-  if (selectedTerritory) {
-    query.set("territory", selectedTerritory);
-    filterParams.set("territory", selectedTerritory);
   }
 
   if (search) {
@@ -229,11 +220,6 @@ export default async function ManagerLocationsPage({
     "city",
     locale,
   );
-  const territoryOptions = buildLocationFieldOptions(
-    locationOptionsSource,
-    "territory",
-    locale,
-  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-locations">
@@ -298,16 +284,6 @@ export default async function ManagerLocationsPage({
                 <select defaultValue={selectedCity ?? ""} name="city">
                   <option value="">{tCommon("anyOption")}</option>
                   {cityOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </FilterField>
-              <FilterField icon={<TagIcon />} label={t("territory")}>
-                <select defaultValue={selectedTerritory ?? ""} name="territory">
-                  <option value="">{tCommon("anyOption")}</option>
-                  {territoryOptions.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.label}
                     </option>
@@ -433,7 +409,7 @@ function LocationsTable({
         <thead>
           <tr>
             <th>{t("tableLocation")}</th>
-            <th>{t("tableArea")}</th>
+            {locationCategoriesEnabled ? <th>{t("tableCategory")}</th> : null}
             <th>{t("tableVisits")}</th>
             <th>{t("tableOpenTasks")}</th>
             {productsEnabled ? (
@@ -466,21 +442,6 @@ function LocationsTable({
             const activity = activityByLocation.get(location.id);
             const visitCount = activity?.visitCount ?? 0;
             const insights = insightsByLocation.get(location.id);
-            // When the category toggle is off, the segment is omitted
-            // entirely (matching the field screen) rather than showing a
-            // "no category" placeholder on every row.
-            const area = [
-              location.territory
-                ? formatEnumLabel(tCommon, location.territory)
-                : t("unassignedTerritory"),
-              ...(locationCategoriesEnabled
-                ? [
-                    location.category
-                      ? formatEnumLabel(tCommon, location.category.name)
-                      : t("noType"),
-                  ]
-                : []),
-            ].join(" · ");
             const displayStatus = location.archived
               ? "archived"
               : location.status;
@@ -495,7 +456,13 @@ function LocationsTable({
                   <br />
                   {location.addressLine}, {location.city}
                 </td>
-                <td>{area}</td>
+                {locationCategoriesEnabled ? (
+                  <td>
+                    {location.category
+                      ? formatEnumLabel(tCommon, location.category.name)
+                      : t("noType")}
+                  </td>
+                ) : null}
                 <td>
                   {visitCount > 0
                     ? `${visitCount} · ${formatDateTime(
