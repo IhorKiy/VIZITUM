@@ -190,6 +190,34 @@ textarea {
   width: 20px;
 }
 
+.nav-icon {
+  position: relative;
+}
+
+/* Anchors the count badge over the mobile bottom nav's bare icon, matching
+   .nav-icon's role for the sidebar (components/app-shell.tsx). */
+.mobile-nav-icon {
+  display: inline-flex;
+  position: relative;
+}
+
+.nav-badge {
+  align-items: center;
+  background: var(--blue);
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 800;
+  justify-content: center;
+  line-height: 1;
+  min-width: 16px;
+  padding: 2px 4px;
+  position: absolute;
+  right: -6px;
+  top: -4px;
+}
+
 .brand-logo {
   border-radius: 8px;
   flex: 0 0 auto;
@@ -645,18 +673,32 @@ textarea {
   gap: 6px;
 }
 
-.visit-form label.checkbox-label {
+/* Not scoped to .visit-form: also used as a bare filter control (see
+   field/tasks/page.tsx's priority-only toggle), so every property it needs
+   is self-contained rather than leaning on .visit-form label's base grid. */
+.checkbox-label {
   align-items: center;
+  color: var(--ink);
   cursor: pointer;
+  display: grid;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
   grid-auto-flow: column;
   grid-template-columns: auto 1fr;
   justify-items: start;
 }
 
-.visit-form label.checkbox-label input[type="checkbox"] {
+.checkbox-label input[type="checkbox"] {
   cursor: pointer;
   height: 16px;
   width: 16px;
+}
+
+/* Matches .priority-tag's gold, so the "priority only" filter checkbox reads
+   as the same signal as the badge it's filtering for. */
+.checkbox-label--priority input[type="checkbox"] {
+  accent-color: var(--gold);
 }
 
 /* Style every text-like control uniformly. Enumerating input types let
@@ -2625,6 +2667,13 @@ textarea {
   flex-shrink: 0;
 }
 
+.list-card-top-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
 /* The status pill doubles as an edit affordance: a chevron next to it hints the
    status is changeable, and the select covering both auto-saves the pick. */
 .task-status {
@@ -3510,6 +3559,14 @@ textarea {
 .app-shell--mobile-only .page-header,
 .app-shell--mobile-only .notice-panel {
   display: grid;
+}
+
+/* Field tasks keeps its "+ Задача" button beside the title instead of
+   stacking below it like every other field-zone header. */
+.app-shell--mobile-only .page-header.page-header--inline {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
 }
 
 .app-shell--mobile-only .toolbar {

@@ -9,13 +9,10 @@ import {
   type CreateOwnTaskActionResult,
 } from "../../../../components/create-own-task-modal";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
-import { FilterDateRange } from "../../../../components/filter-date-range";
-import { FilterDisclosure } from "../../../../components/filter-disclosure";
-import { FilterField } from "../../../../components/filter-field";
 import {
-  FilterFooter,
-  filterCountTags,
-} from "../../../../components/filter-footer";
+  EditTaskModal,
+  type EditTaskActionResult,
+} from "../../../../components/edit-task-modal";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
 import {
@@ -36,11 +33,7 @@ import {
   type TaskStatusHistoryEntry,
 } from "../../../../lib/api-client";
 import { buildLocationOptions } from "../../../../lib/filter-options";
-import {
-  formatEnumLabel,
-  normalizeFilterValue,
-  type IntlFormatter,
-} from "../../../../lib/format";
+import { formatEnumLabel, type IntlFormatter } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 import { parseTaskIsPriorityInput } from "../../../../lib/task-form";
 import { isTaskUnfinished, taskStatuses } from "../../../../lib/task-status";
@@ -49,10 +42,7 @@ type FieldTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     create?: string;
-    dueFrom?: string;
-    dueTo?: string;
     error?: string;
-    locationId?: string;
     priority?: string;
     status?: string;
     task?: string;
@@ -119,6 +109,45 @@ export default async function FieldTasksPage({
     }
 
     redirect(`/${tenantSlug}/field/tasks?task=updated`);
+  }
+
+  async function updateTaskFieldsAction(
+    formData: FormData,
+  ): Promise<EditTaskActionResult> {
+    "use server";
+
+    const taskId = getFormString(formData, "taskId").trim();
+
+    if (!taskId) {
+      redirect(`/${tenantSlug}/field/tasks?error=task`);
+    }
+
+    const title = getFormString(formData, "title").trim();
+
+    // Failures return instead of redirecting: a redirect would remount the
+    // page tree and throw away everything typed into the edit-task modal.
+    if (!title) {
+      return { ok: false };
+    }
+
+    const description = getFormString(formData, "description").trim();
+    const isPriority = parseTaskIsPriorityInput(formData.get("isPriority"));
+    const locationId = getFormString(formData, "locationId").trim();
+    const dueDate = getFormString(formData, "dueDate").trim();
+
+    const result = await updateTask(taskId, {
+      title,
+      description: description || null,
+      isPriority,
+      locationId: locationId || null,
+      dueDate: dueDate || null,
+    });
+
+    if (!result.ok) {
+      return { ok: false };
+    }
+
+    redirect(`/${tenantSlug}/field/tasks?task=edited`);
   }
 
   const sessionResult = await getCurrentSession();
@@ -197,38 +226,22 @@ export default async function FieldTasksPage({
 
   const pageState = await searchParams;
   const { task, error } = pageState;
-  const selectedStatus = normalizeTaskStatus(pageState.status);
-  const selectedPriorityOnly = pageState.priority === "1";
-  const selectedLocationId = normalizeFilterValue(pageState.locationId);
-  const dueFrom = normalizeDateFilter(pageState.dueFrom);
-  const dueTo = normalizeDateFilter(pageState.dueTo);
+  // No "all" option: the status toggle always resolves to one of the two
+  // statuses, defaulting to in_progress on first load (an absent/invalid
+  // query value).
+  const selectedStatus = normalizeTaskStatus(pageState.status) ?? "in_progress";
+  // Priority only ever filters the in-progress view — done tasks are never
+  // priority-filtered, so a stale ?priority=1 left over from switching away
+  // from in_progress must not silently apply here.
+  const selectedPriorityOnly =
+    selectedStatus === "in_progress" && pageState.priority === "1";
   const query = new URLSearchParams({ pageSize: "100" });
-  const hasFilters = Boolean(
-    selectedStatus ||
-    selectedPriorityOnly ||
-    selectedLocationId ||
-    dueFrom ||
-    dueTo,
-  );
+  const hasFilters = selectedStatus !== "in_progress" || selectedPriorityOnly;
 
-  if (selectedStatus) {
-    query.set("status", selectedStatus);
-  }
+  query.set("status", selectedStatus);
 
   if (selectedPriorityOnly) {
     query.set("isPriority", "true");
-  }
-
-  if (selectedLocationId) {
-    query.set("locationId", selectedLocationId);
-  }
-
-  if (dueFrom) {
-    query.set("dueFrom", dueFrom);
-  }
-
-  if (dueTo) {
-    query.set("dueTo", dueTo);
   }
 
   const [tasksResult, locationsResult] = await Promise.all([
@@ -282,7 +295,7 @@ export default async function FieldTasksPage({
 
   return (
     <AppShell activeArea="field-tasks" tenantSlug={tenantSlug}>
-      <header className="page-header">
+      <header className="page-header page-header--inline">
         <div>
           <h1>{t("title")}</h1>
         </div>
@@ -316,6 +329,17 @@ export default async function FieldTasksPage({
         />
       ) : null}
 
+      {task === "edited" ? (
+        <DismissableNotice
+          ariaLabel={t("taskStatusAria")}
+          body={t("taskEditedBody")}
+          clearParams={["task"]}
+          eyebrow={t("taskEditedEyebrow")}
+          title={t("taskEditedTitle")}
+          tone="success"
+        />
+      ) : null}
+
       {error === "task" ? (
         <DismissableNotice
           ariaLabel={t("taskErrorAria")}
@@ -334,74 +358,37 @@ export default async function FieldTasksPage({
               <FilterPills
                 ariaLabel={t("statusFiltersAria")}
                 name="status"
-                options={[
-                  { label: tCommon("all"), value: "" },
-                  ...taskStatuses.map((status) => ({
-                    label: formatEnumLabel(tCommon, status),
-                    value: status,
-                  })),
-                ]}
-                value={selectedStatus ?? ""}
+                options={taskStatuses.map((status) => ({
+                  label: formatEnumLabel(tCommon, status),
+                  value: status,
+                }))}
+                value={selectedStatus}
               />
-              <FilterPills
-                ariaLabel={t("priorityFiltersAria")}
-                name="priority"
-                options={[
-                  { label: tCommon("all"), value: "" },
-                  { label: t("priorityOnly"), value: "1" },
-                ]}
-                value={selectedPriorityOnly ? "1" : ""}
-              />
+              {selectedStatus === "in_progress" ? (
+                <label className="checkbox-label checkbox-label--priority">
+                  <input
+                    defaultChecked={selectedPriorityOnly}
+                    name="priority"
+                    type="checkbox"
+                    value="1"
+                  />
+                  {t("priorityOnly")}
+                </label>
+              ) : null}
             </div>
+            <p className="filter-result-count">
+              {t("taskCount", { count: tasksResult.data.total })}
+            </p>
           </div>
-
-          <FilterDisclosure
-            hasFilters={hasFilters}
-            label={tCommon("filtersLabel")}
-          >
-            <div className="filter-form">
-              <FilterField icon={<MapPinIcon />} label={t("location")}>
-                <select
-                  defaultValue={selectedLocationId ?? ""}
-                  name="locationId"
-                >
-                  <option value="">{tCommon("anyOption")}</option>
-                  {locationOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </FilterField>
-              <FilterDateRange
-                fromLabel={t("dueFrom")}
-                fromName="dueFrom"
-                fromValue={dueFrom ?? ""}
-                label={t("duePeriod")}
-                placeholder={tCommon("datePlaceholder")}
-                toLabel={t("dueTo")}
-                toName="dueTo"
-                toValue={dueTo ?? ""}
-              />
-              <FilterFooter
-                resetHref={
-                  hasFilters ? `/${tenantSlug}/field/tasks` : undefined
-                }
-                resetLabel={tCommon("reset")}
-                resultText={t.rich("filterResultCount", {
-                  ...filterCountTags,
-                  count: tasksResult.data.total,
-                })}
-              />
-            </div>
-          </FilterDisclosure>
         </FilterForm>
 
         {tasks.length > 0 ? (
           <TasksCards
+            locationOptions={locationOptions}
             tasks={tasks}
             todayIsoDate={todayIsoDate}
             updateTaskDetailsAction={updateTaskDetailsAction}
+            updateTaskFieldsAction={updateTaskFieldsAction}
             updateTaskStatusAction={updateTaskStatusAction}
           />
         ) : (
@@ -437,15 +424,19 @@ export default async function FieldTasksPage({
 // disclosures. Own-scope tasks have no assignee to show and no team-delete
 // affordance.
 function TasksCards({
+  locationOptions,
   tasks,
   todayIsoDate,
   updateTaskStatusAction,
   updateTaskDetailsAction,
+  updateTaskFieldsAction,
 }: {
+  locationOptions: { id: string; label: string }[];
   tasks: Task[];
   todayIsoDate: string;
   updateTaskStatusAction: (formData: FormData) => Promise<void>;
   updateTaskDetailsAction: (formData: FormData) => Promise<void>;
+  updateTaskFieldsAction: (formData: FormData) => Promise<EditTaskActionResult>;
 }) {
   const t = useTranslations("field.tasks");
   const tCommon = useTranslations("common");
@@ -471,12 +462,19 @@ function TasksCards({
                   </span>
                 ) : null}
               </h3>
-              <TaskStatusEditor
-                ariaLabel={t("updateTaskStatusAria", { title: task.title })}
-                status={task.status}
-                taskId={task.id}
-                updateAction={updateTaskStatusAction}
-              />
+              <div className="list-card-top-actions">
+                <TaskStatusEditor
+                  ariaLabel={t("updateTaskStatusAria", { title: task.title })}
+                  status={task.status}
+                  taskId={task.id}
+                  updateAction={updateTaskStatusAction}
+                />
+                <EditTaskModal
+                  action={updateTaskFieldsAction}
+                  locationOptions={locationOptions}
+                  task={task}
+                />
+              </div>
             </div>
             <dl className="list-card-facts">
               <CardFact icon={<MapPinIcon />} label={t("location")}>
@@ -625,14 +623,4 @@ function normalizeTaskStatus(
   }
 
   return null;
-}
-
-function normalizeDateFilter(value: string | undefined): string | null {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue || !/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
-    return null;
-  }
-
-  return normalizedValue;
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
-import { getCurrentSession } from "../lib/api-client";
+import { getCurrentSession, listTasks } from "../lib/api-client";
 import { resolveTenantBranding } from "../lib/tenant-branding";
 import { BrandMark } from "./brand-mark";
 import { NavIcon } from "./nav-icon";
@@ -29,17 +29,37 @@ export async function AppShell({
   activeArea,
   children,
 }: AppShellProps) {
-  const [sessionResult, branding, tNav, tCommon, tZoneNames, tZoneSwitcher] =
-    await Promise.all([
-      getCurrentSession(),
-      resolveTenantBranding(tenantSlug),
-      getTranslations("common.nav"),
-      getTranslations("common"),
-      getTranslations("common.zone.names"),
-      getTranslations("common.zone.switcher"),
-    ]);
-
   const currentZone = zoneForArea(activeArea);
+
+  const [
+    sessionResult,
+    branding,
+    tNav,
+    tCommon,
+    tZoneNames,
+    tZoneSwitcher,
+    fieldTasksInProgressResult,
+  ] = await Promise.all([
+    getCurrentSession(),
+    resolveTenantBranding(tenantSlug),
+    getTranslations("common.nav"),
+    getTranslations("common"),
+    getTranslations("common.zone.names"),
+    getTranslations("common.zone.switcher"),
+    // Feeds the "Tasks" nav badge below. Fetched here (rather than per-page)
+    // since the bottom nav is the one thing every field page renders; gated
+    // on zone, not on session, so it stays a single parallel round-trip
+    // instead of a second await once the session resolves.
+    currentZone === "field"
+      ? listTasks("status=in_progress&pageSize=1")
+      : Promise.resolve(null),
+  ]);
+
+  const fieldTasksInProgressCount =
+    fieldTasksInProgressResult && fieldTasksInProgressResult.ok
+      ? fieldTasksInProgressResult.data.total
+      : 0;
+
   let otherZones: Zone[] = [];
 
   // Deep-link guard, implemented once here rather than per page (there are
@@ -89,6 +109,21 @@ export async function AppShell({
   ).filter((item) => item.zone === currentZone);
 
   const currentUser = sessionResult.ok ? sessionResult.data.user : null;
+
+  // Shown only on the "Tasks" nav item, sidebar and mobile alike — null for
+  // every other item, and for "Tasks" itself once there is nothing in
+  // progress to count.
+  const taskBadge = (area: RoleArea) =>
+    area === "field-tasks" && fieldTasksInProgressCount > 0 ? (
+      <span
+        aria-label={tNav("taskBadgeAria", {
+          count: fieldTasksInProgressCount,
+        })}
+        className="nav-badge"
+      >
+        {fieldTasksInProgressCount > 99 ? "99+" : fieldTasksInProgressCount}
+      </span>
+    ) : null;
 
   // The field (representative) zone is phone-only: it always renders the
   // mobile layout, framed in a centered phone-width column on wider screens.
@@ -193,8 +228,9 @@ export async function AppShell({
               href={item.href}
               key={item.href}
             >
-              <span aria-hidden="true" className="nav-icon">
+              <span className="nav-icon">
                 <NavIcon name={item.icon} />
+                {taskBadge(item.area)}
               </span>
               <span>{tNav(item.area)}</span>
             </Link>
@@ -213,7 +249,10 @@ export async function AppShell({
               href={item.href}
               key={item.href}
             >
-              <NavIcon name={item.icon} />
+              <span className="mobile-nav-icon">
+                <NavIcon name={item.icon} />
+                {taskBadge(item.area)}
+              </span>
               <span>{tNav(item.area)}</span>
             </Link>
           ))}

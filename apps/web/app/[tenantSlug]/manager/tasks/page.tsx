@@ -10,6 +10,10 @@ import {
 import { CardFact } from "../../../../components/card-fact";
 import { DeleteTaskButton } from "../../../../components/delete-task-button";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
+import {
+  EditAssignedTaskModal,
+  type EditAssignedTaskActionResult,
+} from "../../../../components/edit-assigned-task-modal";
 import { FilterDateRange } from "../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
@@ -63,6 +67,7 @@ type ManagerTasksPageProps = {
     deleted?: string;
     dueFrom?: string;
     dueTo?: string;
+    edited?: string;
     error?: string;
     locationId?: string;
     priority?: string;
@@ -213,6 +218,47 @@ export default async function ManagerTasksPage({
     }
 
     redirect(`/${tenantSlug}/manager/tasks?updated=1`);
+  }
+
+  async function updateTaskFieldsAction(
+    formData: FormData,
+  ): Promise<EditAssignedTaskActionResult> {
+    "use server";
+
+    const taskId = getFormString(formData, "taskId").trim();
+
+    if (!taskId) {
+      redirect(`/${tenantSlug}/manager/tasks?error=update`);
+    }
+
+    const title = getFormString(formData, "title").trim();
+
+    // Failures return instead of redirecting: a redirect would remount the
+    // page tree and throw away everything typed into the edit-task modal.
+    if (!title) {
+      return { ok: false };
+    }
+
+    const description = getFormString(formData, "description").trim();
+    const isPriority = parseTaskIsPriorityInput(formData.get("isPriority"));
+    const assignedToUserId = getFormString(formData, "assignedToUserId").trim();
+    const locationId = getFormString(formData, "locationId").trim();
+    const dueDate = getFormString(formData, "dueDate").trim();
+
+    const result = await updateTask(taskId, {
+      title,
+      description: description || null,
+      isPriority,
+      assignedToUserId: assignedToUserId || null,
+      locationId: locationId || null,
+      dueDate: dueDate || null,
+    });
+
+    if (!result.ok) {
+      return { ok: false };
+    }
+
+    redirect(`/${tenantSlug}/manager/tasks?edited=1`);
   }
 
   async function deleteTaskAction(formData: FormData) {
@@ -373,6 +419,17 @@ export default async function ManagerTasksPage({
         />
       ) : null}
 
+      {pageState.edited ? (
+        <DismissableNotice
+          ariaLabel={t("updateAria")}
+          body={t("taskEditedBody")}
+          clearParams={["edited"]}
+          eyebrow={t("taskEditedEyebrow")}
+          title={t("taskEditedTitle")}
+          tone="success"
+        />
+      ) : null}
+
       {pageState.deleted ? (
         <DismissableNotice
           ariaLabel={t("deletedAria")}
@@ -518,11 +575,14 @@ export default async function ManagerTasksPage({
 
         {tasks.length > 0 ? (
           <TasksCards
+            assigneeOptions={assignAssigneeOptions}
+            deleteTaskAction={canDeleteTasks ? deleteTaskAction : undefined}
+            locationOptions={locationOptions}
             tasks={tasks}
             todayIsoDate={todayIsoDate}
-            updateTaskStatusAction={updateTaskStatusAction}
             updateTaskDetailsAction={updateTaskDetailsAction}
-            deleteTaskAction={canDeleteTasks ? deleteTaskAction : undefined}
+            updateTaskFieldsAction={updateTaskFieldsAction}
+            updateTaskStatusAction={updateTaskStatusAction}
           />
         ) : (
           <div className="empty-state-panel">
@@ -571,16 +631,24 @@ function buildAssigneeOptions(tasks: Task[], locale: string): FilterOption[] {
 }
 
 function TasksCards({
+  assigneeOptions,
+  locationOptions,
   tasks,
   todayIsoDate,
   updateTaskStatusAction,
   updateTaskDetailsAction,
+  updateTaskFieldsAction,
   deleteTaskAction,
 }: {
+  assigneeOptions: { id: string; label: string }[];
+  locationOptions: { id: string; label: string }[];
   tasks: Task[];
   todayIsoDate: string;
   updateTaskStatusAction: (formData: FormData) => Promise<void>;
   updateTaskDetailsAction: (formData: FormData) => Promise<void>;
+  updateTaskFieldsAction: (
+    formData: FormData,
+  ) => Promise<EditAssignedTaskActionResult>;
   // Absent when the viewer lacks team scope: no delete affordance at all.
   deleteTaskAction?: (formData: FormData) => Promise<void>;
 }) {
@@ -611,12 +679,20 @@ function TasksCards({
                   </span>
                 ) : null}
               </h3>
-              <TaskStatusEditor
-                taskId={task.id}
-                status={task.status}
-                ariaLabel={t("updateTaskStatusAria", { title: task.title })}
-                updateAction={updateTaskStatusAction}
-              />
+              <div className="list-card-top-actions">
+                <TaskStatusEditor
+                  taskId={task.id}
+                  status={task.status}
+                  ariaLabel={t("updateTaskStatusAria", { title: task.title })}
+                  updateAction={updateTaskStatusAction}
+                />
+                <EditAssignedTaskModal
+                  action={updateTaskFieldsAction}
+                  assigneeOptions={assigneeOptions}
+                  locationOptions={locationOptions}
+                  task={task}
+                />
+              </div>
             </div>
             <dl className="list-card-facts">
               <CardFact icon={<UserIcon />} label={t("tableAssignee")}>

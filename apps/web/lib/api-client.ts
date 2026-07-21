@@ -1421,10 +1421,13 @@ export async function createTask(input: {
 export async function updateTask(
   taskId: string,
   input: {
+    title?: string;
     status?: TaskStatus;
     isPriority?: boolean;
     dueDate?: string | null;
     description?: string | null;
+    locationId?: string | null;
+    assignedToUserId?: string | null;
   },
 ): Promise<ApiResult<Task>> {
   return apiPatch<Task>(`/tasks/${taskId}`, input);
