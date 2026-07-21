@@ -1,69 +1,27 @@
-import { redirect } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
-import { DismissableNotice } from "../../../../components/dismissable-notice";
-import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   getCurrentSession,
-  listLocations,
-  listProducts,
+  listAdminLocations,
+  listAdminProducts,
   listTasks,
   listTodayRoutes,
   listVisits,
-  updateTask,
-  type Location,
-  type Product,
-  type Task,
-  type TaskStatus,
 } from "../../../../lib/api-client";
-import {
-  formatDateTime,
-  formatEnumLabel,
-  statusPillTone,
-  statusTone,
-} from "../../../../lib/format";
-import { getFormString } from "../../../../lib/form";
 
 type GeneralPageProps = {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{
-    task?: string;
-    error?: string;
-  }>;
 };
 
-export default async function GeneralPage({
-  params,
-  searchParams,
-}: GeneralPageProps) {
+export default async function GeneralPage({ params }: GeneralPageProps) {
   const { tenantSlug } = await params;
-  const { task, error } = await searchParams;
-  const [t, tField, tCommon, format] = await Promise.all([
+  const [t, tField, tCommon] = await Promise.all([
     getTranslations("field.general"),
     getTranslations("field"),
     getTranslations("common"),
-    getFormatter(),
   ]);
-
-  async function updateTaskStatusAction(formData: FormData) {
-    "use server";
-
-    const taskId = getFormString(formData, "taskId").trim();
-    const status = normalizeTaskStatus(formData.get("status"));
-
-    if (!taskId || !status) {
-      redirect(`/${tenantSlug}/field/general?error=task`);
-    }
-
-    const result = await updateTask(taskId, { status });
-
-    if (!result.ok) {
-      redirect(`/${tenantSlug}/field/general?error=task`);
-    }
-
-    redirect(`/${tenantSlug}/field/general?task=updated`);
-  }
 
   const sessionResult = await getCurrentSession();
 
@@ -108,18 +66,21 @@ export default async function GeneralPage({
   ] = await Promise.all([
     listTodayRoutes(),
     listVisits("pageSize=50"),
-    listLocations(),
+    // pageSize=1: the card/summary only need the total count, not the items,
+    // and unfiltered so it matches what /field/locations shows with no
+    // filter applied (listLocations() hardcodes status=active, which would
+    // both undercount past 100 results and disagree with the drill-down
+    // page's own default total).
+    listAdminLocations("pageSize=1"),
     listTasks("pageSize=50"),
-    listProducts(),
+    listAdminProducts("pageSize=1"),
   ]);
 
   const routes = routesResult.ok ? routesResult.data : [];
   const visits = visitsResult.ok ? visitsResult.data.items : [];
-  const locations = locationsResult.ok ? locationsResult.data.items : [];
+  const locationsTotal = locationsResult.ok ? locationsResult.data.total : 0;
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
-  const products = productsResult.ok ? productsResult.data.items : [];
-  const locationCategoriesEnabled =
-    sessionResult.data.locationCategoriesEnabled;
+  const productsTotal = productsResult.ok ? productsResult.data.total : 0;
 
   const routeStops = routes.flatMap((plan) =>
     plan.items.filter((item) => item.status !== "skipped"),
@@ -148,28 +109,6 @@ export default async function GeneralPage({
           </a>
         </div>
       </header>
-
-      {task === "updated" ? (
-        <DismissableNotice
-          ariaLabel={t("taskStatusAria")}
-          body={t("taskUpdatedBody")}
-          clearParams={["task"]}
-          eyebrow={t("taskUpdatedEyebrow")}
-          title={t("taskUpdatedTitle")}
-          tone="success"
-        />
-      ) : null}
-
-      {error === "task" ? (
-        <DismissableNotice
-          ariaLabel={t("taskErrorAria")}
-          body={t("taskErrorBody")}
-          clearParams={["error"]}
-          eyebrow={t("taskErrorEyebrow")}
-          title={t("taskErrorTitle")}
-          tone="danger"
-        />
-      ) : null}
 
       <div className="general-stack">
         <details className="panel panel-collapsible">
@@ -200,168 +139,42 @@ export default async function GeneralPage({
               </tr>
               <tr>
                 <th scope="row">{t("locations")}</th>
-                <td>{locations.length}</td>
+                <td>{locationsTotal}</td>
               </tr>
               <tr>
                 <th scope="row">{t("products")}</th>
-                <td>{products.length}</td>
+                <td>{productsTotal}</td>
               </tr>
             </tbody>
           </table>
         </details>
 
-        <details className="panel panel-collapsible">
-          <summary className="panel-summary">
-            <h2>{t("locations")}</h2>
-          </summary>
-          {locations.length > 0 ? (
-            <div className="field-card-list">
-              {locations.map((location: Location) => (
-                <article className="location-mini-card" key={location.id}>
-                  <header>
-                    <div>
-                      <h3>{location.name}</h3>
-                      <p>
-                        {[location.addressLine, location.city]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </p>
-                    </div>
-                    <span
-                      className={`status-pill ${statusTone(location.status)}`}
-                    >
-                      {formatEnumLabel(tCommon, location.status)}
-                    </span>
-                  </header>
-                  <p className="visit-meta">
-                    {[
-                      locationCategoriesEnabled
-                        ? location.category?.name
-                        : null,
-                      location.territory,
-                    ]
-                      .filter(Boolean)
-                      .map((value) => formatEnumLabel(tCommon, String(value)))
-                      .join(" · ") || t("noSegmentDetails")}
-                  </p>
-                  {location.notes ? (
-                    <p className="form-hint">{location.notes}</p>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">{t("noLocations")}</p>
-          )}
-        </details>
-
-        <details className="panel panel-collapsible">
-          <summary className="panel-summary">
-            <h2>{t("products")}</h2>
-          </summary>
-          {products.length > 0 ? (
-            <div className="field-card-list">
-              {products.map((product: Product) => (
-                <article className="location-mini-card" key={product.id}>
-                  <header>
-                    <div>
-                      <h3>{product.name}</h3>
-                      <p>
-                        {[product.category, product.sku]
-                          .filter(Boolean)
-                          .map((value) => String(value))
-                          .join(" · ") || t("noCatalogueDetails")}
-                      </p>
-                    </div>
-                    <span
-                      className={`status-pill ${statusTone(product.status)}`}
-                    >
-                      {formatEnumLabel(tCommon, product.status)}
-                    </span>
-                  </header>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">{t("noProducts")}</p>
-          )}
-        </details>
-
-        <details className="panel panel-collapsible">
-          <summary className="panel-summary">
-            <h2>{t("myTasks")}</h2>
-          </summary>
-          {openTasks.length > 0 ? (
-            <div className="field-card-list">
-              {openTasks.map((item: Task) => (
-                <article className="location-mini-card" key={item.id}>
-                  <header>
-                    <div>
-                      <h3>{item.title}</h3>
-                      <p>
-                        {item.location
-                          ? `${item.location.name} · ${item.location.city}`
-                          : t("noLocation")}
-                      </p>
-                    </div>
-                    <span
-                      className={`status-pill ${statusPillTone(item.status)}`}
-                    >
-                      {formatEnumLabel(tCommon, item.status)}
-                    </span>
-                  </header>
-                  <p className="visit-meta">
-                    {item.description ?? t("noTaskDetails")}
-                  </p>
-                  <p className="form-hint">
-                    {t("priorityDue", {
-                      priority: formatEnumLabel(tCommon, item.priority),
-                      due: formatDateTime(
-                        format,
-                        item.dueDate,
-                        tCommon("notSet"),
-                      ),
-                    })}
-                  </p>
-                  <form
-                    action={updateTaskStatusAction}
-                    className="inline-control-form"
-                  >
-                    <input name="taskId" type="hidden" value={item.id} />
-                    <select
-                      aria-label={t("updateTaskStatusAria", {
-                        title: item.title,
-                      })}
-                      defaultValue={item.status}
-                      name="status"
-                    >
-                      <option value="open">
-                        {formatEnumLabel(tCommon, "open")}
-                      </option>
-                      <option value="in_progress">
-                        {formatEnumLabel(tCommon, "in_progress")}
-                      </option>
-                      <option value="done">
-                        {formatEnumLabel(tCommon, "done")}
-                      </option>
-                      <option value="cancelled">
-                        {formatEnumLabel(tCommon, "cancelled")}
-                      </option>
-                    </select>
-                    <PendingSubmitButton
-                      className="secondary-button"
-                      pendingLabel={tCommon("saving")}
-                    >
-                      {tCommon("save")}
-                    </PendingSubmitButton>
-                  </form>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">{t("noTasks")}</p>
-          )}
-        </details>
+        <section aria-label={t("catalogMetricsAria")} className="manager-grid">
+          <Link className="metric-card" href={`/${tenantSlug}/field/locations`}>
+            <header>
+              <p className="metric-label">{t("locations")}</p>
+              <span aria-hidden="true" className="metric-card-chevron">
+                ›
+              </span>
+            </header>
+            <p className="metric-value">{locationsTotal}</p>
+            <p className="small-label">
+              {t("locationsUnit", { count: locationsTotal })}
+            </p>
+          </Link>
+          <Link className="metric-card" href={`/${tenantSlug}/field/products`}>
+            <header>
+              <p className="metric-label">{t("products")}</p>
+              <span aria-hidden="true" className="metric-card-chevron">
+                ›
+              </span>
+            </header>
+            <p className="metric-value">{productsTotal}</p>
+            <p className="small-label">
+              {t("productsUnit", { count: productsTotal })}
+            </p>
+          </Link>
+        </section>
 
         <details className="panel panel-collapsible">
           <summary className="panel-summary">
@@ -393,19 +206,4 @@ export default async function GeneralPage({
       </div>
     </AppShell>
   );
-}
-
-function normalizeTaskStatus(
-  value: FormDataEntryValue | null,
-): TaskStatus | null {
-  if (
-    value === "open" ||
-    value === "in_progress" ||
-    value === "done" ||
-    value === "cancelled"
-  ) {
-    return value;
-  }
-
-  return null;
 }

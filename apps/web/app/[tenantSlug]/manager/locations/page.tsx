@@ -16,6 +16,7 @@ import {
   getCurrentSession,
   getLocationInsightsSummary,
   listAdminLocations,
+  listAllLocations,
   listTasks,
   listVisits,
   type Location,
@@ -29,6 +30,7 @@ import {
   formatDateTime,
   formatEnumLabel,
   normalizeFilterValue,
+  normalizeLocationStatus,
   statusTone,
 } from "../../../../lib/format";
 
@@ -144,13 +146,13 @@ export default async function ManagerLocationsPage({
 
   const [
     locationsResult,
-    allLocations,
+    allLocationsResult,
     visitsResult,
     tasksResult,
     summaryResult,
   ] = await Promise.all([
     listAdminLocations(query.toString()),
-    fetchAllLocations(),
+    listAllLocations(),
     listVisits("pageSize=100"),
     listTasks("pageSize=100"),
     productsEnabled
@@ -161,6 +163,7 @@ export default async function ManagerLocationsPage({
           message: "Not available",
         }),
   ]);
+  const allLocations = allLocationsResult.ok ? allLocationsResult.data : [];
 
   if (!locationsResult.ok) {
     return (
@@ -636,41 +639,4 @@ function buildLocationCounters(
       tone: withOpenTasks.length > 0 ? "warning" : "active",
     },
   ];
-}
-
-async function fetchAllLocations(): Promise<Location[]> {
-  const first = await listAdminLocations("pageSize=100&page=1");
-
-  if (!first.ok) {
-    return [];
-  }
-
-  const items = [...first.data.items];
-  const remainingPages = first.data.totalPages - first.data.page;
-
-  if (remainingPages > 0) {
-    const pages = await Promise.all(
-      Array.from({ length: remainingPages }, (_, index) =>
-        listAdminLocations(`pageSize=100&page=${first.data.page + index + 1}`),
-      ),
-    );
-
-    for (const page of pages) {
-      if (page.ok) {
-        items.push(...page.data.items);
-      }
-    }
-  }
-
-  return items;
-}
-
-function normalizeLocationStatus(
-  value: string | undefined,
-): LocationStatus | null {
-  if (value === "active" || value === "inactive" || value === "archived") {
-    return value;
-  }
-
-  return null;
 }

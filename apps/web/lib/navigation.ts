@@ -3,6 +3,7 @@ export type RoleArea =
   | "field-planning"
   | "field-general"
   | "field-history"
+  | "field-tasks"
   | "admin-users"
   | "admin-pilot"
   | "admin-settings"
@@ -106,6 +107,13 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     zone: "field",
     icon: "clock",
     requiredPermissions: ["visits.read_own"],
+  },
+  {
+    path: "/field/tasks",
+    area: "field-tasks",
+    zone: "field",
+    icon: "check",
+    requiredPermissions: ["tasks.read_own"],
   },
   {
     // Temporary onboarding section: readiness checklist + pilot review. Shown
