@@ -1,9 +1,4 @@
-import type {
-  Prisma,
-  PrismaClient,
-  TaskPriority,
-  TaskStatus,
-} from "@prisma/client";
+import type { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 
 import type { ReportResponse } from "./visits.types";
 
@@ -27,7 +22,7 @@ type ReportTaskRow = {
   id: string;
   title: string;
   status: TaskStatus;
-  priority: TaskPriority;
+  isPriority: boolean;
   assignedToUserId: string | null;
   dueDate: Date | null;
 };
@@ -70,7 +65,7 @@ export function toReportResponse(
       id: task.id,
       title: task.title,
       status: task.status,
-      priority: task.priority,
+      isPriority: task.isPriority,
       assignedToUserId: task.assignedToUserId,
       dueDate: task.dueDate ? task.dueDate.toISOString().slice(0, 10) : null,
     })),
@@ -84,7 +79,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export type ReportDraftTask = {
   title: string;
   description: string | null;
-  priority: "low" | "normal" | "high";
+  isPriority: boolean;
   assignee: "representative" | "manager" | "unassigned";
   dueDate: Date | null;
 };
@@ -118,7 +113,7 @@ export function extractTasksToCreate(
           typeof task.description === "string" && task.description.trim()
             ? task.description.trim()
             : null,
-        priority: parseTaskPriority(task.priority),
+        isPriority: parseTaskIsPriority(task.isPriority, task.priority),
         assignee: parseTaskAssignee(task.assignee),
         dueDate: parseDateOnly(task.dueDate),
       },
@@ -126,12 +121,15 @@ export function extractTasksToCreate(
   });
 }
 
-function parseTaskPriority(value: unknown): "low" | "normal" | "high" {
-  if (value === "low" || value === "normal" || value === "high") {
-    return value;
-  }
-
-  return "normal";
+// Transitional: a draft saved by an extraction job that ran before this
+// deploy may still carry the old `priority: "high"` field instead of
+// `isPriority` — drafts are temporary/short-lived, but one already in flight
+// across a deploy shouldn't silently lose its priority flag on confirm.
+function parseTaskIsPriority(
+  isPriority: unknown,
+  legacyPriority: unknown,
+): boolean {
+  return isPriority === true || legacyPriority === "high";
 }
 
 function parseTaskAssignee(

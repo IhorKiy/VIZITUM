@@ -10,6 +10,7 @@ import {
   listTodayRoutes,
   listVisits,
 } from "../../../../lib/api-client";
+import { isTaskUnfinished } from "../../../../lib/task-status";
 
 type GeneralPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -88,9 +89,7 @@ export default async function GeneralPage({ params }: GeneralPageProps) {
   const visitedStops = routeStops.filter(
     (item) => item.status === "visited",
   ).length;
-  const openTasks = tasks.filter(
-    (item) => item.status === "open" || item.status === "in_progress",
-  );
+  const openTasks = tasks.filter((item) => isTaskUnfinished(item.status));
   const completedVisits = visits.filter(
     (visit) => visit.status === "completed",
   ).length;

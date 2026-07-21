@@ -7,53 +7,48 @@ import { useTranslations } from "next-intl";
 import { getFormString } from "../lib/form";
 import { PendingSubmitButton } from "./pending-submit-button";
 
-type AssignTaskOption = {
+type CreateOwnTaskOption = {
   id: string;
   label: string;
 };
 
-// A successful create ends in a redirect (the action never resolves with a
-// value); a failed one must NOT redirect — a redirect remounts the page tree
-// and wipes the user's input — so it resolves with { ok: false } and the
-// still-mounted dialog shows the error and keeps the draft.
-export type AssignTaskActionResult = { ok: false } | void;
+// Mirrors AssignTaskActionResult (assign-task-modal.tsx): a successful create
+// redirects and never resolves with a value; a failed one resolves with
+// { ok: false } so the still-mounted dialog can show the error and keep the
+// draft instead of losing it to a page remount.
+export type CreateOwnTaskActionResult = { ok: false } | void;
 
-type AssignTaskDraft = {
+type CreateOwnTaskDraft = {
   title: string;
   description: string;
-  assignedToUserId: string;
   locationId: string;
   isPriority: boolean;
   dueDate: string;
 };
 
-type AssignTaskModalProps = {
-  action: (formData: FormData) => Promise<AssignTaskActionResult>;
-  assigneeOptions: AssignTaskOption[];
-  locationOptions: AssignTaskOption[];
+type CreateOwnTaskModalProps = {
+  action: (formData: FormData) => Promise<CreateOwnTaskActionResult>;
+  // Only the field rep's own assigned locations — there is no assignee field
+  // here, the task is always assigned to whoever opens this form.
+  locationOptions: CreateOwnTaskOption[];
 };
 
-export function AssignTaskModal({
+export function CreateOwnTaskModal({
   action,
-  assigneeOptions,
   locationOptions,
-}: AssignTaskModalProps) {
-  const t = useTranslations("manager.assignTask");
+}: CreateOwnTaskModalProps) {
+  const t = useTranslations("field.createTask");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [draft, setDraft] = useState<AssignTaskDraft | null>(null);
+  const [draft, setDraft] = useState<CreateOwnTaskDraft | null>(null);
   const [submitFailed, setSubmitFailed] = useState(false);
   const [formVersion, setFormVersion] = useState(0);
 
-  // Keep the dialog in sync with the URL on every navigation (not a static
-  // prop): `?assign=1` opens it, anything else closes it. This closes the
-  // modal after a successful create (which redirects to `?task=created`) and
-  // reopens it from the success notice's "Assign another" link even when
-  // `assign` was already "1" on the previous URL — a boolean prop would not
-  // re-fire in that case.
+  // Keep the dialog in sync with the URL (see assign-task-modal.tsx for why a
+  // boolean prop would not do): `?create=1` opens it, anything else closes it.
   useEffect(() => {
     const dialog = dialogRef.current;
 
@@ -61,7 +56,7 @@ export function AssignTaskModal({
       return;
     }
 
-    const shouldOpen = searchParams.get("assign") === "1";
+    const shouldOpen = searchParams.get("create") === "1";
 
     if (shouldOpen && !dialog.open) {
       openDialog();
@@ -70,10 +65,6 @@ export function AssignTaskModal({
     }
   }, [searchParams]);
 
-  // Opening always starts from a blank form — otherwise "Assign another"
-  // would show the previous task's input. Bumping the form key remounts the
-  // form, which clears every field and discards any draft left over from an
-  // earlier failed submit.
   function openDialog() {
     setDraft(null);
     setSubmitFailed(false);
@@ -81,16 +72,16 @@ export function AssignTaskModal({
     dialogRef.current?.showModal();
   }
 
-  // Drops `?assign=1` so a page refresh after closing doesn't reopen the
+  // Drops `?create=1` so a page refresh after closing doesn't reopen the
   // dialog. A successful create never reaches this: it redirects to
   // `?task=created` instead. Called directly from the × and Cancel buttons
   // rather than relying solely on the dialog's native `close` event, which
   // doesn't reliably fire for a programmatic `.close()` call in every
   // browser; also wired as onClose below as defense-in-depth for the
   // Escape-key path.
-  function clearAssignParam() {
+  function clearCreateParam() {
     const params = new URLSearchParams(searchParams.toString());
-    params.delete("assign");
+    params.delete("create");
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, {
       scroll: false,
@@ -99,20 +90,18 @@ export function AssignTaskModal({
 
   function closeDialog() {
     dialogRef.current?.close();
-    clearAssignParam();
+    clearCreateParam();
   }
 
   // React resets the (uncontrolled) form once the action settles, so a failed
   // create captures the submitted values first and feeds them back as the
-  // remounted form's default values — a remount is the only way a <select>
-  // picks up a new defaultValue.
+  // remounted form's default values.
   async function submitAction(formData: FormData) {
     setSubmitFailed(false);
 
-    const values: AssignTaskDraft = {
+    const values: CreateOwnTaskDraft = {
       title: getFormString(formData, "title"),
       description: getFormString(formData, "description"),
-      assignedToUserId: getFormString(formData, "assignedToUserId"),
       locationId: getFormString(formData, "locationId"),
       isPriority: getFormString(formData, "isPriority") === "true",
       dueDate: getFormString(formData, "dueDate"),
@@ -138,14 +127,14 @@ export function AssignTaskModal({
       </button>
 
       <dialog
-        aria-labelledby="assign-task-title"
+        aria-labelledby="create-own-task-title"
         className="modal-dialog"
-        onClose={clearAssignParam}
+        onClose={clearCreateParam}
         ref={dialogRef}
       >
         <div className="modal-header">
           <div>
-            <h2 id="assign-task-title">{t("title")}</h2>
+            <h2 id="create-own-task-title">{t("title")}</h2>
           </div>
           <button
             aria-label={tCommon("cancel")}
@@ -159,7 +148,7 @@ export function AssignTaskModal({
 
         {submitFailed ? (
           <div className="form-error" role="alert">
-            {t("taskErrorBody")}
+            {t("errorBody")}
           </div>
         ) : null}
 
@@ -186,23 +175,6 @@ export function AssignTaskModal({
               placeholder={t("formDetailsPlaceholder")}
               rows={3}
             />
-          </label>
-          <label>
-            {t("formAssignee")}
-            <select
-              defaultValue={draft?.assignedToUserId ?? ""}
-              name="assignedToUserId"
-            >
-              <option value="">{t("formUnassigned")}</option>
-              {assigneeOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {assigneeOptions.length === 0 ? (
-              <span className="form-hint">{t("formAssigneeHint")}</span>
-            ) : null}
           </label>
           <label>
             {t("formLocation")}

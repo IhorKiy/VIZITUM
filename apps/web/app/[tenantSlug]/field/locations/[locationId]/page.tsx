@@ -27,6 +27,7 @@ import {
   statusPillTone,
 } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
+import { isTaskUnfinished } from "../../../../../lib/task-status";
 import {
   deleteLocationAssortmentAction,
   deleteLocationPotentialAction,
@@ -271,7 +272,7 @@ export default async function LocationDetailPage({
     );
 
   const openTasks = (tasksResult.ok ? tasksResult.data.items : []).filter(
-    (item) => item.status === "open" || item.status === "in_progress",
+    (item) => isTaskUnfinished(item.status),
   );
 
   const productsEnabled = sessionResult.ok
@@ -583,14 +584,16 @@ export default async function LocationDetailPage({
                   </span>
                 </header>
                 <p className="form-hint">
-                  {t("location.priorityDue", {
-                    priority: formatEnumLabel(tCommon, item.priority),
-                    due: formatDateTime(
-                      format,
-                      item.dueDate,
-                      tCommon("notSet"),
-                    ),
-                  })}
+                  {item.isPriority ? (
+                    <>
+                      <span className="priority-tag">
+                        {t("tasks.priority")}
+                      </span>
+                      {" · "}
+                    </>
+                  ) : null}
+                  {t("tasks.due")}{" "}
+                  {formatDateTime(format, item.dueDate, tCommon("notSet"))}
                 </p>
               </article>
             ))}

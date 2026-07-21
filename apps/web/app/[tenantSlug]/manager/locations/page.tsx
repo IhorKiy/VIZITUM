@@ -33,6 +33,7 @@ import {
   normalizeLocationStatus,
   statusTone,
 } from "../../../../lib/format";
+import { isTaskUnfinished } from "../../../../lib/task-status";
 
 type ManagerLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -524,11 +525,7 @@ function buildLocationActivity(
   }
 
   for (const task of tasks) {
-    if (
-      !task.locationId ||
-      task.status === "done" ||
-      task.status === "cancelled"
-    ) {
+    if (!task.locationId || !isTaskUnfinished(task.status)) {
       continue;
     }
 

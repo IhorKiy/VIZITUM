@@ -77,8 +77,8 @@ export function buildTaskLocationOptions(
   );
 }
 
-export function parseTaskPriorityInput(value: FormDataEntryValue | null) {
-  return value === "low" || value === "normal" || value === "high"
-    ? value
-    : "normal";
+export function parseTaskIsPriorityInput(
+  value: FormDataEntryValue | null,
+): boolean {
+  return value === "true";
 }

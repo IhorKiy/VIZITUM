@@ -41,7 +41,7 @@ const mentionedProductSchema = {
 const taskToCreateSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "description", "dueDate", "assignee", "priority"],
+  required: ["title", "description", "dueDate", "assignee", "isPriority"],
   properties: {
     title: {
       type: "string",
@@ -59,9 +59,9 @@ const taskToCreateSchema = {
       type: "string",
       enum: ["representative", "manager", "unassigned"],
     },
-    priority: {
-      type: "string",
-      enum: ["low", "normal", "high"],
+    isPriority: {
+      type: "boolean",
+      description: "Whether this follow-up task is high priority.",
     },
   },
 } satisfies JsonSchema;

@@ -597,7 +597,7 @@ export class AiService {
             tenantId: context.tenantId,
             title: task.title,
             description: task.description,
-            priority: task.priority,
+            isPriority: task.isPriority,
             assignedToUserId:
               task.assignee === "representative"
                 ? job.visit.representativeUserId

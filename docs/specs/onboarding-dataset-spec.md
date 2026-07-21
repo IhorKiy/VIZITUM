@@ -39,6 +39,7 @@ Existing import infrastructure already exposes these five import template types 
   - `contacts`: `role_title`, `phone`, `email`, `notes`.
   - `products`: `external_code`, `sku`, `category`.
   - `initial_visit_task_plan`: `sequence`, `planned_start_time`, `planned_end_time`, `task_title`, `task_due_date`, `task_priority`.
+- `task_priority` accepts `normal` or `priority` (case-insensitive) — the old `low`/`high` scale was retired along with `Task.priority` in favor of a plain `isPriority` flag; a template still carrying `low`/`high` values now fails with `TASK_PRIORITY_INVALID` instead of being silently accepted.
 - Blocking import errors: missing required fields, invalid email/date/time/coordinate values, unsupported role or task priority, unresolved representative/location references, duplicate tenant-unique email or external code, and disabled product imports when products are not applicable.
 - Import warnings: duplicate-looking location name/address, optional missing phone/SKU/category/region/territory/notes, and incomplete optional task fields when the plan row itself is otherwise valid.
 - Contacts are imported only as location-linked rows for the first pilot. Independent unmatched contacts are out of scope until there is a contact matching workflow.

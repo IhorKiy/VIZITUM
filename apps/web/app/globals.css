@@ -2536,18 +2536,25 @@ textarea {
    were dropped in favour of the cards). The .priority-tag, .due-overdue,
    .overdue-tag and .list-card.is-overdue rules below are task-only scanning
    cues; the rest of the .list-card* family is generic:
-   - high priority reads amber (important, but not an error),
+   - a priority task carries a solid gold badge next to its title,
    - overdue reads in danger red (late) with a small tag and a card accent —
      two distinct signals so an important-but-on-time task never looks late. */
 .priority-tag {
   align-items: center;
+  background: var(--gold);
+  border-radius: 999px;
+  color: #ffffff;
   display: inline-flex;
-  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 4px;
+  padding: 3px 8px;
+  text-transform: uppercase;
 }
 
-.priority-tag.is-high {
-  color: var(--gold);
-  font-weight: 800;
+.priority-tag svg {
+  height: 12px;
+  width: 12px;
 }
 
 .due-overdue {
@@ -2604,8 +2611,12 @@ textarea {
 }
 
 .list-card-title {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
   font-size: 15px;
   font-weight: 800;
+  gap: 8px;
   line-height: 1.35;
   margin: 0;
 }
@@ -2800,6 +2811,45 @@ textarea {
 .task-details-actions {
   display: flex;
   gap: 4px;
+}
+
+/* Read-only disclosure: who created the task and every recorded status
+   change, oldest first. Native <details> handles the open/closed state, so
+   this needs no client component of its own. */
+.task-history {
+  margin-top: 12px;
+}
+
+.task-history summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  list-style: none;
+}
+
+.task-history summary::-webkit-details-marker {
+  display: none;
+}
+
+.task-history summary::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.task-history[open] summary::before {
+  content: "⌄";
+}
+
+.task-history-list {
+  color: var(--ink);
+  display: grid;
+  font-size: 13px;
+  gap: 4px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
 }
 
 /* The delete button is muted like the pencil until hovered, then turns the

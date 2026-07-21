@@ -10,7 +10,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { TaskPriority, TaskStatus } from "@prisma/client";
+import type { TaskStatus } from "@prisma/client";
 import type { Request } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
@@ -42,7 +42,7 @@ export class TasksController {
       pageSize: parsePositiveInteger(query.pageSize),
       assignedToUserId: normalizeQueryString(query.assignedToUserId),
       status: parseTaskStatus(query.status),
-      priority: parseTaskPriority(query.priority),
+      isPriority: parseBooleanQueryParam(query.isPriority),
       locationId: normalizeQueryString(query.locationId),
       visitId: normalizeQueryString(query.visitId),
       routePlanId: normalizeQueryString(query.routePlanId),
@@ -75,9 +75,9 @@ export class TasksController {
   }
 
   // Deletion is for tasks that should never have existed; a task that was
-  // real and is no longer wanted gets the `cancelled` status instead, which
-  // keeps it in the history. Only team scope may delete: an assignee removing
-  // their own task would take it out of the manager's list with no trace.
+  // real and is no longer wanted gets marked `done` instead, which keeps it
+  // in the history. Only team scope may delete: an assignee removing their
+  // own task would take it out of the manager's list with no trace.
   @Delete(":taskId")
   @RequirePermissions(PERMISSIONS.TASKS_UPDATE_TEAM)
   deleteTask(@Req() request: Request, @Param("taskId") taskId: string) {
@@ -101,21 +101,17 @@ function parsePositiveInteger(value: string | undefined): number | undefined {
 }
 
 function parseTaskStatus(value: string | undefined): TaskStatus | undefined {
-  if (
-    value === "open" ||
-    value === "in_progress" ||
-    value === "done" ||
-    value === "cancelled"
-  ) {
+  if (value === "in_progress" || value === "done") {
     return value;
   }
   return undefined;
 }
 
-function parseTaskPriority(
+function parseBooleanQueryParam(
   value: string | undefined,
-): TaskPriority | undefined {
-  if (value === "low" || value === "normal" || value === "high") return value;
+): boolean | undefined {
+  if (value === "true") return true;
+  if (value === "false") return false;
   return undefined;
 }
 
