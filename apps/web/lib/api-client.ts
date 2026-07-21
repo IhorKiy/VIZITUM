@@ -867,6 +867,38 @@ export async function listAdminLocations(
   return apiGet<PaginatedResponse<Location>>(`/locations?${query}`);
 }
 
+// Mirrors listAllProducts's cap: shared by every screen that needs the full,
+// unfiltered location catalog to build complete city/territory filter-dropdown
+// option lists (manager and field location screens), not just one 100-item
+// page. Same partial-catalog-over-empty-array failure handling.
+const MAX_ALL_LOCATIONS = 300;
+
+export async function listAllLocations(): Promise<ApiResult<Location[]>> {
+  const pageSize = 100;
+  const items: Location[] = [];
+  let page = 1;
+
+  for (;;) {
+    const result = await apiGet<PaginatedResponse<Location>>(
+      `/locations?page=${page}&pageSize=${pageSize}`,
+    );
+
+    if (!result.ok) {
+      return items.length > 0 ? { ok: true, data: items } : result;
+    }
+
+    items.push(...result.data.items);
+
+    if (items.length >= MAX_ALL_LOCATIONS || page >= result.data.totalPages) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return { ok: true, data: items.slice(0, MAX_ALL_LOCATIONS) };
+}
+
 export async function createAdminLocation(input: {
   name: string;
   addressLine: string;

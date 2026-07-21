@@ -1,5 +1,7 @@
 import type { useFormatter, useTranslations } from "next-intl";
 
+import type { LocationStatus } from "./api-client";
+
 // Works with both the sync `useFormatter()` and async `getFormatter()`
 // results; formatting honors the request locale and tenant timezone.
 export type IntlFormatter = ReturnType<typeof useFormatter>;
@@ -40,6 +42,18 @@ export function normalizeFilterValue(value: string | undefined): string | null {
   const normalizedValue = value?.trim();
 
   return normalizedValue || null;
+}
+
+// Shared by every locations filter page (manager and field): a location's
+// filter status is one of these three values or unset (any).
+export function normalizeLocationStatus(
+  value: string | undefined,
+): LocationStatus | null {
+  if (value === "active" || value === "inactive" || value === "archived") {
+    return value;
+  }
+
+  return null;
 }
 
 export function formatDateTime(
