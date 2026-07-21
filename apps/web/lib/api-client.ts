@@ -120,7 +120,6 @@ export type Location = {
   category: LocationCategorySummary | null;
   addressLine: string;
   city: string;
-  territory: string | null;
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
@@ -868,7 +867,7 @@ export async function listAdminLocations(
 }
 
 // Mirrors listAllProducts's cap: shared by every screen that needs the full,
-// unfiltered location catalog to build complete city/territory filter-dropdown
+// unfiltered location catalog to build complete city filter-dropdown
 // option lists (manager and field location screens), not just one 100-item
 // page. Same partial-catalog-over-empty-array failure handling.
 const MAX_ALL_LOCATIONS = 300;
@@ -920,7 +919,6 @@ export async function updateAdminLocation(
     chainId?: string | null;
     addressLine?: string;
     city?: string;
-    territory?: string | null;
     notes?: string | null;
     status?: LocationStatus;
   },
