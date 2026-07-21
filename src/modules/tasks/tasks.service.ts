@@ -91,7 +91,7 @@ export class TasksService {
 
     const data = parseCreateTaskBody(body);
 
-    this.assertCanAssignOnCreate(context, data.assignedToUserId);
+    this.assertCanAssignTask(context, data.assignedToUserId);
 
     await this.assertTaskReferences(context.tenantId, data);
 
@@ -136,6 +136,15 @@ export class TasksService {
     this.assertCanUpdateTask(context, task.assignedToUserId);
 
     const data = parseUpdateTaskBody(body);
+
+    // Own-scope callers are restricted on create to assigning only
+    // themselves (see assertCanAssignTask) — without this, a PATCH that
+    // touches assignedToUserId would trivially undo that restriction, since
+    // assertCanUpdateTask above only checks the task's *current* assignee,
+    // not the one being set.
+    if (data.assignedToUserId !== undefined) {
+      this.assertCanAssignTask(context, data.assignedToUserId);
+    }
 
     await this.assertTaskReferences(context.tenantId, data);
 
@@ -261,10 +270,13 @@ export class TasksService {
 
   // A caller with only own-scope task permissions (no tasks.read_team or
   // tasks.update_team) has no notion of a "team" to assign work to — they
-  // may only create tasks for themselves, and may not leave one unassigned
-  // (an unassigned task would be invisible to them on every later own-scope
-  // list/update call, effectively orphaning it).
-  private assertCanAssignOnCreate(
+  // may only create or reassign a task to themselves, and may not leave one
+  // unassigned (an unassigned task would be invisible to them on every later
+  // own-scope list/update call, effectively orphaning it). Checked on every
+  // assignedToUserId a caller like this tries to set, whether on create or
+  // via a later PATCH — otherwise the create-time restriction is a no-op,
+  // trivially undone by reassigning right after.
+  private assertCanAssignTask(
     context: RequestContext,
     assignedToUserId: string | null,
   ): void {

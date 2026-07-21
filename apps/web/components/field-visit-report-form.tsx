@@ -630,7 +630,6 @@ export function FieldVisitReportForm({
         description: task.description,
         dueDate: taskDueDate || null,
         assignee: "representative",
-        priority: "normal",
       }));
 
     const confirmedData = {

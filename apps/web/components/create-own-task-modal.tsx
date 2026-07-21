@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { getFormString } from "../lib/form";
@@ -40,6 +40,8 @@ export function CreateOwnTaskModal({
   const t = useTranslations("field.createTask");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [draft, setDraft] = useState<CreateOwnTaskDraft | null>(null);
   const [submitFailed, setSubmitFailed] = useState(false);
@@ -68,6 +70,27 @@ export function CreateOwnTaskModal({
     setSubmitFailed(false);
     setFormVersion((version) => version + 1);
     dialogRef.current?.showModal();
+  }
+
+  // Drops `?create=1` so a page refresh after closing doesn't reopen the
+  // dialog. A successful create never reaches this: it redirects to
+  // `?task=created` instead. Called directly from the × and Cancel buttons
+  // rather than relying solely on the dialog's native `close` event, which
+  // doesn't reliably fire for a programmatic `.close()` call in every
+  // browser; also wired as onClose below as defense-in-depth for the
+  // Escape-key path.
+  function clearCreateParam() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("create");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }
+
+  function closeDialog() {
+    dialogRef.current?.close();
+    clearCreateParam();
   }
 
   // React resets the (uncontrolled) form once the action settles, so a failed
@@ -106,6 +129,7 @@ export function CreateOwnTaskModal({
       <dialog
         aria-labelledby="create-own-task-title"
         className="modal-dialog"
+        onClose={clearCreateParam}
         ref={dialogRef}
       >
         <div className="modal-header">
@@ -115,7 +139,7 @@ export function CreateOwnTaskModal({
           <button
             aria-label={tCommon("cancel")}
             className="icon-button"
-            onClick={() => dialogRef.current?.close()}
+            onClick={() => closeDialog()}
             type="button"
           >
             ×
@@ -189,7 +213,7 @@ export function CreateOwnTaskModal({
           <div className="modal-actions">
             <button
               className="secondary-button"
-              onClick={() => dialogRef.current?.close()}
+              onClick={() => closeDialog()}
               type="button"
             >
               {tCommon("cancel")}
