@@ -1293,7 +1293,6 @@
       "search": "Search",
       "searchPlaceholder": "Name, SKU or category",
       "category": "Category",
-      "noCategoryOption": "No category",
       "noCatalogueDetails": "No catalogue details",
       "emptyTitle": "No products match this filter",
       "emptyBody": "Try another filter or clear it to see the full list.",

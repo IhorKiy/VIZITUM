@@ -4,8 +4,8 @@ import { getTranslations } from "next-intl/server";
 import { AppShell } from "../../../../components/app-shell";
 import {
   getCurrentSession,
-  listLocations,
-  listProducts,
+  listAdminLocations,
+  listAdminProducts,
   listTasks,
   listTodayRoutes,
   listVisits,
@@ -66,16 +66,21 @@ export default async function GeneralPage({ params }: GeneralPageProps) {
   ] = await Promise.all([
     listTodayRoutes(),
     listVisits("pageSize=50"),
-    listLocations(),
+    // pageSize=1: the card/summary only need the total count, not the items,
+    // and unfiltered so it matches what /field/locations shows with no
+    // filter applied (listLocations() hardcodes status=active, which would
+    // both undercount past 100 results and disagree with the drill-down
+    // page's own default total).
+    listAdminLocations("pageSize=1"),
     listTasks("pageSize=50"),
-    listProducts(),
+    listAdminProducts("pageSize=1"),
   ]);
 
   const routes = routesResult.ok ? routesResult.data : [];
   const visits = visitsResult.ok ? visitsResult.data.items : [];
-  const locations = locationsResult.ok ? locationsResult.data.items : [];
+  const locationsTotal = locationsResult.ok ? locationsResult.data.total : 0;
   const tasks = tasksResult.ok ? tasksResult.data.items : [];
-  const products = productsResult.ok ? productsResult.data.items : [];
+  const productsTotal = productsResult.ok ? productsResult.data.total : 0;
 
   const routeStops = routes.flatMap((plan) =>
     plan.items.filter((item) => item.status !== "skipped"),
@@ -134,11 +139,11 @@ export default async function GeneralPage({ params }: GeneralPageProps) {
               </tr>
               <tr>
                 <th scope="row">{t("locations")}</th>
-                <td>{locations.length}</td>
+                <td>{locationsTotal}</td>
               </tr>
               <tr>
                 <th scope="row">{t("products")}</th>
-                <td>{products.length}</td>
+                <td>{productsTotal}</td>
               </tr>
             </tbody>
           </table>
@@ -152,9 +157,9 @@ export default async function GeneralPage({ params }: GeneralPageProps) {
                 ›
               </span>
             </header>
-            <p className="metric-value">{locations.length}</p>
+            <p className="metric-value">{locationsTotal}</p>
             <p className="small-label">
-              {t("locationsUnit", { count: locations.length })}
+              {t("locationsUnit", { count: locationsTotal })}
             </p>
           </Link>
           <Link className="metric-card" href={`/${tenantSlug}/field/products`}>
@@ -164,9 +169,9 @@ export default async function GeneralPage({ params }: GeneralPageProps) {
                 ›
               </span>
             </header>
-            <p className="metric-value">{products.length}</p>
+            <p className="metric-value">{productsTotal}</p>
             <p className="small-label">
-              {t("productsUnit", { count: products.length })}
+              {t("productsUnit", { count: productsTotal })}
             </p>
           </Link>
         </section>

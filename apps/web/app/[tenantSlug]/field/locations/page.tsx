@@ -15,13 +15,14 @@ import {
   // Same GET /locations endpoint as listLocations(), just with caller-supplied
   // query params — not admin-permission-gated despite the name.
   listAdminLocations,
-  type Location,
+  listAllLocations,
   type LocationStatus,
 } from "../../../../lib/api-client";
 import { buildLocationFieldOptions } from "../../../../lib/filter-options";
 import {
   formatEnumLabel,
   normalizeFilterValue,
+  normalizeLocationStatus,
   statusTone,
 } from "../../../../lib/format";
 
@@ -109,10 +110,11 @@ export default async function FieldLocationsPage({
     query.set("search", search);
   }
 
-  const [locationsResult, allLocations] = await Promise.all([
+  const [locationsResult, allLocationsResult] = await Promise.all([
     listAdminLocations(query.toString()),
-    fetchAllLocations(),
+    listAllLocations(),
   ]);
+  const allLocations = allLocationsResult.ok ? allLocationsResult.data : [];
 
   if (!locationsResult.ok) {
     return (
@@ -291,41 +293,4 @@ export default async function FieldLocationsPage({
       </section>
     </AppShell>
   );
-}
-
-async function fetchAllLocations(): Promise<Location[]> {
-  const first = await listAdminLocations("pageSize=100&page=1");
-
-  if (!first.ok) {
-    return [];
-  }
-
-  const items = [...first.data.items];
-  const remainingPages = first.data.totalPages - first.data.page;
-
-  if (remainingPages > 0) {
-    const pages = await Promise.all(
-      Array.from({ length: remainingPages }, (_, index) =>
-        listAdminLocations(`pageSize=100&page=${first.data.page + index + 1}`),
-      ),
-    );
-
-    for (const page of pages) {
-      if (page.ok) {
-        items.push(...page.data.items);
-      }
-    }
-  }
-
-  return items;
-}
-
-function normalizeLocationStatus(
-  value: string | undefined,
-): LocationStatus | null {
-  if (value === "active" || value === "inactive" || value === "archived") {
-    return value;
-  }
-
-  return null;
 }
