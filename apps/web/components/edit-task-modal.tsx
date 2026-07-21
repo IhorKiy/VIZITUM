@@ -109,7 +109,14 @@ export function EditTaskModal({
       setDraft(values);
       setSubmitFailed(true);
       setFormVersion((version) => version + 1);
+      return;
     }
+
+    // A successful save redirects; close explicitly here rather than leaning
+    // only on the searchParams effect, which does not re-fire when two saves
+    // in a row land on the same URL (e.g. ?task=edited -> ?task=edited) and
+    // would otherwise leave this dialog open showing the just-saved draft.
+    dialogRef.current?.close();
   }
 
   return (

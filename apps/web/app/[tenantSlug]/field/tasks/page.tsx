@@ -401,7 +401,7 @@ export default async function FieldTasksPage({
                   className="secondary-button"
                   href={`/${tenantSlug}/field/tasks`}
                 >
-                  {t("showAll")}
+                  {t("resetFilter")}
                 </a>
               ) : null}
               <a
