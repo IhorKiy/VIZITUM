@@ -95,6 +95,13 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     requiredPermissions: ["routes.read"],
   },
   {
+    path: "/field/tasks",
+    area: "field-tasks",
+    zone: "field",
+    icon: "check",
+    requiredPermissions: ["tasks.read_own"],
+  },
+  {
     path: "/field/general",
     area: "field-general",
     zone: "field",
@@ -107,13 +114,6 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     zone: "field",
     icon: "clock",
     requiredPermissions: ["visits.read_own"],
-  },
-  {
-    path: "/field/tasks",
-    area: "field-tasks",
-    zone: "field",
-    icon: "check",
-    requiredPermissions: ["tasks.read_own"],
   },
   {
     // Temporary onboarding section: readiness checklist + pilot review. Shown

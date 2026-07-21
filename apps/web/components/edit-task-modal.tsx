@@ -1,24 +1,25 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import type { Task } from "../lib/api-client";
 import { getFormString } from "../lib/form";
+import { PencilIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 
-type CreateOwnTaskOption = {
+type EditTaskOption = {
   id: string;
   label: string;
 };
 
-// Mirrors AssignTaskActionResult (assign-task-modal.tsx): a successful create
-// redirects and never resolves with a value; a failed one resolves with
-// { ok: false } so the still-mounted dialog can show the error and keep the
-// draft instead of losing it to a page remount.
-export type CreateOwnTaskActionResult = { ok: false } | void;
+// Mirrors CreateOwnTaskActionResult: a successful edit redirects and never
+// resolves with a value; a failed one resolves with { ok: false } so the
+// still-open dialog can show the error and keep the edited draft.
+export type EditTaskActionResult = { ok: false } | void;
 
-type CreateOwnTaskDraft = {
+type EditTaskDraft = {
   title: string;
   description: string;
   locationId: string;
@@ -26,80 +27,76 @@ type CreateOwnTaskDraft = {
   dueDate: string;
 };
 
-type CreateOwnTaskModalProps = {
-  action: (formData: FormData) => Promise<CreateOwnTaskActionResult>;
-  // Only the field rep's own assigned locations — there is no assignee field
-  // here, the task is always assigned to whoever opens this form.
-  locationOptions: CreateOwnTaskOption[];
+type EditableTask = Pick<
+  Task,
+  "id" | "title" | "description" | "isPriority" | "locationId" | "dueDate"
+>;
+
+type EditTaskModalProps = {
+  task: EditableTask;
+  action: (formData: FormData) => Promise<EditTaskActionResult>;
+  // Every tenant location, not just ones the rep is assigned to: the task
+  // being edited may already point at a location outside the rep's own
+  // assignments (set by a manager), and the select must keep that value
+  // choosable instead of silently dropping it on save.
+  locationOptions: EditTaskOption[];
 };
 
-export function CreateOwnTaskModal({
+function draftFromTask(task: EditableTask): EditTaskDraft {
+  return {
+    title: task.title,
+    description: task.description ?? "",
+    locationId: task.locationId ?? "",
+    isPriority: task.isPriority,
+    dueDate: task.dueDate ?? "",
+  };
+}
+
+// A per-task edit dialog, one instance per card. Unlike CreateOwnTaskModal /
+// AssignTaskModal, open/closed state is not mirrored into the URL — there is
+// no single shared query param that could name which of many task cards is
+// open. Opening is a plain imperative showModal(); closing after a
+// successful save relies on the server action's redirect changing
+// searchParams, which this component is otherwise not driving.
+export function EditTaskModal({
+  task,
   action,
   locationOptions,
-}: CreateOwnTaskModalProps) {
-  const t = useTranslations("field.createTask");
+}: EditTaskModalProps) {
+  const t = useTranslations("field.editTask");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [draft, setDraft] = useState<CreateOwnTaskDraft | null>(null);
+  const [draft, setDraft] = useState<EditTaskDraft>(() => draftFromTask(task));
   const [submitFailed, setSubmitFailed] = useState(false);
   const [formVersion, setFormVersion] = useState(0);
 
-  // Keep the dialog in sync with the URL (see assign-task-modal.tsx for why a
-  // boolean prop would not do): `?create=1` opens it, anything else closes it.
+  // A successful save redirects, which changes the URL (e.g. to
+  // ?task=edited) without remounting this component. Closing here covers
+  // that case; a failed save never redirects, so the dialog stays open with
+  // the error visible.
   useEffect(() => {
-    const dialog = dialogRef.current;
-
-    if (!dialog) {
-      return;
-    }
-
-    const shouldOpen = searchParams.get("create") === "1";
-
-    if (shouldOpen && !dialog.open) {
-      openDialog();
-    } else if (!shouldOpen && dialog.open) {
-      dialog.close();
-    }
+    dialogRef.current?.close();
   }, [searchParams]);
 
   function openDialog() {
-    setDraft(null);
+    setDraft(draftFromTask(task));
     setSubmitFailed(false);
     setFormVersion((version) => version + 1);
     dialogRef.current?.showModal();
   }
 
-  // Drops `?create=1` so a page refresh after closing doesn't reopen the
-  // dialog. A successful create never reaches this: it redirects to
-  // `?task=created` instead. Called directly from the × and Cancel buttons
-  // rather than relying solely on the dialog's native `close` event, which
-  // doesn't reliably fire for a programmatic `.close()` call in every
-  // browser; also wired as onClose below as defense-in-depth for the
-  // Escape-key path.
-  function clearCreateParam() {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("create");
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, {
-      scroll: false,
-    });
-  }
-
   function closeDialog() {
     dialogRef.current?.close();
-    clearCreateParam();
   }
 
   // React resets the (uncontrolled) form once the action settles, so a failed
-  // create captures the submitted values first and feeds them back as the
-  // remounted form's default values.
+  // save captures the submitted values first and feeds them back as the
+  // remounted form's default values (mirrors create-own-task-modal.tsx).
   async function submitAction(formData: FormData) {
     setSubmitFailed(false);
 
-    const values: CreateOwnTaskDraft = {
+    const values: EditTaskDraft = {
       title: getFormString(formData, "title"),
       description: getFormString(formData, "description"),
       locationId: getFormString(formData, "locationId"),
@@ -112,34 +109,41 @@ export function CreateOwnTaskModal({
       setDraft(values);
       setSubmitFailed(true);
       setFormVersion((version) => version + 1);
+      return;
     }
+
+    // A successful save redirects; close explicitly here rather than leaning
+    // only on the searchParams effect, which does not re-fire when two saves
+    // in a row land on the same URL (e.g. ?task=edited -> ?task=edited) and
+    // would otherwise leave this dialog open showing the just-saved draft.
+    dialogRef.current?.close();
   }
 
   return (
     <>
       <button
-        aria-haspopup="dialog"
-        className="primary-button"
+        aria-label={t("trigger", { title: task.title })}
+        className="name-edit-button"
         onClick={openDialog}
+        title={t("trigger", { title: task.title })}
         type="button"
       >
-        {t("triggerLabel")}
+        <PencilIcon />
       </button>
 
       <dialog
-        aria-labelledby="create-own-task-title"
+        aria-labelledby={`edit-task-title-${task.id}`}
         className="modal-dialog"
-        onClose={clearCreateParam}
         ref={dialogRef}
       >
         <div className="modal-header">
           <div>
-            <h2 id="create-own-task-title">{t("title")}</h2>
+            <h2 id={`edit-task-title-${task.id}`}>{t("title")}</h2>
           </div>
           <button
             aria-label={tCommon("cancel")}
             className="icon-button"
-            onClick={() => closeDialog()}
+            onClick={closeDialog}
             type="button"
           >
             ×
@@ -157,10 +161,11 @@ export function CreateOwnTaskModal({
           className="visit-form compact modal-form"
           key={formVersion}
         >
+          <input name="taskId" type="hidden" value={task.id} />
           <label>
             {t("formTitle")}
             <textarea
-              defaultValue={draft?.title ?? ""}
+              defaultValue={draft.title}
               name="title"
               placeholder={t("formTitlePlaceholder")}
               required
@@ -170,7 +175,7 @@ export function CreateOwnTaskModal({
           <label>
             {t("formDetails")}
             <textarea
-              defaultValue={draft?.description ?? ""}
+              defaultValue={draft.description}
               name="description"
               placeholder={t("formDetailsPlaceholder")}
               rows={3}
@@ -178,7 +183,7 @@ export function CreateOwnTaskModal({
           </label>
           <label>
             {t("formLocation")}
-            <select defaultValue={draft?.locationId ?? ""} name="locationId">
+            <select defaultValue={draft.locationId} name="locationId">
               <option value="">{t("formNoLocation")}</option>
               {locationOptions.map((option) => (
                 <option key={option.id} value={option.id}>
@@ -186,14 +191,11 @@ export function CreateOwnTaskModal({
                 </option>
               ))}
             </select>
-            {locationOptions.length === 0 ? (
-              <span className="form-hint">{t("formLocationHint")}</span>
-            ) : null}
           </label>
           <div className="form-row">
             <label className="checkbox-label">
               <input
-                defaultChecked={draft?.isPriority ?? false}
+                defaultChecked={draft.isPriority}
                 name="isPriority"
                 type="checkbox"
                 value="true"
@@ -202,27 +204,23 @@ export function CreateOwnTaskModal({
             </label>
             <label>
               {t("formDueDate")}
-              <input
-                defaultValue={draft?.dueDate ?? ""}
-                name="dueDate"
-                type="date"
-              />
+              <input defaultValue={draft.dueDate} name="dueDate" type="date" />
             </label>
           </div>
 
           <div className="modal-actions">
             <button
               className="secondary-button"
-              onClick={() => closeDialog()}
+              onClick={closeDialog}
               type="button"
             >
               {tCommon("cancel")}
             </button>
             <PendingSubmitButton
               className="primary-button"
-              pendingLabel={t("creating")}
+              pendingLabel={t("saving")}
             >
-              {t("createTask")}
+              {t("save")}
             </PendingSubmitButton>
           </div>
         </form>
