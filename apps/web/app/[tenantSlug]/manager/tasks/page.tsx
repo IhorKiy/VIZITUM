@@ -38,8 +38,8 @@ import {
   listVisits,
   updateTask,
   type Task,
-  type TaskPriority,
   type TaskStatus,
+  type TaskStatusHistoryEntry,
 } from "../../../../lib/api-client";
 import {
   buildLocationOptions,
@@ -51,9 +51,9 @@ import { getFormString } from "../../../../lib/form";
 import {
   buildTaskAssigneeOptions,
   buildTaskLocationOptions,
-  parseTaskPriorityInput,
+  parseTaskIsPriorityInput,
 } from "../../../../lib/task-form";
-import { taskStatuses } from "../../../../lib/task-status";
+import { isTaskUnfinished, taskStatuses } from "../../../../lib/task-status";
 
 type ManagerTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -72,8 +72,6 @@ type ManagerTasksPageProps = {
     updated?: string;
   }>;
 };
-
-const taskPriorities: TaskPriority[] = ["high", "normal", "low"];
 
 export default async function ManagerTasksPage({
   params,
@@ -96,7 +94,7 @@ export default async function ManagerTasksPage({
     new Date(),
   );
   const selectedStatus = normalizeTaskStatus(pageState.status);
-  const selectedPriority = normalizeTaskPriority(pageState.priority);
+  const selectedPriorityOnly = pageState.priority === "1";
   const selectedAssigneeId = normalizeFilterValue(pageState.assignedToUserId);
   const selectedLocationId = normalizeFilterValue(pageState.locationId);
   const selectedRoutePlanId = normalizeFilterValue(pageState.routePlanId);
@@ -105,7 +103,7 @@ export default async function ManagerTasksPage({
   const query = new URLSearchParams({ pageSize: "100" });
   const hasFilters = Boolean(
     selectedStatus ||
-    selectedPriority ||
+    selectedPriorityOnly ||
     selectedAssigneeId ||
     selectedLocationId ||
     selectedRoutePlanId ||
@@ -117,8 +115,8 @@ export default async function ManagerTasksPage({
     query.set("status", selectedStatus);
   }
 
-  if (selectedPriority) {
-    query.set("priority", selectedPriority);
+  if (selectedPriorityOnly) {
+    query.set("isPriority", "true");
   }
 
   if (selectedAssigneeId) {
@@ -148,7 +146,7 @@ export default async function ManagerTasksPage({
 
     const title = getFormString(formData, "title").trim();
     const description = getFormString(formData, "description").trim();
-    const priority = parseTaskPriorityInput(formData.get("priority"));
+    const isPriority = parseTaskIsPriorityInput(formData.get("isPriority"));
     const assignedToUserId = getFormString(formData, "assignedToUserId").trim();
     const locationId = getFormString(formData, "locationId").trim();
     const dueDate = getFormString(formData, "dueDate").trim();
@@ -161,7 +159,7 @@ export default async function ManagerTasksPage({
 
     const result = await createTask({
       title,
-      priority,
+      isPriority,
       ...(description ? { description } : {}),
       ...(assignedToUserId ? { assignedToUserId } : {}),
       ...(locationId ? { locationId } : {}),
@@ -442,13 +440,10 @@ export default async function ManagerTasksPage({
                 ariaLabel={t("priorityFiltersAria")}
                 name="priority"
                 options={[
-                  { label: t("anyPriority"), value: "" },
-                  ...taskPriorities.map((priority) => ({
-                    label: formatEnumLabel(tCommon, priority),
-                    value: priority,
-                  })),
+                  { label: tCommon("all"), value: "" },
+                  { label: t("priorityOnly"), value: "1" },
                 ]}
-                value={selectedPriority ?? ""}
+                value={selectedPriorityOnly ? "1" : ""}
               />
             </div>
           </div>
@@ -594,8 +589,8 @@ function TasksCards({
   const format = useFormatter();
 
   // One card layout at every width. The status pill doubles as the inline
-  // editor (click to change it, saves on pick); the description lives behind
-  // the "details" disclosure.
+  // editor (click to change it, saves on pick); the description and history
+  // live behind their own disclosures.
   return (
     <ul className="list-cards">
       {tasks.map((task) => {
@@ -607,7 +602,15 @@ function TasksCards({
             key={task.id}
           >
             <div className="list-card-top">
-              <h3 className="list-card-title">{task.title}</h3>
+              <h3 className="list-card-title">
+                {task.title}
+                {task.isPriority ? (
+                  <span className="priority-tag">
+                    <FlagIcon />
+                    {t("priorityBadge")}
+                  </span>
+                ) : null}
+              </h3>
               <TaskStatusEditor
                 taskId={task.id}
                 status={task.status}
@@ -623,12 +626,6 @@ function TasksCards({
                 {task.location
                   ? `${task.location.name}, ${task.location.city}`
                   : t("noLocation")}
-              </CardFact>
-              <CardFact icon={<FlagIcon />} label={t("tablePriority")}>
-                <PriorityTag
-                  priority={task.priority}
-                  label={formatEnumLabel(tCommon, task.priority)}
-                />
               </CardFact>
               <CardFact icon={<CalendarIcon />} label={t("tableDue")}>
                 <DueDate
@@ -653,6 +650,14 @@ function TasksCards({
                 ) : null
               }
             />
+            <TaskHistory
+              createdByName={task.createdBy?.name ?? null}
+              createdAt={task.createdAt}
+              history={task.history}
+              format={format}
+              t={t}
+              tCommon={tCommon}
+            />
           </li>
         );
       })}
@@ -660,19 +665,55 @@ function TasksCards({
   );
 }
 
-function PriorityTag({
-  priority,
-  label,
+type TasksTranslator = Awaited<
+  ReturnType<typeof getTranslations<"manager.tasks">>
+>;
+type CommonTranslator = Awaited<ReturnType<typeof getTranslations<"common">>>;
+
+// Read-only: who created the task (always known, even for tasks that predate
+// this feature) plus every recorded status change. Tasks from before the
+// history table existed simply have an empty `history` array, so they fall
+// back to showing only the creation line — exactly the intended behavior.
+function TaskHistory({
+  createdByName,
+  createdAt,
+  history,
+  format,
+  t,
+  tCommon,
 }: {
-  priority: TaskPriority;
-  label: string;
+  createdByName: string | null;
+  createdAt: string;
+  history: TaskStatusHistoryEntry[];
+  format: IntlFormatter;
+  t: TasksTranslator;
+  tCommon: CommonTranslator;
 }) {
-  // The card fact already shows a flag in its <dt>; here we only tint the
-  // label amber for "high" so it pops without a second icon.
+  // The creation row (oldStatus === null) is already represented by the
+  // "created by" line below, so only real transitions show as history rows.
+  const statusChanges = history.filter((entry) => entry.oldStatus !== null);
+
   return (
-    <span className={`priority-tag${priority === "high" ? " is-high" : ""}`}>
-      {label}
-    </span>
+    <details className="task-history">
+      <summary>{t("history")}</summary>
+      <ul className="task-history-list">
+        <li>
+          {t("historyCreated", {
+            name: createdByName ?? tCommon("unknown"),
+            date: formatDateTime(format, createdAt),
+          })}
+        </li>
+        {statusChanges.map((entry) => (
+          <li key={entry.id}>
+            {t("historyStatusChanged", {
+              status: formatEnumLabel(tCommon, entry.newStatus),
+              name: entry.changedBy?.name ?? tCommon("unknown"),
+              date: formatDateTime(format, entry.createdAt),
+            })}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -699,10 +740,6 @@ function DueDate({
   );
 }
 
-type TasksTranslator = Awaited<
-  ReturnType<typeof getTranslations<"manager.tasks">>
->;
-
 function buildTaskCounters(
   tasks: Task[],
   total: number,
@@ -714,11 +751,11 @@ function buildTaskCounters(
   detail: string;
   tone: "active" | "info" | "warning";
 }> {
-  const open = tasks.filter(
-    (task) => task.status === "open" || task.status === "in_progress",
+  const unfinished = tasks.filter((task) => isTaskUnfinished(task.status));
+  const priorityTasks = unfinished.filter((task) => task.isPriority);
+  const overdue = unfinished.filter((task) =>
+    isTaskOverdue(task, todayIsoDate),
   );
-  const highPriority = open.filter((task) => task.priority === "high");
-  const overdue = open.filter((task) => isTaskOverdue(task, todayIsoDate));
 
   return [
     {
@@ -729,9 +766,9 @@ function buildTaskCounters(
     },
     {
       label: t("openWork"),
-      value: String(open.length),
-      detail: t("openWorkDetail", { count: highPriority.length }),
-      tone: highPriority.length > 0 ? "warning" : "active",
+      value: String(unfinished.length),
+      detail: t("openWorkDetail", { count: priorityTasks.length }),
+      tone: priorityTasks.length > 0 ? "warning" : "active",
     },
     {
       label: t("overdue"),
@@ -758,20 +795,7 @@ function normalizeDateFilter(value: string | undefined): string | null {
 }
 
 function normalizeTaskStatus(value: string | undefined): TaskStatus | null {
-  if (
-    value === "open" ||
-    value === "in_progress" ||
-    value === "done" ||
-    value === "cancelled"
-  ) {
-    return value;
-  }
-
-  return null;
-}
-
-function normalizeTaskPriority(value: string | undefined): TaskPriority | null {
-  if (value === "high" || value === "normal" || value === "low") {
+  if (value === "in_progress" || value === "done") {
     return value;
   }
 
@@ -786,8 +810,15 @@ function formatDate(format: IntlFormatter, value: string | null): string {
   return format.dateTime(new Date(value), { dateStyle: "medium" });
 }
 
+function formatDateTime(format: IntlFormatter, value: string): string {
+  return format.dateTime(new Date(value), {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 // A task is overdue only while it is still actionable: a past due date on a
-// done or cancelled task is not flagged. Matches the "overdue" counter.
+// done task is not flagged. Matches the "overdue" counter.
 // Due dates are date-only "YYYY-MM-DD" strings, so a lexicographic compare
 // against today's date in the tenant timezone is exact.
 function isTaskOverdue(task: Task, todayIsoDate: string): boolean {
@@ -795,7 +826,7 @@ function isTaskOverdue(task: Task, todayIsoDate: string): boolean {
     return false;
   }
 
-  if (task.status !== "open" && task.status !== "in_progress") {
+  if (!isTaskUnfinished(task.status)) {
     return false;
   }
 

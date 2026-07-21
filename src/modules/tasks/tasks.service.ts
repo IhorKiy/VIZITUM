@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma, TaskPriority, TaskStatus } from "@prisma/client";
+import type { Prisma, TaskStatus } from "@prisma/client";
 
 import {
   createPaginatedResponse,
@@ -23,16 +23,19 @@ import type {
 } from "./tasks.types";
 
 type TaskWithRelations = Prisma.TaskGetPayload<{
-  include: {
-    assignedTo: true;
-    location: true;
-  };
+  include: typeof taskInclude;
 }>;
+
+type TaskScopeSnapshot = {
+  id: string;
+  assignedToUserId: string | null;
+  status: TaskStatus;
+};
 
 type TaskCreateData = {
   title: string;
   description: string | null;
-  priority: TaskPriority;
+  isPriority: boolean;
   assignedToUserId: string | null;
   locationId: string | null;
   visitId: string | null;
@@ -88,18 +91,39 @@ export class TasksService {
 
     const data = parseCreateTaskBody(body);
 
+    this.assertCanAssignOnCreate(context, data.assignedToUserId);
+
     await this.assertTaskReferences(context.tenantId, data);
 
-    const task = await this.prisma.task.create({
-      data: {
-        tenantId: context.tenantId,
-        createdByUserId: context.userId,
-        ...data,
-      },
-      include: taskInclude,
+    // Task creation and its opening history row must land together: a task
+    // must never exist without the "created by X" trail that anchors its
+    // history block, and vice versa.
+    const created = await this.prisma.$transaction(async (tx) => {
+      const task = await tx.task.create({
+        data: {
+          tenantId: context.tenantId,
+          createdByUserId: context.userId,
+          ...data,
+        },
+      });
+
+      await tx.taskStatusHistory.create({
+        data: {
+          tenantId: context.tenantId,
+          taskId: task.id,
+          changedByUserId: context.userId,
+          oldStatus: null,
+          newStatus: task.status,
+        },
+      });
+
+      return tx.task.findUniqueOrThrow({
+        where: { id: task.id },
+        include: taskInclude,
+      });
     });
 
-    return toTaskResponse(task);
+    return toTaskResponse(created);
   }
 
   async updateTask(
@@ -115,23 +139,46 @@ export class TasksService {
 
     await this.assertTaskReferences(context.tenantId, data);
 
-    const updatedTask = await this.prisma.task.update({
-      where: { id: task.id },
-      data: {
-        ...data,
-        ...(data.status === "done" && body.completedAt === undefined
-          ? { completedAt: new Date() }
-          : {}),
-        ...(data.status &&
-        data.status !== "done" &&
-        body.completedAt === undefined
-          ? { completedAt: null }
-          : {}),
-      },
-      include: taskInclude,
+    const statusChanged =
+      data.status !== undefined && data.status !== task.status;
+
+    // The status change and its history row must commit or roll back
+    // together, same invariant as task creation above.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedTask = await tx.task.update({
+        where: { id: task.id },
+        data: {
+          ...data,
+          ...(data.status === "done" && body.completedAt === undefined
+            ? { completedAt: new Date() }
+            : {}),
+          ...(data.status &&
+          data.status !== "done" &&
+          body.completedAt === undefined
+            ? { completedAt: null }
+            : {}),
+        },
+      });
+
+      if (statusChanged) {
+        await tx.taskStatusHistory.create({
+          data: {
+            tenantId: context.tenantId,
+            taskId: task.id,
+            changedByUserId: context.userId,
+            oldStatus: task.status,
+            newStatus: updatedTask.status,
+          },
+        });
+      }
+
+      return tx.task.findUniqueOrThrow({
+        where: { id: task.id },
+        include: taskInclude,
+      });
     });
 
-    return toTaskResponse(updatedTask);
+    return toTaskResponse(updated);
   }
 
   async deleteTask(
@@ -148,7 +195,8 @@ export class TasksService {
     // `findTenantTask` and `buildTaskWhere` filter `deletedAt: null`) while
     // preserving the row, so a mistaken delete stays recoverable. One
     // transaction with the audit event: a delete must never exist without
-    // its `task.deleted` trail, nor a trail without the delete.
+    // its `task.deleted` trail, nor a trail without the delete. This is a
+    // separate admin trail (AuditEvent), not the status-change history.
     await this.prisma.$transaction(async (tx) => {
       await tx.task.update({
         where: { id: task.id },
@@ -172,14 +220,14 @@ export class TasksService {
   private async findTenantTask(
     tenantId: string,
     taskId: string,
-  ): Promise<TaskWithRelations> {
+  ): Promise<TaskScopeSnapshot> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
         tenantId,
         deletedAt: null,
       },
-      include: taskInclude,
+      select: { id: true, assignedToUserId: true, status: true },
     });
 
     if (!task) {
@@ -205,6 +253,30 @@ export class TasksService {
       context.userId &&
       assignedToUserId === context.userId
     ) {
+      return;
+    }
+
+    throwMissingTaskPermission();
+  }
+
+  // A caller with only own-scope task permissions (no tasks.read_team or
+  // tasks.update_team) has no notion of a "team" to assign work to — they
+  // may only create tasks for themselves, and may not leave one unassigned
+  // (an unassigned task would be invisible to them on every later own-scope
+  // list/update call, effectively orphaning it).
+  private assertCanAssignOnCreate(
+    context: RequestContext,
+    assignedToUserId: string | null,
+  ): void {
+    const hasTeamScope =
+      context.permissions.includes(PERMISSIONS.TASKS_READ_TEAM) ||
+      context.permissions.includes(PERMISSIONS.TASKS_UPDATE_TEAM);
+
+    if (hasTeamScope) {
+      return;
+    }
+
+    if (context.userId && assignedToUserId === context.userId) {
       return;
     }
 
@@ -311,7 +383,12 @@ export class TasksService {
 
 const taskInclude = {
   assignedTo: true,
+  createdBy: true,
   location: true,
+  statusHistory: {
+    orderBy: { createdAt: "asc" },
+    include: { changedBy: true },
+  },
 } satisfies Prisma.TaskInclude;
 
 function buildTaskWhere(
@@ -339,7 +416,7 @@ function buildTaskWhere(
     deletedAt: null,
     ...(assignedToFilter ? { assignedToUserId: assignedToFilter } : {}),
     ...(query.status ? { status: query.status } : {}),
-    ...(query.priority ? { priority: query.priority } : {}),
+    ...(query.isPriority !== undefined ? { isPriority: query.isPriority } : {}),
     ...(query.locationId ? { locationId: query.locationId } : {}),
     ...(query.visitId ? { visitId: query.visitId } : {}),
     ...(query.routePlanId
@@ -371,7 +448,7 @@ function parseCreateTaskBody(body: CreateTaskRequestBody): TaskCreateData {
   return {
     title,
     description: normalizeOptionalString(body.description),
-    priority: normalizeTaskPriority(body.priority) ?? "normal",
+    isPriority: normalizeIsPriority(body.isPriority),
     assignedToUserId: normalizeOptionalId(body.assignedToUserId),
     locationId: normalizeOptionalId(body.locationId),
     visitId: normalizeOptionalId(body.visitId),
@@ -388,8 +465,8 @@ function parseUpdateTaskBody(body: UpdateTaskRequestBody): TaskUpdateData {
     ...(body.description !== undefined
       ? { description: normalizeOptionalString(body.description) }
       : {}),
-    ...(body.priority !== undefined
-      ? { priority: normalizeTaskPriority(body.priority) ?? "normal" }
+    ...(body.isPriority !== undefined
+      ? { isPriority: normalizeIsPriority(body.isPriority) }
       : {}),
     ...(body.assignedToUserId !== undefined
       ? { assignedToUserId: normalizeOptionalId(body.assignedToUserId) }
@@ -407,7 +484,7 @@ function parseUpdateTaskBody(body: UpdateTaskRequestBody): TaskUpdateData {
       ? { dueDate: parseOptionalDateOnly(body.dueDate) }
       : {}),
     ...(body.status !== undefined
-      ? { status: normalizeTaskStatus(body.status) ?? "open" }
+      ? { status: normalizeTaskStatus(body.status) ?? "in_progress" }
       : {}),
     ...(body.completedAt !== undefined
       ? { completedAt: parseOptionalDateTime(body.completedAt) }
@@ -452,20 +529,14 @@ function normalizeOptionalString(value: unknown): string | null {
 }
 
 function normalizeTaskStatus(value: unknown): TaskStatus | null {
-  if (
-    value === "open" ||
-    value === "in_progress" ||
-    value === "done" ||
-    value === "cancelled"
-  ) {
+  if (value === "in_progress" || value === "done") {
     return value;
   }
   return null;
 }
 
-function normalizeTaskPriority(value: unknown): TaskPriority | null {
-  if (value === "low" || value === "normal" || value === "high") return value;
-  return null;
+function normalizeIsPriority(value: unknown): boolean {
+  return value === true;
 }
 
 function parseOptionalDateOnly(value: unknown): Date | null {
@@ -548,7 +619,7 @@ function toTaskResponse(task: TaskWithRelations): TaskResponse {
     title: task.title,
     description: task.description,
     status: task.status,
-    priority: task.priority,
+    isPriority: task.isPriority,
     assignedToUserId: task.assignedToUserId,
     assignedTo: task.assignedTo
       ? {
@@ -558,6 +629,13 @@ function toTaskResponse(task: TaskWithRelations): TaskResponse {
         }
       : null,
     createdByUserId: task.createdByUserId,
+    createdBy: task.createdBy
+      ? {
+          id: task.createdBy.id,
+          email: task.createdBy.email,
+          name: task.createdBy.name,
+        }
+      : null,
     locationId: task.locationId,
     location: task.location
       ? {
@@ -573,6 +651,20 @@ function toTaskResponse(task: TaskWithRelations): TaskResponse {
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     updatedAt: task.updatedAt.toISOString(),
+    history: task.statusHistory.map((entry) => ({
+      id: entry.id,
+      changedByUserId: entry.changedByUserId,
+      changedBy: entry.changedBy
+        ? {
+            id: entry.changedBy.id,
+            email: entry.changedBy.email,
+            name: entry.changedBy.name,
+          }
+        : null,
+      oldStatus: entry.oldStatus,
+      newStatus: entry.newStatus,
+      createdAt: entry.createdAt.toISOString(),
+    })),
   };
 }
 

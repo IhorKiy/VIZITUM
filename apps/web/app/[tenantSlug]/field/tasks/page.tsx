@@ -4,6 +4,10 @@ import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
+import {
+  CreateOwnTaskModal,
+  type CreateOwnTaskActionResult,
+} from "../../../../components/create-own-task-modal";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDateRange } from "../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
@@ -22,13 +26,14 @@ import {
 import { TaskDetailsEditor } from "../../../../components/task-details-editor";
 import { TaskStatusEditor } from "../../../../components/task-status-editor";
 import {
+  createTask,
   getCurrentSession,
   listLocations,
   listTasks,
   updateTask,
   type Task,
-  type TaskPriority,
   type TaskStatus,
+  type TaskStatusHistoryEntry,
 } from "../../../../lib/api-client";
 import { buildLocationOptions } from "../../../../lib/filter-options";
 import {
@@ -37,11 +42,13 @@ import {
   type IntlFormatter,
 } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
-import { taskStatuses } from "../../../../lib/task-status";
+import { parseTaskIsPriorityInput } from "../../../../lib/task-form";
+import { isTaskUnfinished, taskStatuses } from "../../../../lib/task-status";
 
 type FieldTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    create?: string;
     dueFrom?: string;
     dueTo?: string;
     error?: string;
@@ -52,20 +59,21 @@ type FieldTasksPageProps = {
   }>;
 };
 
-const taskPriorities: TaskPriority[] = ["high", "normal", "low"];
-
 export default async function FieldTasksPage({
   params,
   searchParams,
 }: FieldTasksPageProps) {
   const { tenantSlug } = await params;
-  const [locale, timeZone, t, tField, tCommon] = await Promise.all([
-    getLocale(),
-    getTimeZone(),
-    getTranslations("field.tasks"),
-    getTranslations("field"),
-    getTranslations("common"),
-  ]);
+  const [locale, timeZone, t, tField, tCreateTask, tCommon] = await Promise.all(
+    [
+      getLocale(),
+      getTimeZone(),
+      getTranslations("field.tasks"),
+      getTranslations("field"),
+      getTranslations("field.createTask"),
+      getTranslations("common"),
+    ],
+  );
   // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
   // against today's date in the tenant timezone, not the server's local
   // midnight (mirrors manager/tasks/page.tsx).
@@ -148,17 +156,56 @@ export default async function FieldTasksPage({
     );
   }
 
+  // Narrowed to a plain string here (outside the nested action below) so the
+  // "use server" closure below captures a value, not a re-widened union —
+  // TypeScript does not carry the `sessionResult.ok` narrowing into a nested
+  // function that runs later.
+  const currentUserId = sessionResult.data.user.id;
+
+  async function createTaskAction(
+    formData: FormData,
+  ): Promise<CreateOwnTaskActionResult> {
+    "use server";
+
+    const title = getFormString(formData, "title").trim();
+    const description = getFormString(formData, "description").trim();
+    const isPriority = parseTaskIsPriorityInput(formData.get("isPriority"));
+    const locationId = getFormString(formData, "locationId").trim();
+    const dueDate = getFormString(formData, "dueDate").trim();
+
+    // Failures return instead of redirecting: a redirect would remount the
+    // page tree and throw away everything typed into the create-task modal.
+    if (!title) {
+      return { ok: false };
+    }
+
+    const result = await createTask({
+      title,
+      isPriority,
+      assignedToUserId: currentUserId,
+      ...(description ? { description } : {}),
+      ...(locationId ? { locationId } : {}),
+      ...(dueDate ? { dueDate } : {}),
+    });
+
+    if (!result.ok) {
+      return { ok: false };
+    }
+
+    redirect(`/${tenantSlug}/field/tasks?task=created`);
+  }
+
   const pageState = await searchParams;
   const { task, error } = pageState;
   const selectedStatus = normalizeTaskStatus(pageState.status);
-  const selectedPriority = normalizeTaskPriority(pageState.priority);
+  const selectedPriorityOnly = pageState.priority === "1";
   const selectedLocationId = normalizeFilterValue(pageState.locationId);
   const dueFrom = normalizeDateFilter(pageState.dueFrom);
   const dueTo = normalizeDateFilter(pageState.dueTo);
   const query = new URLSearchParams({ pageSize: "100" });
   const hasFilters = Boolean(
     selectedStatus ||
-    selectedPriority ||
+    selectedPriorityOnly ||
     selectedLocationId ||
     dueFrom ||
     dueTo,
@@ -168,8 +215,8 @@ export default async function FieldTasksPage({
     query.set("status", selectedStatus);
   }
 
-  if (selectedPriority) {
-    query.set("priority", selectedPriority);
+  if (selectedPriorityOnly) {
+    query.set("isPriority", "true");
   }
 
   if (selectedLocationId) {
@@ -221,6 +268,17 @@ export default async function FieldTasksPage({
   const tasks = tasksResult.data.items;
   const locations = locationsResult.ok ? locationsResult.data.items : [];
   const locationOptions = buildLocationOptions(locations, locale);
+  // "Assigned locations" for the create form: the locations this rep has an
+  // active LocationAssignment for (already returned on every Location by
+  // GET /locations), not every active location in the tenant.
+  const assignedLocationOptions = buildLocationOptions(
+    locations.filter((location) =>
+      location.assignments.some(
+        (assignment) => assignment.representativeUserId === currentUserId,
+      ),
+    ),
+    locale,
+  );
 
   return (
     <AppShell activeArea="field-tasks" tenantSlug={tenantSlug}>
@@ -228,7 +286,24 @@ export default async function FieldTasksPage({
         <div>
           <h1>{t("title")}</h1>
         </div>
+        <div className="toolbar">
+          <CreateOwnTaskModal
+            action={createTaskAction}
+            locationOptions={assignedLocationOptions}
+          />
+        </div>
       </header>
+
+      {task === "created" ? (
+        <DismissableNotice
+          ariaLabel={t("taskStatusAria")}
+          body={t("taskCreatedBody")}
+          clearParams={["task"]}
+          eyebrow={t("taskCreatedEyebrow")}
+          title={t("taskCreatedTitle")}
+          tone="success"
+        />
+      ) : null}
 
       {task === "updated" ? (
         <DismissableNotice
@@ -272,13 +347,10 @@ export default async function FieldTasksPage({
                 ariaLabel={t("priorityFiltersAria")}
                 name="priority"
                 options={[
-                  { label: t("anyPriority"), value: "" },
-                  ...taskPriorities.map((priority) => ({
-                    label: formatEnumLabel(tCommon, priority),
-                    value: priority,
-                  })),
+                  { label: tCommon("all"), value: "" },
+                  { label: t("priorityOnly"), value: "1" },
                 ]}
-                value={selectedPriority ?? ""}
+                value={selectedPriorityOnly ? "1" : ""}
               />
             </div>
           </div>
@@ -336,16 +408,22 @@ export default async function FieldTasksPage({
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
             <p>{t("emptyBody")}</p>
-            {hasFilters ? (
-              <div className="toolbar">
+            <div className="toolbar">
+              {hasFilters ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/field/tasks`}
                 >
                   {t("showAll")}
                 </a>
-              </div>
-            ) : null}
+              ) : null}
+              <a
+                className="primary-button"
+                href={`/${tenantSlug}/field/tasks?create=1`}
+              >
+                {tCreateTask("title")}
+              </a>
+            </div>
           </div>
         )}
       </section>
@@ -355,8 +433,8 @@ export default async function FieldTasksPage({
 
 // One card layout at every width, matching manager/tasks/page.tsx's
 // TasksCards: the status pill doubles as the inline editor (click to change
-// it, saves on pick), and the description lives behind the "details"
-// disclosure. Own-scope tasks have no assignee to show and no team-delete
+// it, saves on pick), and the description and history live behind their own
+// disclosures. Own-scope tasks have no assignee to show and no team-delete
 // affordance.
 function TasksCards({
   tasks,
@@ -384,7 +462,15 @@ function TasksCards({
             key={task.id}
           >
             <div className="list-card-top">
-              <h3 className="list-card-title">{task.title}</h3>
+              <h3 className="list-card-title">
+                {task.title}
+                {task.isPriority ? (
+                  <span className="priority-tag">
+                    <FlagIcon />
+                    {t("priority")}
+                  </span>
+                ) : null}
+              </h3>
               <TaskStatusEditor
                 ariaLabel={t("updateTaskStatusAria", { title: task.title })}
                 status={task.status}
@@ -397,12 +483,6 @@ function TasksCards({
                 {task.location
                   ? `${task.location.name}, ${task.location.city}`
                   : t("noLocation")}
-              </CardFact>
-              <CardFact icon={<FlagIcon />} label={t("priority")}>
-                <PriorityTag
-                  label={formatEnumLabel(tCommon, task.priority)}
-                  priority={task.priority}
-                />
               </CardFact>
               <CardFact icon={<CalendarIcon />} label={t("due")}>
                 <DueDate
@@ -418,6 +498,14 @@ function TasksCards({
               updateAction={updateTaskDetailsAction}
               value={task.description ?? ""}
             />
+            <TaskHistory
+              createdByName={task.createdBy?.name ?? null}
+              createdAt={task.createdAt}
+              history={task.history}
+              format={format}
+              t={t}
+              tCommon={tCommon}
+            />
           </li>
         );
       })}
@@ -425,17 +513,55 @@ function TasksCards({
   );
 }
 
-function PriorityTag({
-  priority,
-  label,
+type FieldTasksTranslator = Awaited<
+  ReturnType<typeof getTranslations<"field.tasks">>
+>;
+type CommonTranslator = Awaited<ReturnType<typeof getTranslations<"common">>>;
+
+// Read-only: who created the task (always known, even for tasks that predate
+// this feature) plus every recorded status change. Tasks from before the
+// history table existed simply have an empty `history` array, so they fall
+// back to showing only the creation line — exactly the intended behavior.
+function TaskHistory({
+  createdByName,
+  createdAt,
+  history,
+  format,
+  t,
+  tCommon,
 }: {
-  priority: TaskPriority;
-  label: string;
+  createdByName: string | null;
+  createdAt: string;
+  history: TaskStatusHistoryEntry[];
+  format: IntlFormatter;
+  t: FieldTasksTranslator;
+  tCommon: CommonTranslator;
 }) {
+  // The creation row (oldStatus === null) is already represented by the
+  // "created by" line below, so only real transitions show as history rows.
+  const statusChanges = history.filter((entry) => entry.oldStatus !== null);
+
   return (
-    <span className={`priority-tag${priority === "high" ? " is-high" : ""}`}>
-      {label}
-    </span>
+    <details className="task-history">
+      <summary>{t("history")}</summary>
+      <ul className="task-history-list">
+        <li>
+          {t("historyCreated", {
+            name: createdByName ?? tCommon("unknown"),
+            date: formatDateTime(format, createdAt),
+          })}
+        </li>
+        {statusChanges.map((entry) => (
+          <li key={entry.id}>
+            {t("historyStatusChanged", {
+              status: formatEnumLabel(tCommon, entry.newStatus),
+              name: entry.changedBy?.name ?? tCommon("unknown"),
+              date: formatDateTime(format, entry.createdAt),
+            })}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -470,14 +596,21 @@ function formatDate(format: IntlFormatter, value: string | null): string {
   return format.dateTime(new Date(value), { dateStyle: "medium" });
 }
 
+function formatDateTime(format: IntlFormatter, value: string): string {
+  return format.dateTime(new Date(value), {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 // A task is overdue only while it is still actionable: a past due date on a
-// done/cancelled task is just history, not something outstanding.
+// done task is just history, not something outstanding.
 function isTaskOverdue(task: Task, todayIsoDate: string): boolean {
   if (!task.dueDate) {
     return false;
   }
 
-  if (task.status !== "open" && task.status !== "in_progress") {
+  if (!isTaskUnfinished(task.status)) {
     return false;
   }
 
@@ -487,20 +620,7 @@ function isTaskOverdue(task: Task, todayIsoDate: string): boolean {
 function normalizeTaskStatus(
   value: FormDataEntryValue | string | null | undefined,
 ): TaskStatus | null {
-  if (
-    value === "open" ||
-    value === "in_progress" ||
-    value === "done" ||
-    value === "cancelled"
-  ) {
-    return value;
-  }
-
-  return null;
-}
-
-function normalizeTaskPriority(value: string | undefined): TaskPriority | null {
-  if (value === "high" || value === "normal" || value === "low") {
+  if (value === "in_progress" || value === "done") {
     return value;
   }
 

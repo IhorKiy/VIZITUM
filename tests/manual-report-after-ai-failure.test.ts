@@ -229,8 +229,8 @@ describe("manual report after AI failure", () => {
     const task = {
       id: "task-a",
       title: "Follow up on stock issue",
-      status: "open",
-      priority: "high",
+      status: "in_progress",
+      isPriority: true,
       assignedToUserId: "rep-a",
       dueDate: new Date("2026-07-05T00:00:00.000Z"),
     };
@@ -292,8 +292,8 @@ describe("manual report after AI failure", () => {
       {
         id: "task-a",
         title: "Follow up on stock issue",
-        status: "open",
-        priority: "high",
+        status: "in_progress",
+        isPriority: true,
         assignedToUserId: "rep-a",
         dueDate: "2026-07-05",
       },

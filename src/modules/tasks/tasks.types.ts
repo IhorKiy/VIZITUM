@@ -1,11 +1,24 @@
-import type { TaskPriority, TaskStatus } from "@prisma/client";
+import type { TaskStatus } from "@prisma/client";
+
+export type TaskStatusHistoryEntry = {
+  id: string;
+  changedByUserId: string | null;
+  changedBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  oldStatus: TaskStatus | null;
+  newStatus: TaskStatus;
+  createdAt: string;
+};
 
 export type TaskResponse = {
   id: string;
   title: string;
   description: string | null;
   status: TaskStatus;
-  priority: TaskPriority;
+  isPriority: boolean;
   assignedToUserId: string | null;
   assignedTo: {
     id: string;
@@ -13,6 +26,11 @@ export type TaskResponse = {
     name: string;
   } | null;
   createdByUserId: string | null;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
   locationId: string | null;
   location: {
     id: string;
@@ -26,6 +44,7 @@ export type TaskResponse = {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  history: TaskStatusHistoryEntry[];
 };
 
 export type ListTasksQuery = {
@@ -33,7 +52,7 @@ export type ListTasksQuery = {
   pageSize?: number;
   assignedToUserId?: string;
   status?: TaskStatus;
-  priority?: TaskPriority;
+  isPriority?: boolean;
   locationId?: string;
   visitId?: string;
   routePlanId?: string;
@@ -44,7 +63,7 @@ export type ListTasksQuery = {
 export type CreateTaskRequestBody = {
   title?: unknown;
   description?: unknown;
-  priority?: unknown;
+  isPriority?: unknown;
   assignedToUserId?: unknown;
   locationId?: unknown;
   visitId?: unknown;

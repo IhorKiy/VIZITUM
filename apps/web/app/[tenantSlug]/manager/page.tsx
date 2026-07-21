@@ -9,8 +9,8 @@ import {
 import { DismissableNotice } from "../../../components/dismissable-notice";
 import {
   createTask,
-  listHighPriorityTasks,
   listLocations,
+  listPriorityTasks,
   listTasks,
   listTodayRoutes,
   listVisits,
@@ -22,10 +22,11 @@ import {
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 import { formatEnumLabel, type CommonTranslator } from "../../../lib/format";
 import { getFormString } from "../../../lib/form";
+import { isTaskUnfinished } from "../../../lib/task-status";
 import {
   buildTaskAssigneeOptions,
   buildTaskLocationOptions,
-  parseTaskPriorityInput,
+  parseTaskIsPriorityInput,
 } from "../../../lib/task-form";
 
 type ManagerPageProps = {
@@ -129,7 +130,7 @@ export default async function ManagerPage({
 
     const title = getFormString(formData, "title").trim();
     const description = getFormString(formData, "description").trim();
-    const priority = parseTaskPriorityInput(formData.get("priority"));
+    const isPriority = parseTaskIsPriorityInput(formData.get("isPriority"));
     const assignedToUserId = getFormString(formData, "assignedToUserId").trim();
     const locationId = getFormString(formData, "locationId").trim();
     const dueDate = getFormString(formData, "dueDate").trim();
@@ -142,7 +143,7 @@ export default async function ManagerPage({
 
     const result = await createTask({
       title,
-      priority,
+      isPriority,
       ...(description ? { description } : {}),
       ...(assignedToUserId ? { assignedToUserId } : {}),
       ...(locationId ? { locationId } : {}),
@@ -170,7 +171,7 @@ export default async function ManagerPage({
     // assignable representatives.
     listVisits("pageSize=100"),
     listTasks(),
-    listHighPriorityTasks(),
+    listPriorityTasks(),
     listLocations(),
   ]);
   const hasLiveData =
@@ -404,11 +405,11 @@ function buildLiveMetrics(
   const confirmedVisits = visits.filter(
     (visit) => visit.status === "completed",
   ).length;
-  const openHighPriorityTasks = highPriorityTasks.filter(
-    (task) => task.status !== "done" && task.status !== "cancelled",
+  const openHighPriorityTasks = highPriorityTasks.filter((task) =>
+    isTaskUnfinished(task.status),
   ).length;
-  const openTasks = tasks.filter(
-    (task) => task.status !== "done" && task.status !== "cancelled",
+  const openTasks = tasks.filter((task) =>
+    isTaskUnfinished(task.status),
   ).length;
 
   return [
@@ -474,12 +475,7 @@ function buildAttentionItems(
     )
     .slice(0, 2);
   const urgentTasks = tasks
-    .filter(
-      (task) =>
-        task.priority === "high" &&
-        task.status !== "done" &&
-        task.status !== "cancelled",
-    )
+    .filter((task) => task.isPriority && isTaskUnfinished(task.status))
     .slice(0, Math.max(3 - blockedRouteItems.length, 1));
   const items: AttentionItem[] = [
     ...blockedRouteItems.map(({ route, item }) => ({

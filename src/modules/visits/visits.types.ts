@@ -1,4 +1,4 @@
-import type { TaskPriority, TaskStatus, VisitStatus } from "@prisma/client";
+import type { TaskStatus, VisitStatus } from "@prisma/client";
 
 export type VisitResponse = {
   id: string;
@@ -95,7 +95,7 @@ export type ReportCreatedTask = {
   id: string;
   title: string;
   status: TaskStatus;
-  priority: TaskPriority;
+  isPriority: boolean;
   assignedToUserId: string | null;
   dueDate: string | null;
 };

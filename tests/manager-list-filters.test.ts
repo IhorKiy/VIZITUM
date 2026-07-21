@@ -71,17 +71,17 @@ describe("manager list filters", () => {
       assignedToUserId: "rep-a",
       dueFrom: "2026-07-01",
       dueTo: "2026-07-05",
-      priority: "high",
+      isPriority: true,
       routePlanId: "route-a",
-      status: "open",
+      status: "in_progress",
     });
 
     assert.deepEqual(capturedWhere, {
       tenantId: "tenant-a",
       deletedAt: null,
       assignedToUserId: "rep-a",
-      status: "open",
-      priority: "high",
+      status: "in_progress",
+      isPriority: true,
       visit: {
         tenantId: "tenant-a",
         routeItem: {
@@ -105,8 +105,8 @@ describe("manager list filters", () => {
             id: "task-a",
             title: "Check display",
             description: "Confirm shelf placement.",
-            status: "open",
-            priority: "high",
+            status: "in_progress",
+            isPriority: true,
             assignedToUserId: "rep-a",
             assignedTo: {
               id: "rep-a",
@@ -114,6 +114,11 @@ describe("manager list filters", () => {
               name: "Field Rep",
             },
             createdByUserId: "manager-a",
+            createdBy: {
+              id: "manager-a",
+              email: "manager@example.com",
+              name: "Manager",
+            },
             locationId: "location-a",
             location: {
               id: "location-a",
@@ -127,6 +132,7 @@ describe("manager list filters", () => {
             completedAt: null,
             createdAt,
             updatedAt: createdAt,
+            statusHistory: [],
           },
         ],
         count: async () => 1,

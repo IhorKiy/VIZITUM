@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma, RoleCode, TaskPriority } from "@prisma/client";
+import type { Prisma, RoleCode } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
 import { PrismaService } from "../prisma/prisma.service";
@@ -242,7 +242,7 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
       {
         key: "task_priority",
         required: false,
-        description: "Optional task priority: low, normal or high.",
+        description: "Optional task priority: normal or priority.",
       },
     ],
     validations: [
@@ -921,7 +921,7 @@ export class ImportsService {
           data: {
             tenantId: context.tenantId,
             title: taskTitle,
-            priority: parseTaskPriority(row.task_priority),
+            isPriority: parseTaskIsPriority(row.task_priority),
             assignedToUserId: representative.id,
             createdByUserId: context.userId,
             locationId: location.id,
@@ -1584,7 +1584,7 @@ export class ImportsService {
       addDateIssue(issues, row, rowNumber, "task_due_date");
       addTimeIssue(issues, row, rowNumber, "planned_start_time");
       addTimeIssue(issues, row, rowNumber, "planned_end_time");
-      addTaskPriorityIssue(issues, row, rowNumber);
+      addTaskIsPriorityIssue(issues, row, rowNumber);
 
       const sequence = normalizeValue(row.sequence);
       const sequenceKey = compositeKey(row, [
@@ -1840,18 +1840,8 @@ function optionalPlanDateTime(
   return new Date(`${requiredString(dateValue)}T${normalizedTime}:00.000Z`);
 }
 
-function parseTaskPriority(value: string | undefined): TaskPriority {
-  const normalizedValue = normalizeValue(value);
-
-  if (
-    normalizedValue === "low" ||
-    normalizedValue === "normal" ||
-    normalizedValue === "high"
-  ) {
-    return normalizedValue;
-  }
-
-  return "normal";
+function parseTaskIsPriority(value: string | undefined): boolean {
+  return normalizeValue(value) === "priority";
 }
 
 function throwStoredImportInvalid(): never {
@@ -2105,7 +2095,7 @@ function addTimeIssue(
   }
 }
 
-function addTaskPriorityIssue(
+function addTaskIsPriorityIssue(
   issues: ImportPreviewIssue[],
   row: ParsedImportRow,
   rowNumber: number,
@@ -2116,14 +2106,14 @@ function addTaskPriorityIssue(
     return;
   }
 
-  if (value !== "low" && value !== "normal" && value !== "high") {
+  if (value !== "normal" && value !== "priority") {
     issues.push(
       createIssue(
         rowNumber,
         "task_priority",
         "error",
         "TASK_PRIORITY_INVALID",
-        "Task priority must be low, normal or high.",
+        "Task priority must be normal or priority.",
         row.task_priority,
       ),
     );

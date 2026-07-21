@@ -343,6 +343,10 @@ export class TenantPurgeService {
       { table: "ai_jobs", delegate: this.prisma.aiJob },
       { table: "import_row_issues", delegate: this.prisma.importRowIssue },
       { table: "import_jobs", delegate: this.prisma.importJob },
+      {
+        table: "task_status_history",
+        delegate: this.prisma.taskStatusHistory,
+      },
       { table: "tasks", delegate: this.prisma.task },
       { table: "visit_notes", delegate: this.prisma.visitNote },
       { table: "reports", delegate: this.prisma.report },

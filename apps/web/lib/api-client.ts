@@ -23,8 +23,7 @@ export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";
 export type RouteStatus =
   "draft" | "published" | "in_progress" | "completed" | "cancelled";
 export type RouteItemStatus = "planned" | "visited" | "skipped";
-export type TaskStatus = "open" | "in_progress" | "done" | "cancelled";
-export type TaskPriority = "low" | "normal" | "high";
+export type TaskStatus = "in_progress" | "done";
 export type TenantRoleCode =
   | "tenant_superadmin"
   | "company_admin"
@@ -306,12 +305,25 @@ export type RouteTemplate = {
   }>;
 };
 
+export type TaskStatusHistoryEntry = {
+  id: string;
+  changedByUserId: string | null;
+  changedBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  oldStatus: TaskStatus | null;
+  newStatus: TaskStatus;
+  createdAt: string;
+};
+
 export type Task = {
   id: string;
   title: string;
   description: string | null;
   status: TaskStatus;
-  priority: TaskPriority;
+  isPriority: boolean;
   assignedToUserId: string | null;
   assignedTo: {
     id: string;
@@ -319,6 +331,11 @@ export type Task = {
     name: string;
   } | null;
   createdByUserId: string | null;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
   locationId: string | null;
   location: {
     id: string;
@@ -332,6 +349,7 @@ export type Task = {
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  history: TaskStatusHistoryEntry[];
 };
 
 export type TenantUser = {
@@ -1394,7 +1412,7 @@ export async function deleteAdminUser(
 export async function createTask(input: {
   title: string;
   description?: string;
-  priority: TaskPriority;
+  isPriority?: boolean;
   assignedToUserId?: string;
   locationId?: string;
   dueDate?: string;
@@ -1406,7 +1424,7 @@ export async function updateTask(
   taskId: string,
   input: {
     status?: TaskStatus;
-    priority?: TaskPriority;
+    isPriority?: boolean;
     dueDate?: string | null;
     description?: string | null;
   },
@@ -1420,10 +1438,10 @@ export async function deleteTask(
   return apiDelete<{ deleted: true }>(`/tasks/${taskId}`);
 }
 
-export async function listHighPriorityTasks(): Promise<
+export async function listPriorityTasks(): Promise<
   ApiResult<PaginatedResponse<Task>>
 > {
-  return listTasks("pageSize=50&priority=high");
+  return listTasks("pageSize=50&isPriority=true");
 }
 
 export async function listImportTemplates(): Promise<

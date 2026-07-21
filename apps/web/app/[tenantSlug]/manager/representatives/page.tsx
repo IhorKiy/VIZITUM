@@ -28,6 +28,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { formatDateTime, normalizeFilterValue } from "../../../../lib/format";
+import { isTaskUnfinished } from "../../../../lib/task-status";
 
 type ManagerRepresentativesPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -375,7 +376,7 @@ function buildRepresentativeSummaries(
     const summary = getRepresentativeSummary(summaries, task.assignedTo);
     summary.taskCount += 1;
 
-    if (task.status === "open" || task.status === "in_progress") {
+    if (isTaskUnfinished(task.status)) {
       summary.openTaskCount += 1;
     }
 
