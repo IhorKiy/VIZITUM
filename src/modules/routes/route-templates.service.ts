@@ -480,13 +480,21 @@ export class RouteTemplatesService {
             gte: monthStart(month),
             lt: monthStart(nextMonth),
           },
+          routeTemplateId: { not: null },
         },
-        select: { planDate: true },
+        select: { planDate: true, routeTemplateId: true },
       }),
     ]);
 
-    const occupiedDates = new Set(
-      existingPlans.map((plan) => dateKey(plan.planDate)),
+    // Occupancy is keyed by (date, template) — matching the partial unique
+    // index (route_plans_rep_date_template_key) — not by date alone, so
+    // copying a template onto a day that already has a *different* template
+    // assigned still succeeds; only re-copying the same template onto a day
+    // that already has it is skipped.
+    const occupiedTemplateDates = new Set(
+      existingPlans.map((plan) =>
+        occupancyKey(plan.planDate, plan.routeTemplateId),
+      ),
     );
     const templateIds = [
       ...new Set(
@@ -512,7 +520,11 @@ export class RouteTemplatesService {
         continue;
       }
 
-      if (occupiedDates.has(dateKey(targetDate))) {
+      if (
+        occupiedTemplateDates.has(
+          occupancyKey(targetDate, sourcePlan.routeTemplateId),
+        )
+      ) {
         skippedCount += 1;
         continue;
       }
@@ -530,13 +542,15 @@ export class RouteTemplatesService {
           template,
           targetDate,
         );
-        occupiedDates.add(dateKey(targetDate));
+        occupiedTemplateDates.add(
+          occupancyKey(targetDate, sourcePlan.routeTemplateId),
+        );
         createdCount += 1;
       } catch (error) {
         // A concurrent assign (another tab, a manager) can still take this
-        // exact date between the occupied-dates snapshot above and this
-        // create — treat it the same as any other already-planned day
-        // instead of aborting the rest of the batch with a 409.
+        // exact (date, template) pair between the occupied snapshot above
+        // and this create — treat it the same as any other already-planned
+        // day instead of aborting the rest of the batch with a 409.
         if (error instanceof ConflictException) {
           skippedCount += 1;
           continue;
@@ -593,15 +607,18 @@ export class RouteTemplatesService {
 
       return toRoutePlanResponse(plan);
     } catch (error) {
-      // Guards against a duplicate assign racing this exact (rep, date) pair
-      // in between the caller's own existence check and this create.
+      // route_plans_rep_date_template_key (partial unique on
+      // routeTemplateId IS NOT NULL) allows several different templates on
+      // the same day but still blocks assigning this exact template twice —
+      // guards against both a duplicate assign racing this exact (rep, date,
+      // template) triple and a caller double-submitting the same assignment.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
         throw new ConflictException({
           code: "ROUTE_PLAN_ALREADY_EXISTS",
-          message: "A route is already planned for this date.",
+          message: "This route is already planned for this date.",
         });
       }
 
@@ -761,6 +778,10 @@ function monthStart(month: string): Date {
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function occupancyKey(date: Date, routeTemplateId: string | null): string {
+  return `${dateKey(date)}::${routeTemplateId ?? ""}`;
 }
 
 function shiftMonth(month: string, delta: number): string {

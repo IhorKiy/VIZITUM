@@ -853,13 +853,19 @@ export class ImportsService {
         row.location_name,
       );
       const planDate = parseDateOnly(row.plan_date);
-      const existingPlan = await transaction.routePlan.findUnique({
+      // Imported plans are always template-less, so they fall under the
+      // partial unique index scoped to routeTemplateId IS NULL
+      // (route_plans_rep_date_no_template_key) — the compound
+      // tenantId_representativeUserId_planDate key this used to look up no
+      // longer exists now that a representative can hold several
+      // template-based plans on the same day (see the
+      // 20260721000000_route_plan_multi_per_day migration).
+      const existingPlan = await transaction.routePlan.findFirst({
         where: {
-          tenantId_representativeUserId_planDate: {
-            tenantId: context.tenantId,
-            representativeUserId: representative.id,
-            planDate,
-          },
+          tenantId: context.tenantId,
+          representativeUserId: representative.id,
+          planDate,
+          routeTemplateId: null,
         },
         select: { id: true },
       });

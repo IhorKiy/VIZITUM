@@ -3,14 +3,17 @@
 import { useTranslations } from "next-intl";
 
 import { ConfirmActionButton } from "./confirm-action-button";
+import { TrashIcon } from "./icons";
 
 type UnassignRouteButtonProps = {
   routePlanId: string;
+  routeName: string;
   unassignAction: (formData: FormData) => Promise<void>;
 };
 
 export function UnassignRouteButton({
   routePlanId,
+  routeName,
   unassignAction,
 }: UnassignRouteButtonProps) {
   const t = useTranslations("field.planning");
@@ -27,14 +30,17 @@ export function UnassignRouteButton({
       promptText={t("unassignRoutePrompt")}
       renderTrigger={({ onClick, ref }) => (
         <button
-          className="secondary-button danger"
+          aria-label={t("unassignRouteAria", { name: routeName })}
+          className="name-edit-button is-danger"
           onClick={onClick}
           ref={ref}
+          title={t("unassignRoute")}
           type="button"
         >
-          {t("unassignRoute")}
+          <TrashIcon />
         </button>
       )}
+      variantClassName="confirm-action-inline"
     />
   );
 }

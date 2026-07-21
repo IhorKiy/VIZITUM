@@ -859,7 +859,7 @@ describe("route template assignment", () => {
     ]);
   });
 
-  it("rejects assigning to a date that already has a plan with a 409", async () => {
+  it("rejects assigning the same template twice to the same date with a 409", async () => {
     const template = buildTemplate();
     const prisma = {
       routeTemplate: { findFirst: async () => template },
@@ -883,6 +883,49 @@ describe("route template assignment", () => {
         return true;
       },
     );
+  });
+
+  it("allows assigning a different template to a date that already has a plan", async () => {
+    // route_plans_rep_date_template_key is partial (WHERE routeTemplateId IS
+    // NOT NULL) and scoped to (tenantId, representativeUserId, planDate,
+    // routeTemplateId), so a second, different template for the same day
+    // just creates another row — no P2002, no special-casing needed here.
+    const template = buildTemplate({ id: "template-b", name: "Left Bank" });
+    const createdPlan = buildMaterializedPlan({
+      id: "plan-second",
+      routeTemplateId: "template-b",
+      routeTemplate: { id: "template-b", name: "Left Bank" },
+    });
+    const prisma = {
+      routeTemplate: { findFirst: async () => template },
+      user: { findFirst: async () => activeRepUser },
+      $transaction: async (
+        callback: (tx: {
+          routePlan: {
+            create: (args: unknown) => Promise<{ id: string }>;
+            findUniqueOrThrow: () => Promise<typeof createdPlan>;
+          };
+          routeItem: { createMany: (args: unknown) => Promise<unknown> };
+        }) => Promise<unknown>,
+      ) =>
+        callback({
+          routePlan: {
+            create: async () => ({ id: "plan-second" }),
+            findUniqueOrThrow: async () => createdPlan,
+          },
+          routeItem: { createMany: async () => ({ count: 0 }) },
+        }),
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    const response = await service.assignRouteTemplate(
+      representativeContext as never,
+      "template-b",
+      { planDate: "2026-07-20" },
+    );
+
+    assert.equal(response.id, "plan-second");
+    assert.equal(response.routeTemplateId, "template-b");
   });
 
   it("rejects an assign call with a missing or malformed plan date", async () => {
@@ -953,20 +996,28 @@ describe("route plan copy-month", () => {
       },
     ];
     const existingPlansInTargetMonth = [
-      { planDate: new Date("2026-09-10T00:00:00.000Z") },
+      // Same template as the Aug 10 source day -> genuinely a duplicate,
+      // still skipped. (A different template on Sep 10 would NOT block this
+      // copy — see the "different template" test below.)
+      { planDate: new Date("2026-09-10T00:00:00.000Z"), routeTemplateId: "template-a" },
     ];
     const template = buildTemplate({ items: [buildTemplateItem()] });
     const createdPlanDates: string[] = [];
     const findManyWheres: Array<Record<string, unknown>> = [];
     let templateFindManyCallCount = 0;
+    let routePlanFindManyCallCount = 0;
     const prisma = {
       user: { findFirst: async () => activeRepUser },
       routePlan: {
         findMany: async (query: { where: Record<string, unknown> }) => {
           findManyWheres.push(query.where);
-          // The source-days query is the only one filtered on
-          // routeTemplateId; the occupied-days query only scopes by date.
-          return query.where.routeTemplateId
+          routePlanFindManyCallCount += 1;
+          // Promise.all evaluates the source-days and occupied-days queries
+          // in registration order, so the first call is always the source
+          // query and the second the occupied one — both now filter on
+          // routeTemplateId: { not: null }, so that can no longer be used to
+          // tell them apart the way a routeTemplateId-truthiness check did.
+          return routePlanFindManyCallCount === 1
             ? sourcePlans
             : existingPlansInTargetMonth;
         },
@@ -1025,6 +1076,68 @@ describe("route plan copy-month", () => {
     assert.equal(templateFindManyCallCount, 1);
   });
 
+  it("copies a template onto a target day that already has a different template assigned", async () => {
+    const sourcePlans = [
+      {
+        planDate: new Date("2026-08-05T00:00:00.000Z"),
+        routeTemplateId: "template-a",
+      },
+    ];
+    const existingPlansInTargetMonth = [
+      // Different template than the one being copied -> must NOT block it.
+      { planDate: new Date("2026-09-05T00:00:00.000Z"), routeTemplateId: "template-b" },
+    ];
+    const template = buildTemplate({ items: [] });
+    const createdPlanDates: string[] = [];
+    let routePlanFindManyCallCount = 0;
+    const prisma = {
+      user: { findFirst: async () => activeRepUser },
+      routePlan: {
+        findMany: async () => {
+          routePlanFindManyCallCount += 1;
+          return routePlanFindManyCallCount === 1
+            ? sourcePlans
+            : existingPlansInTargetMonth;
+        },
+      },
+      routeTemplate: {
+        findMany: async () => [template],
+      },
+      $transaction: async (
+        callback: (tx: {
+          routePlan: {
+            create: (args: {
+              data: { planDate: Date };
+            }) => Promise<{ id: string }>;
+            findUniqueOrThrow: () => Promise<Record<string, unknown>>;
+          };
+          routeItem: { createMany: () => Promise<unknown> };
+        }) => Promise<unknown>,
+      ) =>
+        callback({
+          routePlan: {
+            create: async (args: { data: { planDate: Date } }) => {
+              createdPlanDates.push(
+                args.data.planDate.toISOString().slice(0, 10),
+              );
+              return { id: "plan-x" };
+            },
+            findUniqueOrThrow: async () => buildMaterializedPlan(),
+          },
+          routeItem: { createMany: async () => ({ count: 0 }) },
+        }),
+    };
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    const result = await service.copyRoutePlans(
+      representativeContext as never,
+      { month: "2026-09" },
+    );
+
+    assert.deepEqual(result, { createdCount: 1, skippedCount: 0 });
+    assert.deepEqual(createdPlanDates, ["2026-09-05"]);
+  });
+
   it("counts a concurrent assign race as skipped instead of aborting the rest of the batch", async () => {
     const sourcePlans = [
       {
@@ -1038,11 +1151,14 @@ describe("route plan copy-month", () => {
     ];
     const template = buildTemplate({ items: [] });
     let transactionCallCount = 0;
+    let routePlanFindManyCallCount = 0;
     const prisma = {
       user: { findFirst: async () => activeRepUser },
       routePlan: {
-        findMany: async (query: { where: Record<string, unknown> }) =>
-          query.where.routeTemplateId ? sourcePlans : [],
+        findMany: async () => {
+          routePlanFindManyCallCount += 1;
+          return routePlanFindManyCallCount === 1 ? sourcePlans : [];
+        },
       },
       routeTemplate: {
         findMany: async () => [template],

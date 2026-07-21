@@ -143,25 +143,54 @@ export class RoutesService {
       representativeUserId,
     );
 
-    const plan = await this.prisma.routePlan.upsert({
+    // Get-or-create against the partial unique index scoped to
+    // routeTemplateId IS NULL (route_plans_rep_date_no_template_key) — a
+    // representative can hold several template-based plans on the same day
+    // now, but still at most one template-less manual plan, so this can no
+    // longer upsert on a plain (tenantId, representativeUserId, planDate)
+    // compound key the way it did before that index was split in two (see
+    // the 20260721000000_route_plan_multi_per_day migration).
+    const existingPlan = await this.prisma.routePlan.findFirst({
       where: {
-        tenantId_representativeUserId_planDate: {
-          tenantId: context.tenantId,
-          representativeUserId,
-          planDate,
-        },
-      },
-      create: {
         tenantId: context.tenantId,
         representativeUserId,
         planDate,
-        createdByUserId: context.userId,
+        routeTemplateId: null,
       },
-      update: {},
       include: routePlanInclude,
     });
 
-    return toRoutePlanResponse(plan);
+    if (existingPlan) {
+      return toRoutePlanResponse(existingPlan);
+    }
+
+    try {
+      const plan = await this.prisma.routePlan.create({
+        data: {
+          tenantId: context.tenantId,
+          representativeUserId,
+          planDate,
+          createdByUserId: context.userId,
+        },
+        include: routePlanInclude,
+      });
+
+      return toRoutePlanResponse(plan);
+    } catch (error) {
+      // Guards against a concurrent create racing this exact (rep, date)
+      // pair between the findFirst above and this create.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictException({
+          code: "ROUTE_PLAN_ALREADY_EXISTS",
+          message: "A route is already planned for this date.",
+        });
+      }
+
+      throw error;
+    }
   }
 
   async updateRoutePlan(
