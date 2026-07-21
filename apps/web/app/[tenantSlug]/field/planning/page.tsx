@@ -3,11 +3,12 @@ import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { AssignRouteButton } from "../../../../components/assign-route-button";
+import { CopyLastMonthButton } from "../../../../components/copy-last-month-button";
 import { DeleteRouteButton } from "../../../../components/delete-route-button";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import {
   CalendarIcon,
-  CopyIcon,
   GripIcon,
   MapPinIcon,
   RouteIcon,
@@ -298,9 +299,21 @@ export default async function PlanningPage({
   // sees their own routes here — without it, the backend treats an omitted
   // filter as "team view" and requires the param instead of defaulting to self.
   const ownRepresentativeQuery = `representativeUserId=${sessionResult.data.user.id}`;
+  // This fetches the rep's whole plan history/future in one page, not just
+  // the visible month — listRoutes has no date-range filter, only an exact
+  // planDate — so plannedDates/daysPlannedThisMonth/selectedPlans below are
+  // all derived by filtering this one page client-side. The requested
+  // pageSize is capped server-side at MAX_PAGE_SIZE (100, see
+  // src/common/pagination.ts) regardless of what's asked for here, so this
+  // already only ever sees the rep's 100 most recent plans (by planDate).
+  // Now that a day can hold several plans (one per template) instead of
+  // one, that window shrinks proportionally: a rep assigning N templates to
+  // every day exhausts it in ~100/N days instead of 100. There's no cheap
+  // fix from this file alone — the real fix is a server-side date-range
+  // filter on GET /routes so this only requests the visible month.
   const [templatesResult, routesResult, locationsResult] = await Promise.all([
     listRouteTemplates(`pageSize=100&${ownRepresentativeQuery}`),
-    listRoutes(`pageSize=200&${ownRepresentativeQuery}`),
+    listRoutes(`pageSize=100&${ownRepresentativeQuery}`),
     listLocations(),
   ]);
   const routeTemplates = templatesResult.ok ? templatesResult.data.items : [];
@@ -313,13 +326,19 @@ export default async function PlanningPage({
       ? routeTemplates.find((item) => item.id === route)
       : undefined;
 
-  const selectedPlan = routePlans.find(
+  // A day can now hold several route plans (one per distinct template), so
+  // this is an array, not a single find() — and daysPlannedThisMonth counts
+  // distinct planDates, not plan rows, or a day with two plans would count
+  // as two "days planned".
+  const selectedPlans = routePlans.filter(
     (plan) => plan.planDate === selectedDate,
   );
   const plannedDates = new Set(routePlans.map((plan) => plan.planDate));
-  const daysPlannedThisMonth = routePlans.filter((plan) =>
-    plan.planDate.startsWith(currentMonth),
-  ).length;
+  const daysPlannedThisMonth = new Set(
+    routePlans
+      .filter((plan) => plan.planDate.startsWith(currentMonth))
+      .map((plan) => plan.planDate),
+  ).size;
 
   const grid = buildMonthGrid(currentMonth, format);
   const prevMonth = shiftMonth(currentMonth, -1);
@@ -335,7 +354,9 @@ export default async function PlanningPage({
         <>
           <header className="page-header">
             <div>
-              <h1>{t("title")}</h1>
+              <h1>
+                {activeTab === "planning" ? t("planningTab") : t("title")}
+              </h1>
               <p>{formatLongDate(todayString(), format)}</p>
             </div>
           </header>
@@ -394,7 +415,7 @@ export default async function PlanningPage({
           prevMonth={prevMonth}
           routeTemplates={routeTemplates}
           selectedDate={selectedDate}
-          selectedPlan={selectedPlan}
+          selectedPlans={selectedPlans}
           t={t}
           tenantSlug={tenantSlug}
           unassignRoutePlanAction={unassignRoutePlanAction}
@@ -578,74 +599,53 @@ function RoutesTabView({
     );
   }
 
-  const totalStopsCount = new Set(
-    routeTemplates.flatMap((item) => item.items.map((stop) => stop.locationId)),
-  ).size;
-
   return (
     <>
       {statusNotice}
-      <div className="toolbar route-add-toolbar">
+      <div className="panel">
         <Link
-          className="primary-button"
+          className="dashed-action-button route-add-trigger"
           href={routesTabHref(tenantSlug, "new")}
         >
           + {t("addRoute")}
         </Link>
+
+        {routeTemplates.length > 0 ? (
+          <>
+            <p className="small-label route-count-label">
+              {t("routesCountLabel", { count: routeTemplates.length })}
+            </p>
+            <ul className="route-card-list">
+              {routeTemplates.map((routeTemplate) => (
+                <li key={routeTemplate.id}>
+                  <Link
+                    className="route-card"
+                    href={routesTabHref(tenantSlug, routeTemplate.id)}
+                  >
+                    <span className="route-card-icon" aria-hidden="true">
+                      <RouteIcon />
+                    </span>
+                    <span className="route-card-body">
+                      <h3>{routeTemplate.name}</h3>
+                      <span className="route-card-meta">
+                        <MapPinIcon />
+                        {t("routeStopsCount", {
+                          count: routeTemplate.items.length,
+                        })}
+                      </span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <div className="empty-state-panel">
+            <h2>{t("emptyRoutesTitle")}</h2>
+            <p>{t("emptyRoutesBody")}</p>
+          </div>
+        )}
       </div>
-
-      <section className="manager-grid" aria-label={t("routesMetricsAria")}>
-        <article className="metric-card">
-          <p className="metric-label">{t("totalStopsMetric")}</p>
-          <p className="metric-value">{totalStopsCount}</p>
-          <p className="small-label">
-            {t("pointsUnit", { count: totalStopsCount })}
-          </p>
-        </article>
-        <Link className="metric-card" href={`/${tenantSlug}/field/general`}>
-          <header>
-            <p className="metric-label">{t("myLocationsMetric")}</p>
-            <span className="metric-card-chevron" aria-hidden="true">
-              ›
-            </span>
-          </header>
-          <p className="metric-value">{locations.length}</p>
-          <p className="small-label">
-            {t("pointsUnit", { count: locations.length })}
-          </p>
-        </Link>
-      </section>
-
-      {routeTemplates.length > 0 ? (
-        <ul className="route-card-list">
-          {routeTemplates.map((routeTemplate) => (
-            <li key={routeTemplate.id}>
-              <Link
-                className="route-card"
-                href={routesTabHref(tenantSlug, routeTemplate.id)}
-              >
-                <span className="route-card-icon" aria-hidden="true">
-                  <RouteIcon />
-                </span>
-                <span className="route-card-body">
-                  <h3>{routeTemplate.name}</h3>
-                  <span className="route-card-meta">
-                    <MapPinIcon />
-                    {t("routeStopsCount", {
-                      count: routeTemplate.items.length,
-                    })}
-                  </span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="empty-state-panel">
-          <h2>{t("emptyRoutesTitle")}</h2>
-          <p>{t("emptyRoutesBody")}</p>
-        </div>
-      )}
     </>
   );
 }
@@ -663,7 +663,7 @@ function PlanningTabView({
   prevMonth,
   routeTemplates,
   selectedDate,
-  selectedPlan,
+  selectedPlans,
   t,
   tenantSlug,
   unassignRoutePlanAction,
@@ -681,13 +681,17 @@ function PlanningTabView({
   prevMonth: string;
   routeTemplates: RouteTemplate[];
   selectedDate: string;
-  selectedPlan: RoutePlan | undefined;
+  selectedPlans: RoutePlan[];
   t: PlanningTranslator;
   tenantSlug: string;
   unassignRoutePlanAction: ServerAction;
   weekdayLabels: string[];
 }) {
   const statusNotice = buildPlanningStatusNotice(planningStatus, t);
+  const assignableRouteTemplates = availableRouteTemplates(
+    routeTemplates,
+    selectedPlans,
+  );
 
   return (
     <>
@@ -695,7 +699,7 @@ function PlanningTabView({
       <div className="panel">
         <div className="route-section-head">
           <Link
-            className="secondary-button"
+            className="secondary-button is-accent"
             href={monthHref(tenantSlug, prevMonth, selectedDate)}
             aria-label={t("previousMonth")}
           >
@@ -703,27 +707,22 @@ function PlanningTabView({
           </Link>
           <h2>{grid.label}</h2>
           <Link
-            className="secondary-button"
+            className="secondary-button is-accent"
             href={monthHref(tenantSlug, nextMonth, selectedDate)}
             aria-label={t("nextMonth")}
           >
             ›
           </Link>
         </div>
-        <p className="small-label">
-          {t("daysPlannedLabel", { count: daysPlannedThisMonth })}
-        </p>
-
-        <form action={copyRoutePlansAction}>
-          <input name="month" type="hidden" value={currentMonth} />
-          <PendingSubmitButton
-            className="dashed-action-button"
-            pendingLabel={t("copyingMonth")}
-          >
-            <CopyIcon />
-            {t("monthCopyAction")}
-          </PendingSubmitButton>
-        </form>
+        <div className="days-planned-row">
+          <p className="small-label">
+            {t("daysPlannedLabel", { count: daysPlannedThisMonth })}
+          </p>
+          <CopyLastMonthButton
+            copyAction={copyRoutePlansAction}
+            month={currentMonth}
+          />
+        </div>
 
         <div className="calendar-grid">
           {weekdayLabels.map((weekday) => (
@@ -759,69 +758,52 @@ function PlanningTabView({
       </div>
 
       <div className="panel" aria-label={t("selectedDayAria")}>
-        <div className="route-card-meta">
-          <CalendarIcon />
-          {t("todayLegend")}
-        </div>
+        {selectedDate === todayString() ? (
+          <div className="route-card-meta">
+            <CalendarIcon />
+            {t("todayLegend")}
+          </div>
+        ) : null}
         <h2>{formatLongDate(selectedDate, format)}</h2>
 
-        {selectedPlan ? (
-          <>
-            <p className="small-label">
-              {selectedPlan.routeTemplate?.name ?? t("assignedPlanNoTemplate")}
-            </p>
-            {selectedPlan.items.length > 0 ? (
-              <ol className="route-stop-list">
-                {selectedPlan.items.map((stop, index) => (
-                  <li className="route-stop" key={stop.id}>
-                    <span className="route-stop-index" aria-hidden="true">
-                      {index + 1}
-                    </span>
-                    <div className="route-stop-body">
-                      <h3>{stop.location.name}</h3>
-                      <p className="visit-meta">
-                        {[stop.location.addressLine, stop.location.city]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="empty-state">{t("noStops")}</p>
-            )}
-            {selectedPlan.status === "draft" ? (
-              <UnassignRouteButton
-                routePlanId={selectedPlan.id}
-                unassignAction={unassignRoutePlanAction}
-              />
-            ) : null}
-          </>
-        ) : routeTemplates.length > 0 ? (
-          <form
-            action={assignRouteTemplateAction}
-            className="visit-form compact"
-          >
-            <input name="planDate" type="hidden" value={selectedDate} />
-            <label>
-              {t("assignRouteSelectLabel")}
-              <select name="routeTemplateId" required>
-                {routeTemplates.map((routeTemplate) => (
-                  <option key={routeTemplate.id} value={routeTemplate.id}>
-                    {routeTemplate.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <PendingSubmitButton
-              className="dashed-action-button"
-              pendingLabel={t("assigningRoute")}
-            >
-              + {t("assignRoute")}
-            </PendingSubmitButton>
-          </form>
-        ) : (
+        {selectedPlans.length > 0 ? (
+          <ul className="route-card-list">
+            {selectedPlans.map((plan) => (
+              <li className="route-card" key={plan.id}>
+                <span className="route-card-icon" aria-hidden="true">
+                  <RouteIcon />
+                </span>
+                <span className="route-card-body">
+                  <h3>
+                    {plan.routeTemplate?.name ?? t("assignedPlanNoTemplate")}
+                  </h3>
+                  <span className="route-card-meta">
+                    <MapPinIcon />
+                    {t("routeStopsCount", { count: plan.items.length })}
+                  </span>
+                </span>
+                {plan.status === "draft" ? (
+                  <UnassignRouteButton
+                    routePlanId={plan.id}
+                    routeName={
+                      plan.routeTemplate?.name ?? t("assignedPlanNoTemplate")
+                    }
+                    unassignAction={unassignRoutePlanAction}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {assignableRouteTemplates.length > 0 ? (
+          <AssignRouteButton
+            assignAction={assignRouteTemplateAction}
+            hasExistingPlans={selectedPlans.length > 0}
+            planDate={selectedDate}
+            routeTemplates={assignableRouteTemplates}
+          />
+        ) : selectedPlans.length === 0 ? (
           <div className="empty-state-panel">
             <h2>{t("emptyRoutesTitle")}</h2>
             <p>{t("noTemplatesForAssignBody")}</p>
@@ -829,9 +811,27 @@ function PlanningTabView({
               {t("goToRoutesTab")}
             </Link>
           </div>
-        )}
+        ) : null}
       </div>
     </>
+  );
+}
+
+// Templates not already assigned to this day — keeps the "add another
+// route" select from offering (and the backend from rejecting with a 409)
+// the same template twice on one day.
+function availableRouteTemplates(
+  routeTemplates: RouteTemplate[],
+  selectedPlans: RoutePlan[],
+): RouteTemplate[] {
+  const assignedTemplateIds = new Set(
+    selectedPlans
+      .map((plan) => plan.routeTemplateId)
+      .filter((id): id is string => id !== null),
+  );
+
+  return routeTemplates.filter(
+    (template) => !assignedTemplateIds.has(template.id),
   );
 }
 

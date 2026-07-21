@@ -27,6 +27,7 @@ import {
   throwAuthenticationContextMissing,
 } from "./route-access";
 import {
+  isUniqueConstraintViolation,
   normalizeId,
   normalizeIdList,
   normalizePositiveInteger,
@@ -143,25 +144,69 @@ export class RoutesService {
       representativeUserId,
     );
 
-    const plan = await this.prisma.routePlan.upsert({
+    // Get-or-create against the partial unique index scoped to
+    // routeTemplateId IS NULL (route_plans_rep_date_no_template_key) — a
+    // representative can hold several template-based plans on the same day
+    // now, but still at most one template-less manual plan, so this can no
+    // longer upsert on a plain (tenantId, representativeUserId, planDate)
+    // compound key the way it did before that index was split in two (see
+    // the 20260721062916_route_plan_multi_per_day migration).
+    const existingPlan = await this.prisma.routePlan.findFirst({
       where: {
-        tenantId_representativeUserId_planDate: {
-          tenantId: context.tenantId,
-          representativeUserId,
-          planDate,
-        },
-      },
-      create: {
         tenantId: context.tenantId,
         representativeUserId,
         planDate,
-        createdByUserId: context.userId,
+        routeTemplateId: null,
       },
-      update: {},
       include: routePlanInclude,
     });
 
-    return toRoutePlanResponse(plan);
+    if (existingPlan) {
+      return toRoutePlanResponse(existingPlan);
+    }
+
+    try {
+      const plan = await this.prisma.routePlan.create({
+        data: {
+          tenantId: context.tenantId,
+          representativeUserId,
+          planDate,
+          createdByUserId: context.userId,
+        },
+        include: routePlanInclude,
+      });
+
+      return toRoutePlanResponse(plan);
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        // A concurrent create raced this exact (rep, date) pair between the
+        // findFirst above and this create. The upsert this replaced was
+        // atomic and returned the existing row on a race instead of
+        // erroring — re-fetch the winner's row here so this endpoint keeps
+        // that same get-or-create behavior rather than surfacing the race
+        // as a 409.
+        const racedPlan = await this.prisma.routePlan.findFirst({
+          where: {
+            tenantId: context.tenantId,
+            representativeUserId,
+            planDate,
+            routeTemplateId: null,
+          },
+          include: routePlanInclude,
+        });
+
+        if (racedPlan) {
+          return toRoutePlanResponse(racedPlan);
+        }
+
+        throw new ConflictException({
+          code: "ROUTE_PLAN_ALREADY_EXISTS",
+          message: "A route is already planned for this date.",
+        });
+      }
+
+      throw error;
+    }
   }
 
   async updateRoutePlan(
@@ -428,10 +473,7 @@ export const routePlanInclude = {
 // without this the unique (tenantId, routePlanId, sequence) index would
 // surface as an unhandled 500 instead of a 409 the client can react to.
 function toSequenceConflictOrRethrow(error: unknown): unknown {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  ) {
+  if (isUniqueConstraintViolation(error)) {
     return new ConflictException({
       code: "ROUTE_ITEM_SEQUENCE_TAKEN",
       message: "Another stop already uses that position in this route.",

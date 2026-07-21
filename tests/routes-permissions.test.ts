@@ -158,6 +158,103 @@ describe("routes permissions", () => {
     );
   });
 
+  it("creates a new template-less plan when the representative has none for that date yet", async () => {
+    const createdPlan = buildFullPlan("rep-a");
+    const prisma = {
+      user: { findFirst: async () => ({ id: "rep-a" }) },
+      routePlan: {
+        findFirst: async () => null,
+        create: async () => createdPlan,
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    const response = await service.createRoutePlan(
+      representativeContext as never,
+      { representativeUserId: "rep-a", planDate: "2026-07-03" },
+    );
+
+    assert.equal(response.id, "plan-a");
+  });
+
+  it("returns the existing template-less plan directly instead of creating a duplicate", async () => {
+    const existingPlan = buildFullPlan("rep-a");
+    const prisma = {
+      user: { findFirst: async () => ({ id: "rep-a" }) },
+      routePlan: {
+        findFirst: async () => existingPlan,
+        create: async () => {
+          throw new Error(
+            "create should not be called when a plan already exists",
+          );
+        },
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    const response = await service.createRoutePlan(
+      representativeContext as never,
+      { representativeUserId: "rep-a", planDate: "2026-07-03" },
+    );
+
+    assert.equal(response.id, "plan-a");
+  });
+
+  it("returns the winner's plan instead of a 409 when a concurrent create races the same (rep, date) pair", async () => {
+    // The upsert this get-or-create replaced was atomic and returned the
+    // existing row on a race instead of erroring; the P2002 branch re-fetches
+    // for the same reason — see routes.service.ts's createRoutePlan.
+    const racedPlan = buildFullPlan("rep-a");
+    let findFirstCallCount = 0;
+    const prisma = {
+      user: { findFirst: async () => ({ id: "rep-a" }) },
+      routePlan: {
+        findFirst: async () => {
+          findFirstCallCount += 1;
+          // 1st call: the initial get-or-create check, finds nothing yet.
+          // 2nd call: after the raced create's P2002, finds the winner's row.
+          return findFirstCallCount === 1 ? null : racedPlan;
+        },
+        create: async () => {
+          throw p2002();
+        },
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    const response = await service.createRoutePlan(
+      representativeContext as never,
+      { representativeUserId: "rep-a", planDate: "2026-07-03" },
+    );
+
+    assert.equal(response.id, "plan-a");
+    assert.equal(findFirstCallCount, 2);
+  });
+
+  it("still 409s if the P2002 conflict can't be resolved on re-fetch", async () => {
+    const prisma = {
+      user: { findFirst: async () => ({ id: "rep-a" }) },
+      routePlan: {
+        findFirst: async () => null,
+        create: async () => {
+          throw p2002();
+        },
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.createRoutePlan(representativeContext as never, {
+        representativeUserId: "rep-a",
+        planDate: "2026-07-03",
+      }),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(error.getResponse?.().code, "ROUTE_PLAN_ALREADY_EXISTS");
+        return true;
+      },
+    );
+  });
+
   it("allows a representative to update their own plan", async () => {
     const prisma = {
       routePlan: {
@@ -263,8 +360,7 @@ describe("route plan removal", () => {
       },
       // Delete + audit run through one transaction; hand this same object
       // back as the transaction client so the tx-routing is observable.
-      $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
-        fn(prisma),
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
     };
     const audit = {
       recordEvent: async (
@@ -373,7 +469,10 @@ describe("route item full reorder (drag-and-drop)", () => {
   it("rejects a reorder that omits one of the plan's stops", async () => {
     const prisma = {
       routePlan: {
-        findFirst: async () => ({ id: "plan-a", representativeUserId: "rep-a" }),
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+        }),
       },
       routeItem: {
         findMany: async () => [
@@ -389,10 +488,7 @@ describe("route item full reorder (drag-and-drop)", () => {
         itemIds: ["item-1"],
       }),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(
-          error.getResponse?.().code,
-          "ROUTE_ITEM_REORDER_INVALID",
-        );
+        assert.equal(error.getResponse?.().code, "ROUTE_ITEM_REORDER_INVALID");
         return true;
       },
     );
@@ -401,7 +497,10 @@ describe("route item full reorder (drag-and-drop)", () => {
   it("rejects a reorder with a duplicated id", async () => {
     const prisma = {
       routePlan: {
-        findFirst: async () => ({ id: "plan-a", representativeUserId: "rep-a" }),
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+        }),
       },
       routeItem: {
         findMany: async () => [
@@ -417,10 +516,7 @@ describe("route item full reorder (drag-and-drop)", () => {
         itemIds: ["item-1", "item-1"],
       }),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(
-          error.getResponse?.().code,
-          "ROUTE_ITEM_REORDER_INVALID",
-        );
+        assert.equal(error.getResponse?.().code, "ROUTE_ITEM_REORDER_INVALID");
         return true;
       },
     );
@@ -429,7 +525,10 @@ describe("route item full reorder (drag-and-drop)", () => {
   it("rejects a reorder that references a stop from another plan", async () => {
     const prisma = {
       routePlan: {
-        findFirst: async () => ({ id: "plan-a", representativeUserId: "rep-a" }),
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+        }),
       },
       routeItem: {
         findMany: async () => [
@@ -445,10 +544,7 @@ describe("route item full reorder (drag-and-drop)", () => {
         itemIds: ["item-1", "item-from-another-plan"],
       }),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(
-          error.getResponse?.().code,
-          "ROUTE_ITEM_REORDER_INVALID",
-        );
+        assert.equal(error.getResponse?.().code, "ROUTE_ITEM_REORDER_INVALID");
         return true;
       },
     );
@@ -457,7 +553,10 @@ describe("route item full reorder (drag-and-drop)", () => {
   it("turns a concurrent reorder collision into a 409 instead of an unhandled 500", async () => {
     const prisma = {
       routePlan: {
-        findFirst: async () => ({ id: "plan-a", representativeUserId: "rep-a" }),
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+        }),
       },
       routeItem: {
         findMany: async () => [

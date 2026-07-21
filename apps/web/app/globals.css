@@ -420,6 +420,21 @@ textarea {
   color: var(--danger);
 }
 
+.secondary-button.is-accent,
+.icon-button.is-accent {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.secondary-button.is-accent:hover,
+.icon-button.is-accent:hover {
+  background: var(--accent-soft);
+}
+
+.icon-button.is-borderless {
+  border-color: transparent;
+}
+
 .dashboard-grid,
 .manager-grid,
 .import-grid,
@@ -2798,6 +2813,7 @@ textarea {
    narrow card instead of forcing it wider, and sit left-aligned inline with
    the other row actions rather than right-aligned in a footer. */
 .confirm-action-inline.confirming {
+  flex-basis: 100%;
   justify-content: flex-start;
   margin-top: 12px;
 }
@@ -4090,6 +4106,38 @@ textarea {
   margin: 0;
 }
 
+/* Planning tab's month switcher: prev/next arrow buttons flanking a
+   centered "July 2026"-style label. */
+.route-section-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.route-section-head h2 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+
+/* "N days planned" label with the copy-last-month icon button opposite it —
+   flex-wrap so the button's confirm-action-inline prompt (see
+   .confirm-action-inline.confirming) drops to its own full-width line
+   instead of overflowing. */
+.days-planned-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.days-planned-row .small-label {
+  margin: 0;
+}
+
 .calendar-grid {
   display: grid;
   gap: 4px;
@@ -4167,18 +4215,16 @@ textarea {
   padding: 4px;
 }
 
-/* Scoped to the "+ Додати маршрут" toolbar below the tab-switcher — the
-   shared .toolbar class carries no margin since it's reused across many
-   layouts that already space it via a surrounding element. */
-.route-add-toolbar {
-  margin-bottom: 16px;
+.route-count-label {
+  margin-bottom: 12px;
 }
 
-/* Overrides the field zone's blanket .toolbar { justify-content: flex-start }
-   (same specificity, defined later) — this one button reads better
-   right-aligned, without changing every other toolbar in the zone. */
-.app-shell--mobile-only .route-add-toolbar {
-  justify-content: flex-end;
+/* This one sits first in its .panel (above the list/empty-state, not after
+   it like the other .dashed-action-button uses), so it needs space below
+   instead of the shared class's space above. */
+.dashed-action-button.route-add-trigger {
+  margin-bottom: 16px;
+  margin-top: 0;
 }
 
 .tab-switcher-link {
@@ -4212,6 +4258,7 @@ textarea {
   font-weight: 700;
   gap: 8px;
   justify-content: center;
+  margin-top: 16px;
   padding: 14px 16px;
   text-align: center;
   width: 100%;
@@ -4242,6 +4289,7 @@ textarea {
   border-radius: 12px;
   color: inherit;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 12px 14px;
   text-decoration: none;
@@ -4249,6 +4297,24 @@ textarea {
 
 a.route-card:hover {
   border-color: var(--accent);
+}
+
+/* The route picker dialog's rows are buttons, not links — reset native
+   button chrome so `.route-card` renders identically either way. */
+.route-card-button {
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.route-card-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.route-card-button:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .route-card-icon {
@@ -4290,13 +4356,6 @@ a.metric-card {
 
 a.metric-card:hover {
   border-color: var(--accent);
-}
-
-.metric-card-chevron {
-  color: var(--muted);
-  flex-shrink: 0;
-  font-size: 18px;
-  line-height: 1;
 }
 
 /* Tenant branding settings (admin/settings): color-scheme picker + logo. */

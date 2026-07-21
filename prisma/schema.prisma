@@ -710,7 +710,22 @@ model RoutePlan {
   routeTemplate  RouteTemplate? @relation(fields: [routeTemplateId], references: [id], onDelete: SetNull)
   items          RouteItem[]
 
-  @@unique([tenantId, representativeUserId, planDate])
+  // Uniqueness on (tenantId, representativeUserId, planDate) is enforced by
+  // TWO partial unique indexes (see the
+  // `20260721062916_route_plan_multi_per_day` migration), not a plain
+  // `@@unique`: one scoped to `routeTemplateId IS NOT NULL` (a representative
+  // can hold several template-based plans on the same day, but not the same
+  // template twice) and one scoped to `routeTemplateId IS NULL` (still at
+  // most one template-less manual plan per day, matching
+  // RoutesService.createRoutePlan's get-or-create behavior). Prisma can't
+  // express partial unique indexes in schema.prisma, so both are managed via
+  // raw SQL and intentionally omitted here — do NOT reintroduce a plain
+  // `@@unique([tenantId, representativeUserId, planDate])`, which would block
+  // assigning more than one route template per day again. Because the index
+  // is invisible to Prisma's diff, a later `migrate dev` may auto-generate a
+  // `DROP INDEX` for it — keep it in the generated migration.
+  // tests/route-plan-multi-per-day-index.test.ts guards against both
+  // mistakes.
   @@index([tenantId, planDate])
   @@index([tenantId, representativeUserId, planDate])
   @@index([tenantId, routeTemplateId])

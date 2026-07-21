@@ -22,6 +22,7 @@ import {
   throwAuthenticationContextMissing,
 } from "./route-access";
 import {
+  isUniqueConstraintViolation,
   normalizeId,
   normalizeIdList,
   normalizePositiveInteger,
@@ -165,24 +166,42 @@ export class RouteTemplatesService {
     const template = await this.findTenantRouteTemplate(context, templateId);
 
     // route_plans.routeTemplateId is ON DELETE SET NULL, so plans already
-    // assigned from this template keep their items and just lose the back
-    // link — deleting a template never touches scheduled or past plans. One
+    // assigned from this template normally keep their items and just lose
+    // the back link. But that SET NULL is itself subject to
+    // route_plans_rep_date_no_template_key (the partial unique index
+    // scoped to routeTemplateId IS NULL — see schema.prisma's RoutePlan
+    // model): if the same representative already holds a template-less
+    // manual plan on the same date as one of this template's assigned
+    // plans, nulling the latter's routeTemplateId collides with the
+    // former and Postgres raises a P2002 out of the delete itself. One
     // transaction with the audit event, same reasoning as
     // RoutesService.deleteRoutePlan: a delete must never exist without its
     // `route_template.deleted` trail, nor a trail without the delete.
-    await this.prisma.$transaction(async (tx) => {
-      await tx.routeTemplate.delete({ where: { id: template.id } });
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.routeTemplate.delete({ where: { id: template.id } });
 
-      await this.auditService.recordEvent(
-        context,
-        {
-          entityType: "route_template",
-          entityId: template.id,
-          eventType: "route_template.deleted",
-        },
-        tx,
-      );
-    });
+        await this.auditService.recordEvent(
+          context,
+          {
+            entityType: "route_template",
+            entityId: template.id,
+            eventType: "route_template.deleted",
+          },
+          tx,
+        );
+      });
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        throw new ConflictException({
+          code: "ROUTE_TEMPLATE_DELETE_CONFLICT",
+          message:
+            "This route can't be deleted: unassigning one of its scheduled days would collide with an unrouted plan already on that same date. Remove or reassign that plan first.",
+        });
+      }
+
+      throw error;
+    }
 
     return { deleted: true };
   }
@@ -480,13 +499,21 @@ export class RouteTemplatesService {
             gte: monthStart(month),
             lt: monthStart(nextMonth),
           },
+          routeTemplateId: { not: null },
         },
-        select: { planDate: true },
+        select: { planDate: true, routeTemplateId: true },
       }),
     ]);
 
-    const occupiedDates = new Set(
-      existingPlans.map((plan) => dateKey(plan.planDate)),
+    // Occupancy is keyed by (date, template) — matching the partial unique
+    // index (route_plans_rep_date_template_key) — not by date alone, so
+    // copying a template onto a day that already has a *different* template
+    // assigned still succeeds; only re-copying the same template onto a day
+    // that already has it is skipped.
+    const occupiedTemplateDates = new Set(
+      existingPlans.map((plan) =>
+        occupancyKey(plan.planDate, plan.routeTemplateId),
+      ),
     );
     const templateIds = [
       ...new Set(
@@ -512,7 +539,11 @@ export class RouteTemplatesService {
         continue;
       }
 
-      if (occupiedDates.has(dateKey(targetDate))) {
+      if (
+        occupiedTemplateDates.has(
+          occupancyKey(targetDate, sourcePlan.routeTemplateId),
+        )
+      ) {
         skippedCount += 1;
         continue;
       }
@@ -530,13 +561,15 @@ export class RouteTemplatesService {
           template,
           targetDate,
         );
-        occupiedDates.add(dateKey(targetDate));
+        occupiedTemplateDates.add(
+          occupancyKey(targetDate, sourcePlan.routeTemplateId),
+        );
         createdCount += 1;
       } catch (error) {
         // A concurrent assign (another tab, a manager) can still take this
-        // exact date between the occupied-dates snapshot above and this
-        // create — treat it the same as any other already-planned day
-        // instead of aborting the rest of the batch with a 409.
+        // exact (date, template) pair between the occupied snapshot above
+        // and this create — treat it the same as any other already-planned
+        // day instead of aborting the rest of the batch with a 409.
         if (error instanceof ConflictException) {
           skippedCount += 1;
           continue;
@@ -593,15 +626,15 @@ export class RouteTemplatesService {
 
       return toRoutePlanResponse(plan);
     } catch (error) {
-      // Guards against a duplicate assign racing this exact (rep, date) pair
-      // in between the caller's own existence check and this create.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
+      // route_plans_rep_date_template_key (partial unique on
+      // routeTemplateId IS NOT NULL) allows several different templates on
+      // the same day but still blocks assigning this exact template twice —
+      // guards against both a duplicate assign racing this exact (rep, date,
+      // template) triple and a caller double-submitting the same assignment.
+      if (isUniqueConstraintViolation(error)) {
         throw new ConflictException({
           code: "ROUTE_PLAN_ALREADY_EXISTS",
-          message: "A route is already planned for this date.",
+          message: "This route is already planned for this date.",
         });
       }
 
@@ -686,10 +719,7 @@ const routeTemplateInclude = {
 // this the unique (tenantId, routeTemplateId, sequence) index would surface
 // as an unhandled 500 instead of a 409 the client can react to.
 function toSequenceConflictOrRethrow(error: unknown): unknown {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002"
-  ) {
+  if (isUniqueConstraintViolation(error)) {
     return new ConflictException({
       code: "ROUTE_TEMPLATE_ITEM_SEQUENCE_TAKEN",
       message: "Another stop already uses that position in this route.",
@@ -761,6 +791,10 @@ function monthStart(month: string): Date {
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function occupancyKey(date: Date, routeTemplateId: string | null): string {
+  return `${dateKey(date)}::${routeTemplateId ?? ""}`;
 }
 
 function shiftMonth(month: string, delta: number): string {
