@@ -57,8 +57,12 @@ export function AssignRouteButton({
             {routeTemplates.map((routeTemplate) => (
               <li key={routeTemplate.id}>
                 {/* Own form per template (not one shared form with a
-                    JS-set hidden field) so PendingSubmitButton's
-                    useFormStatus() tracks that row's own pending state. */}
+                    JS-set hidden field), matching the one-form-per-row
+                    convention used elsewhere for this pattern — even
+                    though the dialog closes immediately on submit below,
+                    so PendingSubmitButton's pending state below is never
+                    actually seen; the redirect this action triggers
+                    repaints the page with its own status notice instead. */}
                 <form
                   action={assignAction}
                   onSubmit={() => dialogRef.current?.close()}

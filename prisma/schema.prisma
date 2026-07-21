@@ -712,7 +712,7 @@ model RoutePlan {
 
   // Uniqueness on (tenantId, representativeUserId, planDate) is enforced by
   // TWO partial unique indexes (see the
-  // `20260721000000_route_plan_multi_per_day` migration), not a plain
+  // `20260721062916_route_plan_multi_per_day` migration), not a plain
   // `@@unique`: one scoped to `routeTemplateId IS NOT NULL` (a representative
   // can hold several template-based plans on the same day, but not the same
   // template twice) and one scoped to `routeTemplateId IS NULL` (still at

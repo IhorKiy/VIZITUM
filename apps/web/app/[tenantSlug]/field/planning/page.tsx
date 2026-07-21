@@ -299,9 +299,21 @@ export default async function PlanningPage({
   // sees their own routes here — without it, the backend treats an omitted
   // filter as "team view" and requires the param instead of defaulting to self.
   const ownRepresentativeQuery = `representativeUserId=${sessionResult.data.user.id}`;
+  // This fetches the rep's whole plan history/future in one page, not just
+  // the visible month — listRoutes has no date-range filter, only an exact
+  // planDate — so plannedDates/daysPlannedThisMonth/selectedPlans below are
+  // all derived by filtering this one page client-side. The requested
+  // pageSize is capped server-side at MAX_PAGE_SIZE (100, see
+  // src/common/pagination.ts) regardless of what's asked for here, so this
+  // already only ever sees the rep's 100 most recent plans (by planDate).
+  // Now that a day can hold several plans (one per template) instead of
+  // one, that window shrinks proportionally: a rep assigning N templates to
+  // every day exhausts it in ~100/N days instead of 100. There's no cheap
+  // fix from this file alone — the real fix is a server-side date-range
+  // filter on GET /routes so this only requests the visible month.
   const [templatesResult, routesResult, locationsResult] = await Promise.all([
     listRouteTemplates(`pageSize=100&${ownRepresentativeQuery}`),
-    listRoutes(`pageSize=200&${ownRepresentativeQuery}`),
+    listRoutes(`pageSize=100&${ownRepresentativeQuery}`),
     listLocations(),
   ]);
   const routeTemplates = templatesResult.ok ? templatesResult.data.items : [];
