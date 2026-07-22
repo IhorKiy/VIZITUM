@@ -5442,11 +5442,117 @@ button.field-panel-card-toggle {
   gap: 4px;
 }
 
+.sku-card-quantities input {
+  min-width: 0;
+  width: 100%;
+}
+
 .field-report-submit {
   font-size: 16px;
   gap: 8px;
-  margin-top: 4px;
   min-height: 52px;
+  width: 100%;
+}
+
+/* Keeps "Save report" reachable without scrolling to the bottom of the
+   (still long) form on a phone. */
+.field-report-submit-bar {
+  background: var(--surface);
+  /* Clears the fixed .mobile-nav (65px) that the field zone always shows. */
+  bottom: 65px;
+  margin: 0 -4px;
+  padding: 8px 4px;
+  position: sticky;
+  z-index: 10;
+}
+
+.form-field-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.segmented {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 4px;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  padding: 4px;
+}
+
+.segmented-option {
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 38px;
+  padding: 0 6px;
+}
+
+.segmented-option.active {
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+
+.status-chip {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 30px;
+  padding: 4px 10px;
+}
+
+.status-chip.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent-strong);
+}
+
+.inline-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 4px;
+  padding: 0;
+  width: fit-content;
+}
+
+.inline-toggle svg {
+  transition: transform 160ms ease;
+}
+
+.inline-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.visit-date-row {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.add-task-button {
+  gap: 6px;
   width: 100%;
 }
 
