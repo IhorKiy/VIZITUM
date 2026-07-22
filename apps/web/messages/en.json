@@ -1112,8 +1112,6 @@
       "cancelledNoReportBody": "No report was confirmed before the visit was cancelled.",
       "demoStatus": "Demo",
       "demoNext": "Sign in to record and confirm a visit report.",
-      "newReportTitle": "New report",
-      "locationLabel": "Location",
       "voiceHintIdle": "Tap to fill in the report by voice",
       "voiceHintRecording": "Recording... describe the visit.",
       "voiceProcessing": "Processing voice...",

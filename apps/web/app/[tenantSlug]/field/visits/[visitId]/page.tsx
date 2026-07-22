@@ -171,7 +171,10 @@ export default async function VisitDetailPage({
           >
             ‹
           </a>
-          <h1>{t("newReportTitle")}</h1>
+          <div>
+            <h1>{visit.location.name}</h1>
+            <p>{locationAddress}</p>
+          </div>
         </header>
       )}
 
@@ -208,8 +211,6 @@ export default async function VisitDetailPage({
         )
       ) : (
         <FieldVisitReportForm
-          locationAddress={locationAddress}
-          locationName={visit.location.name}
           products={productsResult?.ok ? productsResult.data : []}
           tenantSlug={tenantSlug}
           visitId={visitId}

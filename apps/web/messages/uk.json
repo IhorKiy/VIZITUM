@@ -1112,8 +1112,6 @@
       "cancelledNoReportBody": "Звіт не було підтверджено до скасування візиту.",
       "demoStatus": "Демо",
       "demoNext": "Увійдіть, щоб записати та підтвердити звіт про візит.",
-      "newReportTitle": "Новий звіт",
-      "locationLabel": "Точка",
       "voiceHintIdle": "Натисніть для голосового вводу звіту",
       "voiceHintRecording": "Йде запис... Розкажіть деталі візиту.",
       "voiceProcessing": "Обробка голосу...",

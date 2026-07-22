@@ -16,7 +16,6 @@ import {
   CloseIcon,
   ListTodoIcon,
   LoaderIcon,
-  MapPinIcon,
   MicIcon,
   PackageIcon,
   PlusIcon,
@@ -55,8 +54,6 @@ type TaskEntry = {
 type FieldVisitReportFormProps = {
   tenantSlug: string;
   visitId: string;
-  locationName: string;
-  locationAddress: string;
   products: Product[];
   voiceHint: string | null;
 };
@@ -208,8 +205,6 @@ const PRODUCT_STATUS_OPTIONS: ProductUpdateStatus[] = [
 export function FieldVisitReportForm({
   tenantSlug,
   visitId,
-  locationName,
-  locationAddress,
   products,
   voiceHint,
 }: FieldVisitReportFormProps) {
@@ -749,16 +744,6 @@ export function FieldVisitReportForm({
 
       {step === "capture" ? (
         <div className="visit-form">
-          <div className="visit-location-card">
-            <span aria-hidden="true" className="visit-location-icon">
-              <MapPinIcon />
-            </span>
-            <div>
-              <p className="visit-location-name">{locationName}</p>
-              <p className="visit-location-address">{locationAddress}</p>
-            </div>
-          </div>
-
           <div className="voice-capture">
             <p className="voice-capture-hint">
               {isRecording ? t("voiceHintRecording") : t("voiceHintIdle")}
@@ -817,21 +802,6 @@ export function FieldVisitReportForm({
           >
             {t("backToVoice")}
           </button>
-
-          <div>
-            <div className="field-label-row">
-              <span className="visit-field-label">{t("locationLabel")}</span>
-            </div>
-            <div className="visit-location-card">
-              <span aria-hidden="true" className="visit-location-icon">
-                <MapPinIcon />
-              </span>
-              <div>
-                <p className="visit-location-name">{locationName}</p>
-                <p className="visit-location-address">{locationAddress}</p>
-              </div>
-            </div>
-          </div>
 
           <div>
             <span className="form-field-title">{t("outcomeLabel")}</span>
