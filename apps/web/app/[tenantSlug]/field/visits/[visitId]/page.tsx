@@ -144,21 +144,34 @@ export default async function VisitDetailPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">{t("eyebrow")}</p>
-          <h1>{visit.location.name}</h1>
-          <p>{locationAddress}</p>
-        </div>
-        <div className="toolbar" aria-label={t("visitActions")}>
+      {isLocked ? (
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">{t("eyebrow")}</p>
+            <h1>{visit.location.name}</h1>
+            <p>{locationAddress}</p>
+          </div>
+          <div className="toolbar" aria-label={t("visitActions")}>
+            <a
+              className="secondary-button"
+              href={`/${tenantSlug}/field/locations/${visit.locationId}`}
+            >
+              {t("backToLocation")}
+            </a>
+          </div>
+        </header>
+      ) : (
+        <header className="visit-report-header">
           <a
-            className="secondary-button"
+            aria-label={t("backToLocation")}
+            className="visit-report-back"
             href={`/${tenantSlug}/field/locations/${visit.locationId}`}
           >
-            {t("backToLocation")}
+            ‹
           </a>
-        </div>
-      </header>
+          <h1>{t("newReportTitle")}</h1>
+        </header>
+      )}
 
       {isLocked ? (
         reportResult?.ok ? (

@@ -385,6 +385,33 @@ textarea {
   text-transform: uppercase;
 }
 
+/* Compact "‹ Title" bar for the field visit-report screen, replacing
+   .page-header there — the location is already repeated inside the form
+   as a .visit-location-card, so the big eyebrow/h1/address header would
+   just duplicate it. */
+.visit-report-header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  margin: 0 auto 20px;
+  max-width: 1180px;
+  padding-bottom: 16px;
+}
+
+.visit-report-back {
+  color: var(--ink);
+  flex-shrink: 0;
+  font-size: 26px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.visit-report-header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
 .toolbar {
   align-items: center;
   display: flex;
@@ -663,6 +690,15 @@ textarea {
   gap: 10px;
   margin-top: 12px;
   padding-top: 12px;
+}
+
+/* The visit-report form has no card header above it (the title moved to
+   .visit-report-header, page-level) so the separator border would just
+   float at the top of the card with nothing to separate from. */
+.visit-card > .visit-form {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .visit-form label {
@@ -5153,6 +5189,42 @@ a.metric-card:hover {
   gap: 8px;
 }
 
+.visit-field-label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.visit-location-card {
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 12px;
+}
+
+.visit-location-icon {
+  color: var(--muted);
+  display: flex;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.visit-location-name {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.visit-location-address {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+
 .field-panel-card {
   background: var(--surface-muted);
   border: 1px solid var(--line);
@@ -5442,11 +5514,117 @@ button.field-panel-card-toggle {
   gap: 4px;
 }
 
+.sku-card-quantities input {
+  min-width: 0;
+  width: 100%;
+}
+
 .field-report-submit {
   font-size: 16px;
   gap: 8px;
-  margin-top: 4px;
   min-height: 52px;
+  width: 100%;
+}
+
+/* Keeps "Save report" reachable without scrolling to the bottom of the
+   (still long) form on a phone. */
+.field-report-submit-bar {
+  background: var(--surface);
+  /* Clears the fixed .mobile-nav (65px) that the field zone always shows. */
+  bottom: 65px;
+  margin: 0 -4px;
+  padding: 8px 4px;
+  position: sticky;
+  z-index: 10;
+}
+
+.form-field-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.segmented {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 4px;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  padding: 4px;
+}
+
+.segmented-option {
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 38px;
+  padding: 0 6px;
+}
+
+.segmented-option.active {
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+
+.status-chip {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 30px;
+  padding: 4px 10px;
+}
+
+.status-chip.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent-strong);
+}
+
+.inline-toggle {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 4px;
+  padding: 0;
+  width: fit-content;
+}
+
+.inline-toggle svg {
+  transition: transform 160ms ease;
+}
+
+.inline-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.visit-date-row {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.add-task-button {
+  gap: 6px;
   width: 100%;
 }
 
