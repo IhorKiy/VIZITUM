@@ -7,8 +7,10 @@ type LocationPotentialPanelProps = {
   rows: LocationPotential[];
   availableCategories: { id: string; name: string }[];
   canManage: boolean;
-  upsertAction: (formData: FormData) => Promise<void>;
-  deleteAction: (formData: FormData) => Promise<void>;
+  // Only read when canManage is true — read-only callers (the admin location
+  // detail screen) omit them.
+  upsertAction?: (formData: FormData) => Promise<void>;
+  deleteAction?: (formData: FormData) => Promise<void>;
 };
 
 // Shared by the field location detail screen and the admin location detail
