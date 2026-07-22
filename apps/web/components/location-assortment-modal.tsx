@@ -1,6 +1,14 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import type { LocationAssortment } from "../lib/api-client";
@@ -20,34 +28,44 @@ type LocationAssortmentModalProps = {
   | { mode: "edit"; row: LocationAssortment; availableProducts?: never }
 );
 
+const PRODUCT_LIMIT = 50;
+
 function productLabel(name: string, sku: string | null): string {
   return sku ? `${name} · ${sku}` : name;
 }
 
-// Add-to-matrix / edit dialog for one assortment row. Adding uses a searchable
-// product picker (a location can list hundreds of SKUs, so a plain <select> is
-// unworkable); editing locks the product (it is the upsert key) and pre-fills.
-// The matrix flag is shown as a static value — this dialog is framed as
-// managing the required matrix, so shouldBeListed rides along as a hidden
-// field rather than a toggle.
+// Add-to-matrix / edit dialog for one assortment row. Adding uses a searchable,
+// keyboard-operable product picker (a location can list hundreds of SKUs, so a
+// plain <select> is unworkable); editing locks the product (it is the upsert
+// key) and pre-fills. The matrix flag is an interactive two-option switch
+// (required / not required) backed by `matrixRequired`; when required, a hidden
+// shouldBeListed field is submitted. The <dialog> is portaled to the
+// document body so it is never a DOM descendant of a <summary> (clicks inside a
+// top-layer dialog would otherwise bubble through and toggle the section).
 export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
   const { action, canManage, locationName, mode } = props;
   const t = useTranslations("common.locationInsights");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const titleId = useId();
+  const listId = useId();
 
   const row = props.mode === "edit" ? props.row : null;
   const products = props.mode === "add" ? props.availableProducts : [];
+  const initialMatrixRequired =
+    props.mode === "add" ? true : Boolean(props.row.shouldBeListed);
 
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [open, setOpen] = useState(false);
-  const [matrixRequired, setMatrixRequired] = useState(
-    props.mode === "add" ? true : Boolean(props.row.shouldBeListed),
-  );
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [matrixRequired, setMatrixRequired] = useState(initialMatrixRequired);
+  const [mounted, setMounted] = useState(false);
 
-  const filtered = useMemo(() => {
+  useEffect(() => setMounted(true), []);
+
+  const { filtered, totalMatches } = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const base = needle
       ? products.filter((product) =>
@@ -56,8 +74,20 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
             .includes(needle),
         )
       : products;
-    return base.slice(0, 50);
+    return {
+      filtered: base.slice(0, PRODUCT_LIMIT),
+      totalMatches: base.length,
+    };
   }, [products, query]);
+
+  // Keep the highlighted option scrolled into view during keyboard navigation.
+  useEffect(() => {
+    if (open && activeIndex >= 0) {
+      document
+        .getElementById(`${listId}-opt-${activeIndex}`)
+        ?.scrollIntoView({ block: "nearest" });
+    }
+  }, [activeIndex, open, listId]);
 
   if (!canManage) {
     return null;
@@ -72,237 +102,326 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
       : t("assortmentModal.editTitle");
   const defaultStatus = row?.status ?? "in_stock";
 
-  return (
-    <>
-      {mode === "add" ? (
-        <button
-          aria-haspopup="dialog"
-          aria-label={title}
-          className="location-feature-quick-add"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            dialogRef.current?.showModal();
-          }}
-          onMouseDown={(event) => event.stopPropagation()}
-          type="button"
-        >
-          <PlusIcon size={18} />
-        </button>
-      ) : (
-        <button
-          aria-haspopup="dialog"
-          aria-label={title}
-          className="location-potential-action"
-          onClick={() => dialogRef.current?.showModal()}
-          type="button"
-        >
-          <PencilIcon />
-        </button>
-      )}
+  function resetForm() {
+    formRef.current?.reset();
+    setQuery("");
+    setSelectedId("");
+    setOpen(false);
+    setActiveIndex(-1);
+    setMatrixRequired(initialMatrixRequired);
+  }
 
-      <dialog
-        aria-labelledby={titleId}
-        className="modal-dialog"
-        ref={dialogRef}
+  function closeWithReset() {
+    resetForm();
+    dialogRef.current?.close();
+  }
+
+  function selectProduct(product: ProductOption) {
+    setSelectedId(product.id);
+    setQuery(productLabel(product.name, product.sku));
+    setOpen(false);
+    setActiveIndex(-1);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((index) => Math.min(index + 1, filtered.length - 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === "Enter") {
+      const option = filtered[activeIndex];
+      if (open && option) {
+        event.preventDefault();
+        selectProduct(option);
+      }
+    } else if (event.key === "Escape" && open) {
+      // Close the list, not the whole dialog.
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      setActiveIndex(-1);
+    }
+  }
+
+  const activeOptionId =
+    open && activeIndex >= 0 && filtered[activeIndex]
+      ? `${listId}-opt-${activeIndex}`
+      : undefined;
+
+  const trigger =
+    mode === "add" ? (
+      <button
+        aria-haspopup="dialog"
+        aria-label={title}
+        className="location-feature-quick-add"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dialogRef.current?.showModal();
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+        type="button"
       >
-        <div className="modal-header">
-          <div>
-            <h2 id={titleId}>{title}</h2>
-            <p className="modal-subtitle">{locationName}</p>
-          </div>
-          <button
-            aria-label={tCommon("close")}
-            className="icon-button"
-            onClick={() => dialogRef.current?.close()}
-            type="button"
-          >
-            ×
-          </button>
+        <PlusIcon size={18} />
+      </button>
+    ) : (
+      <button
+        aria-haspopup="dialog"
+        aria-label={title}
+        className="location-insight-action"
+        onClick={() => dialogRef.current?.showModal()}
+        type="button"
+      >
+        <PencilIcon />
+      </button>
+    );
+
+  const dialog = (
+    <dialog
+      aria-labelledby={titleId}
+      className="modal-dialog"
+      onCancel={resetForm}
+      ref={dialogRef}
+    >
+      <div className="modal-header">
+        <div>
+          <h2 id={titleId}>{title}</h2>
+          <p className="modal-subtitle">{locationName}</p>
         </div>
+        <button
+          aria-label={tCommon("close")}
+          className="icon-button"
+          onClick={closeWithReset}
+          type="button"
+        >
+          ×
+        </button>
+      </div>
 
-        <form action={action} className="visit-form compact modal-form">
-          {props.mode === "add" ? (
-            <label className="product-picker-label">
-              <span>
-                {t("assortmentModal.product")}{" "}
-                <span aria-hidden="true" className="field-required">
-                  *
-                </span>
+      <form
+        action={action}
+        className="visit-form compact modal-form"
+        onSubmit={() => {
+          // Defer so React captures the FormData for the server action first,
+          // then close explicitly — the redirect refreshes the data, but the
+          // dialog must not linger open if the component is reused (not
+          // remounted) after navigation.
+          window.setTimeout(() => {
+            dialogRef.current?.close();
+            resetForm();
+          }, 0);
+        }}
+        ref={formRef}
+      >
+        {props.mode === "add" ? (
+          <label className="product-picker-label">
+            <span>
+              {t("assortmentModal.product")}{" "}
+              <span aria-hidden="true" className="field-required">
+                *
               </span>
-              <div className="product-picker">
-                <span className="product-picker-icon" aria-hidden="true">
-                  <SearchIcon />
-                </span>
-                <input
-                  autoComplete="off"
-                  className="product-picker-input"
-                  onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    setSelectedId("");
-                    setOpen(true);
-                  }}
-                  onFocus={() => setOpen(true)}
-                  placeholder={t("assortmentModal.productPlaceholder")}
-                  type="text"
-                  value={query}
-                />
-                <span className="product-picker-chevron" aria-hidden="true">
-                  ›
-                </span>
-                {open ? (
-                  <ul className="product-picker-list">
-                    {filtered.length > 0 ? (
-                      filtered.map((product) => (
-                        <li key={product.id}>
-                          <button
-                            className="product-picker-option"
-                            onClick={() => {
-                              setSelectedId(product.id);
-                              setQuery(productLabel(product.name, product.sku));
-                              setOpen(false);
-                            }}
-                            onMouseDown={(event) => event.preventDefault()}
-                            type="button"
-                          >
-                            {productLabel(product.name, product.sku)}
-                          </button>
-                        </li>
-                      ))
-                    ) : (
-                      <li className="product-picker-empty">
-                        {t("assortmentModal.productEmpty")}
-                      </li>
-                    )}
-                  </ul>
-                ) : null}
-              </div>
-              <input name="productId" type="hidden" value={selectedId} />
-            </label>
-          ) : (
-            <div className="modal-static-field">
-              <input
-                name="productId"
-                type="hidden"
-                value={props.row.productId}
-              />
-              <span className="modal-static-label">
-                {t("assortmentModal.product")}
-              </span>
-              <span className="modal-static-value">
-                {productLabel(props.row.product.name, props.row.product.sku)}
-              </span>
-            </div>
-          )}
-
-          <label>
-            {t("assortmentModal.status")}
-            <select defaultValue={defaultStatus} name="status">
-              {ASSORTMENT_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {formatEnumLabel(tCommon, status)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="modal-static-field">
-            <span className="modal-static-label">
-              {t("assortmentModal.matrix")}
             </span>
             <div
-              aria-label={t("assortmentModal.matrix")}
-              className="matrix-switch"
-              role="group"
+              className="product-picker"
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  setOpen(false);
+                  setActiveIndex(-1);
+                }
+              }}
             >
-              <button
-                aria-pressed={matrixRequired}
-                className={`matrix-switch-option ${
-                  matrixRequired ? "matrix-switch-option--active" : ""
-                }`}
-                onClick={() => setMatrixRequired(true)}
-                type="button"
-              >
-                {t("assortmentModal.matrixRequired")}
-              </button>
-              <button
-                aria-pressed={!matrixRequired}
-                className={`matrix-switch-option ${
-                  matrixRequired ? "" : "matrix-switch-option--active"
-                }`}
-                onClick={() => setMatrixRequired(false)}
-                type="button"
-              >
-                {t("assortmentModal.matrixOptional")}
-              </button>
+              <span className="product-picker-icon" aria-hidden="true">
+                <SearchIcon />
+              </span>
+              <input
+                aria-activedescendant={activeOptionId}
+                aria-autocomplete="list"
+                aria-controls={listId}
+                aria-expanded={open}
+                autoComplete="off"
+                className="product-picker-input"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setSelectedId("");
+                  setActiveIndex(-1);
+                  setOpen(true);
+                }}
+                onFocus={() => setOpen(true)}
+                onKeyDown={handleKeyDown}
+                placeholder={t("assortmentModal.productPlaceholder")}
+                role="combobox"
+                type="text"
+                value={query}
+              />
+              <span className="product-picker-chevron" aria-hidden="true">
+                ›
+              </span>
+              {open ? (
+                <ul
+                  aria-label={t("assortmentModal.product")}
+                  className="product-picker-list"
+                  id={listId}
+                  role="listbox"
+                >
+                  {filtered.length > 0 ? (
+                    filtered.map((product, index) => (
+                      <li
+                        aria-selected={index === activeIndex}
+                        className={`product-picker-option${
+                          index === activeIndex ? " is-active" : ""
+                        }`}
+                        id={`${listId}-opt-${index}`}
+                        key={product.id}
+                        onClick={() => selectProduct(product)}
+                        onMouseDown={(event) => event.preventDefault()}
+                        role="option"
+                      >
+                        {productLabel(product.name, product.sku)}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="product-picker-empty">
+                      {t("assortmentModal.productEmpty")}
+                    </li>
+                  )}
+                  {totalMatches > filtered.length ? (
+                    <li className="product-picker-hint">
+                      {t("assortmentModal.productMore")}
+                    </li>
+                  ) : null}
+                </ul>
+              ) : null}
             </div>
-          </div>
-          {matrixRequired ? (
-            <input name="shouldBeListed" type="hidden" value="true" />
-          ) : null}
-
-          <div className="modal-month-row">
-            <label>
-              {t("assortmentModal.stock")}
-              <input
-                defaultValue={row?.lastStock ?? undefined}
-                min={0}
-                name="lastStock"
-                placeholder={t("assortmentModal.stockPlaceholder")}
-                type="number"
-              />
-            </label>
-            <label>
-              {t("assortmentModal.order")}
-              <input
-                defaultValue={row?.lastOrder ?? undefined}
-                min={0}
-                name="lastOrder"
-                placeholder={t("assortmentModal.orderPlaceholder")}
-                type="number"
-              />
-            </label>
-            <label>
-              {t("assortmentModal.sale")}
-              <input
-                defaultValue={row?.lastSale ?? undefined}
-                min={0}
-                name="lastSale"
-                placeholder={t("assortmentModal.salePlaceholder")}
-                type="number"
-              />
-            </label>
-          </div>
-
-          <label>
-            {t("assortmentModal.checkedDate")}
-            <input
-              defaultValue={row?.lastCheckedAt?.slice(0, 10) ?? undefined}
-              name="lastCheckedAt"
-              type="date"
-            />
+            <input name="productId" type="hidden" value={selectedId} />
           </label>
+        ) : (
+          <div className="modal-static-field">
+            <input name="productId" type="hidden" value={props.row.productId} />
+            <span className="modal-static-label">
+              {t("assortmentModal.product")}
+            </span>
+            <span className="modal-static-value">
+              {productLabel(props.row.product.name, props.row.product.sku)}
+            </span>
+          </div>
+        )}
 
-          <label>
-            {t("assortmentModal.comment")}
-            <textarea
-              defaultValue={row?.comment ?? undefined}
-              name="comment"
-              placeholder={t("assortmentModal.commentPlaceholder")}
-              rows={3}
-            />
-          </label>
+        <label>
+          {t("assortmentModal.status")}
+          <select defaultValue={defaultStatus} name="status">
+            {ASSORTMENT_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {formatEnumLabel(tCommon, status)}
+              </option>
+            ))}
+          </select>
+        </label>
 
-          <PendingSubmitButton
-            className="primary-button location-potential-submit"
-            disabled={mode === "add" && !selectedId}
-            pendingLabel={tCommon("saving")}
+        <div className="modal-static-field">
+          <span className="modal-static-label">
+            {t("assortmentModal.matrix")}
+          </span>
+          <div
+            aria-label={t("assortmentModal.matrix")}
+            className="matrix-switch"
+            role="group"
           >
-            {mode === "add" ? t("assortmentModal.submit") : tCommon("save")}
-          </PendingSubmitButton>
-        </form>
-      </dialog>
+            <button
+              aria-pressed={matrixRequired}
+              className={`matrix-switch-option ${
+                matrixRequired ? "matrix-switch-option--active" : ""
+              }`}
+              onClick={() => setMatrixRequired(true)}
+              type="button"
+            >
+              {t("assortmentModal.matrixRequired")}
+            </button>
+            <button
+              aria-pressed={!matrixRequired}
+              className={`matrix-switch-option ${
+                matrixRequired ? "" : "matrix-switch-option--active"
+              }`}
+              onClick={() => setMatrixRequired(false)}
+              type="button"
+            >
+              {t("assortmentModal.matrixOptional")}
+            </button>
+          </div>
+        </div>
+        {matrixRequired ? (
+          <input name="shouldBeListed" type="hidden" value="true" />
+        ) : null}
+
+        <div className="modal-month-row">
+          <label>
+            {t("assortmentModal.stock")}
+            <input
+              defaultValue={row?.lastStock ?? undefined}
+              min={0}
+              name="lastStock"
+              placeholder={t("assortmentModal.stockPlaceholder")}
+              type="number"
+            />
+          </label>
+          <label>
+            {t("assortmentModal.order")}
+            <input
+              defaultValue={row?.lastOrder ?? undefined}
+              min={0}
+              name="lastOrder"
+              placeholder={t("assortmentModal.orderPlaceholder")}
+              type="number"
+            />
+          </label>
+          <label>
+            {t("assortmentModal.sale")}
+            <input
+              defaultValue={row?.lastSale ?? undefined}
+              min={0}
+              name="lastSale"
+              placeholder={t("assortmentModal.salePlaceholder")}
+              type="number"
+            />
+          </label>
+        </div>
+
+        <label>
+          {t("assortmentModal.checkedDate")}
+          <input
+            defaultValue={row?.lastCheckedAt?.slice(0, 10) ?? undefined}
+            name="lastCheckedAt"
+            type="date"
+          />
+        </label>
+
+        <label>
+          {t("assortmentModal.comment")}
+          <textarea
+            defaultValue={row?.comment ?? undefined}
+            name="comment"
+            placeholder={t("assortmentModal.commentPlaceholder")}
+            rows={3}
+          />
+        </label>
+
+        <PendingSubmitButton
+          className="primary-button location-potential-submit"
+          disabled={mode === "add" && !selectedId}
+          pendingLabel={tCommon("saving")}
+        >
+          {mode === "add" ? t("assortmentModal.submit") : tCommon("save")}
+        </PendingSubmitButton>
+      </form>
+    </dialog>
+  );
+
+  return (
+    <>
+      {trigger}
+      {mounted ? createPortal(dialog, document.body) : null}
     </>
   );
 }

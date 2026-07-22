@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import type { LocationPotential } from "../lib/api-client";
@@ -24,14 +25,20 @@ type LocationPotentialModalProps = {
 // two modes differ only in the trigger (a header "+" vs a per-row pencil), the
 // category field (a picker when adding, a locked read-only value when editing —
 // the category is the upsert key, so changing it would create a second row),
-// and the pre-filled values. Both submit the same server `action`.
+// and the pre-filled values. Both submit the same server `action`. The <dialog>
+// is portaled to the document body so it is never a DOM descendant of a
+// <summary> (top-layer clicks would otherwise bubble through and toggle it).
 export function LocationPotentialModal(props: LocationPotentialModalProps) {
   const { action, canManage, locationName, mode } = props;
   const t = useTranslations("common.locationInsights");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const dateRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const row = props.mode === "edit" ? props.row : null;
 
@@ -55,172 +62,204 @@ export function LocationPotentialModal(props: LocationPotentialModalProps) {
     dialogRef.current?.showModal();
   }
 
+  // The form is uncontrolled, so reset() restores the defaultValues (empty for
+  // add, the row's values for edit); the date default is re-applied on reopen.
+  function resetForm() {
+    formRef.current?.reset();
+  }
+
+  function closeWithReset() {
+    resetForm();
+    dialogRef.current?.close();
+  }
+
   const title =
     mode === "add" ? t("potentialModal.title") : t("potentialModal.editTitle");
 
-  return (
-    <>
-      {mode === "add" ? (
-        <button
-          aria-haspopup="dialog"
-          aria-label={title}
-          className="location-feature-quick-add"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            openModal();
-          }}
-          onMouseDown={(event) => event.stopPropagation()}
-          type="button"
-        >
-          <PlusIcon size={18} />
-        </button>
-      ) : (
-        <button
-          aria-haspopup="dialog"
-          aria-label={title}
-          className="location-potential-action"
-          onClick={openModal}
-          type="button"
-        >
-          <PencilIcon />
-        </button>
-      )}
-
-      <dialog
-        aria-labelledby={titleId}
-        className="modal-dialog"
-        ref={dialogRef}
+  const trigger =
+    mode === "add" ? (
+      <button
+        aria-haspopup="dialog"
+        aria-label={title}
+        className="location-feature-quick-add"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openModal();
+        }}
+        onMouseDown={(event) => event.stopPropagation()}
+        type="button"
       >
-        <div className="modal-header">
-          <div>
-            <h2 id={titleId}>{title}</h2>
-            <p className="modal-subtitle">{locationName}</p>
-          </div>
-          <button
-            aria-label={tCommon("close")}
-            className="icon-button"
-            onClick={() => dialogRef.current?.close()}
-            type="button"
-          >
-            ×
-          </button>
+        <PlusIcon size={18} />
+      </button>
+    ) : (
+      <button
+        aria-haspopup="dialog"
+        aria-label={title}
+        className="location-insight-action"
+        onClick={openModal}
+        type="button"
+      >
+        <PencilIcon />
+      </button>
+    );
+
+  const dialog = (
+    <dialog
+      aria-labelledby={titleId}
+      className="modal-dialog"
+      onCancel={resetForm}
+      ref={dialogRef}
+    >
+      <div className="modal-header">
+        <div>
+          <h2 id={titleId}>{title}</h2>
+          <p className="modal-subtitle">{locationName}</p>
         </div>
+        <button
+          aria-label={tCommon("close")}
+          className="icon-button"
+          onClick={closeWithReset}
+          type="button"
+        >
+          ×
+        </button>
+      </div>
 
-        <form action={action} className="visit-form compact modal-form">
-          {props.mode === "add" ? (
-            <label>
-              <span>
-                {t("potentialModal.group")}{" "}
-                <span aria-hidden="true" className="field-required">
-                  *
-                </span>
-              </span>
-              <select defaultValue="" name="productCategoryId" required>
-                <option disabled value="">
-                  {t("potentialModal.groupPlaceholder")}
-                </option>
-                {props.availableCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <div className="modal-static-field">
-              <input
-                name="productCategoryId"
-                type="hidden"
-                value={props.row.productCategoryId}
-              />
-              <span className="modal-static-label">
-                {t("potentialModal.group")}
-              </span>
-              <span className="modal-static-value">
-                {props.row.productCategory.name}
-              </span>
-            </div>
-          )}
-
+      <form
+        action={action}
+        className="visit-form compact modal-form"
+        onSubmit={() => {
+          // Defer so React captures the FormData for the server action first,
+          // then close explicitly — the redirect refreshes the data, but the
+          // dialog must not linger open if the component is reused (not
+          // remounted) after navigation.
+          window.setTimeout(() => {
+            dialogRef.current?.close();
+            resetForm();
+          }, 0);
+        }}
+        ref={formRef}
+      >
+        {props.mode === "add" ? (
           <label>
             <span>
-              {t("potentialModal.date")}{" "}
+              {t("potentialModal.group")}{" "}
               <span aria-hidden="true" className="field-required">
                 *
               </span>
             </span>
-            <input
-              defaultValue={row?.potentialDate?.slice(0, 10) ?? undefined}
-              name="potentialDate"
-              ref={dateRef}
-              required
-              type="date"
-            />
+            <select defaultValue="" name="productCategoryId" required>
+              <option disabled value="">
+                {t("potentialModal.groupPlaceholder")}
+              </option>
+              {props.availableCategories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </label>
-
-          <label>
-            {t("potentialModal.amount")}
+        ) : (
+          <div className="modal-static-field">
             <input
-              defaultValue={row?.potentialAmount ?? undefined}
+              name="productCategoryId"
+              type="hidden"
+              value={props.row.productCategoryId}
+            />
+            <span className="modal-static-label">
+              {t("potentialModal.group")}
+            </span>
+            <span className="modal-static-value">
+              {props.row.productCategory.name}
+            </span>
+          </div>
+        )}
+
+        <label>
+          <span>
+            {t("potentialModal.date")}{" "}
+            <span aria-hidden="true" className="field-required">
+              *
+            </span>
+          </span>
+          <input
+            defaultValue={row?.potentialDate?.slice(0, 10) ?? undefined}
+            name="potentialDate"
+            ref={dateRef}
+            required
+            type="date"
+          />
+        </label>
+
+        <label>
+          {t("potentialModal.amount")}
+          <input
+            defaultValue={row?.potentialAmount ?? undefined}
+            min={0}
+            name="potentialAmount"
+            placeholder={t("potentialModal.amountPlaceholder")}
+            type="number"
+          />
+        </label>
+
+        <div className="modal-month-row">
+          <label>
+            {t("potentialModal.month1")}
+            <input
+              defaultValue={row?.planMonth1 ?? undefined}
               min={0}
-              name="potentialAmount"
-              placeholder={t("potentialModal.amountPlaceholder")}
+              name="planMonth1"
+              placeholder={t("potentialModal.month1Placeholder")}
               type="number"
             />
           </label>
-
-          <div className="modal-month-row">
-            <label>
-              {t("potentialModal.month1")}
-              <input
-                defaultValue={row?.planMonth1 ?? undefined}
-                min={0}
-                name="planMonth1"
-                placeholder={t("potentialModal.month1Placeholder")}
-                type="number"
-              />
-            </label>
-            <label>
-              {t("potentialModal.month2")}
-              <input
-                defaultValue={row?.planMonth2 ?? undefined}
-                min={0}
-                name="planMonth2"
-                placeholder={t("potentialModal.month2Placeholder")}
-                type="number"
-              />
-            </label>
-            <label>
-              {t("potentialModal.month3")}
-              <input
-                defaultValue={row?.planMonth3 ?? undefined}
-                min={0}
-                name="planMonth3"
-                placeholder={t("potentialModal.month3Placeholder")}
-                type="number"
-              />
-            </label>
-          </div>
-
           <label>
-            {t("potentialModal.comment")}
-            <textarea
-              defaultValue={row?.comment ?? undefined}
-              name="comment"
-              placeholder={t("potentialModal.commentPlaceholder")}
-              rows={3}
+            {t("potentialModal.month2")}
+            <input
+              defaultValue={row?.planMonth2 ?? undefined}
+              min={0}
+              name="planMonth2"
+              placeholder={t("potentialModal.month2Placeholder")}
+              type="number"
             />
           </label>
+          <label>
+            {t("potentialModal.month3")}
+            <input
+              defaultValue={row?.planMonth3 ?? undefined}
+              min={0}
+              name="planMonth3"
+              placeholder={t("potentialModal.month3Placeholder")}
+              type="number"
+            />
+          </label>
+        </div>
 
-          <PendingSubmitButton
-            className="primary-button location-potential-submit"
-            pendingLabel={tCommon("saving")}
-          >
-            {mode === "add" ? t("potentialModal.submit") : tCommon("save")}
-          </PendingSubmitButton>
-        </form>
-      </dialog>
+        <label>
+          {t("potentialModal.comment")}
+          <textarea
+            defaultValue={row?.comment ?? undefined}
+            name="comment"
+            placeholder={t("potentialModal.commentPlaceholder")}
+            rows={3}
+          />
+        </label>
+
+        <PendingSubmitButton
+          className="primary-button location-potential-submit"
+          pendingLabel={tCommon("saving")}
+        >
+          {mode === "add" ? t("potentialModal.submit") : tCommon("save")}
+        </PendingSubmitButton>
+      </form>
+    </dialog>
+  );
+
+  return (
+    <>
+      {trigger}
+      {mounted ? createPortal(dialog, document.body) : null}
     </>
   );
 }

@@ -50,13 +50,17 @@ export function LocationPotentialPanel({
   return (
     <div className="field-card-list">
       {rows.length === 0 ? (
-        <div className="empty-state-panel location-insights-empty">
-          <span className="location-insights-empty-icon" aria-hidden="true">
-            <BanknoteIcon size={28} />
-          </span>
-          <h2>{t("potentialEmptyTitle")}</h2>
-          <p>{t("potentialEmptyHint")}</p>
-        </div>
+        variant === "cards" ? (
+          <div className="empty-state-panel location-insights-empty">
+            <span className="location-insights-empty-icon" aria-hidden="true">
+              <BanknoteIcon size={28} />
+            </span>
+            <h2>{t("potentialEmptyTitle")}</h2>
+            <p>{t("potentialEmptyHint")}</p>
+          </div>
+        ) : (
+          <p className="empty-state">{t("potentialEmpty")}</p>
+        )
       ) : null}
 
       {rows.map((row) =>
@@ -143,7 +147,7 @@ export function LocationPotentialPanel({
                     />
                     <PendingSubmitButton
                       aria-label={t("remove")}
-                      className="location-potential-action location-potential-action--danger"
+                      className="location-insight-action location-insight-action--danger"
                       pendingLabel="…"
                     >
                       <TrashIcon />

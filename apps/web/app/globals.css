@@ -1746,7 +1746,9 @@ textarea {
   display: flex;
 }
 
-.location-potential-action {
+/* Shared icon button for the potential and assortment card actions (edit
+   pencil, delete trash). */
+.location-insight-action {
   align-items: center;
   background: transparent;
   border: 0;
@@ -1760,15 +1762,15 @@ textarea {
   width: 32px;
 }
 
-.location-potential-action:hover {
+.location-insight-action:hover {
   background: var(--accent-soft);
 }
 
-.location-potential-action--danger {
+.location-insight-action--danger {
   color: var(--danger);
 }
 
-.location-potential-action--danger:hover {
+.location-insight-action--danger:hover {
   background: var(--danger-surface);
 }
 
@@ -2490,27 +2492,31 @@ textarea {
   z-index: 5;
 }
 
+/* An <li role="option">, not a <button>: virtual focus (aria-activedescendant)
+   keeps focus on the input, so options must not be Tab stops. */
 .product-picker-option {
-  background: transparent;
-  border: 0;
   border-radius: 6px;
   color: var(--ink);
   cursor: pointer;
-  display: block;
   font-size: 14px;
   padding: 9px 10px;
-  text-align: left;
-  width: 100%;
 }
 
-.product-picker-option:hover {
+.product-picker-option:hover,
+.product-picker-option.is-active {
   background: var(--surface-muted);
 }
 
-.product-picker-empty {
+.product-picker-empty,
+.product-picker-hint {
   color: var(--muted);
   font-size: 14px;
   padding: 9px 10px;
+}
+
+.product-picker-hint {
+  border-top: 1px solid var(--line);
+  font-style: italic;
 }
 
 /* Selector carries `.visit-form.compact` so its `padding-top: 0` reset does not

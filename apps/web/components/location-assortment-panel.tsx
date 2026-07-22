@@ -79,13 +79,17 @@ export function LocationAssortmentPanel({
       ) : null}
 
       {rows.length === 0 ? (
-        <div className="empty-state-panel location-insights-empty">
-          <span className="location-insights-empty-icon" aria-hidden="true">
-            <PackageIcon size={28} />
-          </span>
-          <h2>{t("assortmentEmptyTitle")}</h2>
-          <p>{t("assortmentEmptyHint")}</p>
-        </div>
+        variant === "cards" ? (
+          <div className="empty-state-panel location-insights-empty">
+            <span className="location-insights-empty-icon" aria-hidden="true">
+              <PackageIcon size={28} />
+            </span>
+            <h2>{t("assortmentEmptyTitle")}</h2>
+            <p>{t("assortmentEmptyHint")}</p>
+          </div>
+        ) : (
+          <p className="empty-state">{t("assortmentEmpty")}</p>
+        )
       ) : null}
 
       {rows.map((row) =>
@@ -174,7 +178,7 @@ export function LocationAssortmentPanel({
                     />
                     <PendingSubmitButton
                       aria-label={t("remove")}
-                      className="location-potential-action location-potential-action--danger"
+                      className="location-insight-action location-insight-action--danger"
                       pendingLabel="…"
                     >
                       <TrashIcon />
