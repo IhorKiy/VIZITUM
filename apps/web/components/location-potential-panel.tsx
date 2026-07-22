@@ -1,6 +1,9 @@
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 
 import type { LocationPotential } from "../lib/api-client";
+import { formatDate } from "../lib/format";
+import { BanknoteIcon, ChevronDownIcon, TrashIcon } from "./icons";
+import { LocationPotentialModal } from "./location-potential-modal";
 import { PendingSubmitButton } from "./pending-submit-button";
 
 type LocationPotentialPanelProps = {
@@ -11,6 +14,13 @@ type LocationPotentialPanelProps = {
   // detail screen) omit them.
   upsertAction?: (formData: FormData) => Promise<void>;
   deleteAction?: (formData: FormData) => Promise<void>;
+  // "inline" (default) renders rows read-only (admin, canManage=false) or as
+  // editable forms when canManage; "cards" renders collapsible display cards
+  // with a per-row edit modal (pencil) and delete (trash) — the field screen
+  // uses this and drives adds from its own header "+" modal. locationName feeds
+  // the edit modal's subtitle and is only read in "cards" mode.
+  variant?: "inline" | "cards";
+  locationName?: string;
 };
 
 // Shared by the field location detail screen and the admin location detail
@@ -25,115 +35,228 @@ export function LocationPotentialPanel({
   canManage,
   upsertAction,
   deleteAction,
+  variant = "inline",
+  locationName = "",
 }: LocationPotentialPanelProps) {
   const t = useTranslations("common.locationInsights");
   const tCommon = useTranslations("common");
+  const format = useFormatter();
+  const showInlineAddForm =
+    variant === "inline" && canManage && availableCategories.length > 0;
 
-  if (rows.length === 0 && (!canManage || availableCategories.length === 0)) {
-    return <p className="empty-state">{t("potentialEmpty")}</p>;
-  }
+  const money = (value: number | null) =>
+    value == null ? "—" : `${format.number(value)} ${t("currency")}`;
 
   return (
     <div className="field-card-list">
-      {rows.map((row) => (
-        <article className="location-mini-card" key={row.id}>
-          {canManage ? (
-            <form action={upsertAction} className="visit-form compact">
-              <input
-                name="productCategoryId"
-                type="hidden"
-                value={row.productCategoryId}
-              />
-              <h3 className="visit-form-full">{row.productCategory.name}</h3>
-              <label>
-                {t("potentialAmount")}
-                <input
-                  defaultValue={row.potentialAmount ?? ""}
-                  min={0}
-                  name="potentialAmount"
-                  type="number"
-                />
-              </label>
-              <label>
-                {t("potentialDate")}
-                <input
-                  defaultValue={row.potentialDate ?? ""}
-                  name="potentialDate"
-                  type="date"
-                />
-              </label>
-              <label>
-                {t("planMonth1")}
-                <input
-                  defaultValue={row.planMonth1 ?? ""}
-                  min={0}
-                  name="planMonth1"
-                  type="number"
-                />
-              </label>
-              <label>
-                {t("planMonth2")}
-                <input
-                  defaultValue={row.planMonth2 ?? ""}
-                  min={0}
-                  name="planMonth2"
-                  type="number"
-                />
-              </label>
-              <label>
-                {t("planMonth3")}
-                <input
-                  defaultValue={row.planMonth3 ?? ""}
-                  min={0}
-                  name="planMonth3"
-                  type="number"
-                />
-              </label>
-              <label className="visit-form-full">
-                {t("comment")}
-                <textarea
-                  defaultValue={row.comment ?? ""}
-                  name="comment"
-                  rows={2}
-                />
-              </label>
-              <PendingSubmitButton
-                className="secondary-button"
-                pendingLabel={tCommon("saving")}
-              >
-                {tCommon("save")}
-              </PendingSubmitButton>
-            </form>
-          ) : (
-            <header>
-              <div>
-                <h3>{row.productCategory.name}</h3>
-                <p>
-                  {t("potentialAmount")}:{" "}
-                  {row.potentialAmount ?? tCommon("notSet")}
-                </p>
-              </div>
-            </header>
-          )}
-          {canManage ? (
-            <form action={deleteAction}>
-              <input
-                name="productCategoryId"
-                type="hidden"
-                value={row.productCategoryId}
-              />
-              <PendingSubmitButton
-                className="secondary-button danger"
-                pendingLabel={tCommon("saving")}
-              >
-                {t("remove")}
-              </PendingSubmitButton>
-            </form>
-          ) : null}
-        </article>
-      ))}
+      {rows.length === 0 ? (
+        variant === "cards" ? (
+          <div className="empty-state-panel location-insights-empty">
+            <span className="location-insights-empty-icon" aria-hidden="true">
+              <BanknoteIcon size={28} />
+            </span>
+            <h2>{t("potentialEmptyTitle")}</h2>
+            <p>{t("potentialEmptyHint")}</p>
+          </div>
+        ) : (
+          <p className="empty-state">{t("potentialEmpty")}</p>
+        )
+      ) : null}
 
-      {canManage && availableCategories.length > 0 ? (
+      {rows.map((row) =>
+        variant === "cards" ? (
+          <details className="location-insight-card" key={row.id}>
+            <summary className="location-insight-card-summary">
+              <h3>{row.productCategory.name}</h3>
+              <span
+                className="location-insight-card-chevron"
+                aria-hidden="true"
+              >
+                <ChevronDownIcon />
+              </span>
+            </summary>
+            <div className="location-insight-card-body">
+              <div className="location-insight-summary-row">
+                <p
+                  aria-label={t("readAmount", {
+                    amount: money(row.potentialAmount),
+                  })}
+                  className="location-potential-meta"
+                >
+                  <span
+                    className="location-potential-meta-icon"
+                    aria-hidden="true"
+                  >
+                    <BanknoteIcon />
+                  </span>
+                  {money(row.potentialAmount)}
+                </p>
+                {row.potentialDate ? (
+                  <span
+                    aria-label={t("readDate", {
+                      date: formatDate(format, row.potentialDate),
+                    })}
+                    className="location-insight-pill"
+                  >
+                    {formatDate(format, row.potentialDate)}
+                  </span>
+                ) : null}
+              </div>
+              <div className="location-insight-tiles">
+                {[
+                  {
+                    key: "month1",
+                    label: t("potentialModal.month1"),
+                    value: row.planMonth1,
+                  },
+                  {
+                    key: "month2",
+                    label: t("potentialModal.month2"),
+                    value: row.planMonth2,
+                  },
+                  {
+                    key: "month3",
+                    label: t("potentialModal.month3"),
+                    value: row.planMonth3,
+                  },
+                ].map((month) => (
+                  <div className="location-insight-tile" key={month.key}>
+                    <span className="location-insight-tile-label">
+                      {month.label}
+                    </span>
+                    <span className="location-insight-tile-value">
+                      {money(month.value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {canManage && upsertAction && deleteAction ? (
+                <div className="location-insight-card-actions">
+                  <LocationPotentialModal
+                    action={upsertAction}
+                    canManage={canManage}
+                    locationName={locationName}
+                    mode="edit"
+                    row={row}
+                  />
+                  <form action={deleteAction}>
+                    <input
+                      name="productCategoryId"
+                      type="hidden"
+                      value={row.productCategoryId}
+                    />
+                    <PendingSubmitButton
+                      aria-label={t("remove")}
+                      className="location-insight-action location-insight-action--danger"
+                      pendingLabel="…"
+                    >
+                      <TrashIcon />
+                    </PendingSubmitButton>
+                  </form>
+                </div>
+              ) : null}
+            </div>
+          </details>
+        ) : (
+          <article className="location-mini-card" key={row.id}>
+            {canManage ? (
+              <form action={upsertAction} className="visit-form compact">
+                <input
+                  name="productCategoryId"
+                  type="hidden"
+                  value={row.productCategoryId}
+                />
+                <h3 className="visit-form-full">{row.productCategory.name}</h3>
+                <label>
+                  {t("potentialAmount")}
+                  <input
+                    defaultValue={row.potentialAmount ?? ""}
+                    min={0}
+                    name="potentialAmount"
+                    type="number"
+                  />
+                </label>
+                <label>
+                  {t("potentialDate")}
+                  <input
+                    defaultValue={row.potentialDate ?? ""}
+                    name="potentialDate"
+                    type="date"
+                  />
+                </label>
+                <label>
+                  {t("planMonth1")}
+                  <input
+                    defaultValue={row.planMonth1 ?? ""}
+                    min={0}
+                    name="planMonth1"
+                    type="number"
+                  />
+                </label>
+                <label>
+                  {t("planMonth2")}
+                  <input
+                    defaultValue={row.planMonth2 ?? ""}
+                    min={0}
+                    name="planMonth2"
+                    type="number"
+                  />
+                </label>
+                <label>
+                  {t("planMonth3")}
+                  <input
+                    defaultValue={row.planMonth3 ?? ""}
+                    min={0}
+                    name="planMonth3"
+                    type="number"
+                  />
+                </label>
+                <label className="visit-form-full">
+                  {t("comment")}
+                  <textarea
+                    defaultValue={row.comment ?? ""}
+                    name="comment"
+                    rows={2}
+                  />
+                </label>
+                <PendingSubmitButton
+                  className="secondary-button"
+                  pendingLabel={tCommon("saving")}
+                >
+                  {tCommon("save")}
+                </PendingSubmitButton>
+              </form>
+            ) : (
+              <header>
+                <div>
+                  <h3>{row.productCategory.name}</h3>
+                  <p>
+                    {t("potentialAmount")}:{" "}
+                    {row.potentialAmount ?? tCommon("notSet")}
+                  </p>
+                </div>
+              </header>
+            )}
+            {canManage ? (
+              <form action={deleteAction}>
+                <input
+                  name="productCategoryId"
+                  type="hidden"
+                  value={row.productCategoryId}
+                />
+                <PendingSubmitButton
+                  className="secondary-button danger"
+                  pendingLabel={tCommon("saving")}
+                >
+                  {t("remove")}
+                </PendingSubmitButton>
+              </form>
+            ) : null}
+          </article>
+        ),
+      )}
+
+      {showInlineAddForm ? (
         <form action={upsertAction} className="visit-form compact">
           <label className="visit-form-full">
             {t("category")}

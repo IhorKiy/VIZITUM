@@ -3,7 +3,19 @@ import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
 import { DismissableNotice } from "../../../../../components/dismissable-notice";
+import {
+  ActivityIcon,
+  BanknoteIcon,
+  ChevronDownIcon,
+  ListTodoIcon,
+  MapPinIcon,
+  PackageIcon,
+  PhoneIcon,
+  UserIcon,
+} from "../../../../../components/icons";
+import { LocationAssortmentModal } from "../../../../../components/location-assortment-modal";
 import { LocationAssortmentPanel } from "../../../../../components/location-assortment-panel";
+import { LocationPotentialModal } from "../../../../../components/location-potential-modal";
 import { LocationPotentialPanel } from "../../../../../components/location-potential-panel";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import {
@@ -237,9 +249,10 @@ export default async function LocationDetailPage({
   // the same way the admin detail screen does: skip the insights calls and
   // the "start visit" CTA rather than offering actions that can only fail.
   const isArchivedLocation = locationResult.ok && locationResult.data.archived;
-  const representativeName = sessionResult.ok
-    ? sessionResult.data.user.name
-    : t("location.demoRepresentative");
+  const chainName = locationResult.ok
+    ? locationResult.data.chain?.name
+    : undefined;
+  const contacts = locationResult.ok ? locationResult.data.contacts : [];
 
   const representativeUserId = sessionResult.ok
     ? sessionResult.data.user.id
@@ -377,9 +390,8 @@ export default async function LocationDetailPage({
       {locationInsights === "updated" || locationInsights === "deleted" ? (
         <DismissableNotice
           ariaLabel={tLocationInsights("savedAria")}
-          body={tLocationInsights("savedBody")}
           clearParams={["locationInsights"]}
-          eyebrow={t("flowEyebrow")}
+          compact
           title={tLocationInsights("savedTitle")}
           tone="success"
         />
@@ -398,266 +410,346 @@ export default async function LocationDetailPage({
         </section>
       ) : null}
 
-      <div className="location-header panel">
-        <div className="location-header-top">
-          <a
-            aria-label={t("location.backAria")}
-            className="location-header-back"
-            href={`/${tenantSlug}/field`}
-          >
-            ‹
-          </a>
-          <h1 className="location-header-title">{locationName}</h1>
-        </div>
-        <p className="location-header-address">{locationAddress}</p>
-        <span className="location-header-rep">{representativeName}</span>
-      </div>
-
-      {productsEnabled && isArchivedLocation ? (
-        <section
-          aria-label={tLocationInsights("archivedAria")}
-          className="notice-panel"
-        >
-          <div>
-            <p className="eyebrow">{t("flowEyebrow")}</p>
-            <h2>{tLocationInsights("archivedTitle")}</h2>
-            <p>{tLocationInsights("archivedBody")}</p>
-          </div>
-        </section>
-      ) : null}
-
-      {productsEnabled && !isArchivedLocation ? (
-        <>
-          <details className="panel location-feature">
-            <summary className="location-feature-summary">
-              <span className="location-feature-heading">
-                <span className="location-feature-icon" aria-hidden="true">
-                  💰
-                </span>
-                <span className="location-feature-titles">
-                  <span className="location-feature-name">
-                    {tLocationInsights("potentialTitle")}
-                  </span>
-                  <span className="location-feature-meta">
-                    {tLocationInsights("potentialCount", {
-                      count: potentialRows.length,
-                    })}
-                  </span>
-                </span>
+      <div className="location-detail-sections">
+        <details className="panel location-header">
+          <summary className="location-header-summary">
+            <div className="location-header-top">
+              <a
+                aria-label={t("location.backAria")}
+                className="location-header-back"
+                href={`/${tenantSlug}/field`}
+              >
+                ‹
+              </a>
+              <h1 className="location-header-title">{locationName}</h1>
+              <span className="location-header-chevron" aria-hidden="true">
+                <ChevronDownIcon />
               </span>
-              <span className="location-feature-actions">
-                <span className="location-feature-chevron" aria-hidden="true">
-                  ›
-                </span>
+            </div>
+            <p className="location-header-address">
+              <span aria-hidden="true" className="location-header-address-icon">
+                <MapPinIcon />
               </span>
-            </summary>
-            <LocationPotentialPanel
-              availableCategories={availableCategories}
-              canManage={canManagePotential}
-              deleteAction={deletePotentialAction}
-              rows={potentialRows}
-              upsertAction={upsertPotentialAction}
-            />
-          </details>
-
-          <details className="panel location-feature">
-            <summary className="location-feature-summary">
-              <span className="location-feature-heading">
-                <span className="location-feature-icon" aria-hidden="true">
-                  📦
-                </span>
-                <span className="location-feature-titles">
-                  <span className="location-feature-name">
-                    {tLocationInsights("assortmentTitle")}
-                  </span>
-                  <span className="location-feature-meta">
-                    {tLocationInsights("assortmentCount", {
-                      count: assortmentRows.length,
-                    })}
-                  </span>
-                </span>
-              </span>
-              <span className="location-feature-actions">
-                <span className="location-feature-chevron" aria-hidden="true">
-                  ›
-                </span>
-              </span>
-            </summary>
-            <LocationAssortmentPanel
-              availableProducts={availableProducts}
-              canManage={canManageAssortment}
-              coveragePct={assortmentCoverage.pct}
-              deleteAction={deleteAssortmentAction}
-              inStockCount={assortmentCoverage.inStock}
-              requiredCount={assortmentCoverage.required}
-              rows={assortmentRows}
-              upsertAction={upsertAssortmentAction}
-            />
-          </details>
-        </>
-      ) : null}
-
-      {isDemoLocation ? (
-        <a
-          className="primary-button location-start-visit"
-          href={`/${tenantSlug}/field/visits/demo-visit-${locationId}?demoLocationId=${encodeURIComponent(locationId)}&demoName=${encodeURIComponent(locationName)}&demoAddress=${encodeURIComponent(locationAddress)}`}
-        >
-          <span aria-hidden="true">▶</span> {t("location.startVisitDemo")}
-        </a>
-      ) : activeVisit ? (
-        <a
-          className="primary-button location-start-visit"
-          href={`/${tenantSlug}/field/visits/${activeVisit.id}`}
-        >
-          <span aria-hidden="true">▶</span> {t("location.continueVisit")}
-        </a>
-      ) : stopAlreadyVisited ? (
-        <p className="empty-state">{t("location.alreadyVisited")}</p>
-      ) : isArchivedLocation ? (
-        <p className="empty-state">{t("location.archivedNoVisit")}</p>
-      ) : (
-        <form action={startVisitAction}>
-          <input name="routeItemId" type="hidden" value={routeItemId ?? ""} />
-          <PendingSubmitButton
-            className="primary-button location-start-visit"
-            pendingLabel={t("location.starting")}
-          >
-            <span aria-hidden="true">▶</span> {t("location.startVisit")}
-          </PendingSubmitButton>
-        </form>
-      )}
-
-      {!isDemoLocation &&
-      routePlanId &&
-      routeItemId &&
-      !stopAlreadyVisited &&
-      !activeVisit ? (
-        <form action={markVisitedAction}>
-          <input name="routePlanId" type="hidden" value={routePlanId} />
-          <input name="routeItemId" type="hidden" value={routeItemId} />
-          <PendingSubmitButton
-            className="secondary-button"
-            pendingLabel={tCommon("saving")}
-          >
-            {t("location.markVisited")}
-          </PendingSubmitButton>
-        </form>
-      ) : null}
-
-      <details className="panel location-feature">
-        <summary className="location-feature-summary">
-          <span className="location-feature-heading">
-            <span className="location-feature-icon" aria-hidden="true">
-              🗒️
+              {locationAddress}
+            </p>
+            <span className="location-header-chain">
+              {chainName ?? t("location.chainNone")}
             </span>
-            <span className="location-feature-titles">
-              <span className="location-feature-name">
-                {t("location.openTasks")}
-                <span className="location-feature-help" aria-hidden="true">
-                  ?
-                </span>
-              </span>
-              <span className="location-feature-meta">
-                {t("location.taskCount", { count: openTasks.length })}
-              </span>
-            </span>
-          </span>
-          <span className="location-feature-actions">
-            <span className="location-feature-chevron" aria-hidden="true">
-              ›
-            </span>
-          </span>
-        </summary>
-        {openTasks.length > 0 ? (
-          <div className="field-card-list">
-            {openTasks.map((item: Task) => (
-              <article className="location-mini-card" key={item.id}>
-                <header>
-                  <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.description ?? t("location.noTaskDetails")}</p>
-                  </div>
-                  <span
-                    className={`status-pill ${statusPillTone(item.status)}`}
-                  >
-                    {formatEnumLabel(tCommon, item.status)}
+          </summary>
+          <div className="location-header-contacts">
+            <p className="location-header-contacts-label">
+              {t("location.contactsTitle")}
+            </p>
+            {contacts.length > 0 ? (
+              contacts.map((contact) => (
+                <div className="location-contact-row" key={contact.id}>
+                  <span className="location-contact-icon" aria-hidden="true">
+                    <UserIcon />
                   </span>
-                </header>
-                <p className="form-hint">
-                  {item.isPriority ? (
-                    <>
-                      <span className="priority-tag">
-                        {t("tasks.priority")}
+                  <div className="location-contact-text">
+                    <span className="location-contact-name">
+                      {contact.name}
+                    </span>
+                    {contact.roleTitle ? (
+                      <span className="location-contact-role">
+                        {contact.roleTitle}
                       </span>
-                      {" · "}
+                    ) : null}
+                  </div>
+                  {contact.phone ? (
+                    <>
+                      <span className="location-contact-phone">
+                        {contact.phone}
+                      </span>
+                      <a
+                        aria-label={t("location.callContact", {
+                          name: contact.name,
+                        })}
+                        className="location-contact-call"
+                        href={`tel:${contact.phone.replace(/\s+/g, "")}`}
+                      >
+                        <PhoneIcon />
+                      </a>
                     </>
                   ) : null}
-                  {t("tasks.due")}{" "}
-                  {formatDateTime(format, item.dueDate, tCommon("notSet"))}
-                </p>
-              </article>
-            ))}
+                </div>
+              ))
+            ) : (
+              <p className="empty-state">{t("location.noContacts")}</p>
+            )}
           </div>
-        ) : (
-          <p className="empty-state">{t("location.noOpenTasks")}</p>
-        )}
-      </details>
+        </details>
 
-      <details className="panel location-feature">
-        <summary className="location-feature-summary">
-          <span className="location-feature-heading">
-            <span className="location-feature-icon" aria-hidden="true">
-              📈
-            </span>
-            <span className="location-feature-titles">
-              <span className="location-feature-name">
-                {t("location.visitHistory")}
-                <span className="location-feature-help" aria-hidden="true">
-                  ?
+        {productsEnabled && isArchivedLocation ? (
+          <section
+            aria-label={tLocationInsights("archivedAria")}
+            className="notice-panel"
+          >
+            <div>
+              <p className="eyebrow">{t("flowEyebrow")}</p>
+              <h2>{tLocationInsights("archivedTitle")}</h2>
+              <p>{tLocationInsights("archivedBody")}</p>
+            </div>
+          </section>
+        ) : null}
+
+        {productsEnabled && !isArchivedLocation ? (
+          <>
+            <details className="panel location-feature">
+              <summary className="location-feature-summary">
+                <span className="location-feature-heading">
+                  <span className="location-feature-icon" aria-hidden="true">
+                    <BanknoteIcon size={20} />
+                  </span>
+                  <span className="location-feature-titles">
+                    <span className="location-feature-name">
+                      {tLocationInsights("potentialTitle")}
+                    </span>
+                    <span className="location-feature-meta">
+                      {tLocationInsights("potentialCount", {
+                        count: potentialRows.length,
+                      })}
+                    </span>
+                  </span>
+                </span>
+                <span className="location-feature-actions">
+                  <span className="location-feature-chevron" aria-hidden="true">
+                    ›
+                  </span>
+                  <LocationPotentialModal
+                    action={upsertPotentialAction}
+                    availableCategories={availableCategories}
+                    canManage={canManagePotential}
+                    locationName={locationName}
+                    mode="add"
+                  />
+                </span>
+              </summary>
+              <LocationPotentialPanel
+                availableCategories={availableCategories}
+                canManage={canManagePotential}
+                deleteAction={deletePotentialAction}
+                locationName={locationName}
+                rows={potentialRows}
+                upsertAction={upsertPotentialAction}
+                variant="cards"
+              />
+            </details>
+
+            <details className="panel location-feature">
+              <summary className="location-feature-summary">
+                <span className="location-feature-heading">
+                  <span className="location-feature-icon" aria-hidden="true">
+                    <PackageIcon size={20} />
+                  </span>
+                  <span className="location-feature-titles">
+                    <span className="location-feature-name">
+                      {tLocationInsights("assortmentTitle")}
+                    </span>
+                    <span className="location-feature-meta">
+                      {tLocationInsights("assortmentCount", {
+                        count: assortmentRows.length,
+                      })}
+                    </span>
+                  </span>
+                </span>
+                <span className="location-feature-actions">
+                  <span className="location-feature-chevron" aria-hidden="true">
+                    ›
+                  </span>
+                  <LocationAssortmentModal
+                    action={upsertAssortmentAction}
+                    availableProducts={availableProducts}
+                    canManage={canManageAssortment}
+                    locationName={locationName}
+                    mode="add"
+                  />
+                </span>
+              </summary>
+              <LocationAssortmentPanel
+                availableProducts={availableProducts}
+                canManage={canManageAssortment}
+                coveragePct={assortmentCoverage.pct}
+                deleteAction={deleteAssortmentAction}
+                inStockCount={assortmentCoverage.inStock}
+                locationName={locationName}
+                requiredCount={assortmentCoverage.required}
+                rows={assortmentRows}
+                upsertAction={upsertAssortmentAction}
+                variant="cards"
+              />
+            </details>
+          </>
+        ) : null}
+
+        <div className="location-actions">
+          {isDemoLocation ? (
+            <a
+              className="primary-button location-start-visit"
+              href={`/${tenantSlug}/field/visits/demo-visit-${locationId}?demoLocationId=${encodeURIComponent(locationId)}&demoName=${encodeURIComponent(locationName)}&demoAddress=${encodeURIComponent(locationAddress)}`}
+            >
+              <span aria-hidden="true">▶</span> {t("location.startVisitDemo")}
+            </a>
+          ) : activeVisit ? (
+            <a
+              className="primary-button location-start-visit"
+              href={`/${tenantSlug}/field/visits/${activeVisit.id}`}
+            >
+              <span aria-hidden="true">▶</span> {t("location.continueVisit")}
+            </a>
+          ) : stopAlreadyVisited ? (
+            <p className="empty-state">{t("location.alreadyVisited")}</p>
+          ) : isArchivedLocation ? (
+            <p className="empty-state">{t("location.archivedNoVisit")}</p>
+          ) : (
+            <form action={startVisitAction}>
+              <input
+                name="routeItemId"
+                type="hidden"
+                value={routeItemId ?? ""}
+              />
+              <PendingSubmitButton
+                className="primary-button location-start-visit"
+                pendingLabel={t("location.starting")}
+              >
+                <span aria-hidden="true">▶</span> {t("location.startVisit")}
+              </PendingSubmitButton>
+            </form>
+          )}
+
+          {!isDemoLocation &&
+          routePlanId &&
+          routeItemId &&
+          !stopAlreadyVisited &&
+          !activeVisit ? (
+            <form action={markVisitedAction}>
+              <input name="routePlanId" type="hidden" value={routePlanId} />
+              <input name="routeItemId" type="hidden" value={routeItemId} />
+              <PendingSubmitButton
+                className="secondary-button"
+                pendingLabel={tCommon("saving")}
+              >
+                {t("location.markVisited")}
+              </PendingSubmitButton>
+            </form>
+          ) : null}
+        </div>
+
+        <details className="panel location-feature">
+          <summary className="location-feature-summary">
+            <span className="location-feature-heading">
+              <span className="location-feature-icon" aria-hidden="true">
+                <ListTodoIcon size={20} />
+              </span>
+              <span className="location-feature-titles">
+                <span className="location-feature-name">
+                  {t("location.openTasks")}
+                  <span className="location-feature-help" aria-hidden="true">
+                    ?
+                  </span>
+                </span>
+                <span className="location-feature-meta">
+                  {t("location.taskCount", { count: openTasks.length })}
                 </span>
               </span>
-              <span className="location-feature-meta">
-                {t("location.visitCount", { count: visitHistory.length })}
+            </span>
+            <span className="location-feature-actions">
+              <span className="location-feature-chevron" aria-hidden="true">
+                ›
               </span>
             </span>
-          </span>
-          <span className="location-feature-actions">
-            <span className="location-feature-chevron" aria-hidden="true">
-              ›
-            </span>
-          </span>
-        </summary>
-        {visitHistory.length > 0 ? (
-          <div className="field-card-list">
-            {visitHistory.map((item: Visit) => (
-              <a
-                className="location-mini-card location-history-row"
-                href={`/${tenantSlug}/field/visits/${item.id}`}
-                key={item.id}
-              >
-                <header>
-                  <div>
-                    <h3>
-                      {formatDateTime(
-                        format,
-                        item.completedAt ?? item.createdAt,
-                      )}
-                    </h3>
-                    <p>{formatEnumLabel(tCommon, item.visitType)}</p>
-                  </div>
-                  <span
-                    className={`status-pill ${statusPillTone(item.status)}`}
-                  >
-                    {formatEnumLabel(tCommon, item.status)}
+          </summary>
+          {openTasks.length > 0 ? (
+            <div className="field-card-list">
+              {openTasks.map((item: Task) => (
+                <article className="location-mini-card" key={item.id}>
+                  <header>
+                    <div>
+                      <h3>{item.title}</h3>
+                      <p>{item.description ?? t("location.noTaskDetails")}</p>
+                    </div>
+                    <span
+                      className={`status-pill ${statusPillTone(item.status)}`}
+                    >
+                      {formatEnumLabel(tCommon, item.status)}
+                    </span>
+                  </header>
+                  <p className="form-hint">
+                    {item.isPriority ? (
+                      <>
+                        <span className="priority-tag">
+                          {t("tasks.priority")}
+                        </span>
+                        {" · "}
+                      </>
+                    ) : null}
+                    {t("tasks.due")}{" "}
+                    {formatDateTime(format, item.dueDate, tCommon("notSet"))}
+                  </p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">{t("location.noOpenTasks")}</p>
+          )}
+        </details>
+
+        <details className="panel location-feature">
+          <summary className="location-feature-summary">
+            <span className="location-feature-heading">
+              <span className="location-feature-icon" aria-hidden="true">
+                <ActivityIcon size={20} />
+              </span>
+              <span className="location-feature-titles">
+                <span className="location-feature-name">
+                  {t("location.visitHistory")}
+                  <span className="location-feature-help" aria-hidden="true">
+                    ?
                   </span>
-                </header>
-              </a>
-            ))}
-          </div>
-        ) : (
-          <p className="empty-state">{t("location.noPastVisits")}</p>
-        )}
-      </details>
+                </span>
+                <span className="location-feature-meta">
+                  {t("location.visitCount", { count: visitHistory.length })}
+                </span>
+              </span>
+            </span>
+            <span className="location-feature-actions">
+              <span className="location-feature-chevron" aria-hidden="true">
+                ›
+              </span>
+            </span>
+          </summary>
+          {visitHistory.length > 0 ? (
+            <div className="field-card-list">
+              {visitHistory.map((item: Visit) => (
+                <a
+                  className="location-mini-card location-history-row"
+                  href={`/${tenantSlug}/field/visits/${item.id}`}
+                  key={item.id}
+                >
+                  <header>
+                    <div>
+                      <h3>
+                        {formatDateTime(
+                          format,
+                          item.completedAt ?? item.createdAt,
+                        )}
+                      </h3>
+                      <p>{formatEnumLabel(tCommon, item.visitType)}</p>
+                    </div>
+                    <span
+                      className={`status-pill ${statusPillTone(item.status)}`}
+                    >
+                      {formatEnumLabel(tCommon, item.status)}
+                    </span>
+                  </header>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">{t("location.noPastVisits")}</p>
+          )}
+        </details>
+      </div>
     </AppShell>
   );
 }
