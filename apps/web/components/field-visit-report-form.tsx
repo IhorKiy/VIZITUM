@@ -16,6 +16,7 @@ import {
   CloseIcon,
   ListTodoIcon,
   LoaderIcon,
+  MapPinIcon,
   MicIcon,
   PackageIcon,
   PlusIcon,
@@ -722,14 +723,6 @@ export function FieldVisitReportForm({
 
   return (
     <article className="visit-card">
-      <header>
-        <div>
-          <h2>{t("newReportTitle")}</h2>
-          <p className="visit-meta">{locationName}</p>
-          <p className="visit-meta">{locationAddress}</p>
-        </div>
-      </header>
-
       {error ? (
         <section
           className="notice-panel danger"
@@ -767,6 +760,21 @@ export function FieldVisitReportForm({
           {recordingCapNotice ? (
             <p className="form-hint">{recordingCapNotice}</p>
           ) : null}
+        </div>
+
+        <div>
+          <div className="field-label-row">
+            <span className="visit-field-label">{t("locationLabel")}</span>
+          </div>
+          <div className="visit-location-card">
+            <span aria-hidden="true" className="visit-location-icon">
+              <MapPinIcon />
+            </span>
+            <div>
+              <p className="visit-location-name">{locationName}</p>
+              <p className="visit-location-address">{locationAddress}</p>
+            </div>
+          </div>
         </div>
 
         <div>

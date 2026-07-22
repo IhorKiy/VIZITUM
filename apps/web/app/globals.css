@@ -385,6 +385,33 @@ textarea {
   text-transform: uppercase;
 }
 
+/* Compact "‹ Title" bar for the field visit-report screen, replacing
+   .page-header there — the location is already repeated inside the form
+   as a .visit-location-card, so the big eyebrow/h1/address header would
+   just duplicate it. */
+.visit-report-header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  margin: 0 auto 20px;
+  max-width: 1180px;
+  padding-bottom: 16px;
+}
+
+.visit-report-back {
+  color: var(--ink);
+  flex-shrink: 0;
+  font-size: 26px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.visit-report-header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
 .toolbar {
   align-items: center;
   display: flex;
@@ -663,6 +690,15 @@ textarea {
   gap: 10px;
   margin-top: 12px;
   padding-top: 12px;
+}
+
+/* The visit-report form has no card header above it (the title moved to
+   .visit-report-header, page-level) so the separator border would just
+   float at the top of the card with nothing to separate from. */
+.visit-card > .visit-form {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .visit-form label {
@@ -5151,6 +5187,42 @@ a.metric-card:hover {
   font-size: 13px;
   font-weight: 700;
   gap: 8px;
+}
+
+.visit-field-label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.visit-location-card {
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 12px;
+}
+
+.visit-location-icon {
+  color: var(--muted);
+  display: flex;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.visit-location-name {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.visit-location-address {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 2px 0 0;
 }
 
 .field-panel-card {
