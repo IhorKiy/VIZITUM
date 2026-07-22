@@ -26,8 +26,10 @@ type LocationAssortmentPanelProps = {
   coveragePct: number;
   requiredCount: number;
   inStockCount: number;
-  upsertAction: (formData: FormData) => Promise<void>;
-  deleteAction: (formData: FormData) => Promise<void>;
+  // Only read when canManage is true — read-only callers (the admin location
+  // detail screen) omit them.
+  upsertAction?: (formData: FormData) => Promise<void>;
+  deleteAction?: (formData: FormData) => Promise<void>;
 };
 
 // Shared by the field and admin location detail screens — mirrors
