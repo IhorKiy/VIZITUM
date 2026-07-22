@@ -380,6 +380,7 @@ export type TenantSettings = {
   locationCategoriesEnabled: boolean;
   colorScheme: string;
   logo: TenantLogo | null;
+  fieldReportVoiceHint: string | null;
   updatedAt: string;
 };
 
@@ -1269,8 +1270,17 @@ export async function updateAdminSettings(input: {
   productsEnabled?: boolean;
   locationCategoriesEnabled?: boolean;
   colorScheme?: string;
+  fieldReportVoiceHint?: string;
 }): Promise<ApiResult<TenantSettings>> {
   return apiPatch<TenantSettings>("/admin/settings", input);
+}
+
+export async function getFieldReportVoiceHint(): Promise<
+  ApiResult<{ voiceHint: string | null }>
+> {
+  return apiGet<{ voiceHint: string | null }>(
+    "/settings/field-report-voice-hint",
+  );
 }
 
 export async function deleteTenantLogo(): Promise<ApiResult<TenantSettings>> {

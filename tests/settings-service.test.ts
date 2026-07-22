@@ -306,15 +306,14 @@ describe("settings service", () => {
         Boolean(
           (
             error.response?.fieldErrors as
-              | { locationCategoriesEnabled?: string[] }
-              | undefined
+              { locationCategoriesEnabled?: string[] } | undefined
           )?.locationCategoriesEnabled,
         ),
     );
   });
 
   it("persists locationCategoriesEnabled via the settings transaction", async () => {
-    const settingUpserts: { where?: { tenantId_key?: { key?: string }} }[] =
+    const settingUpserts: { where?: { tenantId_key?: { key?: string } } }[] =
       [];
     const service = new SettingsService({
       platformTenant: {
@@ -381,9 +380,7 @@ describe("settings service", () => {
         findUniqueOrThrow: async () => baseTenant,
       },
       tenantSetting: {
-        findMany: async () => [
-          { key: "branding_color_scheme", value: "plum" },
-        ],
+        findMany: async () => [{ key: "branding_color_scheme", value: "plum" }],
       },
     } as never);
 
@@ -498,6 +495,98 @@ describe("settings service", () => {
     const settings = await service.getSettings(context as never);
 
     assert.equal(settings.logo, null);
+  });
+
+  it("defaults fieldReportVoiceHint to null when unset", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+      tenantSetting: {
+        findMany: async () => [],
+      },
+    } as never);
+
+    const settings = await service.getSettings(context as never);
+
+    assert.equal(settings.fieldReportVoiceHint, null);
+  });
+
+  it("reads a persisted voice hint and serves it via the field endpoint", async () => {
+    const service = new SettingsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+      },
+      tenantSetting: {
+        findMany: async () => [
+          {
+            key: "field_report_voice_hint",
+            value: "Назви залишки та замовлення",
+          },
+        ],
+        findUnique: async () => ({
+          key: "field_report_voice_hint",
+          value: "Назви залишки та замовлення",
+        }),
+      },
+    } as never);
+
+    const settings = await service.getSettings(context as never);
+    assert.equal(settings.fieldReportVoiceHint, "Назви залишки та замовлення");
+
+    const fieldView = await service.getFieldReportVoiceHint(context as never);
+    assert.equal(fieldView.voiceHint, "Назви залишки та замовлення");
+  });
+
+  it("persists a trimmed voice hint and clears it on empty input", async () => {
+    const upserts: Array<{ key: string; value: unknown }> = [];
+    const stored = new Map<string, unknown>();
+    const prisma = {
+      platformTenant: {
+        findUniqueOrThrow: async () => baseTenant,
+        update: async () => baseTenant,
+      },
+      tenantSetting: {
+        findMany: async () =>
+          [...stored.entries()].map(([key, value]) => ({ key, value })),
+        upsert: async (args: {
+          where: { tenantId_key: { key: string } };
+          update: { value: unknown };
+        }) => {
+          upserts.push({
+            key: args.where.tenantId_key.key,
+            value: args.update.value,
+          });
+          stored.set(args.where.tenantId_key.key, args.update.value);
+        },
+      },
+      $transaction: async (fn: (tx: unknown) => Promise<void>) => fn(prisma),
+    };
+    const service = new SettingsService(prisma as never);
+
+    const updated = await service.updateSettings(context as never, {
+      fieldReportVoiceHint: "  Скажи результат і замовлення  ",
+    });
+    assert.equal(updated.fieldReportVoiceHint, "Скажи результат і замовлення");
+
+    await service.updateSettings(context as never, {
+      fieldReportVoiceHint: "",
+    });
+    assert.equal(upserts.length, 2);
+    // Prisma.JsonNull marker object, not the string "" — reads back as null.
+    assert.notEqual(typeof upserts[1].value, "string");
+  });
+
+  it("rejects a voice hint over the length cap", async () => {
+    const service = new SettingsService({} as never);
+
+    await assert.rejects(
+      service.updateSettings(context as never, {
+        fieldReportVoiceHint: "x".repeat(2001),
+      }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "SETTINGS_INVALID",
+    );
   });
 
   it("grants tenant settings permissions only to company_admin", () => {

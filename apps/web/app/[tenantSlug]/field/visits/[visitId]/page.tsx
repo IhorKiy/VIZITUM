@@ -5,6 +5,7 @@ import { ConfirmedFieldReportSummary } from "../../../../../components/confirmed
 import { FieldVisitReportForm } from "../../../../../components/field-visit-report-form";
 import {
   getCurrentSession,
+  getFieldReportVoiceHint,
   getVisit,
   getVisitReport,
   listAllProducts,
@@ -129,9 +130,10 @@ export default async function VisitDetailPage({
     .filter(Boolean)
     .join(", ");
 
-  const [productsResult, reportResult] = await Promise.all([
+  const [productsResult, reportResult, voiceHintResult] = await Promise.all([
     isLocked ? Promise.resolve(null) : listAllProducts(),
     isLocked ? getVisitReport(visitId) : Promise.resolve(null),
+    isLocked ? Promise.resolve(null) : getFieldReportVoiceHint(),
   ]);
   // A cancelled visit legitimately never gets a confirmed report — that's
   // not a load failure, so it gets a neutral notice instead of the danger
@@ -211,6 +213,9 @@ export default async function VisitDetailPage({
           products={productsResult?.ok ? productsResult.data : []}
           tenantSlug={tenantSlug}
           visitId={visitId}
+          voiceHint={
+            voiceHintResult?.ok ? voiceHintResult.data.voiceHint : null
+          }
         />
       )}
     </AppShell>

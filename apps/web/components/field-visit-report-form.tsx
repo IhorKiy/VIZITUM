@@ -58,6 +58,7 @@ type FieldVisitReportFormProps = {
   locationName: string;
   locationAddress: string;
   products: Product[];
+  voiceHint: string | null;
 };
 
 function todayIsoDate(): string {
@@ -210,10 +211,15 @@ export function FieldVisitReportForm({
   locationName,
   locationAddress,
   products,
+  voiceHint,
 }: FieldVisitReportFormProps) {
   const t = useTranslations("field.visit");
   const router = useRouter();
 
+  // Two screens: "capture" is just the mic plus the tenant's speaking
+  // checklist; "form" is the manual top-up. Voice lands on "form" after
+  // transcription (success OR failure — the form is the fallback path).
+  const [step, setStep] = useState<"capture" | "form">("capture");
   const [visitDate, setVisitDate] = useState(todayIsoDate);
   const [dateEditing, setDateEditing] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>("neutral");
@@ -514,6 +520,10 @@ export function FieldVisitReportForm({
       setError(t("voiceErrorNotice"));
     } finally {
       setIsTranscribing(false);
+      // Whatever happened to the audio, the rep lands on the manual form:
+      // on success to review what was extracted, on failure as the always-
+      // available fallback path.
+      setStep("form");
     }
   }
 
@@ -737,35 +747,8 @@ export function FieldVisitReportForm({
         </section>
       ) : null}
 
-      <form className="visit-form" onSubmit={handleSubmit}>
-        <div className="voice-capture">
-          <p className="voice-capture-hint">
-            {isRecording ? t("voiceHintRecording") : t("voiceHintIdle")}
-          </p>
-          <button
-            aria-label={isRecording ? t("voiceStopAria") : t("voiceRecordAria")}
-            className={`voice-capture-button${isRecording ? " recording" : ""}`}
-            disabled={isTranscribing || isSubmitting}
-            onClick={isRecording ? stopRecording : () => void startRecording()}
-            type="button"
-          >
-            {isRecording ? <StopIcon size={28} /> : <MicIcon size={36} />}
-          </button>
-          {isTranscribing ? (
-            <div className="voice-capture-status">
-              <LoaderIcon />
-              {t("voiceProcessing")}
-            </div>
-          ) : null}
-          {recordingCapNotice ? (
-            <p className="form-hint">{recordingCapNotice}</p>
-          ) : null}
-        </div>
-
-        <div>
-          <div className="field-label-row">
-            <span className="visit-field-label">{t("locationLabel")}</span>
-          </div>
+      {step === "capture" ? (
+        <div className="visit-form">
           <div className="visit-location-card">
             <span aria-hidden="true" className="visit-location-icon">
               <MapPinIcon />
@@ -775,384 +758,463 @@ export function FieldVisitReportForm({
               <p className="visit-location-address">{locationAddress}</p>
             </div>
           </div>
-        </div>
 
-        <div>
-          <span className="form-field-title">{t("outcomeLabel")}</span>
-          <div
-            className="segmented"
-            role="group"
-            aria-label={t("outcomeLabel")}
-          >
-            {outcomeOptions.map((option) => (
-              <button
-                aria-pressed={outcome === option.value}
-                className={`segmented-option${outcome === option.value ? " active" : ""}`}
-                key={option.value}
-                onClick={() => setOutcome(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <span className="form-field-title">{t("stockStatusLabel")}</span>
-          <div
-            className="segmented"
-            role="group"
-            aria-label={t("stockStatusLabel")}
-          >
-            {stockOptions.map((option) => (
-              <button
-                aria-pressed={stockStatus === option.value}
-                className={`segmented-option${stockStatus === option.value ? " active" : ""}`}
-                key={option.value}
-                onClick={() => setStockStatus(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <label>
-          <span>{t("notesLabel")}</span>
-          <textarea
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder={t("notesPlaceholder")}
-            value={notes}
-          />
-        </label>
-
-        <div className="field-panel-card">
-          <div className="field-panel-card-toggle">
-            <PackageIcon />
-            <span>{t("productsTitle")}</span>
-            {productRows.length > 0 ? (
-              <span className="eyebrow">
-                {t("productsCount", { count: productRows.length })}
-              </span>
-            ) : null}
-          </div>
-
-          <div className="combo-field" ref={productDropdownRef}>
+          <div className="voice-capture">
+            <p className="voice-capture-hint">
+              {isRecording ? t("voiceHintRecording") : t("voiceHintIdle")}
+            </p>
             <button
-              aria-expanded={productDropdownOpen}
-              className="combo-trigger"
-              onClick={() => setProductDropdownOpen((open) => !open)}
+              aria-label={
+                isRecording ? t("voiceStopAria") : t("voiceRecordAria")
+              }
+              className={`voice-capture-button${isRecording ? " recording" : ""}`}
+              disabled={isTranscribing}
+              onClick={
+                isRecording ? stopRecording : () => void startRecording()
+              }
               type="button"
             >
-              <span>{t("productsAddPlaceholder")}</span>
-              <ChevronDownIcon />
+              {isRecording ? <StopIcon size={28} /> : <MicIcon size={36} />}
             </button>
-
-            {productDropdownOpen ? (
-              <div className="combo-panel">
-                <div className="combo-search">
-                  <SearchIcon />
-                  <input
-                    autoFocus
-                    onChange={(event) => setProductSearch(event.target.value)}
-                    placeholder={t("productSearchPlaceholder")}
-                    value={productSearch}
-                  />
-                  {productSearch ? (
-                    <button onClick={() => setProductSearch("")} type="button">
-                      <CloseIcon />
-                    </button>
-                  ) : null}
-                </div>
-                <div className="combo-list">
-                  {!products.length ? (
-                    <p className="combo-empty">{t("productsEmpty")}</p>
-                  ) : filteredProducts.length === 0 ? (
-                    <p className="combo-empty">{t("productsNoMatch")}</p>
-                  ) : (
-                    filteredProducts.map((product) => {
-                      const selected = rowProductIds.has(product.id);
-                      return (
-                        <button
-                          className={`combo-option${selected ? " selected" : ""}`}
-                          key={product.id}
-                          onClick={() => toggleProductRow(product.id)}
-                          type="button"
-                        >
-                          <span className="combo-option-check">
-                            {selected ? <CheckIcon /> : null}
-                          </span>
-                          <span>{product.name}</span>
-                          {product.sku || product.category ? (
-                            <span className="combo-option-meta">
-                              {[product.sku, product.category]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
+            {isTranscribing ? (
+              <div className="voice-capture-status">
+                <LoaderIcon />
+                {t("voiceProcessing")}
               </div>
+            ) : null}
+            {recordingCapNotice ? (
+              <p className="form-hint">{recordingCapNotice}</p>
             ) : null}
           </div>
 
-          {productRows.length > 0 ? (
-            <div className="sku-card-list">
-              {productRows.map((row) => {
-                const product = products.find(
-                  (item) => item.id === row.productId,
-                );
-                return (
-                  <div className="sku-card" key={row.productId}>
-                    <div className="sku-card-header">
-                      <p>{product ? formatProductDisplayName(product) : ""}</p>
+          {voiceHint ? (
+            <div>
+              <div className="field-label-row">
+                <span className="visit-field-label">
+                  {t("voiceChecklistTitle")}
+                </span>
+              </div>
+              <div className="voice-hint-card">{voiceHint}</div>
+            </div>
+          ) : null}
+
+          <button
+            className="secondary-button"
+            disabled={isRecording || isTranscribing}
+            onClick={() => setStep("form")}
+            type="button"
+          >
+            {t("fillManually")}
+          </button>
+        </div>
+      ) : (
+        <form className="visit-form" onSubmit={handleSubmit}>
+          <button
+            className="inline-toggle"
+            disabled={isSubmitting}
+            onClick={() => setStep("capture")}
+            type="button"
+          >
+            {t("backToVoice")}
+          </button>
+
+          <div>
+            <div className="field-label-row">
+              <span className="visit-field-label">{t("locationLabel")}</span>
+            </div>
+            <div className="visit-location-card">
+              <span aria-hidden="true" className="visit-location-icon">
+                <MapPinIcon />
+              </span>
+              <div>
+                <p className="visit-location-name">{locationName}</p>
+                <p className="visit-location-address">{locationAddress}</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <span className="form-field-title">{t("outcomeLabel")}</span>
+            <div
+              className="segmented"
+              role="group"
+              aria-label={t("outcomeLabel")}
+            >
+              {outcomeOptions.map((option) => (
+                <button
+                  aria-pressed={outcome === option.value}
+                  className={`segmented-option${outcome === option.value ? " active" : ""}`}
+                  key={option.value}
+                  onClick={() => setOutcome(option.value)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="form-field-title">{t("stockStatusLabel")}</span>
+            <div
+              className="segmented"
+              role="group"
+              aria-label={t("stockStatusLabel")}
+            >
+              {stockOptions.map((option) => (
+                <button
+                  aria-pressed={stockStatus === option.value}
+                  className={`segmented-option${stockStatus === option.value ? " active" : ""}`}
+                  key={option.value}
+                  onClick={() => setStockStatus(option.value)}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label>
+            <span>{t("notesLabel")}</span>
+            <textarea
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder={t("notesPlaceholder")}
+              value={notes}
+            />
+          </label>
+
+          <div className="field-panel-card">
+            <div className="field-panel-card-toggle">
+              <PackageIcon />
+              <span>{t("productsTitle")}</span>
+              {productRows.length > 0 ? (
+                <span className="eyebrow">
+                  {t("productsCount", { count: productRows.length })}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="combo-field" ref={productDropdownRef}>
+              <button
+                aria-expanded={productDropdownOpen}
+                className="combo-trigger"
+                onClick={() => setProductDropdownOpen((open) => !open)}
+                type="button"
+              >
+                <span>{t("productsAddPlaceholder")}</span>
+                <ChevronDownIcon />
+              </button>
+
+              {productDropdownOpen ? (
+                <div className="combo-panel">
+                  <div className="combo-search">
+                    <SearchIcon />
+                    <input
+                      autoFocus
+                      onChange={(event) => setProductSearch(event.target.value)}
+                      placeholder={t("productSearchPlaceholder")}
+                      value={productSearch}
+                    />
+                    {productSearch ? (
                       <button
-                        aria-label={t("removeProductAria", {
-                          name: product?.name ?? "",
-                        })}
-                        onClick={() => toggleProductRow(row.productId)}
+                        onClick={() => setProductSearch("")}
                         type="button"
                       >
                         <CloseIcon />
                       </button>
-                    </div>
-                    <div className="chip-list">
-                      <button
-                        aria-pressed={row.presented}
-                        className={`status-chip${row.presented ? " active" : ""}`}
-                        onClick={() =>
-                          updateRow(row.productId, {
-                            presented: !row.presented,
-                          })
-                        }
-                        type="button"
-                      >
-                        {t("productPresentedChip")}
-                      </button>
-                      {PRODUCT_STATUS_OPTIONS.map((status) => (
-                        <button
-                          aria-pressed={row.status === status}
-                          className={`status-chip${row.status === status ? " active" : ""}`}
-                          key={status}
-                          onClick={() =>
-                            updateRow(row.productId, {
-                              status: row.status === status ? null : status,
-                            })
-                          }
-                          type="button"
-                        >
-                          {productStatusLabels[status]}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      aria-expanded={row.detailsOpen}
-                      className="inline-toggle"
-                      onClick={() =>
-                        updateRow(row.productId, {
-                          detailsOpen: !row.detailsOpen,
-                        })
-                      }
-                      type="button"
-                    >
-                      {t("productDetailsToggle")}
-                      <ChevronDownIcon />
-                    </button>
-                    {row.detailsOpen ? (
-                      <>
-                        <div className="sku-card-quantities">
-                          <label>
-                            <span>{t("skuStockLabel")}</span>
-                            <input
-                              inputMode="numeric"
-                              onChange={(event) =>
-                                updateRow(row.productId, {
-                                  stock: event.target.value,
-                                })
-                              }
-                              value={row.stock}
-                            />
-                          </label>
-                          <label>
-                            <span>{t("skuOrderLabel")}</span>
-                            <input
-                              inputMode="numeric"
-                              onChange={(event) =>
-                                updateRow(row.productId, {
-                                  order: event.target.value,
-                                })
-                              }
-                              value={row.order}
-                            />
-                          </label>
-                          <label>
-                            <span>{t("skuSaleLabel")}</span>
-                            <input
-                              inputMode="numeric"
-                              onChange={(event) =>
-                                updateRow(row.productId, {
-                                  sale: event.target.value,
-                                })
-                              }
-                              value={row.sale}
-                            />
-                          </label>
-                        </div>
-                        <textarea
-                          onChange={(event) =>
-                            updateRow(row.productId, {
-                              comment: event.target.value,
-                            })
-                          }
-                          placeholder={t("skuCommentPlaceholder")}
-                          value={row.comment}
-                        />
-                      </>
                     ) : null}
                   </div>
-                );
-              })}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="field-panel-card">
-          <div className="field-panel-card-toggle">
-            <ListTodoIcon />
-            <span>{t("nextVisitTasksTitle")}</span>
-            {taskEntries.length > 0 ? (
-              <span className="eyebrow">
-                {t("tasksCount", { count: taskEntries.length })}
-              </span>
-            ) : null}
-          </div>
-
-          {taskEntries.map((entry) => (
-            <div className="sku-card" key={entry.type}>
-              <div className="sku-card-header">
-                <p>{taskTypeLabels[entry.type]}</p>
-                <button
-                  aria-label={t("removeTaskAria", {
-                    title: taskTypeLabels[entry.type],
-                  })}
-                  onClick={() =>
-                    setTaskEntries((current) =>
-                      current.filter((item) => item.type !== entry.type),
-                    )
-                  }
-                  type="button"
-                >
-                  <CloseIcon />
-                </button>
-              </div>
-              <textarea
-                autoFocus={!entry.description}
-                onChange={(event) =>
-                  setTaskEntries((current) =>
-                    current.map((item) =>
-                      item.type === entry.type
-                        ? { ...item, description: event.target.value }
-                        : item,
-                    ),
-                  )
-                }
-                placeholder={taskTypePlaceholders[entry.type]}
-                value={entry.description}
-              />
-            </div>
-          ))}
-
-          {taskEntries.length > 0 ? (
-            <label>
-              <span>{t("nextVisitTasksDueDate")}</span>
-              <input
-                onChange={(event) => setTaskDueDate(event.target.value)}
-                type="date"
-                value={taskDueDate}
-              />
-            </label>
-          ) : null}
-
-          {availableTaskTypes.length > 0 ? (
-            <div className="combo-field" ref={taskPickerRef}>
-              <button
-                aria-expanded={taskPickerOpen}
-                className="secondary-button add-task-button"
-                onClick={() => setTaskPickerOpen((open) => !open)}
-                type="button"
-              >
-                <PlusIcon />
-                {t("addTask")}
-              </button>
-              {taskPickerOpen ? (
-                <div className="combo-panel">
                   <div className="combo-list">
-                    {availableTaskTypes.map((type) => (
-                      <button
-                        className="combo-option"
-                        key={type}
-                        onClick={() => addTaskEntry(type)}
-                        type="button"
-                      >
-                        <span>{taskTypeLabels[type]}</span>
-                      </button>
-                    ))}
+                    {!products.length ? (
+                      <p className="combo-empty">{t("productsEmpty")}</p>
+                    ) : filteredProducts.length === 0 ? (
+                      <p className="combo-empty">{t("productsNoMatch")}</p>
+                    ) : (
+                      filteredProducts.map((product) => {
+                        const selected = rowProductIds.has(product.id);
+                        return (
+                          <button
+                            className={`combo-option${selected ? " selected" : ""}`}
+                            key={product.id}
+                            onClick={() => toggleProductRow(product.id)}
+                            type="button"
+                          >
+                            <span className="combo-option-check">
+                              {selected ? <CheckIcon /> : null}
+                            </span>
+                            <span>{product.name}</span>
+                            {product.sku || product.category ? (
+                              <span className="combo-option-meta">
+                                {[product.sku, product.category]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               ) : null}
             </div>
-          ) : null}
-        </div>
 
-        <label>
-          <span>{t("nextActionLabel")}</span>
-          <input
-            onChange={(event) => setNextAction(event.target.value)}
-            placeholder={t("nextActionPlaceholder")}
-            value={nextAction}
-          />
-        </label>
+            {productRows.length > 0 ? (
+              <div className="sku-card-list">
+                {productRows.map((row) => {
+                  const product = products.find(
+                    (item) => item.id === row.productId,
+                  );
+                  return (
+                    <div className="sku-card" key={row.productId}>
+                      <div className="sku-card-header">
+                        <p>
+                          {product ? formatProductDisplayName(product) : ""}
+                        </p>
+                        <button
+                          aria-label={t("removeProductAria", {
+                            name: product?.name ?? "",
+                          })}
+                          onClick={() => toggleProductRow(row.productId)}
+                          type="button"
+                        >
+                          <CloseIcon />
+                        </button>
+                      </div>
+                      <div className="chip-list">
+                        <button
+                          aria-pressed={row.presented}
+                          className={`status-chip${row.presented ? " active" : ""}`}
+                          onClick={() =>
+                            updateRow(row.productId, {
+                              presented: !row.presented,
+                            })
+                          }
+                          type="button"
+                        >
+                          {t("productPresentedChip")}
+                        </button>
+                        {PRODUCT_STATUS_OPTIONS.map((status) => (
+                          <button
+                            aria-pressed={row.status === status}
+                            className={`status-chip${row.status === status ? " active" : ""}`}
+                            key={status}
+                            onClick={() =>
+                              updateRow(row.productId, {
+                                status: row.status === status ? null : status,
+                              })
+                            }
+                            type="button"
+                          >
+                            {productStatusLabels[status]}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        aria-expanded={row.detailsOpen}
+                        className="inline-toggle"
+                        onClick={() =>
+                          updateRow(row.productId, {
+                            detailsOpen: !row.detailsOpen,
+                          })
+                        }
+                        type="button"
+                      >
+                        {t("productDetailsToggle")}
+                        <ChevronDownIcon />
+                      </button>
+                      {row.detailsOpen ? (
+                        <>
+                          <div className="sku-card-quantities">
+                            <label>
+                              <span>{t("skuStockLabel")}</span>
+                              <input
+                                inputMode="numeric"
+                                onChange={(event) =>
+                                  updateRow(row.productId, {
+                                    stock: event.target.value,
+                                  })
+                                }
+                                value={row.stock}
+                              />
+                            </label>
+                            <label>
+                              <span>{t("skuOrderLabel")}</span>
+                              <input
+                                inputMode="numeric"
+                                onChange={(event) =>
+                                  updateRow(row.productId, {
+                                    order: event.target.value,
+                                  })
+                                }
+                                value={row.order}
+                              />
+                            </label>
+                            <label>
+                              <span>{t("skuSaleLabel")}</span>
+                              <input
+                                inputMode="numeric"
+                                onChange={(event) =>
+                                  updateRow(row.productId, {
+                                    sale: event.target.value,
+                                  })
+                                }
+                                value={row.sale}
+                              />
+                            </label>
+                          </div>
+                          <textarea
+                            onChange={(event) =>
+                              updateRow(row.productId, {
+                                comment: event.target.value,
+                              })
+                            }
+                            placeholder={t("skuCommentPlaceholder")}
+                            value={row.comment}
+                          />
+                        </>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
 
-        {showDateInput ? (
+          <div className="field-panel-card">
+            <div className="field-panel-card-toggle">
+              <ListTodoIcon />
+              <span>{t("nextVisitTasksTitle")}</span>
+              {taskEntries.length > 0 ? (
+                <span className="eyebrow">
+                  {t("tasksCount", { count: taskEntries.length })}
+                </span>
+              ) : null}
+            </div>
+
+            {taskEntries.map((entry) => (
+              <div className="sku-card" key={entry.type}>
+                <div className="sku-card-header">
+                  <p>{taskTypeLabels[entry.type]}</p>
+                  <button
+                    aria-label={t("removeTaskAria", {
+                      title: taskTypeLabels[entry.type],
+                    })}
+                    onClick={() =>
+                      setTaskEntries((current) =>
+                        current.filter((item) => item.type !== entry.type),
+                      )
+                    }
+                    type="button"
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
+                <textarea
+                  autoFocus={!entry.description}
+                  onChange={(event) =>
+                    setTaskEntries((current) =>
+                      current.map((item) =>
+                        item.type === entry.type
+                          ? { ...item, description: event.target.value }
+                          : item,
+                      ),
+                    )
+                  }
+                  placeholder={taskTypePlaceholders[entry.type]}
+                  value={entry.description}
+                />
+              </div>
+            ))}
+
+            {taskEntries.length > 0 ? (
+              <label>
+                <span>{t("nextVisitTasksDueDate")}</span>
+                <input
+                  onChange={(event) => setTaskDueDate(event.target.value)}
+                  type="date"
+                  value={taskDueDate}
+                />
+              </label>
+            ) : null}
+
+            {availableTaskTypes.length > 0 ? (
+              <div className="combo-field" ref={taskPickerRef}>
+                <button
+                  aria-expanded={taskPickerOpen}
+                  className="secondary-button add-task-button"
+                  onClick={() => setTaskPickerOpen((open) => !open)}
+                  type="button"
+                >
+                  <PlusIcon />
+                  {t("addTask")}
+                </button>
+                {taskPickerOpen ? (
+                  <div className="combo-panel">
+                    <div className="combo-list">
+                      {availableTaskTypes.map((type) => (
+                        <button
+                          className="combo-option"
+                          key={type}
+                          onClick={() => addTaskEntry(type)}
+                          type="button"
+                        >
+                          <span>{taskTypeLabels[type]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
           <label>
-            <span>{t("visitDateLabel")}</span>
+            <span>{t("nextActionLabel")}</span>
             <input
-              onChange={(event) => setVisitDate(event.target.value)}
-              type="date"
-              value={visitDate}
+              onChange={(event) => setNextAction(event.target.value)}
+              placeholder={t("nextActionPlaceholder")}
+              value={nextAction}
             />
           </label>
-        ) : (
-          <div className="visit-date-row">
-            <span>
-              {t("visitDateLabel")}: {t("dateToday")}
-            </span>
+
+          {showDateInput ? (
+            <label>
+              <span>{t("visitDateLabel")}</span>
+              <input
+                onChange={(event) => setVisitDate(event.target.value)}
+                type="date"
+                value={visitDate}
+              />
+            </label>
+          ) : (
+            <div className="visit-date-row">
+              <span>
+                {t("visitDateLabel")}: {t("dateToday")}
+              </span>
+              <button
+                className="inline-toggle"
+                onClick={() => setDateEditing(true)}
+                type="button"
+              >
+                {t("dateChange")}
+              </button>
+            </div>
+          )}
+
+          <div className="field-report-submit-bar">
             <button
-              className="inline-toggle"
-              onClick={() => setDateEditing(true)}
-              type="button"
+              className="primary-button field-report-submit"
+              disabled={isSubmitting || isRecording || isTranscribing}
+              type="submit"
             >
-              {t("dateChange")}
+              {isSubmitting ? <LoaderIcon /> : <SaveIcon />}
+              {isSubmitting ? t("saving") : t("saveReport")}
             </button>
           </div>
-        )}
-
-        <div className="field-report-submit-bar">
-          <button
-            className="primary-button field-report-submit"
-            disabled={isSubmitting || isRecording || isTranscribing}
-            type="submit"
-          >
-            {isSubmitting ? <LoaderIcon /> : <SaveIcon />}
-            {isSubmitting ? t("saving") : t("saveReport")}
-          </button>
-        </div>
-      </form>
+        </form>
+      )}
     </article>
   );
 }

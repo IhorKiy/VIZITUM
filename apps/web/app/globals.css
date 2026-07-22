@@ -5225,6 +5225,24 @@ a.metric-card:hover {
   margin: 2px 0 0;
 }
 
+/* Admin-authored speaking checklist shown on the capture step. pre-line so
+   the admin's line breaks survive without allowing arbitrary markup. */
+.voice-hint-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 6px;
+  padding: 12px;
+  white-space: pre-line;
+}
+
+.voice-hint-textarea {
+  max-width: 640px;
+}
+
 .field-panel-card {
   background: var(--surface-muted);
   border: 1px solid var(--line);
