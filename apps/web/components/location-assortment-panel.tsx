@@ -21,13 +21,15 @@ type LocationAssortmentPanelProps = {
   coveragePct: number;
   requiredCount: number;
   inStockCount: number;
-  upsertAction: (formData: FormData) => Promise<void>;
-  deleteAction: (formData: FormData) => Promise<void>;
-  // "inline" (default) keeps the admin detail screen's always-open edit forms
-  // plus an inline add-row form. "cards" renders read-only display cards with a
-  // per-row edit modal (pencil) and delete (trash); the field screen uses this
-  // and drives adding from its own header "+" modal. locationName feeds the
-  // edit modal's subtitle and is only read in "cards" mode.
+  // Only read when canManage is true — read-only callers (the admin location
+  // detail screen) omit them.
+  upsertAction?: (formData: FormData) => Promise<void>;
+  deleteAction?: (formData: FormData) => Promise<void>;
+  // "inline" (default) renders rows read-only (admin, canManage=false) or as
+  // editable forms when canManage; "cards" renders collapsible display cards
+  // with a per-row edit modal (pencil) and delete (trash) — the field screen
+  // uses this and drives adds from its own header "+" modal. locationName feeds
+  // the edit modal's subtitle and is only read in "cards" mode.
   variant?: "inline" | "cards";
   locationName?: string;
 };
@@ -155,7 +157,7 @@ export function LocationAssortmentPanel({
                   </div>
                 ))}
               </div>
-              {canManage ? (
+              {canManage && upsertAction && deleteAction ? (
                 <div className="location-insight-card-actions">
                   <LocationAssortmentModal
                     action={upsertAction}
