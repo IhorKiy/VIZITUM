@@ -71,6 +71,18 @@ export function formatDateTime(
   });
 }
 
+export function formatDate(
+  format: IntlFormatter,
+  value: string | null,
+  emptyLabel = "-",
+): string {
+  if (!value) {
+    return emptyLabel;
+  }
+
+  return format.dateTime(new Date(value), { dateStyle: "medium" });
+}
+
 export function formatShortDate(
   format: IntlFormatter,
   value: string | null,

@@ -6,9 +6,13 @@ import { useRouter } from "next/navigation";
 type DismissableNoticeProps = {
   tone: "success" | "danger";
   ariaLabel: string;
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   body?: string;
+  // Render as a single line of tinted text instead of the full panel — for
+  // lightweight "saved" confirmations that don't warrant a boxed banner. The
+  // eyebrow, body, children and actions are ignored in this mode.
+  compact?: boolean;
   // Extra content rendered under the body — e.g. an invite link the user has to
   // copy. A notice carrying content like this must set autoDismiss={false}.
   children?: ReactNode;
@@ -37,6 +41,7 @@ export function DismissableNotice({
   actions,
   clearParams,
   autoDismiss,
+  compact = false,
   timeoutMs = 5000,
 }: DismissableNoticeProps) {
   const router = useRouter();
@@ -74,6 +79,20 @@ export function DismissableNotice({
     return null;
   }
 
+  if (compact) {
+    return (
+      <p
+        aria-label={ariaLabel}
+        className={`notice-inline ${tone}${dismisses ? " auto-dismiss" : ""}${
+          leaving ? " is-leaving" : ""
+        }`}
+        role="status"
+      >
+        {title}
+      </p>
+    );
+  }
+
   return (
     <section
       aria-label={ariaLabel}
@@ -82,7 +101,7 @@ export function DismissableNotice({
       }`}
     >
       <div>
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
         <h2>{title}</h2>
         {body ? <p>{body}</p> : null}
         {children}

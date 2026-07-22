@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { isAssortmentStatus } from "../components/location-assortment-panel";
+import { isAssortmentStatus } from "./assortment-status";
 import {
   deleteLocationAssortment,
   deleteLocationPotential,

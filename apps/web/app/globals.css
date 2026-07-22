@@ -1665,6 +1665,212 @@ textarea {
   color: var(--muted);
 }
 
+.location-insights-empty {
+  justify-items: center;
+  text-align: center;
+}
+
+.location-insights-empty-icon {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  justify-content: center;
+}
+
+/* Read-only display card for one tracked potential (field detail screen). */
+/* Collapsible read card, shared by potential and assortment: a summary row
+   (name + optional badge + chevron) that toggles a details body. */
+.location-insight-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.location-insight-card-summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  list-style: none;
+}
+
+.location-insight-card-summary::-webkit-details-marker {
+  display: none;
+}
+
+.location-insight-card-summary h3 {
+  font-size: 16px;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-insight-card-summary-right {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.location-insight-card-chevron {
+  color: var(--muted);
+  display: flex;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.location-insight-card[open] .location-insight-card-chevron {
+  transform: rotate(180deg);
+}
+
+.location-insight-card-body {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* Edit/delete row inside the expanded body, right-aligned. The edit modal's
+   <form> is a DOM descendant here too, so scope the flex to direct forms. */
+.location-insight-card-actions {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.location-insight-card-actions > form {
+  display: flex;
+}
+
+.location-potential-action {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.location-potential-action:hover {
+  background: var(--accent-soft);
+}
+
+.location-potential-action--danger {
+  color: var(--danger);
+}
+
+.location-potential-action--danger:hover {
+  background: var(--danger-surface);
+}
+
+/* Meta text and pills on one row in the potential/assortment read cards. */
+.location-insight-summary-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.location-potential-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 14px;
+  gap: 6px;
+  margin: 0;
+}
+
+.location-potential-meta-icon {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-shrink: 0;
+}
+
+/* Shared metric tiles for the potential (plan months) and assortment
+   (stock/order/sale) read cards — a muted rounded tile with a caption over a
+   bold value, three across. */
+.location-insight-tiles {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 6px;
+}
+
+.location-insight-tile {
+  background: var(--surface-muted);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.location-insight-tile-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.location-insight-tile-value {
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assortment-status-badge {
+  align-items: center;
+  border-radius: 999px;
+  display: flex;
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.assortment-status-badge--active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+.assortment-status-badge--danger {
+  background: var(--danger-surface);
+  color: var(--danger);
+}
+
+.assortment-status-badge--warning {
+  background: color-mix(in srgb, var(--gold) 18%, transparent);
+  color: var(--gold);
+}
+
+.assortment-status-badge--neutral {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+/* Shared muted pill for the potential/assortment read cards (matrix flag,
+   dates, etc.). */
+.location-insight-pill {
+  background: var(--surface-muted);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
 .copyable-value {
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid var(--line);
@@ -2131,6 +2337,180 @@ textarea {
   font-weight: 700;
   line-height: 1.15;
   margin: 2px 0 0;
+}
+
+.modal-subtitle {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 6px 0 0;
+}
+
+/* Required-field marker rendered next to a label's text; the field's own
+   `required` attribute is what actually conveys the constraint to AT (this
+   span is aria-hidden), so this is purely visual. */
+.field-required {
+  color: var(--accent);
+}
+
+/* The three plan-month inputs share one row inside the single-column modal
+   form; each label still stacks its caption over its input. */
+.modal-month-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* Without min-width:0 the label grid items keep their default `auto` minimum
+   and refuse to shrink below the number inputs' intrinsic width, blowing the
+   row past the modal's right padding. Pinning the inputs to their track width
+   keeps all three columns inside the dialog. */
+.modal-month-row > label {
+  min-width: 0;
+}
+
+.modal-month-row input {
+  width: 100%;
+}
+
+.location-potential-submit {
+  margin-top: 4px;
+  min-height: 48px;
+  width: 100%;
+}
+
+/* Locked category shown when editing a potential — the group is the upsert key
+   and can't change, so it reads as a static value rather than an input. */
+.modal-static-field {
+  display: grid;
+  gap: 6px;
+}
+
+.modal-static-label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.modal-static-value {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-weight: 700;
+  min-height: 42px;
+  padding: 10px 12px;
+}
+
+/* The matrix field is a two-option switch: pick "must be stocked" or "should
+   not be". A muted track with the chosen side raised as an accent pill. Sized
+   to match the sibling status <select> so the two-column row stays even. */
+.matrix-switch {
+  background: var(--surface-muted);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 1fr 1fr;
+  min-height: 42px;
+  padding: 4px;
+}
+
+.matrix-switch-option {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 6px;
+  text-overflow: ellipsis;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+  white-space: nowrap;
+}
+
+.matrix-switch-option--active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.matrix-switch-option:focus-visible {
+  outline: 2px solid var(--accent-soft);
+}
+
+/* Searchable product picker used by the assortment add modal. */
+.product-picker {
+  position: relative;
+}
+
+.product-picker-input {
+  padding-left: 38px !important;
+  padding-right: 30px !important;
+  width: 100%;
+}
+
+.product-picker-icon {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  left: 12px;
+  pointer-events: none;
+  position: absolute;
+  top: 13px;
+}
+
+.product-picker-chevron {
+  color: var(--muted);
+  font-size: 18px;
+  pointer-events: none;
+  position: absolute;
+  right: 12px;
+  top: 9px;
+}
+
+.product-picker-list {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  list-style: none;
+  margin: 4px 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  position: absolute;
+  top: 100%;
+  width: 100%;
+  z-index: 5;
+}
+
+.product-picker-option {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink);
+  cursor: pointer;
+  display: block;
+  font-size: 14px;
+  padding: 9px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.product-picker-option:hover {
+  background: var(--surface-muted);
+}
+
+.product-picker-empty {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 9px 10px;
 }
 
 /* Selector carries `.visit-form.compact` so its `padding-top: 0` reset does not
@@ -3041,6 +3421,33 @@ textarea {
   margin: 0 auto 16px;
   max-width: 1180px;
   padding: 16px;
+}
+
+/* Compact confirmation — a single line of tinted text in place of the boxed
+   banner, for lightweight "saved" feedback. */
+.notice-inline {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.notice-inline.danger {
+  color: var(--danger);
+}
+
+.notice-inline.auto-dismiss {
+  transition: opacity 0.3s ease;
+}
+
+.notice-inline.auto-dismiss.is-leaving {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-inline.auto-dismiss {
+    transition: none;
+  }
 }
 
 /* Auto-dismissing action notices fade out before they are removed. */
@@ -3996,9 +4403,27 @@ textarea {
   padding-right: 10px;
 }
 
-.location-header {
+.location-detail-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.location-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.location-header-summary {
+  cursor: pointer;
   display: grid;
   gap: 8px;
+  list-style: none;
+}
+
+.location-header-summary::-webkit-details-marker {
+  display: none;
 }
 
 .location-header-top {
@@ -4022,20 +4447,42 @@ textarea {
 }
 
 .location-header-title {
+  flex: 1;
   font-size: 19px;
   margin: 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.location-header-address {
+.location-header-chevron {
+  align-items: center;
   color: var(--muted);
+  display: flex;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.location-header[open] .location-header-chevron {
+  transform: rotate(180deg);
+}
+
+.location-header-address {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
   font-size: 14px;
+  gap: 6px;
   margin: 0;
 }
 
-.location-header-rep {
+.location-header-address-icon {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.location-header-chain {
   background: var(--surface-muted);
   border-radius: 999px;
   font-size: 13px;
@@ -4044,8 +4491,78 @@ textarea {
   padding: 4px 10px;
 }
 
-.location-feature-wrap {
-  position: relative;
+.location-header-contacts {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.location-header-contacts-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.location-contact-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.location-contact-icon {
+  align-items: center;
+  background: var(--surface-muted);
+  border-radius: 999px;
+  color: var(--accent);
+  display: flex;
+  flex-shrink: 0;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.location-contact-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.location-contact-name {
+  display: block;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-contact-role {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.location-contact-phone {
+  color: var(--muted);
+  font-size: 14px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.location-contact-call {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--accent);
+  display: flex;
+  flex-shrink: 0;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
 }
 
 .location-feature-summary {
@@ -4055,7 +4572,6 @@ textarea {
   gap: 12px;
   justify-content: space-between;
   list-style: none;
-  padding-right: 46px;
 }
 
 .location-feature-summary::-webkit-details-marker {
@@ -4070,8 +4586,10 @@ textarea {
 }
 
 .location-feature-icon {
+  align-items: center;
+  color: var(--accent);
+  display: flex;
   flex-shrink: 0;
-  font-size: 20px;
 }
 
 .location-feature-titles {
@@ -4122,26 +4640,19 @@ textarea {
   transform: rotate(90deg);
 }
 
-.location-feature-add {
+.location-feature-quick-add {
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--accent);
   display: flex;
+  flex-shrink: 0;
   font-size: 18px;
   font-weight: 700;
   height: 32px;
   justify-content: center;
-  position: absolute;
-  right: 18px;
-  top: 18px;
   width: 32px;
-}
-
-.location-feature-add:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 .location-feature .empty-state,
@@ -4154,6 +4665,9 @@ textarea {
   display: flex;
   gap: 8px;
   justify-content: center;
+  /* Full-width primary CTA sitting in the stack under the feature cards. */
+  min-height: 50px;
+  width: 100%;
 }
 
 .location-history-row {
