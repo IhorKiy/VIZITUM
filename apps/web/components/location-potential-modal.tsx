@@ -130,10 +130,11 @@ export function LocationPotentialModal(props: LocationPotentialModalProps) {
         action={action}
         className="visit-form compact modal-form"
         onSubmit={() => {
-          // Defer so React captures the FormData for the server action first,
-          // then close explicitly — the redirect refreshes the data, but the
-          // dialog must not linger open if the component is reused (not
-          // remounted) after navigation.
+          // Defer to a macrotask so React captures the FormData for the server
+          // action first, then close explicitly — relying on a post-redirect
+          // remount to close the dialog is not guaranteed. Conscious trade-off:
+          // closing here means the button's "saving" state isn't shown; the
+          // redirect (fast) surfaces the inline "saved" confirmation instead.
           window.setTimeout(() => {
             dialogRef.current?.close();
             resetForm();

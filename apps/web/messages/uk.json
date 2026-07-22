@@ -156,7 +156,7 @@
         "product": "Продукт",
         "productPlaceholder": "Обрати продукт...",
         "productEmpty": "Нічого не знайдено",
-        "productMore": "Показано перші 50 результатів — уточніть пошук",
+        "productMore": "Показано перші {count} результатів — уточніть пошук",
         "status": "Статус",
         "matrix": "Матриця",
         "matrixRequired": "Має бути",

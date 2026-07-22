@@ -156,7 +156,7 @@
         "product": "Product",
         "productPlaceholder": "Choose a product...",
         "productEmpty": "Nothing found",
-        "productMore": "Showing first 50 results — refine your search",
+        "productMore": "Showing first {count} results — refine your search",
         "status": "Status",
         "matrix": "Matrix",
         "matrixRequired": "Required",
