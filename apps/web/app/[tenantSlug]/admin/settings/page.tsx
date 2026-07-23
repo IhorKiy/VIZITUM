@@ -133,6 +133,23 @@ export default async function AdminSettingsPage({
     );
   }
 
+  async function updateVoiceHintAction(formData: FormData) {
+    "use server";
+
+    const fieldReportVoiceHint = getFormString(
+      formData,
+      "fieldReportVoiceHint",
+    );
+
+    const result = await updateAdminSettings({ fieldReportVoiceHint });
+
+    redirect(
+      `/${tenantSlug}/admin/settings?${
+        result.ok ? "saved=voiceHint" : "error=voiceHint"
+      }`,
+    );
+  }
+
   async function uploadLogoAction(formData: FormData) {
     "use server";
 
@@ -214,6 +231,10 @@ export default async function AdminSettingsPage({
       title: tSettings("locationCategoriesSavedTitle"),
       body: tSettings("locationCategoriesSavedBody"),
     },
+    voiceHint: {
+      title: tSettings("voiceHintSavedTitle"),
+      body: tSettings("voiceHintSavedBody"),
+    },
   };
   const savedMessage = saved ? savedMessages[saved] : undefined;
 
@@ -237,7 +258,7 @@ export default async function AdminSettingsPage({
         />
       ) : null}
 
-      {error && error !== "locationCategories" ? (
+      {error && error !== "locationCategories" && error !== "voiceHint" ? (
         <DismissableNotice
           ariaLabel={tBranding("errorAria")}
           body={tBranding("errorBody")}
@@ -248,7 +269,7 @@ export default async function AdminSettingsPage({
         />
       ) : null}
 
-      {error === "locationCategories" ? (
+      {error === "locationCategories" || error === "voiceHint" ? (
         <DismissableNotice
           ariaLabel={tSettings("errorAria")}
           body={tSettings("errorBody")}
@@ -341,6 +362,30 @@ export default async function AdminSettingsPage({
               ) : null}
             </div>
           </div>
+        </section>
+
+        <section className="panel">
+          <h2>{tSettings("voiceHintTitle")}</h2>
+          <p className="form-hint">{tSettings("voiceHintHint")}</p>
+          <form action={updateVoiceHintAction} className="field-stack">
+            <textarea
+              aria-label={tSettings("voiceHintTitle")}
+              className="voice-hint-textarea"
+              defaultValue={settings.fieldReportVoiceHint ?? ""}
+              maxLength={2000}
+              name="fieldReportVoiceHint"
+              placeholder={tSettings("voiceHintPlaceholder")}
+              rows={6}
+            />
+            <div>
+              <PendingSubmitButton
+                className="primary-button"
+                pendingLabel={tCommon("saving")}
+              >
+                {tCommon("save")}
+              </PendingSubmitButton>
+            </div>
+          </form>
         </section>
 
         <section className="panel">

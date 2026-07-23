@@ -3,6 +3,7 @@ import type { TenantColorScheme } from "./branding";
 export const PRODUCTS_ENABLED_SETTING_KEY = "products_enabled";
 export const LOCATION_CATEGORIES_ENABLED_SETTING_KEY =
   "location_categories_enabled";
+export const FIELD_REPORT_VOICE_HINT_SETTING_KEY = "field_report_voice_hint";
 
 // UI languages the web frontend ships dictionaries for (apps/web/messages).
 // Keep in sync with SUPPORTED_LOCALES in apps/web/lib/tenant-locale.ts.
@@ -27,7 +28,12 @@ export type TenantSettingsResponse = {
   locationCategoriesEnabled: boolean;
   colorScheme: TenantColorScheme;
   logo: TenantLogoResponse | null;
+  fieldReportVoiceHint: string | null;
   updatedAt: string;
+};
+
+export type FieldReportVoiceHintResponse = {
+  voiceHint: string | null;
 };
 
 export type UpdateTenantSettingsRequestBody = {
@@ -37,6 +43,7 @@ export type UpdateTenantSettingsRequestBody = {
   productsEnabled?: unknown;
   locationCategoriesEnabled?: unknown;
   colorScheme?: unknown;
+  fieldReportVoiceHint?: unknown;
 };
 
 export type RegisterLogoUploadRequestBody = {

@@ -571,7 +571,12 @@
       "locationCategoriesHint": "Turn off if this company doesn't divide locations into categories. Existing data is preserved and instantly comes back if you turn it on again.",
       "locationCategoriesToggleLabel": "Show location categories",
       "locationCategoriesSavedTitle": "Location categories setting updated",
-      "locationCategoriesSavedBody": "The change applies to this tenant immediately."
+      "locationCategoriesSavedBody": "The change applies to this tenant immediately.",
+      "voiceHintTitle": "Voice report checklist",
+      "voiceHintHint": "Shown to field reps on the visit screen as a reminder of what to say while recording the voice report. Leave empty to hide.",
+      "voiceHintPlaceholder": "Visit result, stock leftovers, orders, competitor activity, agreements...",
+      "voiceHintSavedTitle": "Checklist saved",
+      "voiceHintSavedBody": "Field reps will see the updated checklist on the visit screen."
     },
     "branding": {
       "colorTitle": "Color scheme",
@@ -1107,9 +1112,6 @@
       "cancelledNoReportBody": "No report was confirmed before the visit was cancelled.",
       "demoStatus": "Demo",
       "demoNext": "Sign in to record and confirm a visit report.",
-      "newReportTitle": "New report",
-      "locationLabel": "Location",
-      "voiceHintIdle": "Tap to fill in the report by voice",
       "voiceHintRecording": "Recording... describe the visit.",
       "voiceProcessing": "Processing voice...",
       "voiceUnsupported": "This browser cannot record audio. Fill in the form manually.",
@@ -1183,7 +1185,10 @@
       "addTask": "Add task",
       "removeTaskAria": "Remove task: {title}",
       "dateToday": "today",
-      "dateChange": "Change"
+      "dateChange": "Change",
+      "voiceChecklistTitle": "What to mention",
+      "fillManually": "Fill in manually",
+      "backToVoice": "Record by voice instead"
     },
     "planning": {
       "eyebrow": "Route planning",

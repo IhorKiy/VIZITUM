@@ -22,6 +22,11 @@ import {
   upsertColorSchemeSetting,
 } from "./branding";
 import {
+  fieldReportVoiceHintFromSetting,
+  MAX_FIELD_REPORT_VOICE_HINT_LENGTH,
+  upsertFieldReportVoiceHintSetting,
+} from "./field-report-voice-hint";
+import {
   locationCategoriesEnabledFromSetting,
   upsertLocationCategoriesEnabledSetting,
 } from "./location-categories-enabled";
@@ -30,10 +35,12 @@ import {
   upsertProductsEnabledSetting,
 } from "./products-enabled";
 import {
+  FIELD_REPORT_VOICE_HINT_SETTING_KEY,
   LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
   PRODUCTS_ENABLED_SETTING_KEY,
   SUPPORTED_TENANT_LANGUAGES,
   type ConfirmLogoUploadRequestBody,
+  type FieldReportVoiceHintResponse,
   type RegisteredLogoUploadResponse,
   type RegisterLogoUploadRequestBody,
   type TenantLanguage,
@@ -73,6 +80,7 @@ export class SettingsService {
               LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
               BRANDING_COLOR_SCHEME_SETTING_KEY,
               BRANDING_LOGO_OBJECT_SETTING_KEY,
+              FIELD_REPORT_VOICE_HINT_SETTING_KEY,
             ],
           },
         },
@@ -100,6 +108,9 @@ export class SettingsService {
         context,
         logoObjectIdFromSetting(byKey.get(BRANDING_LOGO_OBJECT_SETTING_KEY)),
       ),
+      fieldReportVoiceHint: fieldReportVoiceHintFromSetting(
+        byKey.get(FIELD_REPORT_VOICE_HINT_SETTING_KEY),
+      ),
       updatedAt: tenant.updatedAt.toISOString(),
     };
   }
@@ -116,6 +127,9 @@ export class SettingsService {
       body.locationCategoriesEnabled,
     );
     const colorScheme = normalizeColorScheme(body.colorScheme);
+    const fieldReportVoiceHint = normalizeFieldReportVoiceHint(
+      body.fieldReportVoiceHint,
+    );
 
     if (body.name !== undefined && name === null) {
       throw new BadRequestException({
@@ -176,6 +190,21 @@ export class SettingsService {
       });
     }
 
+    if (
+      body.fieldReportVoiceHint !== undefined &&
+      fieldReportVoiceHint === false
+    ) {
+      throw new BadRequestException({
+        code: "SETTINGS_INVALID",
+        message: `Voice hint must be text up to ${MAX_FIELD_REPORT_VOICE_HINT_LENGTH} characters.`,
+        fieldErrors: {
+          fieldReportVoiceHint: [
+            `Must be text up to ${MAX_FIELD_REPORT_VOICE_HINT_LENGTH} characters.`,
+          ],
+        },
+      });
+    }
+
     await this.prisma.$transaction(async (tx) => {
       await tx.platformTenant.update({
         where: { id: context.tenantId },
@@ -215,9 +244,36 @@ export class SettingsService {
           context.userId ?? null,
         );
       }
+
+      if (
+        fieldReportVoiceHint !== undefined &&
+        fieldReportVoiceHint !== false
+      ) {
+        await upsertFieldReportVoiceHintSetting(
+          tx,
+          context.tenantId,
+          fieldReportVoiceHint,
+          context.userId ?? null,
+        );
+      }
     });
 
     return this.getSettings(context);
+  }
+
+  async getFieldReportVoiceHint(
+    context: RequestContext,
+  ): Promise<FieldReportVoiceHintResponse> {
+    const setting = await this.prisma.tenantSetting.findUnique({
+      where: {
+        tenantId_key: {
+          tenantId: context.tenantId,
+          key: FIELD_REPORT_VOICE_HINT_SETTING_KEY,
+        },
+      },
+    });
+
+    return { voiceHint: fieldReportVoiceHintFromSetting(setting) };
   }
 
   async registerLogoUpload(
@@ -543,6 +599,32 @@ function normalizeLocationCategoriesEnabled(
   }
 
   return typeof value === "boolean" ? value : null;
+}
+
+// `false` marks an invalid value (wrong type / too long) — `null` is a valid
+// "clear the hint" request, so it can't double as the error sentinel here.
+function normalizeFieldReportVoiceHint(
+  value: unknown,
+): string | null | undefined | false {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const trimmed = value.trim();
+
+  if (trimmed.length > MAX_FIELD_REPORT_VOICE_HINT_LENGTH) {
+    return false;
+  }
+
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function normalizeLogoFileName(value: unknown): string | null {
