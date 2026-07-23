@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   assertCanManageLocationNotes,
+  canManageLocationHeader,
   canManageLocationNotes,
 } from "../src/modules/locations/locations-write-access";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
@@ -134,5 +135,84 @@ describe("assertCanManageLocationNotes", () => {
         return true;
       },
     );
+  });
+});
+
+describe("canManageLocationHeader", () => {
+  it("resolves both flags with a single assignment lookup for a field rep", async () => {
+    let findFirstCalls = 0;
+    const prisma = {
+      locationAssignment: {
+        findFirst: async () => {
+          findFirstCalls += 1;
+          return { id: "assignment-a" };
+        },
+      },
+    };
+    const context = {
+      ...baseContext,
+      permissions: [
+        PERMISSIONS.LOCATION_NOTES_MANAGE_OWN,
+        PERMISSIONS.CONTACTS_MANAGE_OWN,
+      ],
+    };
+
+    const result = await canManageLocationHeader(
+      context as never,
+      prisma as never,
+      "location-a",
+    );
+
+    assert.deepEqual(result, {
+      canManageNotes: true,
+      canManageContacts: true,
+    });
+    assert.equal(findFirstCalls, 1);
+  });
+
+  it("skips the assignment lookup entirely when both are full-manage", async () => {
+    const prisma = {}; // no locationAssignment — would throw if queried
+    const context = {
+      ...baseContext,
+      permissions: [
+        PERMISSIONS.LOCATION_NOTES_MANAGE,
+        PERMISSIONS.CONTACTS_MANAGE,
+      ],
+    };
+
+    const result = await canManageLocationHeader(
+      context as never,
+      prisma as never,
+      "location-a",
+    );
+
+    assert.deepEqual(result, {
+      canManageNotes: true,
+      canManageContacts: true,
+    });
+  });
+
+  it("denies both when an own-tier rep has no active assignment", async () => {
+    const prisma = {
+      locationAssignment: { findFirst: async () => null },
+    };
+    const context = {
+      ...baseContext,
+      permissions: [
+        PERMISSIONS.LOCATION_NOTES_MANAGE_OWN,
+        PERMISSIONS.CONTACTS_MANAGE_OWN,
+      ],
+    };
+
+    const result = await canManageLocationHeader(
+      context as never,
+      prisma as never,
+      "location-a",
+    );
+
+    assert.deepEqual(result, {
+      canManageNotes: false,
+      canManageContacts: false,
+    });
   });
 });

@@ -253,15 +253,21 @@ export default async function LocationDetailPage({
     ? sessionResult.data.user.id
     : null;
 
+  // pageSize=50 is the API's max page size — the visit-history icon badge and
+  // the dedicated history page deliberately reflect only the 50 most recent
+  // visits, which is plenty for a single rep at a single location.
+  const visitsQuery = new URLSearchParams({
+    locationId,
+    representativeUserId: representativeUserId ?? "",
+    pageSize: "50",
+  }).toString();
   const [visitsResult, tasksResult] = isDemoLocation
     ? [
         { ok: false as const, status: 0, message: "Demo mode" },
         { ok: false as const, status: 0, message: "Demo mode" },
       ]
     : await Promise.all([
-        listVisits(
-          `locationId=${locationId}&representativeUserId=${representativeUserId}&pageSize=50`,
-        ),
+        listVisits(visitsQuery),
         listTasks(`locationId=${locationId}&pageSize=50`),
       ]);
 

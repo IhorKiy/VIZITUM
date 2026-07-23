@@ -65,9 +65,12 @@ export async function upsertLocationContactAction(
     );
   }
 
+  // The field-zone form has no roleTitle input, so it's intentionally omitted
+  // from the payload — sending roleTitle: null on edit would wipe a title an
+  // admin set via the admin form / import. `undefined` simply drops out of the
+  // JSON body, leaving the stored value untouched.
   const input = {
     name,
-    roleTitle: getFormOptionalString(formData, "roleTitle"),
     phone: getFormOptionalString(formData, "phone"),
     email: getFormOptionalString(formData, "email"),
     notes: getFormOptionalString(formData, "notes"),

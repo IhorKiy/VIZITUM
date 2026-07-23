@@ -16,8 +16,7 @@ import type { RequestContext } from "../tenancy/request-context";
 import {
   assertCanManageContacts,
   assertCanManageLocationNotes,
-  canManageContacts,
-  canManageLocationNotes,
+  canManageLocationHeader,
 } from "./locations-write-access";
 import type {
   CreateLocationAssignmentRequestBody,
@@ -31,6 +30,11 @@ import type {
   UpdateLocationNotesRequestBody,
   UpdateLocationRequestBody,
 } from "./locations.types";
+
+// A location holds at most this many contacts. The field-zone UI hides the add
+// affordance once two exist; this server-side cap is the authoritative guard
+// (mirrors the admin console's fixed two-slot contact form).
+const MAX_LOCATION_CONTACTS = 2;
 
 // Every location read that feeds toLocationResponse loads the linked chain
 // (id + name only) plus the location's live contacts and active assignments so
@@ -120,15 +124,16 @@ export class LocationsService {
       context.tenantId,
       locationId,
     );
-    const [notesManageable, contactsManageable] = await Promise.all([
-      canManageLocationNotes(context, this.prisma, locationId),
-      canManageContacts(context, this.prisma, locationId),
-    ]);
+    const { canManageNotes, canManageContacts } = await canManageLocationHeader(
+      context,
+      this.prisma,
+      locationId,
+    );
 
     return {
       ...toLocationResponse(location),
-      canManageNotes: notesManageable,
-      canManageContacts: contactsManageable,
+      canManageNotes,
+      canManageContacts,
     };
   }
 
@@ -270,7 +275,7 @@ export class LocationsService {
 
     const updatedLocation = await this.prisma.location.update({
       where: { id: location.id },
-      data: { notes: normalizeOptionalString(body.notes) },
+      data: { notes: normalizeNotesInput(body.notes) },
       include: LOCATION_INCLUDE,
     });
 
@@ -307,6 +312,21 @@ export class LocationsService {
       locationId,
     );
     await assertCanManageContacts(context, this.prisma, locationId);
+
+    const activeContacts = await this.prisma.locationContact.count({
+      where: {
+        tenantId: context.tenantId,
+        locationId: location.id,
+        deletedAt: null,
+      },
+    });
+    if (activeContacts >= MAX_LOCATION_CONTACTS) {
+      throw new ConflictException({
+        code: "LOCATION_CONTACT_LIMIT_REACHED",
+        message: `A location can have at most ${MAX_LOCATION_CONTACTS} contacts.`,
+      });
+    }
+
     const data = parseCreateContactBody(body);
     const contact = await this.prisma.locationContact.create({
       data: {
@@ -865,6 +885,24 @@ function normalizeOptionalString(value: unknown): string | null {
   const normalizedValue = value.trim();
 
   return normalizedValue || null;
+}
+
+// Stricter than normalizeOptionalString for the dedicated notes endpoint:
+// missing/null/blank clears the note, a string is stored trimmed, and any
+// other type is rejected rather than silently coerced to "clear the note".
+function normalizeNotesInput(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new BadRequestException({
+      code: "LOCATION_NOTES_INVALID",
+      message: "Location note must be a string.",
+    });
+  }
+
+  return value.trim() || null;
 }
 
 function normalizeId(value: unknown): string | null {

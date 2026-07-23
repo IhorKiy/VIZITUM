@@ -65,9 +65,14 @@ export default async function LocationHistoryPage({
   const locationName = locationResult.data.name;
   const representativeUserId = sessionResult.data.user.id;
 
-  const visitsResult = await listVisits(
-    `locationId=${locationId}&representativeUserId=${representativeUserId}&pageSize=50`,
-  );
+  // pageSize=50 is the API's max page size — this history list deliberately
+  // shows only the 50 most recent visits for this rep at this location.
+  const visitsQuery = new URLSearchParams({
+    locationId,
+    representativeUserId,
+    pageSize: "50",
+  }).toString();
+  const visitsResult = await listVisits(visitsQuery);
   const visitHistory = (visitsResult.ok ? visitsResult.data.items : [])
     .filter(
       (item) => item.status === "completed" || item.status === "cancelled",

@@ -104,3 +104,44 @@ export async function assertCanManageContacts(
     });
   }
 }
+
+// Combined read for getLocation: resolves both the note and contacts manage
+// flags with at most a single locationAssignment lookup. Calling
+// canManageLocationNotes and canManageContacts separately would run two
+// identical assignment queries for a field rep; this shares one. The write
+// paths keep using the per-feature asserts above (a write touches only one
+// feature, so it never pays for the other's check).
+export async function canManageLocationHeader(
+  context: RequestContext,
+  prisma: PrismaService,
+  locationId: string,
+): Promise<{ canManageNotes: boolean; canManageContacts: boolean }> {
+  const notesManage = context.permissions.includes(
+    PERMISSIONS.LOCATION_NOTES_MANAGE,
+  );
+  const notesOwn =
+    !notesManage &&
+    context.permissions.includes(PERMISSIONS.LOCATION_NOTES_MANAGE_OWN);
+  const contactsManage = context.permissions.includes(
+    PERMISSIONS.CONTACTS_MANAGE,
+  );
+  const contactsOwn =
+    !contactsManage &&
+    context.permissions.includes(PERMISSIONS.CONTACTS_MANAGE_OWN);
+
+  // Only query when an own-tier permission actually needs resolving.
+  const assigned =
+    notesOwn || contactsOwn
+      ? await hasActiveLocationAssignment(
+          prisma,
+          context.tenantId,
+          locationId,
+          context.userId,
+        )
+      : false;
+
+  return {
+    canManageNotes: notesManage || (notesOwn && assigned),
+    canManageContacts: contactsManage || (contactsOwn && assigned),
+  };
+}
