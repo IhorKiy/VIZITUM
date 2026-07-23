@@ -20,6 +20,7 @@ type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     report?: string;
+    stop?: string;
   }>;
 };
 
@@ -72,7 +73,7 @@ export default async function FieldPage({
   searchParams,
 }: FieldPageProps) {
   const { tenantSlug } = await params;
-  const { report } = await searchParams;
+  const { report, stop } = await searchParams;
   // The add-stop affordance below reuses field.planning's strings rather than
   // duplicating them: it is the same "add a location to a route" action the
   // planning screen offers, and the two must not drift apart in wording.
@@ -150,7 +151,18 @@ export default async function FieldPage({
   // wherever today's list currently ends (today can hold more than one plan).
   const lastStop = routeStops[routeStops.length - 1];
   const locations = locationsResult.ok ? locationsResult.data.items : [];
-  const plannedLocationIds = new Set(routeStops.map((stop) => stop.locationId));
+  // Built from every item on today's plans, including the skipped ones that
+  // toRouteStops drops from the visible list. A skipped stop still occupies
+  // its location for today, and the backend does not dedupe by locationId, so
+  // re-offering it would silently create a second item for the same location
+  // in the same plan.
+  const plannedLocationIds = new Set(
+    todayRoutesResult.ok
+      ? todayRoutesResult.data.flatMap((plan) =>
+          plan.items.map((item) => item.locationId),
+        )
+      : routeStops.map((routeStop) => routeStop.locationId),
+  );
   const availableLocations = locations.filter(
     (location) => !plannedLocationIds.has(location.id),
   );
@@ -176,28 +188,41 @@ export default async function FieldPage({
   // Appends a location to today's route. The plan's items are re-read here
   // instead of trusting the rendered page, so the sequence stays correct even
   // if the route changed since this page was rendered.
+  //
+  // Every exit reports an outcome. Unlike the reorder above — where the drag
+  // itself is the feedback — a failed add leaves the list looking untouched,
+  // so a silent bounce would read as "nothing happened". The backend raises a
+  // deliberate 409 (ROUTE_ITEM_SEQUENCE_TAKEN) when a concurrent edit claims
+  // the same slot, precisely so the client can say so.
   async function addTodayStopAction(formData: FormData) {
     "use server";
 
     const routePlanId = getFormString(formData, "routePlanId").trim();
     const locationId = getFormString(formData, "locationId").trim();
 
-    if (routePlanId && locationId) {
-      const plansResult = await listTodayRoutes();
-      const plan = plansResult.ok
-        ? plansResult.data.find((item) => item.id === routePlanId)
-        : undefined;
-
-      if (plan) {
-        const nextSequence = plan.items.length
-          ? Math.max(...plan.items.map((item) => item.sequence)) + 1
-          : 1;
-
-        await addRouteItem(routePlanId, { locationId, sequence: nextSequence });
-      }
+    if (!routePlanId || !locationId) {
+      redirect(`/${tenantSlug}/field?stop=failed`);
     }
 
-    redirect(`/${tenantSlug}/field`);
+    const plansResult = await listTodayRoutes();
+    const plan = plansResult.ok
+      ? plansResult.data.find((item) => item.id === routePlanId)
+      : undefined;
+
+    if (!plan) {
+      redirect(`/${tenantSlug}/field?stop=failed`);
+    }
+
+    const nextSequence = plan.items.length
+      ? Math.max(...plan.items.map((item) => item.sequence)) + 1
+      : 1;
+
+    const result = await addRouteItem(routePlanId, {
+      locationId,
+      sequence: nextSequence,
+    });
+
+    redirect(`/${tenantSlug}/field?stop=${result.ok ? "added" : "failed"}`);
   }
 
   return (
@@ -217,6 +242,27 @@ export default async function FieldPage({
           eyebrow={t("home.reportConfirmedEyebrow")}
           title={t("home.reportConfirmedTitle")}
           tone="success"
+        />
+      ) : null}
+
+      {stop === "added" ? (
+        <DismissableNotice
+          ariaLabel={t("home.stopStatusAria")}
+          clearParams={["stop"]}
+          compact
+          title={t("home.stopAddedTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      {stop === "failed" ? (
+        <DismissableNotice
+          ariaLabel={t("home.stopStatusAria")}
+          body={t("home.stopFailedBody")}
+          clearParams={["stop"]}
+          eyebrow={t("flowEyebrow")}
+          title={t("home.stopFailedTitle")}
+          tone="danger"
         />
       ) : null}
 
