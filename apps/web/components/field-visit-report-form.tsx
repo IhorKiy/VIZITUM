@@ -14,6 +14,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CloseIcon,
+  HelpCircleIcon,
   ListTodoIcon,
   LoaderIcon,
   MicIcon,
@@ -215,6 +216,7 @@ export function FieldVisitReportForm({
   // checklist; "form" is the manual top-up. Voice lands on "form" after
   // transcription (success OR failure — the form is the fallback path).
   const [step, setStep] = useState<"capture" | "form">("capture");
+  const [voiceHintOpen, setVoiceHintOpen] = useState(false);
   const [visitDate, setVisitDate] = useState(todayIsoDate);
   const [dateEditing, setDateEditing] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>("neutral");
@@ -727,7 +729,11 @@ export function FieldVisitReportForm({
   const showDateInput = dateEditing || visitDate !== todayIsoDate();
 
   return (
-    <article className="visit-card">
+    <article
+      className={
+        step === "capture" ? "visit-card visit-card--bare" : "visit-card"
+      }
+    >
       {error ? (
         <section
           className="notice-panel danger"
@@ -744,10 +750,24 @@ export function FieldVisitReportForm({
 
       {step === "capture" ? (
         <div className="visit-form">
+          {voiceHint ? (
+            <div className="voice-hint-toggle-row">
+              <button
+                aria-expanded={voiceHintOpen}
+                aria-label={t("voiceChecklistTitle")}
+                className="voice-hint-toggle"
+                onClick={() => setVoiceHintOpen((open) => !open)}
+                type="button"
+              >
+                <HelpCircleIcon size={22} />
+              </button>
+            </div>
+          ) : null}
+
           <div className="voice-capture">
-            <p className="voice-capture-hint">
-              {isRecording ? t("voiceHintRecording") : t("voiceHintIdle")}
-            </p>
+            {isRecording ? (
+              <p className="voice-capture-hint">{t("voiceHintRecording")}</p>
+            ) : null}
             <button
               aria-label={
                 isRecording ? t("voiceStopAria") : t("voiceRecordAria")
@@ -759,8 +779,11 @@ export function FieldVisitReportForm({
               }
               type="button"
             >
-              {isRecording ? <StopIcon size={28} /> : <MicIcon size={36} />}
+              {isRecording ? <StopIcon size={36} /> : <MicIcon size={48} />}
             </button>
+            {voiceHint && (voiceHintOpen || isRecording) ? (
+              <div className="voice-hint-card">{voiceHint}</div>
+            ) : null}
             {isTranscribing ? (
               <div className="voice-capture-status">
                 <LoaderIcon />
@@ -772,25 +795,16 @@ export function FieldVisitReportForm({
             ) : null}
           </div>
 
-          {voiceHint ? (
-            <div>
-              <div className="field-label-row">
-                <span className="visit-field-label">
-                  {t("voiceChecklistTitle")}
-                </span>
-              </div>
-              <div className="voice-hint-card">{voiceHint}</div>
-            </div>
-          ) : null}
-
-          <button
-            className="secondary-button"
-            disabled={isRecording || isTranscribing}
-            onClick={() => setStep("form")}
-            type="button"
-          >
-            {t("fillManually")}
-          </button>
+          <div className="capture-manual-bar">
+            <button
+              className="secondary-button"
+              disabled={isRecording || isTranscribing}
+              onClick={() => setStep("form")}
+              type="button"
+            >
+              {t("fillManually")}
+            </button>
+          </div>
         </div>
       ) : (
         <form className="visit-form" onSubmit={handleSubmit}>

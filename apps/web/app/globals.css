@@ -404,6 +404,7 @@ textarea {
   flex-shrink: 0;
   font-size: 26px;
   line-height: 1;
+  padding: 0 10px;
   text-decoration: none;
 }
 
@@ -5130,15 +5131,18 @@ a.metric-card:hover {
    + next-visit tasks). Renders inside the field zone's 430px phone frame
    (.app-shell--mobile-only), so these are sized for a touch screen. */
 
+/* Centers the square record button in the free space between the header
+   and the pinned "fill manually" bar (100dvh minus app chrome). */
 .voice-capture {
+  align-content: center;
   align-items: center;
-  background: var(--surface-muted);
-  border: 1px solid var(--line);
-  border-radius: 16px;
   display: grid;
   gap: 14px;
   justify-items: center;
-  padding: 22px 16px;
+  min-height: calc(100dvh - 340px);
+  /* Asymmetric padding lifts the visual center a bit above the geometric
+     one — the button reads better slightly high. */
+  padding: 22px 16px 240px;
 }
 
 .voice-capture-hint {
@@ -5151,19 +5155,64 @@ a.metric-card:hover {
 
 .voice-capture-button {
   align-items: center;
-  background: var(--accent);
-  border: 0;
-  border-radius: 999px;
-  box-shadow: var(--shadow);
-  color: #ffffff;
+  background: var(--surface);
+  border: 4px solid color-mix(in srgb, var(--accent) 35%, var(--surface));
+  box-shadow:
+    0 6px 16px rgba(22, 30, 26, 0.14),
+    0 22px 48px rgba(22, 30, 26, 0.2);
+  position: relative;
+  border-radius: 20px;
+  color: var(--accent);
   cursor: pointer;
   display: flex;
-  height: 88px;
+  height: 180px;
   justify-content: center;
   transition:
     background 160ms ease,
     box-shadow 160ms ease;
-  width: 88px;
+  width: 180px;
+}
+
+/* Soft accent ripple every 2s: signals the button is live and nudges
+   toward tapping it without being as loud as the recording pulse. */
+/* Border beam: a bright accent segment orbits the button's border ring.
+   The ::after overlays exactly the 4px border area (masked ring) and shows
+   a rotating conic gradient driven by the registered --voice-beam-angle. */
+@property --voice-beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.voice-capture-button::after {
+  animation: voice-capture-beam 6s linear infinite;
+  background: conic-gradient(
+    from var(--voice-beam-angle),
+    transparent 0deg,
+    transparent 300deg,
+    var(--accent) 340deg,
+    transparent 360deg
+  );
+  border-radius: 20px;
+  content: "";
+  inset: -4px;
+  -webkit-mask:
+    linear-gradient(#ffffff 0 0) content-box,
+    linear-gradient(#ffffff 0 0);
+  mask:
+    linear-gradient(#ffffff 0 0) content-box,
+    linear-gradient(#ffffff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  padding: 4px;
+  pointer-events: none;
+  position: absolute;
+}
+
+@keyframes voice-capture-beam {
+  to {
+    --voice-beam-angle: 360deg;
+  }
 }
 
 .voice-capture-button:disabled {
@@ -5174,6 +5223,8 @@ a.metric-card:hover {
 .voice-capture-button.recording {
   animation: voice-capture-pulse 1.6s ease-in-out infinite;
   background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
 }
 
 @keyframes voice-capture-pulse {
@@ -5203,15 +5254,58 @@ a.metric-card:hover {
 
 /* Admin-authored speaking checklist shown on the capture step. pre-line so
    the admin's line breaks survive without allowing arbitrary markup. */
+/* Pins "Fill in manually" just above the fixed .mobile-nav (65px) on the
+   capture step, mirroring the sticky save bar of the form step. Fixed (not
+   sticky) because the capture screen is short and never scrolls. */
+.capture-manual-bar {
+  bottom: 65px;
+  left: 50%;
+  max-width: 430px;
+  padding: 8px 14px;
+  position: fixed;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 10;
+}
+
+.capture-manual-bar .secondary-button {
+  min-height: 48px;
+  width: 100%;
+}
+
+/* The capture step is a bare screen — mic, help toggle and checklist sit
+   straight on the page background, no card chrome. */
+.visit-card.visit-card--bare {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.voice-hint-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.voice-hint-toggle {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 4px;
+}
+
+.voice-hint-toggle[aria-expanded="true"] {
+  color: var(--accent);
+}
+
 .voice-hint-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
   color: var(--ink);
   font-size: 14px;
   line-height: 1.5;
   margin-top: 6px;
-  padding: 12px;
+  max-width: 340px;
   white-space: pre-line;
 }
 
