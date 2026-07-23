@@ -589,6 +589,21 @@ describe("settings service", () => {
     );
   });
 
+  // Pins the gate of GET /settings/field-report-voice-hint: field reps can
+  // read the hint via visits.create without ever holding tenant.settings.read.
+  it("field reps hold visits.create but not tenant settings read", () => {
+    assert.ok(
+      ROLE_PERMISSION_MATRIX.field_representative.includes(
+        PERMISSIONS.VISITS_CREATE,
+      ),
+    );
+    assert.ok(
+      !ROLE_PERMISSION_MATRIX.field_representative.includes(
+        PERMISSIONS.TENANT_SETTINGS_READ,
+      ),
+    );
+  });
+
   it("grants tenant settings permissions only to company_admin", () => {
     assert.equal(PERMISSIONS.TENANT_SETTINGS_READ, "tenant.settings.read");
     assert.equal(PERMISSIONS.TENANT_SETTINGS_MANAGE, "tenant.settings.manage");

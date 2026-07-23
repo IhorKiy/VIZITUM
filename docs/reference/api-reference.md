@@ -294,9 +294,9 @@ Admin-management actions — inviting, suspending/reactivating, deleting or role
 
 ### Field settings — `/settings` (`field-settings.controller.ts`)
 
-| Endpoint | Permissions | Request | Response |
-| --- | --- | --- | --- |
-| `GET /settings/field-report-voice-hint` | all: `visits.create` | — | `{ voiceHint }` — the tenant's admin-authored speaking checklist for the voice report, or `null` when unset. Read-only surface for the field zone (field reps don't hold `tenant.settings.read`). |
+| Method & path | Permissions | Returns |
+| --- | --- | --- |
+| `GET /settings/field-report-voice-hint` | all: `visits.create` | `{ voiceHint }` — the tenant's admin-authored speaking checklist for the voice report, or `null` when unset. Read-only surface for the field zone (field reps don't hold `tenant.settings.read`). |
 
 ### Storage — `/storage/objects` (`storage.controller.ts`)
 

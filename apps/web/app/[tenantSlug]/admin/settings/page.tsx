@@ -258,7 +258,7 @@ export default async function AdminSettingsPage({
         />
       ) : null}
 
-      {error && error !== "locationCategories" ? (
+      {error && error !== "locationCategories" && error !== "voiceHint" ? (
         <DismissableNotice
           ariaLabel={tBranding("errorAria")}
           body={tBranding("errorBody")}
@@ -269,7 +269,7 @@ export default async function AdminSettingsPage({
         />
       ) : null}
 
-      {error === "locationCategories" ? (
+      {error === "locationCategories" || error === "voiceHint" ? (
         <DismissableNotice
           ariaLabel={tSettings("errorAria")}
           body={tSettings("errorBody")}

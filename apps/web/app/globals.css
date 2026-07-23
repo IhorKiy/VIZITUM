@@ -22,6 +22,9 @@
   --danger-surface: #fff1f1;
   --danger-line: #e2b4b4;
   --shadow: 0 18px 45px rgba(22, 30, 26, 0.1);
+  /* Fixed .mobile-nav height (8px paddings + 48px link + 1px border) —
+     everything pinned above the nav offsets by this. */
+  --mobile-nav-height: 65px;
   interpolate-size: allow-keywords;
 }
 
@@ -5184,29 +5187,40 @@ a.metric-card:hover {
   initial-value: 0deg;
 }
 
-.voice-capture-button::after {
-  animation: voice-capture-beam 6s linear infinite;
-  background: conic-gradient(
-    from var(--voice-beam-angle),
-    transparent 0deg,
-    transparent 300deg,
-    var(--accent) 340deg,
-    transparent 360deg
-  );
-  border-radius: 20px;
-  content: "";
-  inset: -4px;
-  -webkit-mask:
-    linear-gradient(#ffffff 0 0) content-box,
-    linear-gradient(#ffffff 0 0);
-  mask:
-    linear-gradient(#ffffff 0 0) content-box,
-    linear-gradient(#ffffff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  padding: 4px;
-  pointer-events: none;
-  position: absolute;
+/* Gated on no-preference: the ever-running conic repaint costs GPU/battery
+   on the rep's phone and bothers reduced-motion users — without animation
+   the beam is pointless, so the whole overlay only exists here. */
+@media (prefers-reduced-motion: no-preference) {
+  .voice-capture-button::after {
+    animation: voice-capture-beam 6s linear infinite;
+    background: conic-gradient(
+      from var(--voice-beam-angle),
+      transparent 0deg,
+      transparent 300deg,
+      var(--accent) 340deg,
+      transparent 360deg
+    );
+    border-radius: 20px;
+    content: "";
+    inset: -4px;
+    -webkit-mask:
+      linear-gradient(#ffffff 0 0) content-box,
+      linear-gradient(#ffffff 0 0);
+    mask:
+      linear-gradient(#ffffff 0 0) content-box,
+      linear-gradient(#ffffff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    padding: 4px;
+    pointer-events: none;
+    position: absolute;
+  }
+
+  /* The red recording state has its own pulse — an accent beam orbiting on
+     top of it would just be noise. */
+  .voice-capture-button.recording::after {
+    content: none;
+  }
 }
 
 @keyframes voice-capture-beam {
@@ -5258,7 +5272,7 @@ a.metric-card:hover {
    capture step, mirroring the sticky save bar of the form step. Fixed (not
    sticky) because the capture screen is short and never scrolls. */
 .capture-manual-bar {
-  bottom: 65px;
+  bottom: var(--mobile-nav-height);
   left: 50%;
   max-width: 430px;
   padding: 8px 14px;
@@ -5618,8 +5632,8 @@ button.field-panel-card-toggle {
    (still long) form on a phone. */
 .field-report-submit-bar {
   background: var(--surface);
-  /* Clears the fixed .mobile-nav (65px) that the field zone always shows. */
-  bottom: 65px;
+  /* Clears the fixed .mobile-nav that the field zone always shows. */
+  bottom: var(--mobile-nav-height);
   margin: 0 -4px;
   padding: 8px 4px;
   position: sticky;
