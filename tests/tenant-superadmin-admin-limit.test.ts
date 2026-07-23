@@ -174,6 +174,7 @@ describe("tenant superadmin admin limit", () => {
       },
       platformTenant: {
         findUnique: async () => ({ adminLimit: 1 }),
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
       },
     });
 
@@ -217,6 +218,7 @@ describe("tenant superadmin admin limit", () => {
       },
       platformTenant: {
         findUnique: async () => ({ adminLimit: 1 }),
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
       },
       user: {
         // The first invite was already accepted, so the tenant already has

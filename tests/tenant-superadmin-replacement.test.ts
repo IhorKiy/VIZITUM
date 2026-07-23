@@ -25,6 +25,9 @@ describe("tenant superadmin replacement", () => {
     const auditEvents: unknown[] = [];
     const revokedSessions: unknown[] = [];
     const client = {
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
+      },
       invite: {
         findUnique: async () => ({
           id: "invite-new",
@@ -147,6 +150,9 @@ describe("tenant superadmin replacement", () => {
   it("does not touch any other user when accepting the tenant's first superadmin invite", async () => {
     const userUpdates: unknown[] = [];
     const client = {
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
+      },
       invite: {
         findUnique: async () => ({
           id: "invite-first",

@@ -8,6 +8,7 @@ import { ArchiveChainButton } from "../../../../components/archive-chain-button"
 import { ArchiveLocationButton } from "../../../../components/archive-location-button";
 import { CategoriesAccordion } from "../../../../components/categories-accordion";
 import { CreateLocationModal } from "../../../../components/create-location-modal";
+import { PhoneInput } from "../../../../components/phone-input";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
@@ -54,6 +55,7 @@ import {
 } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 import { buildEntityGroups } from "../../../../lib/grouping";
+import { resolveTenantLocale } from "../../../../lib/tenant-locale";
 
 // Locations / Chains — a single admin screen that merges the former Locations
 // and Chains sections into two collapsible accordions. Their filters and post-
@@ -95,13 +97,15 @@ export default async function AdminLocationsPage({
 }: AdminLocationsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [t, tChains, tAdmin, tCommon, locale] = await Promise.all([
-    getTranslations("admin.locations"),
-    getTranslations("admin.chains"),
-    getTranslations("admin"),
-    getTranslations("common"),
-    getLocale(),
-  ]);
+  const [t, tChains, tAdmin, tCommon, locale, { phoneCountry }] =
+    await Promise.all([
+      getTranslations("admin.locations"),
+      getTranslations("admin.chains"),
+      getTranslations("admin"),
+      getTranslations("common"),
+      getLocale(),
+      resolveTenantLocale(tenantSlug),
+    ]);
 
   const locStatus = normalizeLocationStatus(pageState.locStatus);
   const locSearch = normalizeFilterValue(pageState.locSearch);
@@ -729,6 +733,7 @@ export default async function AdminLocationsPage({
                 locale={locale}
                 locationCategoriesEnabled={locationCategoriesEnabled}
                 locations={locationsResult.data.items}
+                phoneCountry={phoneCountry}
                 representatives={representatives}
                 restoreLocationAction={restoreLocationAction}
                 saveLocationAction={saveLocationAction}
@@ -809,6 +814,7 @@ function LocationsSection({
   locale,
   locationCategoriesEnabled,
   locations,
+  phoneCountry,
   representatives,
   restoreLocationAction,
   saveLocationAction,
@@ -829,6 +835,7 @@ function LocationsSection({
   locale: string;
   locationCategoriesEnabled: boolean;
   locations: Location[];
+  phoneCountry: string | null;
   representatives: TenantUser[];
   restoreLocationAction: (formData: FormData) => Promise<void>;
   saveLocationAction: (formData: FormData) => Promise<void>;
@@ -980,6 +987,7 @@ function LocationsSection({
                         chains={chains}
                         location={location}
                         locationCategoriesEnabled={locationCategoriesEnabled}
+                        phoneCountry={phoneCountry}
                         representatives={representatives}
                         restoreLocationAction={restoreLocationAction}
                         saveLocationAction={saveLocationAction}
@@ -1000,6 +1008,7 @@ function LocationsSection({
                   chains={chains}
                   location={location}
                   locationCategoriesEnabled={locationCategoriesEnabled}
+                  phoneCountry={phoneCountry}
                   representatives={representatives}
                   restoreLocationAction={restoreLocationAction}
                   saveLocationAction={saveLocationAction}
@@ -1162,6 +1171,7 @@ function LocationRow({
   chains,
   location,
   locationCategoriesEnabled,
+  phoneCountry,
   representatives,
   restoreLocationAction,
   saveLocationAction,
@@ -1172,6 +1182,7 @@ function LocationRow({
   chains: Chain[];
   location: Location;
   locationCategoriesEnabled: boolean;
+  phoneCountry: string | null;
   representatives: TenantUser[];
   restoreLocationAction: (formData: FormData) => Promise<void>;
   saveLocationAction: (formData: FormData) => Promise<void>;
@@ -1319,10 +1330,12 @@ function LocationRow({
             </label>
             <label>
               {t("phone")}
-              <input
-                defaultValue={contact1?.phone ?? ""}
+              <PhoneInput
+                countryRequiredMessage={tCommon("phoneInternationalRequired")}
+                defaultValue={contact1?.phone ?? null}
+                invalidMessage={tCommon("phoneInvalid")}
                 name="contact1Phone"
-                type="tel"
+                phoneCountry={phoneCountry}
               />
             </label>
 
@@ -1333,10 +1346,12 @@ function LocationRow({
             </label>
             <label>
               {t("phone2")}
-              <input
-                defaultValue={contact2?.phone ?? ""}
+              <PhoneInput
+                countryRequiredMessage={tCommon("phoneInternationalRequired")}
+                defaultValue={contact2?.phone ?? null}
+                invalidMessage={tCommon("phoneInvalid")}
                 name="contact2Phone"
-                type="tel"
+                phoneCountry={phoneCountry}
               />
             </label>
 

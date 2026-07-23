@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
+import { PhoneInput } from "../../../../components/phone-input";
 import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
 import { normalizeTenantName } from "../../../../lib/navigation";
 import { getFormString } from "../../../../lib/form";
+import { resolveTenantLocale } from "../../../../lib/tenant-locale";
 
 type AcceptInvitePageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -18,6 +20,8 @@ export default async function AcceptInvitePage({
   const { tenantSlug } = await params;
   const { token = "", error } = await searchParams;
   const t = await getTranslations("invites");
+  const tCommon = await getTranslations("common");
+  const { phoneCountry } = await resolveTenantLocale(tenantSlug);
 
   async function acceptInviteAction(formData: FormData) {
     "use server";
@@ -88,7 +92,12 @@ export default async function AcceptInvitePage({
           </label>
           <label>
             {t("phone")}
-            <input autoComplete="tel" name="phone" type="tel" />
+            <PhoneInput
+              countryRequiredMessage={tCommon("phoneInternationalRequired")}
+              invalidMessage={tCommon("phoneInvalid")}
+              name="phone"
+              phoneCountry={phoneCountry}
+            />
           </label>
           <label>
             {t("password")}

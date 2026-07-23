@@ -19,6 +19,9 @@ type SingleFieldFormProps = {
   // Name of the form field the server action reads.
   inputName: string;
   inputType?: "text" | "email" | "tel";
+  // When set, the field renders as a <select> of these options instead of a
+  // text input (used by the Phone country field).
+  options?: { value: string; label: string }[];
   placeholder?: string;
   // Extra hidden inputs (e.g. which contact field is being edited).
   hiddenFields?: Record<string, string>;
@@ -40,6 +43,7 @@ export function SingleFieldForm({
   confirmLabel,
   inputName,
   inputType = "text",
+  options,
   placeholder,
   hiddenFields,
   dialogId,
@@ -103,14 +107,34 @@ export function SingleFieldForm({
             : null}
           <label>
             {fieldLabel}
-            <input
-              name={inputName}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder={placeholder}
-              required
-              type={inputType}
-              value={value}
-            />
+            {options ? (
+              <select
+                name={inputName}
+                onChange={(event) => setValue(event.target.value)}
+                required
+                value={value}
+              >
+                {value ? null : (
+                  <option value="" disabled>
+                    Select…
+                  </option>
+                )}
+                {options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                name={inputName}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder={placeholder}
+                required
+                type={inputType}
+                value={value}
+              />
+            )}
           </label>
           <div className="modal-actions">
             <button

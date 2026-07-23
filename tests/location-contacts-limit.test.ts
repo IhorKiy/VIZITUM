@@ -84,6 +84,9 @@ describe("location contact limit", () => {
     let createArgs: { data: Record<string, unknown> } | undefined;
     const service = new LocationsService({
       location: { findFirst: async () => locationRow() },
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
+      },
       locationContact: {
         count: async () => 1,
         create: async (args: { data: Record<string, unknown> }) => {

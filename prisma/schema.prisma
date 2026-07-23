@@ -215,6 +215,10 @@ model PlatformTenant {
   country           String
   timezone          String
   language          String
+  // ISO 3166-1 alpha-2 default country for phone number entry, set by the
+  // platform owner. Null (legacy tenants) means "no default": only
+  // "+"-prefixed international phone input is accepted for that tenant.
+  phoneCountry      String?
   // Primary contact for the tenant, captured at creation by the platform owner.
   // Nullable because tenants created before this was added have no contact on
   // file; the create flow requires all three for new tenants.

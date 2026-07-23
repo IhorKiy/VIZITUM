@@ -7,11 +7,13 @@ import { useTranslations } from "next-intl";
 import type { LocationContact } from "../lib/api-client";
 import { PencilIcon, PlusIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
+import { PhoneInput } from "./phone-input";
 
 type LocationContactFormModalProps = {
   action: (formData: FormData) => Promise<void>;
   canManage: boolean;
   locationName: string;
+  phoneCountry: string | null;
 } & ({ mode: "add"; row?: never } | { mode: "edit"; row: LocationContact });
 
 // One dialog for both adding a new contact and editing an existing one — the
@@ -21,7 +23,7 @@ type LocationContactFormModalProps = {
 // stacks above the contacts manager dialog it is opened from — same technique
 // as the location-insights modals.
 export function LocationContactFormModal(props: LocationContactFormModalProps) {
-  const { action, canManage, locationName, mode } = props;
+  const { action, canManage, locationName, mode, phoneCountry } = props;
   const t = useTranslations("field.location");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -128,10 +130,12 @@ export function LocationContactFormModal(props: LocationContactFormModalProps) {
 
         <label>
           {t("contactsModal.phone")}
-          <input
-            defaultValue={row?.phone ?? undefined}
+          <PhoneInput
+            countryRequiredMessage={tCommon("phoneInternationalRequired")}
+            defaultValue={row?.phone ?? null}
+            invalidMessage={tCommon("phoneInvalid")}
             name="phone"
-            type="tel"
+            phoneCountry={phoneCountry}
           />
         </label>
 

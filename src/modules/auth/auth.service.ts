@@ -8,6 +8,7 @@ import { Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { normalizeEmail } from "../../common/normalize";
+import { normalizePhoneInput } from "../../common/phone";
 import { withSerializationRetry } from "../../common/prisma-retry";
 import { PrismaService } from "../prisma/prisma.service";
 import { RolesService } from "../roles/roles.service";
@@ -128,7 +129,6 @@ export class AuthService {
     const tenantSlug = normalizeTenantSlug(body.tenantSlug);
     const name = normalizeName(body.name);
     const password = normalizeNewPassword(body.password);
-    const phone = normalizeOptionalString(body.phone);
 
     if (!token || !name || !password) {
       throw new BadRequestException({
@@ -169,6 +169,32 @@ export class AuthService {
       throwInvalidInvite();
     }
 
+    // The phone parses against the invite tenant's phoneCountry, so this can
+    // only run once the token has resolved to a tenant.
+    const inviteTenant = await this.prisma.platformTenant.findUniqueOrThrow({
+      where: { id: invite.tenantId },
+      select: { phoneCountry: true },
+    });
+    const normalizedPhone = normalizePhoneInput(
+      body.phone,
+      inviteTenant.phoneCountry,
+    );
+
+    if (!normalizedPhone.ok) {
+      throw new BadRequestException({
+        code: "INVITE_ACCEPTANCE_INVALID",
+        message: "Phone number is invalid.",
+        fieldErrors: {
+          phone: [
+            normalizedPhone.reason === "country_required"
+              ? "Enter the phone in international format (+...)."
+              : "Enter a valid phone number.",
+          ],
+        },
+      });
+    }
+
+    const phone = normalizedPhone.e164;
     const passwordHash = await this.passwordService.hashPassword(password);
 
     const result = await withSerializationRetry(() =>
@@ -661,20 +687,6 @@ function normalizeNewPassword(value: unknown): string | null {
   }
 
   return value;
-}
-
-function normalizeOptionalString(value: unknown): string | null {
-  if (value === undefined || value === null) {
-    return null;
-  }
-
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalizedValue = value.trim();
-
-  return normalizedValue || null;
 }
 
 function throwInvalidCredentials(): never {

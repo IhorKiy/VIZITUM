@@ -6,7 +6,7 @@ import { TenancyService } from "./tenancy.service";
  * Public (pre-auth) tenant lookup used by the web frontend to resolve the UI
  * locale and branding for a tenant workspace before the user is authenticated
  * (login and invite-accept pages). Exposes only slug, language, timezone,
- * color scheme and a short-lived logo URL.
+ * phone country, color scheme and a short-lived logo URL.
  */
 @Controller("tenants")
 export class TenancyController {

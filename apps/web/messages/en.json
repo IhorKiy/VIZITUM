@@ -111,6 +111,8 @@
     },
     "anyOption": "—",
     "datePlaceholder": "__.__.____",
+    "phoneInvalid": "Enter a valid phone number.",
+    "phoneInternationalRequired": "Enter the phone in international format starting with +.",
     "locationInsights": {
       "potentialTitle": "Potential",
       "potentialCount": "{count, plural, one {# product category} other {# product categories}}",

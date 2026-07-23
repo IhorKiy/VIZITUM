@@ -11,6 +11,7 @@ import {
   type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
+import { normalizePhoneInput } from "../../common/phone";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
@@ -327,7 +328,10 @@ export class LocationsService {
       });
     }
 
-    const data = parseCreateContactBody(body);
+    const data = parseCreateContactBody(
+      body,
+      await this.getTenantPhoneCountry(context.tenantId),
+    );
     const contact = await this.prisma.locationContact.create({
       data: {
         tenantId: context.tenantId,
@@ -351,7 +355,11 @@ export class LocationsService {
       contactId,
     );
     await assertCanManageContacts(context, this.prisma, locationId);
-    const data = parseUpdateContactBody(body);
+    const data = parseUpdateContactBody(
+      body,
+      await this.getTenantPhoneCountry(context.tenantId),
+      contact.phone,
+    );
     const updatedContact = await this.prisma.locationContact.update({
       where: { id: contact.id },
       data,
@@ -613,6 +621,17 @@ export class LocationsService {
     }
   }
 
+  private async getTenantPhoneCountry(
+    tenantId: string,
+  ): Promise<string | null> {
+    const tenant = await this.prisma.platformTenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { phoneCountry: true },
+    });
+
+    return tenant.phoneCountry;
+  }
+
   private async findTenantContact(
     tenantId: string,
     locationId: string,
@@ -761,6 +780,7 @@ function parseCreateLocationBody(
 
 function parseCreateContactBody(
   body: CreateLocationContactRequestBody,
+  phoneCountry: string | null,
 ): LocationContactData {
   const name = normalizeRequiredString(body.name);
 
@@ -777,14 +797,39 @@ function parseCreateContactBody(
   return {
     name,
     roleTitle: normalizeOptionalString(body.roleTitle),
-    phone: normalizeOptionalString(body.phone),
+    phone: normalizeContactPhone(body.phone, phoneCountry),
     email: normalizeOptionalString(body.email),
     notes: normalizeOptionalString(body.notes),
   };
 }
 
+function normalizeContactPhone(
+  value: unknown,
+  phoneCountry: string | null,
+): string | null {
+  const normalized = normalizePhoneInput(value, phoneCountry);
+
+  if (!normalized.ok) {
+    throw new BadRequestException({
+      code: "LOCATION_CONTACT_INVALID",
+      message: "Contact phone is invalid.",
+      fieldErrors: {
+        phone: [
+          normalized.reason === "country_required"
+            ? "Enter the phone in international format (+...)."
+            : "Enter a valid phone number.",
+        ],
+      },
+    });
+  }
+
+  return normalized.e164;
+}
+
 function parseUpdateContactBody(
   body: UpdateLocationContactRequestBody,
+  phoneCountry: string | null,
+  currentPhone: string | null,
 ): LocationContactUpdateData {
   return {
     ...(body.name !== undefined
@@ -793,8 +838,11 @@ function parseUpdateContactBody(
     ...(body.roleTitle !== undefined
       ? { roleTitle: normalizeOptionalString(body.roleTitle) }
       : {}),
-    ...(body.phone !== undefined
-      ? { phone: normalizeOptionalString(body.phone) }
+    // An unchanged phone is passed through without validation so a record
+    // whose legacy phone predates normalization stays editable; validation
+    // re-triggers only when the phone itself is being changed.
+    ...(body.phone !== undefined && body.phone !== currentPhone
+      ? { phone: normalizeContactPhone(body.phone, phoneCountry) }
       : {}),
     ...(body.email !== undefined
       ? { email: normalizeOptionalString(body.email) }

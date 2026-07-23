@@ -39,6 +39,9 @@ import { LanguageForm } from "./language-form";
 import { ProductsForm } from "./products-form";
 import { TimezoneForm } from "./timezone-form";
 import { getFormString } from "../../../lib/form";
+import { formatPhoneForDisplay, phoneHref } from "../../../lib/phone";
+import { PhoneCountryForm } from "./phone-country-form";
+import { PhoneFieldForm } from "./phone-field-form";
 
 const SEGMENT_TEMPLATES: PlatformSegmentTemplate[] = [
   "distribution",
@@ -142,6 +145,7 @@ export default async function PlatformTenantsPage({
     const contactName = getFormString(formData, "contactName").trim();
     const contactEmail = getFormString(formData, "contactEmail").trim();
     const contactPhone = getFormString(formData, "contactPhone").trim();
+    const phoneCountry = getFormString(formData, "phoneCountry").trim();
     const primaryDomain = getFormString(formData, "primaryDomain").trim();
 
     if (
@@ -165,6 +169,7 @@ export default async function PlatformTenantsPage({
       contactName,
       contactEmail,
       contactPhone,
+      phoneCountry: phoneCountry || undefined,
       primaryDomain: primaryDomain || undefined,
     });
 
@@ -384,6 +389,8 @@ export default async function PlatformTenantsPage({
       result = await updatePlatformTenant(tenantId, { contactEmail: value });
     } else if (field === "contactPhone") {
       result = await updatePlatformTenant(tenantId, { contactPhone: value });
+    } else if (field === "phoneCountry") {
+      result = await updatePlatformTenant(tenantId, { phoneCountry: value });
     } else {
       redirect("/platform/tenants?error=1");
     }
@@ -547,6 +554,22 @@ export default async function PlatformTenantsPage({
                 </dd>
               </div>
               <div>
+                <dt>Phone country</dt>
+                <dd className="tenant-admin-metric-value">
+                  <span className="tenant-metric-inline-text">
+                    {tenant.phoneCountry ?? "—"}
+                  </span>
+                  {isArchived ? null : (
+                    <PhoneCountryForm
+                      action={updateContactAction}
+                      currentValue={tenant.phoneCountry}
+                      tenantId={tenant.id}
+                      tenantName={tenant.name}
+                    />
+                  )}
+                </dd>
+              </div>
+              <div>
                 <dt>Timezone</dt>
                 <dd className="tenant-admin-metric-value">
                   <span className="tenant-metric-inline-text">
@@ -653,28 +676,23 @@ export default async function PlatformTenantsPage({
                 <dd className="tenant-admin-metric-value">
                   <span className="tenant-metric-inline-text">
                     {tenant.contactPhone ? (
-                      <a
-                        href={`tel:${tenant.contactPhone.replace(/\s+/g, "")}`}
-                      >
-                        {tenant.contactPhone}
+                      <a href={phoneHref(tenant.contactPhone)}>
+                        {formatPhoneForDisplay(
+                          tenant.contactPhone,
+                          tenant.phoneCountry,
+                        )}
                       </a>
                     ) : (
                       "—"
                     )}
                   </span>
                   {isArchived ? null : (
-                    <SingleFieldForm
+                    <PhoneFieldForm
                       action={updateContactAction}
-                      confirmLabel="Confirm"
                       currentValue={tenant.contactPhone}
-                      dialogId="tenant-contactPhone-title"
-                      eyebrow="Contact details"
-                      fieldLabel="Contact phone"
-                      hiddenFields={{ field: "contactPhone" }}
-                      inputName="value"
-                      inputType="tel"
+                      phoneCountry={tenant.phoneCountry}
                       tenantId={tenant.id}
-                      title="Edit contact phone"
+                      tenantName={tenant.name}
                       triggerLabel={`Edit contact phone for ${tenant.name}`}
                     />
                   )}
