@@ -806,6 +806,7 @@ textarea {
 
 .location-note-text {
   margin: 0;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
@@ -1729,8 +1730,8 @@ textarea {
 }
 
 /* Read-only display card for one tracked potential (field detail screen). */
-/* Collapsible read card, shared by potential and assortment: a summary row
-   (name + optional badge + chevron) that toggles a details body. */
+/* Always-expanded read card, shared by potential and assortment: a summary
+   row (name + optional badge) over an always-visible body — no accordion. */
 .location-insight-card {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1739,15 +1740,9 @@ textarea {
 
 .location-insight-card-summary {
   align-items: center;
-  cursor: pointer;
   display: flex;
   gap: 10px;
   justify-content: space-between;
-  list-style: none;
-}
-
-.location-insight-card-summary::-webkit-details-marker {
-  display: none;
 }
 
 .location-insight-card-summary h3 {
@@ -1766,31 +1761,20 @@ textarea {
   gap: 8px;
 }
 
-.location-insight-card-chevron {
-  color: var(--muted);
-  display: flex;
-  flex-shrink: 0;
-  transition: transform 0.2s ease;
-}
-
-.location-insight-card[open] .location-insight-card-chevron {
-  transform: rotate(180deg);
-}
-
 .location-insight-card-body {
   display: grid;
   gap: 6px;
   margin-top: 12px;
 }
 
-/* Edit/delete row inside the expanded body, right-aligned. The edit modal's
-   <form> is a DOM descendant here too, so scope the flex to direct forms. */
+/* Edit/delete icon row, sitting beside the title in a card's summary head
+   (potential, assortment, contacts). The edit modal's <form> is a DOM
+   descendant here too, so scope the flex to direct forms. */
 .location-insight-card-actions {
   align-items: center;
   display: flex;
+  flex-shrink: 0;
   gap: 4px;
-  justify-content: flex-end;
-  margin-top: 4px;
 }
 
 .location-insight-card-actions > form {
@@ -1855,24 +1839,30 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   display: grid;
+  /* Constrain the single column to the card width (min 0) so a long, unbroken
+     contact name can't stretch the card — and the modal — past the viewport. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding: 14px;
 }
 
 .location-contact-card-head {
-  align-items: center;
+  /* flex-start keeps the edit/delete icons aligned to the name's first line
+     when a long name wraps to multiple lines. */
+  align-items: flex-start;
   display: flex;
   gap: 8px;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .location-contact-card-head h3 {
   font-size: 16px;
   margin: 0;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Wrap the full name (breaking an unbroken string if needed) rather than
+     truncating — this is a detail card opened to read the contact. */
+  overflow-wrap: anywhere;
 }
 
 /* Phone + email share one row; each is a full clickable link (icon + value)
@@ -1890,6 +1880,9 @@ textarea {
   font-size: 14px;
   gap: 6px;
   margin: 0;
+  /* A long email must break instead of pushing the row (and modal) wide. */
+  min-width: 0;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
@@ -4439,6 +4432,12 @@ textarea {
   border-style: solid;
 }
 
+/* On the home screen this sits last inside .route-plan-card's grid, where the
+   planning screen's trailing margin would double up with the card padding. */
+.route-add-stop.today-add-stop {
+  margin-bottom: 0;
+}
+
 .route-add-stop-trigger {
   align-items: center;
   color: var(--accent);
@@ -4567,7 +4566,8 @@ textarea {
 
 .location-header-identity > .location-header-title,
 .location-header-identity > .location-header-address,
-.location-header-identity > .location-header-chain {
+.location-header-identity > .location-header-chain,
+.location-header-identity > .location-header-meta {
   grid-column: 2;
 }
 
@@ -4619,6 +4619,15 @@ textarea {
 .location-header-address {
   color: var(--muted);
   font-size: 14px;
+  margin: 0;
+}
+
+/* Item count for the dedicated potential/assortment/history pages — the
+   count used to repeat alongside the page title in .location-feature-page-head
+   below; it now lives once, here, under the address. */
+.location-header-meta {
+  color: var(--muted);
+  font-size: 13px;
   margin: 0;
 }
 

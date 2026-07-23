@@ -2,7 +2,7 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import type { LocationPotential } from "../lib/api-client";
 import { formatDate } from "../lib/format";
-import { BanknoteIcon, ChevronDownIcon, TrashIcon } from "./icons";
+import { BanknoteIcon, TrashIcon } from "./icons";
 import { LocationPotentialModal } from "./location-potential-modal";
 import { PendingSubmitButton } from "./pending-submit-button";
 
@@ -65,16 +65,35 @@ export function LocationPotentialPanel({
 
       {rows.map((row) =>
         variant === "cards" ? (
-          <details className="location-insight-card" key={row.id}>
-            <summary className="location-insight-card-summary">
+          <div className="location-insight-card" key={row.id}>
+            <div className="location-insight-card-summary">
               <h3>{row.productCategory.name}</h3>
-              <span
-                className="location-insight-card-chevron"
-                aria-hidden="true"
-              >
-                <ChevronDownIcon />
-              </span>
-            </summary>
+              {canManage && upsertAction && deleteAction ? (
+                <div className="location-insight-card-actions">
+                  <LocationPotentialModal
+                    action={upsertAction}
+                    canManage={canManage}
+                    locationName={locationName}
+                    mode="edit"
+                    row={row}
+                  />
+                  <form action={deleteAction}>
+                    <input
+                      name="productCategoryId"
+                      type="hidden"
+                      value={row.productCategoryId}
+                    />
+                    <PendingSubmitButton
+                      aria-label={t("remove")}
+                      className="location-insight-action location-insight-action--danger"
+                      pendingLabel="…"
+                    >
+                      <TrashIcon />
+                    </PendingSubmitButton>
+                  </form>
+                </div>
+              ) : null}
+            </div>
             <div className="location-insight-card-body">
               <div className="location-insight-summary-row">
                 <p
@@ -130,33 +149,8 @@ export function LocationPotentialPanel({
                   </div>
                 ))}
               </div>
-              {canManage && upsertAction && deleteAction ? (
-                <div className="location-insight-card-actions">
-                  <LocationPotentialModal
-                    action={upsertAction}
-                    canManage={canManage}
-                    locationName={locationName}
-                    mode="edit"
-                    row={row}
-                  />
-                  <form action={deleteAction}>
-                    <input
-                      name="productCategoryId"
-                      type="hidden"
-                      value={row.productCategoryId}
-                    />
-                    <PendingSubmitButton
-                      aria-label={t("remove")}
-                      className="location-insight-action location-insight-action--danger"
-                      pendingLabel="…"
-                    >
-                      <TrashIcon />
-                    </PendingSubmitButton>
-                  </form>
-                </div>
-              ) : null}
             </div>
-          </details>
+          </div>
         ) : (
           <article className="location-mini-card" key={row.id}>
             {canManage ? (

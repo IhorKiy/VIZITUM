@@ -3,7 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { AssortmentStatus, LocationAssortment } from "../lib/api-client";
 import { ASSORTMENT_STATUSES } from "../lib/assortment-status";
 import { formatDate, formatEnumLabel } from "../lib/format";
-import { ChevronDownIcon, PackageIcon, TrashIcon } from "./icons";
+import { PackageIcon, TrashIcon } from "./icons";
 import { LocationAssortmentModal } from "./location-assortment-modal";
 import { PendingSubmitButton } from "./pending-submit-button";
 
@@ -94,10 +94,10 @@ export function LocationAssortmentPanel({
 
       {rows.map((row) =>
         variant === "cards" ? (
-          <details className="location-insight-card" key={row.id}>
-            <summary className="location-insight-card-summary">
+          <div className="location-insight-card" key={row.id}>
+            <div className="location-insight-card-summary">
               <h3>{row.product.name}</h3>
-              <span className="location-insight-card-summary-right">
+              <div className="location-insight-card-summary-right">
                 <span
                   aria-label={formatEnumLabel(tCommon, row.status)}
                   className={`assortment-status-badge assortment-status-badge--${STATUS_TONE[row.status]}`}
@@ -105,14 +105,33 @@ export function LocationAssortmentPanel({
                 >
                   {statusShort[row.status]}
                 </span>
-                <span
-                  className="location-insight-card-chevron"
-                  aria-hidden="true"
-                >
-                  <ChevronDownIcon />
-                </span>
-              </span>
-            </summary>
+                {canManage && upsertAction && deleteAction ? (
+                  <div className="location-insight-card-actions">
+                    <LocationAssortmentModal
+                      action={upsertAction}
+                      canManage={canManage}
+                      locationName={locationName}
+                      mode="edit"
+                      row={row}
+                    />
+                    <form action={deleteAction}>
+                      <input
+                        name="productId"
+                        type="hidden"
+                        value={row.productId}
+                      />
+                      <PendingSubmitButton
+                        aria-label={t("remove")}
+                        className="location-insight-action location-insight-action--danger"
+                        pendingLabel="…"
+                      >
+                        <TrashIcon />
+                      </PendingSubmitButton>
+                    </form>
+                  </div>
+                ) : null}
+              </div>
+            </div>
             <div className="location-insight-card-body">
               <div className="location-insight-summary-row">
                 {row.product.sku || row.product.category ? (
@@ -161,33 +180,8 @@ export function LocationAssortmentPanel({
                   </div>
                 ))}
               </div>
-              {canManage && upsertAction && deleteAction ? (
-                <div className="location-insight-card-actions">
-                  <LocationAssortmentModal
-                    action={upsertAction}
-                    canManage={canManage}
-                    locationName={locationName}
-                    mode="edit"
-                    row={row}
-                  />
-                  <form action={deleteAction}>
-                    <input
-                      name="productId"
-                      type="hidden"
-                      value={row.productId}
-                    />
-                    <PendingSubmitButton
-                      aria-label={t("remove")}
-                      className="location-insight-action location-insight-action--danger"
-                      pendingLabel="…"
-                    >
-                      <TrashIcon />
-                    </PendingSubmitButton>
-                  </form>
-                </div>
-              ) : null}
             </div>
-          </details>
+          </div>
         ) : (
           <article className="location-mini-card" key={row.id}>
             {canManage ? (
