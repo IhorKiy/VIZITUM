@@ -496,10 +496,24 @@ export default async function LocationDetailPage({
             >
               <span aria-hidden="true">▶</span> {t("location.continueVisit")}
             </a>
-          ) : stopAlreadyVisited ? (
-            <p className="empty-state">{t("location.alreadyVisited")}</p>
           ) : isArchivedLocation ? (
             <p className="empty-state">{t("location.archivedNoVisit")}</p>
+          ) : stopAlreadyVisited ? (
+            <>
+              <p className="empty-state">{t("location.alreadyVisited")}</p>
+              {/* No routeItemId here: a route item can carry only one visit
+                  (visits.routeItemId is unique), so a repeat visit on an
+                  already-visited stop is created without a route-item link. */}
+              <form action={startVisitAction}>
+                <PendingSubmitButton
+                  className="secondary-button"
+                  pendingLabel={t("location.starting")}
+                >
+                  <span aria-hidden="true">▶</span>{" "}
+                  {t("location.startRepeatVisit")}
+                </PendingSubmitButton>
+              </form>
+            </>
           ) : (
             <form action={startVisitAction}>
               <input
