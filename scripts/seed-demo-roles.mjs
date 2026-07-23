@@ -560,8 +560,8 @@ async function seedRepresentativeWorkspace(
       tenantId: tenant.id,
       title: "Demo follow-up: confirm display materials",
       description: "Seeded task for field and manager task screens.",
-      status: "open",
-      priority: "high",
+      status: "in_progress",
+      isPriority: true,
       assignedToUserId: representative.id,
       createdByUserId: manager.id,
       locationId: locations[1].id,
@@ -572,8 +572,8 @@ async function seedRepresentativeWorkspace(
     update: {
       title: "Demo follow-up: confirm display materials",
       description: "Seeded task for field and manager task screens.",
-      status: "open",
-      priority: "high",
+      status: "in_progress",
+      isPriority: true,
       assignedToUserId: representative.id,
       createdByUserId: manager.id,
       locationId: locations[1].id,
@@ -590,23 +590,35 @@ async function upsertRoutePlan(
   tx,
   { tenantId, representativeUserId, planDate, createdByUserId },
 ) {
-  return tx.routePlan.upsert({
+  // Uniqueness of (tenantId, representativeUserId, planDate) for
+  // template-less plans is enforced by a partial SQL index Prisma can't see
+  // (see the RoutePlan model comment in prisma/schema.prisma), so no upsert —
+  // find the manual plan for the day, then update or create.
+  const existingPlan = await tx.routePlan.findFirst({
     where: {
-      tenantId_representativeUserId_planDate: {
-        tenantId,
-        representativeUserId,
-        planDate,
-      },
-    },
-    create: {
       tenantId,
       representativeUserId,
       planDate,
-      status: "published",
-      createdByUserId,
-      publishedAt: new Date(),
+      routeTemplateId: null,
     },
-    update: {
+  });
+
+  if (existingPlan) {
+    return tx.routePlan.update({
+      where: { id: existingPlan.id },
+      data: {
+        status: "published",
+        createdByUserId,
+        publishedAt: new Date(),
+      },
+    });
+  }
+
+  return tx.routePlan.create({
+    data: {
+      tenantId,
+      representativeUserId,
+      planDate,
       status: "published",
       createdByUserId,
       publishedAt: new Date(),
