@@ -804,6 +804,11 @@ textarea {
   gap: 10px;
 }
 
+.location-note-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .location-mini-card {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1844,6 +1849,61 @@ textarea {
   flex-shrink: 0;
 }
 
+/* Always-expanded contact card (no accordion) — name + actions on top, then
+   phone/email/notes stacked below. */
+.location-contact-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.location-contact-card-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.location-contact-card-head h3 {
+  font-size: 16px;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Phone + email share one row; each is a full clickable link (icon + value)
+   opening the dialer / mail client. */
+.location-contact-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.location-contact-line {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 14px;
+  gap: 6px;
+  margin: 0;
+  text-decoration: none;
+}
+
+.location-contact-line:hover {
+  color: var(--accent);
+}
+
+.location-contact-line-icon {
+  align-items: center;
+  color: inherit;
+  display: flex;
+  flex-shrink: 0;
+}
+
 /* Shared metric tiles for the potential (plan months) and assortment
    (stock/order/sale) read cards — a muted rounded tile with a caption over a
    bold value, three across. */
@@ -2391,6 +2451,29 @@ textarea {
   color: var(--muted);
   font-size: 14px;
   margin: 6px 0 0;
+}
+
+/* Add trigger + close button grouped on the right of a manager-style modal
+   header (e.g. the contacts modal). */
+.modal-header-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+/* Non-form dialog body (read-only note, contacts list) — matches the padding
+   of .visit-form.compact.modal-form so form and non-form dialogs align. */
+.modal-body {
+  padding: 20px;
+}
+
+/* Right-aligned confirm check that appears under the note textarea only once
+   the text has been edited — a lightweight "apply" in place of a full-width
+   save button. */
+.modal-note-confirm {
+  display: flex;
+  justify-content: flex-end;
 }
 
 /* Required-field marker rendered next to a label's text; the field's own
@@ -4468,34 +4551,59 @@ textarea {
 }
 
 .location-header-summary {
-  cursor: pointer;
   display: grid;
   gap: 8px;
-  list-style: none;
 }
 
-.location-header-summary::-webkit-details-marker {
-  display: none;
+/* Icon in the left column, title/address/chain stacked in the right column.
+   The icon spans only the title + address rows and centers against them, so a
+   third row (the chain badge) sits below without shifting the icon down. */
+.location-header-identity {
+  column-gap: 12px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  row-gap: 2px;
 }
 
-.location-header-top {
+.location-header-identity > .location-header-title,
+.location-header-identity > .location-header-address,
+.location-header-identity > .location-header-chain {
+  grid-column: 2;
+}
+
+/* Accent-tinted leading icon next to the header title — identifies the current
+   screen at a glance (location pin on the card, section icon on each sub-page).
+   Spans the first two rows (title + address) and centers against them. */
+.location-header-icon-lead {
   align-items: center;
-  display: flex;
-  gap: 12px;
-}
-
-.location-header-back {
-  align-items: center;
-  background: var(--surface-muted);
-  border-radius: 999px;
-  color: var(--fg);
-  display: flex;
+  align-self: center;
+  color: var(--accent);
+  display: inline-flex;
   flex-shrink: 0;
-  font-size: 18px;
-  height: 32px;
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+/* Standalone back affordance above the location header / sub-page header — a
+   left arrow that returns to the previous screen. align-self keeps it from
+   stretching to the full width of the flex-column it sits in. */
+.location-back {
+  align-items: center;
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 40px;
   justify-content: center;
   text-decoration: none;
-  width: 32px;
+  width: 40px;
+}
+
+.location-back:hover {
+  background: var(--surface-muted);
 }
 
 .location-header-title {
@@ -4508,30 +4616,10 @@ textarea {
   white-space: nowrap;
 }
 
-.location-header-chevron {
-  align-items: center;
-  color: var(--muted);
-  display: flex;
-  flex-shrink: 0;
-  transition: transform 0.2s ease;
-}
-
-.location-header[open] .location-header-chevron {
-  transform: rotate(180deg);
-}
-
 .location-header-address {
-  align-items: center;
   color: var(--muted);
-  display: flex;
   font-size: 14px;
-  gap: 6px;
   margin: 0;
-}
-
-.location-header-address-icon {
-  display: flex;
-  flex-shrink: 0;
 }
 
 .location-header-chain {
@@ -4540,81 +4628,48 @@ textarea {
   font-size: 13px;
   font-weight: 700;
   justify-self: start;
+  margin-top: 6px;
   padding: 4px 10px;
 }
 
-.location-header-contacts {
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 12px;
+/* Two icon groups along the bottom of the header: note + contacts on the
+   left, potential + assortment on the right. With a single group (products
+   disabled) space-between still leaves it left-aligned. */
+.location-header-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
   margin-top: 14px;
-  padding-top: 14px;
 }
 
-.location-header-contacts-label {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  margin: 0;
-  text-transform: uppercase;
-}
-
-.location-contact-row {
-  align-items: center;
+.location-header-actions-group {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 
-.location-contact-icon {
-  align-items: center;
-  background: var(--surface-muted);
-  border-radius: 999px;
+/* Reuses the design system's 40x40 .icon-button; tints the glyph with the
+   brand accent and adds relative positioning so the contacts count badge can
+   anchor to its corner. */
+.location-header-icon {
   color: var(--accent);
-  display: flex;
-  flex-shrink: 0;
-  height: 32px;
-  justify-content: center;
-  width: 32px;
+  position: relative;
 }
 
-.location-contact-text {
-  display: grid;
-  flex: 1;
-  gap: 2px;
-  min-width: 0;
-}
-
-.location-contact-name {
-  display: block;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.location-contact-role {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.location-contact-phone {
-  color: var(--muted);
-  font-size: 14px;
-  margin-left: auto;
-  white-space: nowrap;
-}
-
-.location-contact-call {
+.location-header-icon-badge {
   align-items: center;
-  background: var(--accent-soft);
+  background: var(--accent);
   border-radius: 999px;
-  color: var(--accent);
+  color: #ffffff;
   display: flex;
-  flex-shrink: 0;
-  height: 36px;
+  font-size: 11px;
+  font-weight: 700;
+  height: 18px;
   justify-content: center;
-  width: 36px;
+  min-width: 18px;
+  padding: 0 4px;
+  position: absolute;
+  right: -5px;
+  top: -5px;
 }
 
 .location-feature-summary {
@@ -4624,6 +4679,16 @@ textarea {
   gap: 12px;
   justify-content: space-between;
   list-style: none;
+}
+
+/* Static (non-collapsible) header for the dedicated potential/assortment
+   pages — same heading + add-trigger row as a feature summary, minus the
+   chevron and pointer affordance. */
+.location-feature-page-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
 }
 
 .location-feature-summary::-webkit-details-marker {

@@ -36,6 +36,11 @@ export type LocationResponse = {
   assignments: LocationAssignmentResponse[];
   createdAt: string;
   updatedAt: string;
+  // Only populated by getLocation (the single-location detail read) — a
+  // per-request ownership lookup that list endpoints never need, so they
+  // don't pay for it. Absent (not false) on any other response shape.
+  canManageNotes?: boolean;
+  canManageContacts?: boolean;
 };
 
 export type ListLocationsQuery = {
@@ -64,6 +69,10 @@ export type UpdateLocationRequestBody = Partial<
     status?: unknown;
   }
 >;
+
+export type UpdateLocationNotesRequestBody = {
+  notes?: unknown;
+};
 
 export type LocationContactResponse = {
   id: string;

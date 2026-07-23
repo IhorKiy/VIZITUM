@@ -13,6 +13,12 @@ import {
 } from "../../common/pagination";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  assertCanManageContacts,
+  assertCanManageLocationNotes,
+  canManageContacts,
+  canManageLocationNotes,
+} from "./locations-write-access";
 import type {
   CreateLocationAssignmentRequestBody,
   CreateLocationContactRequestBody,
@@ -22,6 +28,7 @@ import type {
   LocationContactResponse,
   LocationResponse,
   UpdateLocationContactRequestBody,
+  UpdateLocationNotesRequestBody,
   UpdateLocationRequestBody,
 } from "./locations.types";
 
@@ -113,8 +120,16 @@ export class LocationsService {
       context.tenantId,
       locationId,
     );
+    const [notesManageable, contactsManageable] = await Promise.all([
+      canManageLocationNotes(context, this.prisma, locationId),
+      canManageContacts(context, this.prisma, locationId),
+    ]);
 
-    return toLocationResponse(location);
+    return {
+      ...toLocationResponse(location),
+      canManageNotes: notesManageable,
+      canManageContacts: contactsManageable,
+    };
   }
 
   async createLocation(
@@ -242,6 +257,26 @@ export class LocationsService {
     return toLocationResponse(restoredLocation);
   }
 
+  async updateLocationNotes(
+    context: RequestContext,
+    locationId: string,
+    body: UpdateLocationNotesRequestBody,
+  ): Promise<LocationResponse> {
+    const location = await this.findTenantLocation(
+      context.tenantId,
+      locationId,
+    );
+    await assertCanManageLocationNotes(context, this.prisma, locationId);
+
+    const updatedLocation = await this.prisma.location.update({
+      where: { id: location.id },
+      data: { notes: normalizeOptionalString(body.notes) },
+      include: LOCATION_INCLUDE,
+    });
+
+    return toLocationResponse(updatedLocation);
+  }
+
   async listContacts(
     context: RequestContext,
     locationId: string,
@@ -271,6 +306,7 @@ export class LocationsService {
       context.tenantId,
       locationId,
     );
+    await assertCanManageContacts(context, this.prisma, locationId);
     const data = parseCreateContactBody(body);
     const contact = await this.prisma.locationContact.create({
       data: {
@@ -294,6 +330,7 @@ export class LocationsService {
       locationId,
       contactId,
     );
+    await assertCanManageContacts(context, this.prisma, locationId);
     const data = parseUpdateContactBody(body);
     const updatedContact = await this.prisma.locationContact.update({
       where: { id: contact.id },
@@ -313,6 +350,7 @@ export class LocationsService {
       locationId,
       contactId,
     );
+    await assertCanManageContacts(context, this.prisma, locationId);
 
     await this.prisma.locationContact.update({
       where: { id: contact.id },

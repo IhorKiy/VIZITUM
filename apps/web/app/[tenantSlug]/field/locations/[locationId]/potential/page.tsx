@@ -1,0 +1,194 @@
+import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+
+import { AppShell } from "../../../../../../components/app-shell";
+import { DismissableNotice } from "../../../../../../components/dismissable-notice";
+import {
+  ArrowLeftIcon,
+  BanknoteIcon,
+} from "../../../../../../components/icons";
+import { LocationPotentialModal } from "../../../../../../components/location-potential-modal";
+import { LocationPotentialPanel } from "../../../../../../components/location-potential-panel";
+import {
+  getCurrentSession,
+  getLocation,
+  listLocationPotential,
+  listProductCategories,
+} from "../../../../../../lib/api-client";
+import {
+  deleteLocationPotentialAction,
+  upsertLocationPotentialAction,
+} from "../../../../../../lib/location-insights-actions";
+
+type LocationPotentialPageProps = {
+  params: Promise<{ tenantSlug: string; locationId: string }>;
+  searchParams: Promise<{
+    routePlanId?: string;
+    routeItemId?: string;
+    error?: string;
+    locationInsights?: string;
+  }>;
+};
+
+export default async function LocationPotentialPage({
+  params,
+  searchParams,
+}: LocationPotentialPageProps) {
+  const { tenantSlug, locationId } = await params;
+  const { routePlanId, routeItemId, error, locationInsights } =
+    await searchParams;
+  const [t, tLocationInsights] = await Promise.all([
+    getTranslations("field"),
+    getTranslations("common.locationInsights"),
+  ]);
+
+  // Stay on this page after add/edit/delete (basePath = the potential page),
+  // carrying any route-stop context so the back link returns to the location
+  // card with its route still selected. Shared with the location detail screen
+  // via lib/location-insights-actions.ts.
+  const basePath = `/${tenantSlug}/field/locations/${locationId}/potential`;
+  const extraParams: [string, string][] = [];
+  if (routePlanId) {
+    extraParams.push(["routePlanId", routePlanId]);
+  }
+  if (routeItemId) {
+    extraParams.push(["routeItemId", routeItemId]);
+  }
+  const backQuery = new URLSearchParams(extraParams).toString();
+  const backHref = `/${tenantSlug}/field/locations/${locationId}${
+    backQuery ? `?${backQuery}` : ""
+  }`;
+
+  const upsertPotentialAction = upsertLocationPotentialAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
+  const deletePotentialAction = deleteLocationPotentialAction.bind(
+    null,
+    basePath,
+    locationId,
+    extraParams,
+  );
+
+  const [sessionResult, locationResult] = await Promise.all([
+    getCurrentSession(),
+    getLocation(locationId),
+  ]);
+
+  if (!sessionResult.ok) {
+    redirect(`/${tenantSlug}/login`);
+  }
+  if (!locationResult.ok) {
+    redirect(`/${tenantSlug}/field`);
+  }
+  // Insights aren't available for a products-disabled tenant or an archived
+  // location — send the rep back to the location card rather than showing an
+  // empty, unusable page.
+  if (!sessionResult.data.productsEnabled || locationResult.data.archived) {
+    redirect(backHref);
+  }
+
+  const locationName = locationResult.data.name;
+
+  const [potentialResult, categoriesResult] = await Promise.all([
+    listLocationPotential(locationId),
+    listProductCategories(),
+  ]);
+
+  const potentialRows = potentialResult.ok ? potentialResult.data.items : [];
+  const canManagePotential = potentialResult.ok
+    ? potentialResult.data.canManage
+    : false;
+  const availableCategories = (
+    categoriesResult.ok ? categoriesResult.data : []
+  ).filter(
+    (category) =>
+      !potentialRows.some((row) => row.productCategoryId === category.id),
+  );
+
+  return (
+    <AppShell tenantSlug={tenantSlug} activeArea="field">
+      {error === "locationInsights" ? (
+        <DismissableNotice
+          ariaLabel={tLocationInsights("errorAria")}
+          body={tLocationInsights("errorBody")}
+          clearParams={["error"]}
+          eyebrow={t("flowEyebrow")}
+          title={tLocationInsights("errorTitle")}
+          tone="danger"
+        />
+      ) : null}
+
+      {locationInsights === "updated" || locationInsights === "deleted" ? (
+        <DismissableNotice
+          ariaLabel={tLocationInsights("savedAria")}
+          clearParams={["locationInsights"]}
+          compact
+          title={tLocationInsights("savedTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      <div className="location-detail-sections">
+        <a
+          aria-label={t("location.backToLocationAria")}
+          className="location-back"
+          href={backHref}
+        >
+          <ArrowLeftIcon size={20} />
+        </a>
+        <div className="panel location-header">
+          <div className="location-header-summary">
+            <div className="location-header-identity">
+              <span className="location-header-icon-lead" aria-hidden="true">
+                <BanknoteIcon size={44} />
+              </span>
+              <h1 className="location-header-title">
+                {tLocationInsights("potentialTitle")}
+              </h1>
+              <p className="location-header-address">{locationName}</p>
+            </div>
+          </div>
+        </div>
+
+        <section className="panel location-feature">
+          <div className="location-feature-page-head">
+            <span className="location-feature-heading">
+              <span className="location-feature-icon" aria-hidden="true">
+                <BanknoteIcon size={20} />
+              </span>
+              <span className="location-feature-titles">
+                <span className="location-feature-name">
+                  {tLocationInsights("potentialTitle")}
+                </span>
+                <span className="location-feature-meta">
+                  {tLocationInsights("potentialCount", {
+                    count: potentialRows.length,
+                  })}
+                </span>
+              </span>
+            </span>
+            <LocationPotentialModal
+              action={upsertPotentialAction}
+              availableCategories={availableCategories}
+              canManage={canManagePotential}
+              locationName={locationName}
+              mode="add"
+            />
+          </div>
+          <LocationPotentialPanel
+            availableCategories={availableCategories}
+            canManage={canManagePotential}
+            deleteAction={deletePotentialAction}
+            locationName={locationName}
+            rows={potentialRows}
+            upsertAction={upsertPotentialAction}
+            variant="cards"
+          />
+        </section>
+      </div>
+    </AppShell>
+  );
+}
