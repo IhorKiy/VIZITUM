@@ -156,26 +156,19 @@ export default async function LocationAssortmentPage({
                 {tLocationInsights("assortmentTitle")}
               </h1>
               <p className="location-header-address">{locationName}</p>
+              <p className="location-header-meta">
+                {tLocationInsights("assortmentCount", {
+                  count: assortmentRows.length,
+                })}
+              </p>
             </div>
           </div>
         </div>
 
         <section className="panel location-feature">
           <div className="location-feature-page-head">
-            <span className="location-feature-heading">
-              <span className="location-feature-icon" aria-hidden="true">
-                <PackageIcon size={20} />
-              </span>
-              <span className="location-feature-titles">
-                <span className="location-feature-name">
-                  {tLocationInsights("assortmentTitle")}
-                </span>
-                <span className="location-feature-meta">
-                  {tLocationInsights("assortmentCount", {
-                    count: assortmentRows.length,
-                  })}
-                </span>
-              </span>
+            <span className="location-feature-icon" aria-hidden="true">
+              <PackageIcon size={20} />
             </span>
             <LocationAssortmentModal
               action={upsertAssortmentAction}

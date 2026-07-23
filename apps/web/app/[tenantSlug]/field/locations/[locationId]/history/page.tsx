@@ -103,24 +103,17 @@ export default async function LocationHistoryPage({
                 {t("location.visitHistory")}
               </h1>
               <p className="location-header-address">{locationName}</p>
+              <p className="location-header-meta">
+                {t("location.visitCount", { count: visitHistory.length })}
+              </p>
             </div>
           </div>
         </div>
 
         <section className="panel location-feature">
           <div className="location-feature-page-head">
-            <span className="location-feature-heading">
-              <span className="location-feature-icon" aria-hidden="true">
-                <ActivityIcon size={20} />
-              </span>
-              <span className="location-feature-titles">
-                <span className="location-feature-name">
-                  {t("location.visitHistory")}
-                </span>
-                <span className="location-feature-meta">
-                  {t("location.visitCount", { count: visitHistory.length })}
-                </span>
-              </span>
+            <span className="location-feature-icon" aria-hidden="true">
+              <ActivityIcon size={20} />
             </span>
           </div>
           {visitHistory.length > 0 ? (

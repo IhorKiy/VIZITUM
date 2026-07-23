@@ -3,19 +3,24 @@ import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../components/app-shell";
 import { DismissableNotice } from "../../../components/dismissable-notice";
+import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import {
+  addRouteItem,
   getCurrentSession,
+  listLocations,
   listTodayRoutes,
   reorderRouteItems,
   type RoutePlan,
 } from "../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
+import { getFormString } from "../../../lib/form";
 import { TodayRouteDragList } from "./today-route-drag-list";
 
 type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     report?: string;
+    stop?: string;
   }>;
 };
 
@@ -68,16 +73,21 @@ export default async function FieldPage({
   searchParams,
 }: FieldPageProps) {
   const { tenantSlug } = await params;
-  const { report } = await searchParams;
-  const [t, tCommon, format] = await Promise.all([
+  const { report, stop } = await searchParams;
+  // The add-stop affordance below reuses field.planning's strings rather than
+  // duplicating them: it is the same "add a location to a route" action the
+  // planning screen offers, and the two must not drift apart in wording.
+  const [t, tPlanning, tCommon, format] = await Promise.all([
     getTranslations("field"),
+    getTranslations("field.planning"),
     getTranslations("common"),
     getFormatter(),
   ]);
 
-  const [sessionResult, routesResult] = await Promise.all([
+  const [sessionResult, routesResult, locationsResult] = await Promise.all([
     getCurrentSession(),
     listTodayRoutes(),
+    listLocations(),
   ]);
   const todayRoutesResult = sessionResult.ok
     ? routesResult
@@ -131,6 +141,32 @@ export default async function FieldPage({
       sessionResult.data.user.name)
     : t("home.guestName");
 
+  // A rep manages their own plans (routes.manage_own); a team lead may manage
+  // any. Without either, POST would only 403, so the affordance stays hidden.
+  const canAddStop =
+    sessionResult.ok &&
+    (sessionResult.data.permissions.includes("routes.manage_own") ||
+      sessionResult.data.permissions.includes("routes.manage_team"));
+  // The new stop appends to the plan owning the last stop, so "add" continues
+  // wherever today's list currently ends (today can hold more than one plan).
+  const lastStop = routeStops[routeStops.length - 1];
+  const locations = locationsResult.ok ? locationsResult.data.items : [];
+  // Built from every item on today's plans, including the skipped ones that
+  // toRouteStops drops from the visible list. A skipped stop still occupies
+  // its location for today, and the backend does not dedupe by locationId, so
+  // re-offering it would silently create a second item for the same location
+  // in the same plan.
+  const plannedLocationIds = new Set(
+    todayRoutesResult.ok
+      ? todayRoutesResult.data.flatMap((plan) =>
+          plan.items.map((item) => item.locationId),
+        )
+      : routeStops.map((routeStop) => routeStop.locationId),
+  );
+  const availableLocations = locations.filter(
+    (location) => !plannedLocationIds.has(location.id),
+  );
+
   // Called directly from the client-side drag list (not a <form> submit)
   // once a drag or arrow-key move settles on a new order — see
   // today-route-drag-list.tsx. No success notice: the drag itself is
@@ -147,6 +183,46 @@ export default async function FieldPage({
     }
 
     redirect(`/${tenantSlug}/field`);
+  }
+
+  // Appends a location to today's route. The plan's items are re-read here
+  // instead of trusting the rendered page, so the sequence stays correct even
+  // if the route changed since this page was rendered.
+  //
+  // Every exit reports an outcome. Unlike the reorder above — where the drag
+  // itself is the feedback — a failed add leaves the list looking untouched,
+  // so a silent bounce would read as "nothing happened". The backend raises a
+  // deliberate 409 (ROUTE_ITEM_SEQUENCE_TAKEN) when a concurrent edit claims
+  // the same slot, precisely so the client can say so.
+  async function addTodayStopAction(formData: FormData) {
+    "use server";
+
+    const routePlanId = getFormString(formData, "routePlanId").trim();
+    const locationId = getFormString(formData, "locationId").trim();
+
+    if (!routePlanId || !locationId) {
+      redirect(`/${tenantSlug}/field?stop=failed`);
+    }
+
+    const plansResult = await listTodayRoutes();
+    const plan = plansResult.ok
+      ? plansResult.data.find((item) => item.id === routePlanId)
+      : undefined;
+
+    if (!plan) {
+      redirect(`/${tenantSlug}/field?stop=failed`);
+    }
+
+    const nextSequence = plan.items.length
+      ? Math.max(...plan.items.map((item) => item.sequence)) + 1
+      : 1;
+
+    const result = await addRouteItem(routePlanId, {
+      locationId,
+      sequence: nextSequence,
+    });
+
+    redirect(`/${tenantSlug}/field?stop=${result.ok ? "added" : "failed"}`);
   }
 
   return (
@@ -166,6 +242,27 @@ export default async function FieldPage({
           eyebrow={t("home.reportConfirmedEyebrow")}
           title={t("home.reportConfirmedTitle")}
           tone="success"
+        />
+      ) : null}
+
+      {stop === "added" ? (
+        <DismissableNotice
+          ariaLabel={t("home.stopStatusAria")}
+          clearParams={["stop"]}
+          compact
+          title={t("home.stopAddedTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      {stop === "failed" ? (
+        <DismissableNotice
+          ariaLabel={t("home.stopStatusAria")}
+          body={t("home.stopFailedBody")}
+          clearParams={["stop"]}
+          eyebrow={t("flowEyebrow")}
+          title={t("home.stopFailedTitle")}
+          tone="danger"
         />
       ) : null}
 
@@ -244,6 +341,51 @@ export default async function FieldPage({
                 stops={routeStops}
                 tenantSlug={tenantSlug}
               />
+
+              {/* Demo stops carry fabricated plan ids, so the write path is
+                  only offered against a real route. */}
+              {canAddStop && !isDemoMode && lastStop ? (
+                <details className="route-add-stop today-add-stop">
+                  <summary className="route-add-stop-trigger">
+                    <span aria-hidden="true">+</span> {tPlanning("addStop")}
+                  </summary>
+                  {availableLocations.length > 0 ? (
+                    <form
+                      action={addTodayStopAction}
+                      className="visit-form compact"
+                    >
+                      <input
+                        name="routePlanId"
+                        type="hidden"
+                        value={lastStop.routePlanId}
+                      />
+                      <label>
+                        {tPlanning("locationLabel")}
+                        <select name="locationId" required>
+                          {availableLocations.map((location) => (
+                            <option key={location.id} value={location.id}>
+                              {location.name}
+                              {location.city ? ` · ${location.city}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <PendingSubmitButton
+                        className="primary-button"
+                        pendingLabel={tPlanning("adding")}
+                      >
+                        {tPlanning("addToRoute")}
+                      </PendingSubmitButton>
+                    </form>
+                  ) : (
+                    <p className="empty-state">
+                      {locations.length === 0
+                        ? tPlanning("noLocations")
+                        : tPlanning("allLocationsUsed")}
+                    </p>
+                  )}
+                </details>
+              ) : null}
             </div>
           </>
         ) : (
