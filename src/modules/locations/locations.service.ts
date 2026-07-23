@@ -13,6 +13,11 @@ import {
 } from "../../common/pagination";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  assertCanManageContacts,
+  assertCanManageLocationNotes,
+  canManageLocationHeader,
+} from "./locations-write-access";
 import type {
   CreateLocationAssignmentRequestBody,
   CreateLocationContactRequestBody,
@@ -22,8 +27,14 @@ import type {
   LocationContactResponse,
   LocationResponse,
   UpdateLocationContactRequestBody,
+  UpdateLocationNotesRequestBody,
   UpdateLocationRequestBody,
 } from "./locations.types";
+
+// A location holds at most this many contacts. The field-zone UI hides the add
+// affordance once two exist; this server-side cap is the authoritative guard
+// (mirrors the admin console's fixed two-slot contact form).
+const MAX_LOCATION_CONTACTS = 2;
 
 // Every location read that feeds toLocationResponse loads the linked chain
 // (id + name only) plus the location's live contacts and active assignments so
@@ -113,8 +124,17 @@ export class LocationsService {
       context.tenantId,
       locationId,
     );
+    const { canManageNotes, canManageContacts } = await canManageLocationHeader(
+      context,
+      this.prisma,
+      locationId,
+    );
 
-    return toLocationResponse(location);
+    return {
+      ...toLocationResponse(location),
+      canManageNotes,
+      canManageContacts,
+    };
   }
 
   async createLocation(
@@ -242,6 +262,26 @@ export class LocationsService {
     return toLocationResponse(restoredLocation);
   }
 
+  async updateLocationNotes(
+    context: RequestContext,
+    locationId: string,
+    body: UpdateLocationNotesRequestBody,
+  ): Promise<LocationResponse> {
+    const location = await this.findTenantLocation(
+      context.tenantId,
+      locationId,
+    );
+    await assertCanManageLocationNotes(context, this.prisma, locationId);
+
+    const updatedLocation = await this.prisma.location.update({
+      where: { id: location.id },
+      data: { notes: normalizeNotesInput(body.notes) },
+      include: LOCATION_INCLUDE,
+    });
+
+    return toLocationResponse(updatedLocation);
+  }
+
   async listContacts(
     context: RequestContext,
     locationId: string,
@@ -271,6 +311,22 @@ export class LocationsService {
       context.tenantId,
       locationId,
     );
+    await assertCanManageContacts(context, this.prisma, locationId);
+
+    const activeContacts = await this.prisma.locationContact.count({
+      where: {
+        tenantId: context.tenantId,
+        locationId: location.id,
+        deletedAt: null,
+      },
+    });
+    if (activeContacts >= MAX_LOCATION_CONTACTS) {
+      throw new ConflictException({
+        code: "LOCATION_CONTACT_LIMIT_REACHED",
+        message: `A location can have at most ${MAX_LOCATION_CONTACTS} contacts.`,
+      });
+    }
+
     const data = parseCreateContactBody(body);
     const contact = await this.prisma.locationContact.create({
       data: {
@@ -294,6 +350,7 @@ export class LocationsService {
       locationId,
       contactId,
     );
+    await assertCanManageContacts(context, this.prisma, locationId);
     const data = parseUpdateContactBody(body);
     const updatedContact = await this.prisma.locationContact.update({
       where: { id: contact.id },
@@ -313,6 +370,7 @@ export class LocationsService {
       locationId,
       contactId,
     );
+    await assertCanManageContacts(context, this.prisma, locationId);
 
     await this.prisma.locationContact.update({
       where: { id: contact.id },
@@ -827,6 +885,24 @@ function normalizeOptionalString(value: unknown): string | null {
   const normalizedValue = value.trim();
 
   return normalizedValue || null;
+}
+
+// Stricter than normalizeOptionalString for the dedicated notes endpoint:
+// missing/null/blank clears the note, a string is stored trimmed, and any
+// other type is rejected rather than silently coerced to "clear the note".
+function normalizeNotesInput(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new BadRequestException({
+      code: "LOCATION_NOTES_INVALID",
+      message: "Location note must be a string.",
+    });
+  }
+
+  return value.trim() || null;
 }
 
 function normalizeId(value: unknown): string | null {

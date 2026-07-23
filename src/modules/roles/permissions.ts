@@ -21,8 +21,12 @@ export const PERMISSIONS = {
   LOCATION_INSIGHTS_MANAGE: "location_insights.manage",
   LOCATION_INSIGHTS_MANAGE_OWN: "location_insights.manage_own",
 
+  LOCATION_NOTES_MANAGE: "location_notes.manage",
+  LOCATION_NOTES_MANAGE_OWN: "location_notes.manage_own",
+
   CONTACTS_READ: "contacts.read",
   CONTACTS_MANAGE: "contacts.manage",
+  CONTACTS_MANAGE_OWN: "contacts.manage_own",
 
   PRODUCTS_READ: "products.read",
   PRODUCTS_MANAGE: "products.manage",

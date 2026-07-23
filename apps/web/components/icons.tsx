@@ -76,18 +76,18 @@ export function DownloadIcon() {
   );
 }
 
-export function UserIcon() {
+export function UserIcon({ size = 16 }: { size?: number } = {}) {
   return (
     <svg
       aria-hidden="true"
       fill="none"
-      height="16"
+      height={size}
       stroke="currentColor"
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeWidth="2"
       viewBox="0 0 24 24"
-      width="16"
+      width={size}
     >
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
@@ -95,18 +95,37 @@ export function UserIcon() {
   );
 }
 
-export function MapPinIcon() {
+export function NoteIcon({ size = 16 }: { size?: number } = {}) {
   return (
     <svg
       aria-hidden="true"
       fill="none"
-      height="16"
+      height={size}
       stroke="currentColor"
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeWidth="2"
       viewBox="0 0 24 24"
-      width="16"
+      width={size}
+    >
+      <rect height="18" rx="2" width="16" x="4" y="3" />
+      <path d="M8 9h8M8 13h8M8 17h5" />
+    </svg>
+  );
+}
+
+export function MapPinIcon({ size = 16 }: { size?: number } = {}) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height={size}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width={size}
     >
       <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
       <circle cx="12" cy="10" r="3" />
@@ -263,6 +282,25 @@ export function ChevronDownIcon() {
       width="16"
     >
       <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+export function ArrowLeftIcon({ size = 16 }: { size?: number } = {}) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height={size}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      <path d="M19 12H5" />
+      <path d="m12 19-7-7 7-7" />
     </svg>
   );
 }

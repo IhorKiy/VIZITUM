@@ -13,7 +13,10 @@ import {
 import type { Request } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
-import { RequirePermissions } from "../auth/permissions.decorator";
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { LocationsService } from "./locations.service";
@@ -23,6 +26,7 @@ import type {
   CreateLocationRequestBody,
   LocationListStatus,
   UpdateLocationContactRequestBody,
+  UpdateLocationNotesRequestBody,
   UpdateLocationRequestBody,
 } from "./locations.types";
 
@@ -109,6 +113,23 @@ export class LocationsController {
     );
   }
 
+  @Patch(":locationId/notes")
+  @RequireAnyPermissions(
+    PERMISSIONS.LOCATION_NOTES_MANAGE,
+    PERMISSIONS.LOCATION_NOTES_MANAGE_OWN,
+  )
+  updateLocationNotes(
+    @Req() request: Request,
+    @Param("locationId") locationId: string,
+    @Body() body: UpdateLocationNotesRequestBody,
+  ) {
+    return this.locationsService.updateLocationNotes(
+      getRequestContext(request),
+      locationId,
+      body,
+    );
+  }
+
   @Get(":locationId/contacts")
   @RequirePermissions(PERMISSIONS.CONTACTS_READ)
   listContacts(
@@ -122,7 +143,10 @@ export class LocationsController {
   }
 
   @Post(":locationId/contacts")
-  @RequirePermissions(PERMISSIONS.CONTACTS_MANAGE)
+  @RequireAnyPermissions(
+    PERMISSIONS.CONTACTS_MANAGE,
+    PERMISSIONS.CONTACTS_MANAGE_OWN,
+  )
   createContact(
     @Req() request: Request,
     @Param("locationId") locationId: string,
@@ -136,7 +160,10 @@ export class LocationsController {
   }
 
   @Patch(":locationId/contacts/:contactId")
-  @RequirePermissions(PERMISSIONS.CONTACTS_MANAGE)
+  @RequireAnyPermissions(
+    PERMISSIONS.CONTACTS_MANAGE,
+    PERMISSIONS.CONTACTS_MANAGE_OWN,
+  )
   updateContact(
     @Req() request: Request,
     @Param("locationId") locationId: string,
@@ -152,7 +179,10 @@ export class LocationsController {
   }
 
   @Delete(":locationId/contacts/:contactId")
-  @RequirePermissions(PERMISSIONS.CONTACTS_MANAGE)
+  @RequireAnyPermissions(
+    PERMISSIONS.CONTACTS_MANAGE,
+    PERMISSIONS.CONTACTS_MANAGE_OWN,
+  )
   deleteContact(
     @Req() request: Request,
     @Param("locationId") locationId: string,

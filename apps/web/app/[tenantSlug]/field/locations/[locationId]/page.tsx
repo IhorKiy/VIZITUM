@@ -5,32 +5,25 @@ import { AppShell } from "../../../../../components/app-shell";
 import { DismissableNotice } from "../../../../../components/dismissable-notice";
 import {
   ActivityIcon,
+  ArrowLeftIcon,
   BanknoteIcon,
-  ChevronDownIcon,
   ListTodoIcon,
   MapPinIcon,
   PackageIcon,
-  PhoneIcon,
-  UserIcon,
 } from "../../../../../components/icons";
-import { LocationAssortmentModal } from "../../../../../components/location-assortment-modal";
-import { LocationAssortmentPanel } from "../../../../../components/location-assortment-panel";
-import { LocationPotentialModal } from "../../../../../components/location-potential-modal";
-import { LocationPotentialPanel } from "../../../../../components/location-potential-panel";
+import { LocationContactsModal } from "../../../../../components/location-contacts-modal";
+import { LocationNotesModal } from "../../../../../components/location-notes-modal";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import {
   createVisit,
   getCurrentSession,
   getLocation,
-  listAllProducts,
   listLocationAssortment,
   listLocationPotential,
-  listProductCategories,
   listTasks,
   listVisits,
   updateRouteItem,
   type Task,
-  type Visit,
 } from "../../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
 import {
@@ -39,13 +32,12 @@ import {
   statusPillTone,
 } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
-import { isTaskUnfinished } from "../../../../../lib/task-status";
 import {
-  deleteLocationAssortmentAction,
-  deleteLocationPotentialAction,
-  upsertLocationAssortmentAction,
-  upsertLocationPotentialAction,
-} from "../../../../../lib/location-insights-actions";
+  deleteLocationContactAction,
+  upsertLocationContactAction,
+  upsertLocationNotesAction,
+} from "../../../../../lib/location-header-actions";
+import { isTaskUnfinished } from "../../../../../lib/task-status";
 
 type LocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
@@ -139,10 +131,10 @@ export default async function LocationDetailPage({
     );
   }
 
-  // The four potential/assortment actions are shared with the admin detail
-  // screen via lib/location-insights-actions.ts — bound here with this
-  // zone's basePath plus routePlanId/routeItemId so returning to a route
-  // stop keeps its context through the redirect (admin has no such params).
+  // Potential/assortment now live on their own routes; the note and contacts
+  // actions still redirect back to this card. routePlanId/routeItemId ride
+  // along so a route-stop context survives the redirect (and the links to the
+  // sub-pages), matching how the admin detail screen omits them.
   const basePath = `/${tenantSlug}/field/locations/${locationId}`;
   const extraParams: [string, string][] = [];
   if (routePlanId) {
@@ -151,25 +143,21 @@ export default async function LocationDetailPage({
   if (routeItemId) {
     extraParams.push(["routeItemId", routeItemId]);
   }
-  const upsertPotentialAction = upsertLocationPotentialAction.bind(
+  const insightsQuery = new URLSearchParams(extraParams).toString();
+  const insightsSuffix = insightsQuery ? `?${insightsQuery}` : "";
+  const upsertNotesAction = upsertLocationNotesAction.bind(
     null,
     basePath,
     locationId,
     extraParams,
   );
-  const deletePotentialAction = deleteLocationPotentialAction.bind(
+  const upsertContactAction = upsertLocationContactAction.bind(
     null,
     basePath,
     locationId,
     extraParams,
   );
-  const upsertAssortmentAction = upsertLocationAssortmentAction.bind(
-    null,
-    basePath,
-    locationId,
-    extraParams,
-  );
-  const deleteAssortmentAction = deleteLocationAssortmentAction.bind(
+  const deleteContactAction = deleteLocationContactAction.bind(
     null,
     basePath,
     locationId,
@@ -253,20 +241,33 @@ export default async function LocationDetailPage({
     ? locationResult.data.chain?.name
     : undefined;
   const contacts = locationResult.ok ? locationResult.data.contacts : [];
+  const locationNotes = locationResult.ok ? locationResult.data.notes : null;
+  const canManageNotes = locationResult.ok
+    ? (locationResult.data.canManageNotes ?? false)
+    : false;
+  const canManageContacts = locationResult.ok
+    ? (locationResult.data.canManageContacts ?? false)
+    : false;
 
   const representativeUserId = sessionResult.ok
     ? sessionResult.data.user.id
     : null;
 
+  // pageSize=50 is the API's max page size — the visit-history icon badge and
+  // the dedicated history page deliberately reflect only the 50 most recent
+  // visits, which is plenty for a single rep at a single location.
+  const visitsQuery = new URLSearchParams({
+    locationId,
+    representativeUserId: representativeUserId ?? "",
+    pageSize: "50",
+  }).toString();
   const [visitsResult, tasksResult] = isDemoLocation
     ? [
         { ok: false as const, status: 0, message: "Demo mode" },
         { ok: false as const, status: 0, message: "Demo mode" },
       ]
     : await Promise.all([
-        listVisits(
-          `locationId=${locationId}&representativeUserId=${representativeUserId}&pageSize=50`,
-        ),
+        listVisits(visitsQuery),
         listTasks(`locationId=${locationId}&pageSize=50`),
       ]);
 
@@ -294,52 +295,25 @@ export default async function LocationDetailPage({
   const skipLocationInsights =
     isDemoLocation || !productsEnabled || isArchivedLocation;
 
-  const [potentialResult, assortmentResult, categoriesResult, productsResult] =
-    skipLocationInsights
-      ? [
-          { ok: false as const, status: 0, message: "Not available" },
-          { ok: false as const, status: 0, message: "Not available" },
-          { ok: false as const, status: 0, message: "Not available" },
-          { ok: false as const, status: 0, message: "Not available" },
-        ]
-      : await Promise.all([
-          listLocationPotential(locationId),
-          listLocationAssortment(locationId),
-          listProductCategories(),
-          listAllProducts(),
-        ]);
+  // Only the counts are needed here — the full potential/assortment data (and
+  // its add/edit modals) lives on the dedicated /potential and /assortment
+  // sub-pages the header icons link to.
+  const [potentialResult, assortmentResult] = skipLocationInsights
+    ? [
+        { ok: false as const, status: 0, message: "Not available" },
+        { ok: false as const, status: 0, message: "Not available" },
+      ]
+    : await Promise.all([
+        listLocationPotential(locationId),
+        listLocationAssortment(locationId),
+      ]);
 
-  const potentialRows = potentialResult.ok ? potentialResult.data.items : [];
-  const canManagePotential = potentialResult.ok
-    ? potentialResult.data.canManage
-    : false;
-  const availableCategories = (
-    categoriesResult.ok ? categoriesResult.data : []
-  ).filter(
-    (category) =>
-      !potentialRows.some((row) => row.productCategoryId === category.id),
-  );
-
-  const assortmentRows = assortmentResult.ok ? assortmentResult.data.items : [];
-  const canManageAssortment = assortmentResult.ok
-    ? assortmentResult.data.canManage
-    : false;
-  const assortmentCoverage = assortmentResult.ok
-    ? {
-        pct: assortmentResult.data.coveragePct,
-        required: assortmentResult.data.requiredCount,
-        inStock: assortmentResult.data.inStockCount,
-      }
-    : { pct: 0, required: 0, inStock: 0 };
-  const availableProducts = (productsResult.ok ? productsResult.data : [])
-    .filter(
-      (product) => !assortmentRows.some((row) => row.productId === product.id),
-    )
-    .map((product) => ({
-      id: product.id,
-      name: product.name,
-      sku: product.sku,
-    }));
+  const potentialCount = potentialResult.ok
+    ? potentialResult.data.items.length
+    : 0;
+  const assortmentCount = assortmentResult.ok
+    ? assortmentResult.data.items.length
+    : 0;
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -411,74 +385,88 @@ export default async function LocationDetailPage({
       ) : null}
 
       <div className="location-detail-sections">
-        <details className="panel location-header">
-          <summary className="location-header-summary">
-            <div className="location-header-top">
-              <a
-                aria-label={t("location.backAria")}
-                className="location-header-back"
-                href={`/${tenantSlug}/field`}
-              >
-                ‹
-              </a>
+        <a
+          aria-label={t("location.backAria")}
+          className="location-back"
+          href={`/${tenantSlug}/field`}
+        >
+          <ArrowLeftIcon size={20} />
+        </a>
+        <div className="panel location-header">
+          <div className="location-header-summary">
+            <div className="location-header-identity">
+              <span className="location-header-icon-lead" aria-hidden="true">
+                <MapPinIcon size={44} />
+              </span>
               <h1 className="location-header-title">{locationName}</h1>
-              <span className="location-header-chevron" aria-hidden="true">
-                <ChevronDownIcon />
+              <p className="location-header-address">{locationAddress}</p>
+              <span className="location-header-chain">
+                {chainName ?? t("location.chainNone")}
               </span>
             </div>
-            <p className="location-header-address">
-              <span aria-hidden="true" className="location-header-address-icon">
-                <MapPinIcon />
-              </span>
-              {locationAddress}
-            </p>
-            <span className="location-header-chain">
-              {chainName ?? t("location.chainNone")}
-            </span>
-          </summary>
-          <div className="location-header-contacts">
-            <p className="location-header-contacts-label">
-              {t("location.contactsTitle")}
-            </p>
-            {contacts.length > 0 ? (
-              contacts.map((contact) => (
-                <div className="location-contact-row" key={contact.id}>
-                  <span className="location-contact-icon" aria-hidden="true">
-                    <UserIcon />
-                  </span>
-                  <div className="location-contact-text">
-                    <span className="location-contact-name">
-                      {contact.name}
-                    </span>
-                    {contact.roleTitle ? (
-                      <span className="location-contact-role">
-                        {contact.roleTitle}
-                      </span>
-                    ) : null}
-                  </div>
-                  {contact.phone ? (
-                    <>
-                      <span className="location-contact-phone">
-                        {contact.phone}
-                      </span>
-                      <a
-                        aria-label={t("location.callContact", {
-                          name: contact.name,
-                        })}
-                        className="location-contact-call"
-                        href={`tel:${contact.phone.replace(/\s+/g, "")}`}
-                      >
-                        <PhoneIcon />
-                      </a>
-                    </>
-                  ) : null}
-                </div>
-              ))
-            ) : (
-              <p className="empty-state">{t("location.noContacts")}</p>
-            )}
           </div>
-        </details>
+          <div className="location-header-actions">
+            <div className="location-header-actions-group">
+              <LocationNotesModal
+                action={upsertNotesAction}
+                canManage={canManageNotes}
+                locationName={locationName}
+                notes={locationNotes}
+              />
+              <LocationContactsModal
+                canManage={canManageContacts}
+                deleteAction={deleteContactAction}
+                locationName={locationName}
+                rows={contacts}
+                upsertAction={upsertContactAction}
+              />
+            </div>
+            {!isDemoLocation ? (
+              <div className="location-header-actions-group">
+                {productsEnabled && !isArchivedLocation ? (
+                  <>
+                    <a
+                      aria-label={tLocationInsights("potentialTitle")}
+                      className="icon-button location-header-icon"
+                      href={`${basePath}/potential${insightsSuffix}`}
+                    >
+                      <BanknoteIcon size={20} />
+                      {potentialCount > 0 ? (
+                        <span className="location-header-icon-badge">
+                          {potentialCount}
+                        </span>
+                      ) : null}
+                    </a>
+                    <a
+                      aria-label={tLocationInsights("assortmentTitle")}
+                      className="icon-button location-header-icon"
+                      href={`${basePath}/assortment${insightsSuffix}`}
+                    >
+                      <PackageIcon size={20} />
+                      {assortmentCount > 0 ? (
+                        <span className="location-header-icon-badge">
+                          {assortmentCount}
+                        </span>
+                      ) : null}
+                    </a>
+                  </>
+                ) : null}
+                <a
+                  aria-label={t("location.visitHistory")}
+                  className="icon-button location-header-icon"
+                  href={`${basePath}/history${insightsSuffix}`}
+                >
+                  <ActivityIcon size={20} />
+                  {visitHistory.length > 0 ? (
+                    <span className="location-header-icon-badge">
+                      {visitHistory.length}
+                    </span>
+                  ) : null}
+                </a>
+              </div>
+            ) : null}
+          </div>
+        </div>
 
         {productsEnabled && isArchivedLocation ? (
           <section
@@ -491,95 +479,6 @@ export default async function LocationDetailPage({
               <p>{tLocationInsights("archivedBody")}</p>
             </div>
           </section>
-        ) : null}
-
-        {productsEnabled && !isArchivedLocation ? (
-          <>
-            <details className="panel location-feature">
-              <summary className="location-feature-summary">
-                <span className="location-feature-heading">
-                  <span className="location-feature-icon" aria-hidden="true">
-                    <BanknoteIcon size={20} />
-                  </span>
-                  <span className="location-feature-titles">
-                    <span className="location-feature-name">
-                      {tLocationInsights("potentialTitle")}
-                    </span>
-                    <span className="location-feature-meta">
-                      {tLocationInsights("potentialCount", {
-                        count: potentialRows.length,
-                      })}
-                    </span>
-                  </span>
-                </span>
-                <span className="location-feature-actions">
-                  <span className="location-feature-chevron" aria-hidden="true">
-                    ›
-                  </span>
-                  <LocationPotentialModal
-                    action={upsertPotentialAction}
-                    availableCategories={availableCategories}
-                    canManage={canManagePotential}
-                    locationName={locationName}
-                    mode="add"
-                  />
-                </span>
-              </summary>
-              <LocationPotentialPanel
-                availableCategories={availableCategories}
-                canManage={canManagePotential}
-                deleteAction={deletePotentialAction}
-                locationName={locationName}
-                rows={potentialRows}
-                upsertAction={upsertPotentialAction}
-                variant="cards"
-              />
-            </details>
-
-            <details className="panel location-feature">
-              <summary className="location-feature-summary">
-                <span className="location-feature-heading">
-                  <span className="location-feature-icon" aria-hidden="true">
-                    <PackageIcon size={20} />
-                  </span>
-                  <span className="location-feature-titles">
-                    <span className="location-feature-name">
-                      {tLocationInsights("assortmentTitle")}
-                    </span>
-                    <span className="location-feature-meta">
-                      {tLocationInsights("assortmentCount", {
-                        count: assortmentRows.length,
-                      })}
-                    </span>
-                  </span>
-                </span>
-                <span className="location-feature-actions">
-                  <span className="location-feature-chevron" aria-hidden="true">
-                    ›
-                  </span>
-                  <LocationAssortmentModal
-                    action={upsertAssortmentAction}
-                    availableProducts={availableProducts}
-                    canManage={canManageAssortment}
-                    locationName={locationName}
-                    mode="add"
-                  />
-                </span>
-              </summary>
-              <LocationAssortmentPanel
-                availableProducts={availableProducts}
-                canManage={canManageAssortment}
-                coveragePct={assortmentCoverage.pct}
-                deleteAction={deleteAssortmentAction}
-                inStockCount={assortmentCoverage.inStock}
-                locationName={locationName}
-                requiredCount={assortmentCoverage.required}
-                rows={assortmentRows}
-                upsertAction={upsertAssortmentAction}
-                variant="cards"
-              />
-            </details>
-          </>
         ) : null}
 
         <div className="location-actions">
@@ -691,62 +590,6 @@ export default async function LocationDetailPage({
             </div>
           ) : (
             <p className="empty-state">{t("location.noOpenTasks")}</p>
-          )}
-        </details>
-
-        <details className="panel location-feature">
-          <summary className="location-feature-summary">
-            <span className="location-feature-heading">
-              <span className="location-feature-icon" aria-hidden="true">
-                <ActivityIcon size={20} />
-              </span>
-              <span className="location-feature-titles">
-                <span className="location-feature-name">
-                  {t("location.visitHistory")}
-                  <span className="location-feature-help" aria-hidden="true">
-                    ?
-                  </span>
-                </span>
-                <span className="location-feature-meta">
-                  {t("location.visitCount", { count: visitHistory.length })}
-                </span>
-              </span>
-            </span>
-            <span className="location-feature-actions">
-              <span className="location-feature-chevron" aria-hidden="true">
-                ›
-              </span>
-            </span>
-          </summary>
-          {visitHistory.length > 0 ? (
-            <div className="field-card-list">
-              {visitHistory.map((item: Visit) => (
-                <a
-                  className="location-mini-card location-history-row"
-                  href={`/${tenantSlug}/field/visits/${item.id}`}
-                  key={item.id}
-                >
-                  <header>
-                    <div>
-                      <h3>
-                        {formatDateTime(
-                          format,
-                          item.completedAt ?? item.createdAt,
-                        )}
-                      </h3>
-                      <p>{formatEnumLabel(tCommon, item.visitType)}</p>
-                    </div>
-                    <span
-                      className={`status-pill ${statusPillTone(item.status)}`}
-                    >
-                      {formatEnumLabel(tCommon, item.status)}
-                    </span>
-                  </header>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">{t("location.noPastVisits")}</p>
           )}
         </details>
       </div>

@@ -29,8 +29,7 @@ type Outcome = "positive" | "neutral" | "negative";
 type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
 type ProductUpdateStatus =
   "in_stock" | "out_of_stock" | "to_order" | "not_relevant";
-type TaskType =
-  "assortment" | "merchandising" | "recommendation" | "special" | "note";
+type TaskType = "assortment" | "merchandising" | "recommendation" | "special";
 
 // One row per product touched during the visit. `presented` feeds the
 // report's presented-products list; a non-null `status` (or any quantity /
@@ -193,7 +192,6 @@ const TASK_TYPES: TaskType[] = [
   "merchandising",
   "recommendation",
   "special",
-  "note",
 ];
 
 const PRODUCT_STATUS_OPTIONS: ProductUpdateStatus[] = [
@@ -276,7 +274,6 @@ export function FieldVisitReportForm({
       merchandising: t("taskMerchandisingLabel"),
       recommendation: t("taskRecommendationLabel"),
       special: t("taskSpecialLabel"),
-      note: t("taskNoteLabel"),
     }),
     [t],
   );
@@ -286,7 +283,6 @@ export function FieldVisitReportForm({
       merchandising: t("taskMerchandisingPlaceholder"),
       recommendation: t("taskRecommendationPlaceholder"),
       special: t("taskSpecialPlaceholder"),
-      note: t("taskNotePlaceholder"),
     }),
     [t],
   );

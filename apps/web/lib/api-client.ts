@@ -126,6 +126,10 @@ export type Location = {
   assignments: LocationAssignment[];
   createdAt: string;
   updatedAt: string;
+  // Only populated by getLocation — see LocationResponse in
+  // src/modules/locations/locations.types.ts.
+  canManageNotes?: boolean;
+  canManageContacts?: boolean;
 };
 
 export type LocationCategory = {
@@ -741,6 +745,57 @@ export async function getLocation(
   locationId: string,
 ): Promise<ApiResult<Location>> {
   return apiGet<Location>(`/locations/${locationId}`);
+}
+
+export async function updateLocationNotes(
+  locationId: string,
+  input: { notes?: string | null },
+): Promise<ApiResult<Location>> {
+  return apiPatch<Location>(`/locations/${locationId}/notes`, input);
+}
+
+// Field-zone contact CRUD — unprefixed, distinct from the Admin-prefixed
+// wrappers below which are limited to name+phone for that zone's older form.
+// These hit the same backend routes with the full field set the API already
+// accepts (see CreateLocationContactRequestBody/UpdateLocationContactRequestBody
+// in src/modules/locations/locations.types.ts).
+export async function createLocationContact(
+  locationId: string,
+  input: {
+    name: string;
+    roleTitle?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    notes?: string | null;
+  },
+): Promise<ApiResult<LocationContact>> {
+  return apiPost<LocationContact>(`/locations/${locationId}/contacts`, input);
+}
+
+export async function updateLocationContact(
+  locationId: string,
+  contactId: string,
+  input: {
+    name?: string;
+    roleTitle?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    notes?: string | null;
+  },
+): Promise<ApiResult<LocationContact>> {
+  return apiPatch<LocationContact>(
+    `/locations/${locationId}/contacts/${contactId}`,
+    input,
+  );
+}
+
+export async function deleteLocationContact(
+  locationId: string,
+  contactId: string,
+): Promise<ApiResult<{ ok: true }>> {
+  return apiDelete<{ ok: true }>(
+    `/locations/${locationId}/contacts/${contactId}`,
+  );
 }
 
 export async function listLocationPotential(
