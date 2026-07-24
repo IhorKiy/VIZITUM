@@ -3171,11 +3171,22 @@ textarea {
   scroll-margin-top: 84px;
 }
 
-/* Briefly outline the task a #task-<id> anchor lands on so it's easy to spot
-   in the list. */
+/* Flash the task a #task-<id> anchor lands on, then fade back, so it's easy
+   to spot on arrival without a highlight that lingers for the whole visit. */
 .list-card:target {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft, rgba(31, 122, 92, 0.25));
+  animation: list-card-target-flash 2.4s ease-out;
+}
+
+@keyframes list-card-target-flash {
+  0%,
+  25% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft, rgba(31, 122, 92, 0.25));
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
 }
 
 .list-card-top {

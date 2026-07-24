@@ -407,6 +407,16 @@ export class RoutesService {
       routeItemId,
     );
 
+    // A visited stop records real field work for the day, so it can't be
+    // pulled out of the route (mirrors ROUTE_PLAN_NOT_REMOVABLE guarding a
+    // plan that's no longer a draft). Only planned/skipped stops are removable.
+    if (item.status === "visited") {
+      throw new ConflictException({
+        code: "ROUTE_ITEM_NOT_REMOVABLE",
+        message: "A visited stop can't be removed from the route.",
+      });
+    }
+
     // A removed stop leaves a gap in the sequence, which is fine: adding a
     // stop takes max+1 and reorderRouteItems renormalizes to 1..n, so no
     // resequencing is needed here. Pair the delete with its audit trail in

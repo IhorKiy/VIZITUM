@@ -323,10 +323,11 @@ function TodayRouteStopRow({
 
   // Swipe is a mobile-only convenience wired to real server actions, so it
   // stays off in the offline demo (where there is no plan to mutate). A
-  // visited stop only offers "remove"; an unvisited one also offers "visited".
-  const swipeEnabled = !isDemoMode;
-  const actionCount = stop.visited ? 1 : 2;
-  const actionsWidth = actionCount * ACTION_WIDTH;
+  // visited stop has no swipe actions at all: it can't be re-marked visited,
+  // and the backend refuses to remove a visited stop (ROUTE_ITEM_NOT_REMOVABLE),
+  // so both actions ("visited" + "remove") only apply to an unvisited stop.
+  const swipeEnabled = !isDemoMode && !stop.visited;
+  const actionsWidth = 2 * ACTION_WIDTH;
 
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState(0);
@@ -450,25 +451,19 @@ function TodayRouteStopRow({
     >
       {swipeEnabled ? (
         <div className="route-stop-actions" aria-hidden={offset === 0}>
-          {stop.visited ? null : (
-            <form action={markVisitedAction} className="route-stop-action-form">
-              <input
-                type="hidden"
-                name="routePlanId"
-                value={stop.routePlanId}
-              />
-              <input type="hidden" name="routeItemId" value={stop.id} />
-              <button
-                aria-label={t("swipeMarkVisitedAria", { name: stop.name })}
-                className="route-stop-action is-visit"
-                tabIndex={offset === 0 ? -1 : undefined}
-                type="submit"
-              >
-                <CheckIcon />
-                <span>{t("swipeMarkVisited")}</span>
-              </button>
-            </form>
-          )}
+          <form action={markVisitedAction} className="route-stop-action-form">
+            <input type="hidden" name="routePlanId" value={stop.routePlanId} />
+            <input type="hidden" name="routeItemId" value={stop.id} />
+            <button
+              aria-label={t("swipeMarkVisitedAria", { name: stop.name })}
+              className="route-stop-action is-visit"
+              tabIndex={offset === 0 ? -1 : undefined}
+              type="submit"
+            >
+              <CheckIcon />
+              <span>{t("swipeMarkVisited")}</span>
+            </button>
+          </form>
           <form action={removeAction} className="route-stop-action-form">
             <input type="hidden" name="routePlanId" value={stop.routePlanId} />
             <input type="hidden" name="routeItemId" value={stop.id} />
@@ -497,7 +492,11 @@ function TodayRouteStopRow({
         className="route-stop-surface"
         ref={surfaceRef}
         style={{
-          transform: `translateX(${offset}px)`,
+          // Guard on swipeEnabled so a row that was swiped open and then
+          // marked visited (the server action redirects but React keeps this
+          // instance, so `offset` persists) snaps back flush instead of
+          // leaving the now-actionless row shifted.
+          transform: `translateX(${swipeEnabled ? offset : 0}px)`,
           transition: snapping ? undefined : "none",
         }}
       >

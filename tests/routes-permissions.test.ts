@@ -450,6 +450,34 @@ describe("route item removal", () => {
     );
   });
 
+  it("rejects removing a stop that has already been visited", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+        }),
+      },
+      routeItem: {
+        findFirst: async () =>
+          buildRouteItem({ id: "item-1", status: "visited" }),
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.deleteRouteItem(
+        representativeContext as never,
+        "plan-a",
+        "item-1",
+      ),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(error.getResponse?.().code, "ROUTE_ITEM_NOT_REMOVABLE");
+        return true;
+      },
+    );
+  });
+
   it("deletes a representative's own stop and records an audit event through the same transaction", async () => {
     let deleteWhere: unknown;
     const auditEvents: unknown[] = [];
