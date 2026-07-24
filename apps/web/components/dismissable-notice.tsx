@@ -11,7 +11,9 @@ type DismissableNoticeProps = {
   body?: string;
   // Render as a single line of tinted text instead of the full panel — for
   // lightweight "saved" confirmations that don't warrant a boxed banner. The
-  // eyebrow, body, children and actions are ignored in this mode.
+  // eyebrow, body, children and actions are ignored in this mode. Title-only
+  // success notices compact automatically; passing true here on a notice with
+  // a body drops that body, so only do it when the body is boilerplate.
   compact?: boolean;
   // Extra content rendered under the body — e.g. an invite link the user has to
   // copy. A notice carrying content like this must set autoDismiss={false}.
@@ -41,13 +43,19 @@ export function DismissableNotice({
   actions,
   clearParams,
   autoDismiss,
-  compact = false,
+  compact,
   timeoutMs = 5000,
 }: DismissableNoticeProps) {
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
   const [hidden, setHidden] = useState(false);
   const dismisses = autoDismiss ?? tone === "success";
+  // Plain success confirmations don't warrant a boxed banner: default them to
+  // the compact single line. Body/children/actions force the panel — the
+  // compact mode renders only the title, so defaulting to it would silently
+  // drop content (e.g. "N rows applied" counts carried in a body).
+  const isCompact =
+    compact ?? (tone === "success" && !body && !children && !actions);
 
   useEffect(() => {
     if (!dismisses) {
@@ -79,7 +87,7 @@ export function DismissableNotice({
     return null;
   }
 
-  if (compact) {
+  if (isCompact) {
     return (
       <p
         aria-label={ariaLabel}

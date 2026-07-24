@@ -11,8 +11,15 @@ import { expect, test, type Page } from "@playwright/test";
 //
 // Seeded by scripts/seed-e2e-field-revisit.mjs: dedicated tenant (en locale),
 // one field rep, one assigned location on today's route as a planned stop.
-// The seed is re-run per spec run and resets route-item status and leftover
-// visits, so the flow below always starts from "planned".
+// The seed resets route-item status and leftover visits, so the flow below
+// always starts from "planned".
+//
+// global-setup.ts already runs the seed once per run, but this file re-seeds
+// in beforeAll anyway: the tests below mutate the seeded state, and a CI
+// retry lands in a fresh worker whose beforeAll must reset it back to
+// "planned" or the retry deterministically fails. This is safe under
+// fullyParallel because only this file reads route/visit state — the other
+// specs use the tenant solely to sign in.
 
 const TENANT_SLUG = "e2e-field-revisit";
 const REP_EMAIL = "rep@e2e-field-revisit.local";

@@ -310,7 +310,6 @@ export default async function FieldTasksPage({
       {task === "created" ? (
         <DismissableNotice
           ariaLabel={t("taskStatusAria")}
-          body={t("taskCreatedBody")}
           clearParams={["task"]}
           eyebrow={t("taskCreatedEyebrow")}
           title={t("taskCreatedTitle")}
@@ -321,7 +320,6 @@ export default async function FieldTasksPage({
       {task === "updated" ? (
         <DismissableNotice
           ariaLabel={t("taskStatusAria")}
-          body={t("taskUpdatedBody")}
           clearParams={["task"]}
           eyebrow={t("taskUpdatedEyebrow")}
           title={t("taskUpdatedTitle")}
@@ -332,7 +330,6 @@ export default async function FieldTasksPage({
       {task === "edited" ? (
         <DismissableNotice
           ariaLabel={t("taskStatusAria")}
-          body={t("taskEditedBody")}
           clearParams={["task"]}
           eyebrow={t("taskEditedEyebrow")}
           title={t("taskEditedTitle")}

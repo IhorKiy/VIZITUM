@@ -343,7 +343,6 @@ export default async function LocationDetailPage({
       {route === "visited" ? (
         <DismissableNotice
           ariaLabel={t("location.routeVisitedAria")}
-          body={t("location.routeVisitedBody")}
           clearParams={["route"]}
           eyebrow={t("location.routeVisitedEyebrow")}
           title={t("location.routeVisitedTitle")}

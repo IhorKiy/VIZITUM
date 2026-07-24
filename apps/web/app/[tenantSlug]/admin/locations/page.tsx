@@ -661,13 +661,6 @@ export default async function AdminLocationsPage({
       {pageState.locCatCreated ? (
         <DismissableNotice
           ariaLabel={t("categoryCreatedAria")}
-          body={
-            pageState.locCatCreated === "updated"
-              ? t("updatedCategoryBody")
-              : pageState.locCatCreated === "removed"
-                ? t("removedCategoryBody")
-                : t("createdCategoryBody")
-          }
           clearParams={["locCatCreated"]}
           eyebrow={t("categoryCreatedEyebrow")}
           title={
@@ -1558,11 +1551,9 @@ function SectionNotices({
   t: (
     key:
       | "createdAria"
-      | "createdBody"
       | "createdEyebrow"
       | "createdTitle"
       | "updatedAria"
-      | "updatedBody"
       | "updatedEyebrow"
       | "updatedTitle"
       | "errorAria"
@@ -1577,7 +1568,6 @@ function SectionNotices({
       {created ? (
         <DismissableNotice
           ariaLabel={t("createdAria")}
-          body={t("createdBody")}
           clearParams={[`${clearPrefix}Created`]}
           eyebrow={t("createdEyebrow")}
           title={t("createdTitle")}
@@ -1588,7 +1578,6 @@ function SectionNotices({
       {updated ? (
         <DismissableNotice
           ariaLabel={t("updatedAria")}
-          body={t("updatedBody")}
           clearParams={[`${clearPrefix}Updated`]}
           eyebrow={t("updatedEyebrow")}
           title={t("updatedTitle")}

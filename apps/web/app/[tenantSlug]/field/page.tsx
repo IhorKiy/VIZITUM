@@ -237,7 +237,6 @@ export default async function FieldPage({
       {report === "confirmed" ? (
         <DismissableNotice
           ariaLabel={t("home.reportStatusAria")}
-          body={t("home.reportConfirmedBody")}
           clearParams={["report"]}
           eyebrow={t("home.reportConfirmedEyebrow")}
           title={t("home.reportConfirmedTitle")}
