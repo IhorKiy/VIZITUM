@@ -6,10 +6,12 @@ import { DismissableNotice } from "../../../components/dismissable-notice";
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import {
   addRouteItem,
+  deleteRouteItem,
   getCurrentSession,
   listLocations,
   listTodayRoutes,
   reorderRouteItems,
+  updateRouteItem,
   type RoutePlan,
 } from "../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
@@ -225,6 +227,41 @@ export default async function FieldPage({
     redirect(`/${tenantSlug}/field?stop=${result.ok ? "added" : "failed"}`);
   }
 
+  // Swipe actions on a route stop (field home, mobile). Both take the stop's
+  // routePlanId + routeItemId from the swiped row's hidden inputs and report
+  // an outcome via the ?stop notice, matching addTodayStopAction.
+  async function markStopVisitedAction(formData: FormData) {
+    "use server";
+
+    const routePlanId = getFormString(formData, "routePlanId").trim();
+    const routeItemId = getFormString(formData, "routeItemId").trim();
+
+    if (!routePlanId || !routeItemId) {
+      redirect(`/${tenantSlug}/field?stop=failed`);
+    }
+
+    const result = await updateRouteItem(routePlanId, routeItemId, {
+      status: "visited",
+    });
+
+    redirect(`/${tenantSlug}/field?stop=${result.ok ? "visited" : "failed"}`);
+  }
+
+  async function removeStopAction(formData: FormData) {
+    "use server";
+
+    const routePlanId = getFormString(formData, "routePlanId").trim();
+    const routeItemId = getFormString(formData, "routeItemId").trim();
+
+    if (!routePlanId || !routeItemId) {
+      redirect(`/${tenantSlug}/field?stop=failed`);
+    }
+
+    const result = await deleteRouteItem(routePlanId, routeItemId);
+
+    redirect(`/${tenantSlug}/field?stop=${result.ok ? "removed" : "failed"}`);
+  }
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       <header className="page-header greeting-header">
@@ -250,6 +287,26 @@ export default async function FieldPage({
           clearParams={["stop"]}
           compact
           title={t("home.stopAddedTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      {stop === "visited" ? (
+        <DismissableNotice
+          ariaLabel={t("home.stopStatusAria")}
+          clearParams={["stop"]}
+          compact
+          title={t("home.stopVisitedTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      {stop === "removed" ? (
+        <DismissableNotice
+          ariaLabel={t("home.stopStatusAria")}
+          clearParams={["stop"]}
+          compact
+          title={t("home.stopRemovedTitle")}
           tone="success"
         />
       ) : null}
@@ -336,6 +393,8 @@ export default async function FieldPage({
 
               <TodayRouteDragList
                 isDemoMode={isDemoMode}
+                markVisitedAction={markStopVisitedAction}
+                removeAction={removeStopAction}
                 reorderAction={reorderTodayRouteAction}
                 stops={routeStops}
                 tenantSlug={tenantSlug}

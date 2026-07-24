@@ -818,6 +818,21 @@ textarea {
   padding: 12px;
 }
 
+/* When the open-tasks card links through to the task list, keep the card's
+   own look (no link underline/blue) and add a subtle pressable affordance. */
+.location-mini-card-link {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.location-mini-card-link:hover {
+  background: var(--surface-muted, rgba(0, 0, 0, 0.02));
+  border-color: var(--accent);
+}
+
 .location-mini-card header {
   align-items: flex-start;
   display: flex;
@@ -3151,6 +3166,27 @@ textarea {
      unwrapped line push the card wider than the list instead of clamping. */
   min-width: 0;
   padding: 14px 16px;
+  /* Keep the card clear of the sticky top bar when reached via a #task-<id>
+     anchor (e.g. from an open-tasks link on a location card). */
+  scroll-margin-top: 84px;
+}
+
+/* Flash the task a #task-<id> anchor lands on, then fade back, so it's easy
+   to spot on arrival without a highlight that lingers for the whole visit. */
+.list-card:target {
+  animation: list-card-target-flash 2.4s ease-out;
+}
+
+@keyframes list-card-target-flash {
+  0%,
+  25% {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft, rgba(31, 122, 92, 0.25));
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
 }
 
 .list-card-top {
@@ -4274,6 +4310,68 @@ textarea {
 
 .route-stop.visited {
   background: var(--surface-muted);
+}
+
+/* Swipe-to-reveal (field home, mobile). The row clips its content
+   (overflow:hidden above); .route-stop-surface holds the drag handle + link
+   and slides left over the action buttons, which sit pinned behind its right
+   edge. The surface's solid background hides the actions until it moves. */
+.route-stop-swipeable {
+  position: relative;
+}
+
+.route-stop-surface {
+  align-items: center;
+  background: inherit;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  transition: transform 0.18s ease;
+  will-change: transform;
+  z-index: 1;
+}
+
+.route-stop-actions {
+  bottom: 0;
+  display: flex;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 0;
+}
+
+.route-stop-action-form {
+  display: flex;
+}
+
+.route-stop-action {
+  align-items: center;
+  border: none;
+  color: #f7fbf8;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 4px;
+  justify-content: center;
+  line-height: 1.1;
+  padding: 0 8px;
+  text-align: center;
+  width: 92px;
+}
+
+.route-stop-action.is-visit {
+  background: var(--accent);
+}
+
+.route-stop-action.is-remove {
+  background: var(--danger);
+}
+
+.route-stop-action.is-remove.is-confirm {
+  background: var(--danger-strong, #b3261e);
 }
 
 .route-stop-summary {

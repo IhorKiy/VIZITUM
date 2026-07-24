@@ -132,6 +132,23 @@ export class RoutesController {
     );
   }
 
+  @Delete(":routePlanId/items/:routeItemId")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  deleteRouteItem(
+    @Req() request: Request,
+    @Param("routePlanId") routePlanId: string,
+    @Param("routeItemId") routeItemId: string,
+  ) {
+    return this.routesService.deleteRouteItem(
+      getRequestContext(request),
+      routePlanId,
+      routeItemId,
+    );
+  }
+
   @Post(":routePlanId/items/reorder")
   @RequireAnyPermissions(
     PERMISSIONS.ROUTES_MANAGE_TEAM,

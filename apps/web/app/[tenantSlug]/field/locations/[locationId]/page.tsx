@@ -26,17 +26,14 @@ import {
   type Task,
 } from "../../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
-import { formatDateTime, formatEnumLabel } from "../../../../../lib/format";
+import { formatDateTime } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
 import {
   deleteLocationContactAction,
   upsertLocationContactAction,
   upsertLocationNotesAction,
 } from "../../../../../lib/location-header-actions";
-import {
-  isTaskUnfinished,
-  taskStatusTone,
-} from "../../../../../lib/task-status";
+import { isTaskUnfinished } from "../../../../../lib/task-status";
 import { resolveTenantLocale } from "../../../../../lib/tenant-locale";
 
 type LocationDetailPageProps = {
@@ -549,8 +546,8 @@ export default async function LocationDetailPage({
           ) : null}
         </div>
 
-        <details className="panel location-feature">
-          <summary className="location-feature-summary">
+        <section className="panel location-feature">
+          <div className="location-feature-page-head">
             <span className="location-feature-heading">
               <span className="location-feature-icon" aria-hidden="true">
                 <ListTodoIcon size={20} />
@@ -558,35 +555,26 @@ export default async function LocationDetailPage({
               <span className="location-feature-titles">
                 <span className="location-feature-name">
                   {t("location.openTasks")}
-                  <span className="location-feature-help" aria-hidden="true">
-                    ?
-                  </span>
                 </span>
                 <span className="location-feature-meta">
                   {t("location.taskCount", { count: openTasks.length })}
                 </span>
               </span>
             </span>
-            <span className="location-feature-actions">
-              <span className="location-feature-chevron" aria-hidden="true">
-                ›
-              </span>
-            </span>
-          </summary>
+          </div>
           {openTasks.length > 0 ? (
             <div className="field-card-list">
               {openTasks.map((item: Task) => (
-                <article className="location-mini-card" key={item.id}>
+                <a
+                  className="location-mini-card location-mini-card-link"
+                  href={`/${tenantSlug}/field/tasks#task-${item.id}`}
+                  key={item.id}
+                >
                   <header>
                     <div>
                       <h3>{item.title}</h3>
                       <p>{item.description ?? t("location.noTaskDetails")}</p>
                     </div>
-                    <span
-                      className={`status-pill ${taskStatusTone(item.status)}`}
-                    >
-                      {formatEnumLabel(tCommon, item.status)}
-                    </span>
                   </header>
                   <p className="form-hint">
                     {item.isPriority ? (
@@ -600,13 +588,13 @@ export default async function LocationDetailPage({
                     {t("tasks.due")}{" "}
                     {formatDateTime(format, item.dueDate, tCommon("notSet"))}
                   </p>
-                </article>
+                </a>
               ))}
             </div>
           ) : (
             <p className="empty-state">{t("location.noOpenTasks")}</p>
           )}
-        </details>
+        </section>
       </div>
     </AppShell>
   );

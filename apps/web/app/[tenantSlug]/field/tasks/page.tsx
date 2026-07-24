@@ -235,6 +235,11 @@ export default async function FieldTasksPage({
   // from in_progress must not silently apply here.
   const selectedPriorityOnly =
     selectedStatus === "in_progress" && pageState.priority === "1";
+  // pageSize=100 is the API's max. A location card links here with a
+  // #task-<id> anchor (see the location detail page); if a rep ever holds more
+  // than 100 open tasks the target could fall outside this page and the anchor
+  // would land nowhere — not paginated for now, as that volume is unrealistic
+  // for a single field rep.
   const query = new URLSearchParams({ pageSize: "100" });
   const hasFilters = selectedStatus !== "in_progress" || selectedPriorityOnly;
 
@@ -447,6 +452,7 @@ function TasksCards({
         return (
           <li
             className={`list-card${overdue ? " is-overdue" : ""}`}
+            id={`task-${task.id}`}
             key={task.id}
           >
             <div className="list-card-top">

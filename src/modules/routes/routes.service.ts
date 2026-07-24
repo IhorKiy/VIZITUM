@@ -395,6 +395,50 @@ export class RoutesService {
     return this.getRoutePlanResponse(plan.id);
   }
 
+  async deleteRouteItem(
+    context: RequestContext,
+    routePlanId: string,
+    routeItemId: string,
+  ): Promise<{ deleted: true }> {
+    const plan = await this.findTenantRoutePlan(context, routePlanId);
+    const item = await this.findTenantRouteItem(
+      context.tenantId,
+      plan.id,
+      routeItemId,
+    );
+
+    // A visited stop records real field work for the day, so it can't be
+    // pulled out of the route (mirrors ROUTE_PLAN_NOT_REMOVABLE guarding a
+    // plan that's no longer a draft). Only planned/skipped stops are removable.
+    if (item.status === "visited") {
+      throw new ConflictException({
+        code: "ROUTE_ITEM_NOT_REMOVABLE",
+        message: "A visited stop can't be removed from the route.",
+      });
+    }
+
+    // A removed stop leaves a gap in the sequence, which is fine: adding a
+    // stop takes max+1 and reorderRouteItems renormalizes to 1..n, so no
+    // resequencing is needed here. Pair the delete with its audit trail in
+    // one transaction (mirrors deleteRoutePlan) so neither can exist alone.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.routeItem.delete({ where: { id: item.id } });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "route_item",
+          entityId: item.id,
+          eventType: "route_item.deleted",
+          metadata: { routePlanId: plan.id, locationId: item.locationId },
+        },
+        tx,
+      );
+    });
+
+    return { deleted: true };
+  }
+
   private async findTenantRoutePlan(
     context: RequestContext,
     routePlanId: string,

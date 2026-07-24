@@ -1212,6 +1212,15 @@ export async function updateRouteItem(
   );
 }
 
+export async function deleteRouteItem(
+  routePlanId: string,
+  routeItemId: string,
+): Promise<ApiResult<{ deleted: true }>> {
+  return apiDelete<{ deleted: true }>(
+    `/routes/${routePlanId}/items/${routeItemId}`,
+  );
+}
+
 export async function reorderRouteItems(
   routePlanId: string,
   itemIds: string[],
