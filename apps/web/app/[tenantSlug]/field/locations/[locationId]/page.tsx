@@ -26,18 +26,17 @@ import {
   type Task,
 } from "../../../../../lib/api-client";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
-import {
-  formatDateTime,
-  formatEnumLabel,
-  statusPillTone,
-} from "../../../../../lib/format";
+import { formatDateTime, formatEnumLabel } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
 import {
   deleteLocationContactAction,
   upsertLocationContactAction,
   upsertLocationNotesAction,
 } from "../../../../../lib/location-header-actions";
-import { isTaskUnfinished } from "../../../../../lib/task-status";
+import {
+  isTaskUnfinished,
+  taskStatusTone,
+} from "../../../../../lib/task-status";
 import { resolveTenantLocale } from "../../../../../lib/tenant-locale";
 
 type LocationDetailPageProps = {
@@ -585,7 +584,7 @@ export default async function LocationDetailPage({
                       <p>{item.description ?? t("location.noTaskDetails")}</p>
                     </div>
                     <span
-                      className={`status-pill ${statusPillTone(item.status)}`}
+                      className={`status-pill ${taskStatusTone(item.status)}`}
                     >
                       {formatEnumLabel(tCommon, item.status)}
                     </span>

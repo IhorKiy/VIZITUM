@@ -109,9 +109,11 @@ export function statusTone(
   return status === "archived" ? "warning" : "info";
 }
 
-// Pill tone for a visit or task status. Work in flight is the only state that
-// carries the info tone: everything not started yet (open, draft) is neutral,
-// so "in progress" is not the same colour as the state it moved on from.
+// Pill tone for a visit status. Work in flight is the only state that carries
+// the info tone: everything not started yet (open, draft) is neutral, so "in
+// progress" is not the same colour as the state it moved on from. Task pills do
+// NOT use this — they have their own emphasis (see taskStatusTone), where
+// in_progress takes the accent and done recedes to neutral.
 export function statusPillTone(
   status: string,
 ): "active" | "info" | "neutral" | "warning" {
