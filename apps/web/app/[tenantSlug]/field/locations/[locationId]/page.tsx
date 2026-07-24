@@ -550,8 +550,8 @@ export default async function LocationDetailPage({
           ) : null}
         </div>
 
-        <details className="panel location-feature">
-          <summary className="location-feature-summary">
+        <section className="panel location-feature">
+          <div className="location-feature-page-head">
             <span className="location-feature-heading">
               <span className="location-feature-icon" aria-hidden="true">
                 <ListTodoIcon size={20} />
@@ -559,21 +559,13 @@ export default async function LocationDetailPage({
               <span className="location-feature-titles">
                 <span className="location-feature-name">
                   {t("location.openTasks")}
-                  <span className="location-feature-help" aria-hidden="true">
-                    ?
-                  </span>
                 </span>
                 <span className="location-feature-meta">
                   {t("location.taskCount", { count: openTasks.length })}
                 </span>
               </span>
             </span>
-            <span className="location-feature-actions">
-              <span className="location-feature-chevron" aria-hidden="true">
-                ›
-              </span>
-            </span>
-          </summary>
+          </div>
           {openTasks.length > 0 ? (
             <div className="field-card-list">
               {openTasks.map((item: Task) => (
@@ -607,7 +599,7 @@ export default async function LocationDetailPage({
           ) : (
             <p className="empty-state">{t("location.noOpenTasks")}</p>
           )}
-        </details>
+        </section>
       </div>
     </AppShell>
   );
