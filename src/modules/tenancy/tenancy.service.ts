@@ -59,7 +59,12 @@ export class TenancyService {
     const tenant = normalizedSlug
       ? await this.prisma.platformTenant.findUnique({
           where: { slug: normalizedSlug },
-          select: { slug: true, language: true, timezone: true },
+          select: {
+            slug: true,
+            language: true,
+            timezone: true,
+            phoneCountry: true,
+          },
         })
       : null;
 
@@ -74,6 +79,7 @@ export class TenancyService {
       slug: tenant.slug,
       language: tenant.language,
       timezone: tenant.timezone,
+      phoneCountry: tenant.phoneCountry,
     };
   }
 

@@ -38,6 +38,7 @@ import {
   upsertLocationNotesAction,
 } from "../../../../../lib/location-header-actions";
 import { isTaskUnfinished } from "../../../../../lib/task-status";
+import { resolveTenantLocale } from "../../../../../lib/tenant-locale";
 
 type LocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
@@ -164,9 +165,10 @@ export default async function LocationDetailPage({
     extraParams,
   );
 
-  const [sessionResult, locationResult] = await Promise.all([
+  const [sessionResult, locationResult, { phoneCountry }] = await Promise.all([
     getCurrentSession(),
     getLocation(locationId),
+    resolveTenantLocale(tenantSlug),
   ]);
 
   const demoFallbackEnabled = isDemoFallbackEnabled();
@@ -417,6 +419,7 @@ export default async function LocationDetailPage({
                 canManage={canManageContacts}
                 deleteAction={deleteContactAction}
                 locationName={locationName}
+                phoneCountry={phoneCountry}
                 rows={contacts}
                 upsertAction={upsertContactAction}
               />

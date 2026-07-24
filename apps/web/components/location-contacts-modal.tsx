@@ -17,6 +17,7 @@ type LocationContactsModalProps = {
   canManage: boolean;
   locationName: string;
   rows: LocationContact[];
+  phoneCountry: string | null;
   // Only read when canManage is true.
   upsertAction?: (formData: FormData) => Promise<void>;
   deleteAction?: (formData: FormData) => Promise<void>;
@@ -34,6 +35,7 @@ export function LocationContactsModal({
   canManage,
   locationName,
   rows,
+  phoneCountry,
   upsertAction,
   deleteAction,
 }: LocationContactsModalProps) {
@@ -59,6 +61,7 @@ export function LocationContactsModal({
               canManage={canManage}
               locationName={locationName}
               mode="add"
+              phoneCountry={phoneCountry}
             />
           ) : null}
           <button
@@ -76,6 +79,7 @@ export function LocationContactsModal({
           canManage={canManage}
           deleteAction={deleteAction}
           locationName={locationName}
+          phoneCountry={phoneCountry}
           rows={rows}
           upsertAction={upsertAction}
         />

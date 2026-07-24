@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 
 import type { LocationContact } from "../lib/api-client";
+import { formatPhoneForDisplay, phoneHref } from "../lib/phone";
 import { MailIcon, PhoneIcon, TrashIcon, UserIcon } from "./icons";
 import { LocationContactFormModal } from "./location-contact-form-modal";
 import { PendingSubmitButton } from "./pending-submit-button";
@@ -12,6 +13,7 @@ type LocationContactsPanelProps = {
   upsertAction?: (formData: FormData) => Promise<void>;
   deleteAction?: (formData: FormData) => Promise<void>;
   locationName: string;
+  phoneCountry: string | null;
 };
 
 // Body of the contacts manager modal. A location holds at most two contacts,
@@ -25,6 +27,7 @@ export function LocationContactsPanel({
   upsertAction,
   deleteAction,
   locationName,
+  phoneCountry,
 }: LocationContactsPanelProps) {
   const t = useTranslations("field.location");
 
@@ -51,6 +54,7 @@ export function LocationContactsPanel({
                   canManage={canManage}
                   locationName={locationName}
                   mode="edit"
+                  phoneCountry={phoneCountry}
                   row={row}
                 />
                 <form action={deleteAction}>
@@ -71,7 +75,7 @@ export function LocationContactsPanel({
               {row.phone ? (
                 <a
                   className="location-contact-line"
-                  href={`tel:${row.phone.replace(/\s+/g, "")}`}
+                  href={phoneHref(row.phone)}
                 >
                   <span
                     className="location-contact-line-icon"
@@ -79,7 +83,7 @@ export function LocationContactsPanel({
                   >
                     <PhoneIcon />
                   </span>
-                  {row.phone}
+                  {formatPhoneForDisplay(row.phone, phoneCountry)}
                 </a>
               ) : null}
               {row.email ? (

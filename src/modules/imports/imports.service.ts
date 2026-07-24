@@ -7,6 +7,7 @@ import {
 import type { Prisma, RoleCode } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
+import { normalizePhoneInput } from "../../common/phone";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
@@ -72,6 +73,7 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
       "email must be valid and unique within tenant",
       "roles must be allowed tenant roles",
       "duplicate emails in file are blocking",
+      "phone must be a valid national or +international number if provided",
     ],
   },
   {
@@ -157,6 +159,7 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
       "location_external_code or location_name is required",
       "location reference must resolve to exactly one location",
       "email must be valid if provided",
+      "phone must be a valid national or +international number if provided",
     ],
   },
   {
@@ -686,6 +689,11 @@ export class ImportsService {
     parsedFile: ParsedImportFile,
     counts: ImportCreatedCounts,
   ): Promise<void> {
+    const phoneCountry = await this.getTenantPhoneCountry(
+      transaction,
+      context.tenantId,
+    );
+
     for (const row of parsedFile.rows) {
       const roleCodes = parseRoleCodes(row.roles).filter(isTenantRoleCode);
       const user = await transaction.user.create({
@@ -693,7 +701,7 @@ export class ImportsService {
           tenantId: context.tenantId,
           email: normalizeValue(row.email),
           name: requiredString(row.name),
-          phone: optionalString(row.phone),
+          phone: optionalPhone(row.phone, phoneCountry),
           status: "invited",
         },
         select: { id: true },
@@ -784,6 +792,11 @@ export class ImportsService {
     parsedFile: ParsedImportFile,
     counts: ImportCreatedCounts,
   ): Promise<void> {
+    const phoneCountry = await this.getTenantPhoneCountry(
+      transaction,
+      context.tenantId,
+    );
+
     for (const row of parsedFile.rows) {
       const location = await this.resolveLocationReference(
         transaction,
@@ -798,7 +811,7 @@ export class ImportsService {
           locationId: location.id,
           name: requiredString(row.name),
           roleTitle: optionalString(row.role_title),
-          phone: optionalString(row.phone),
+          phone: optionalPhone(row.phone, phoneCountry),
           email: optionalString(row.email),
           notes: optionalString(row.notes),
         },
@@ -1093,6 +1106,10 @@ export class ImportsService {
     parsedFile: ParsedImportFile,
   ): Promise<ImportValidationPreview> {
     const issues: ImportPreviewIssue[] = [];
+    const phoneCountry = await this.getTenantPhoneCountry(
+      prisma,
+      context.tenantId,
+    );
     const emailCounts = countNormalizedValues(parsedFile.rows, "email");
     const existingUsers = await prisma.user.findMany({
       where: {
@@ -1108,6 +1125,7 @@ export class ImportsService {
       const rowNumber = index + 2;
       addRequiredIssues(issues, row, rowNumber, ["email", "name", "roles"]);
       addEmailIssue(issues, row, rowNumber, "email");
+      addPhoneIssue(issues, row, rowNumber, "phone", phoneCountry);
 
       const email = normalizeValue(row.email);
 
@@ -1304,6 +1322,10 @@ export class ImportsService {
     parsedFile: ParsedImportFile,
   ): Promise<ImportValidationPreview> {
     const issues: ImportPreviewIssue[] = [];
+    const phoneCountry = await this.getTenantPhoneCountry(
+      prisma,
+      context.tenantId,
+    );
     const locationExternalCodes = collectNormalizedValues(
       parsedFile.rows,
       "location_external_code",
@@ -1327,6 +1349,7 @@ export class ImportsService {
       const rowNumber = index + 2;
       addRequiredIssues(issues, row, rowNumber, ["name"]);
       addEmailIssue(issues, row, rowNumber, "email");
+      addPhoneIssue(issues, row, rowNumber, "phone", phoneCountry);
 
       const locationExternalCode = normalizeValue(row.location_external_code);
       const locationName = normalizeValue(row.location_name);
@@ -1615,6 +1638,18 @@ export class ImportsService {
     return buildPreview(parsedFile, issues);
   }
 
+  private async getTenantPhoneCountry(
+    prisma: PrismaService | PrismaTransaction,
+    tenantId: string,
+  ): Promise<string | null> {
+    const tenant = await prisma.platformTenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { phoneCountry: true },
+    });
+
+    return tenant.phoneCountry;
+  }
+
   private async findExistingLocationExternalCodes(
     prisma: PrismaService,
     tenantId: string,
@@ -1793,6 +1828,25 @@ function optionalString(value: string | undefined): string | null {
   const normalizedValue = value?.trim();
 
   return normalizedValue || null;
+}
+
+// Confirm-time counterpart of addPhoneIssue: validation already blocked bad
+// phones, so stored rows normally parse. A stored file validated before phone
+// validation existed falls back to the trimmed raw value rather than failing
+// the whole confirm.
+function optionalPhone(
+  value: string | undefined,
+  phoneCountry: string | null,
+): string | null {
+  const raw = optionalString(value);
+
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = normalizePhoneInput(raw, phoneCountry);
+
+  return normalized.ok ? normalized.e164 : raw;
 }
 
 function optionalNumber(value: string | undefined): number | null {
@@ -2001,6 +2055,37 @@ function addEmailIssue(
         "error",
         "EMAIL_INVALID",
         "Email must be valid.",
+        row[fieldName],
+      ),
+    );
+  }
+}
+
+function addPhoneIssue(
+  issues: ImportPreviewIssue[],
+  row: ParsedImportRow,
+  rowNumber: number,
+  fieldName: string,
+  phoneCountry: string | null,
+): void {
+  const value = normalizeValue(row[fieldName]);
+
+  if (!value) {
+    return;
+  }
+
+  const normalized = normalizePhoneInput(value, phoneCountry);
+
+  if (!normalized.ok) {
+    issues.push(
+      createIssue(
+        rowNumber,
+        fieldName,
+        "error",
+        "PHONE_INVALID",
+        normalized.reason === "country_required"
+          ? "Phone must be in international format (+...)."
+          : "Phone must be a valid phone number.",
         row[fieldName],
       ),
     );

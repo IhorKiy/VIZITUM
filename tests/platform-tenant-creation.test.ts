@@ -54,7 +54,102 @@ describe("platform tenant creation", () => {
 
     assert.equal(created.tenant.contactName, "Olena Marchuk");
     assert.equal(created.tenant.contactEmail, "olena@example.com");
-    assert.equal(created.tenant.contactPhone, "+380 44 123 4567");
+    assert.equal(created.tenant.contactPhone, "+380441234567");
+    // No explicit phoneCountry: defaults from the tenant country (UA).
+    assert.equal(created.tenant.phoneCountry, "UA");
+  });
+
+  it("normalizes a national contact phone using the explicit phone country", async () => {
+    const prisma = createPrismaStub();
+    const service = new PlatformService(prisma as unknown as PrismaService);
+
+    const created = await service.createTenant({
+      name: "Acme DE",
+      slug: "acme-de",
+      segmentTemplate: "distribution",
+      country: "Germany",
+      phoneCountry: "DE",
+      ...validContact,
+      contactPhone: "030 901820",
+    });
+
+    assert.equal(created.tenant.phoneCountry, "DE");
+    assert.equal(created.tenant.contactPhone, "+4930901820");
+  });
+
+  it("requires an explicit phone country when the tenant country is not an ISO code", async () => {
+    const service = new PlatformService(
+      createPrismaStub() as unknown as PrismaService,
+    );
+
+    await assert.rejects(
+      () =>
+        service.createTenant({
+          name: "Acme Co",
+          slug: "acme",
+          segmentTemplate: "distribution",
+          country: "Ukraine",
+          ...validContact,
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.ok(response.fieldErrors.phoneCountry);
+        return true;
+      },
+    );
+  });
+
+  it("rejects an invalid explicit phone country", async () => {
+    const service = new PlatformService(
+      createPrismaStub() as unknown as PrismaService,
+    );
+
+    await assert.rejects(
+      () =>
+        service.createTenant({
+          name: "Acme Co",
+          slug: "acme",
+          segmentTemplate: "distribution",
+          phoneCountry: "Ukraine",
+          ...validContact,
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.ok(response.fieldErrors.phoneCountry);
+        return true;
+      },
+    );
+  });
+
+  it("rejects a contact phone that does not parse", async () => {
+    const service = new PlatformService(
+      createPrismaStub() as unknown as PrismaService,
+    );
+
+    await assert.rejects(
+      () =>
+        service.createTenant({
+          name: "Acme Co",
+          slug: "acme",
+          segmentTemplate: "distribution",
+          ...validContact,
+          contactPhone: "not a phone",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.ok(response.fieldErrors.contactPhone);
+        return true;
+      },
+    );
   });
 
   it("rejects a malformed contact email", async () => {

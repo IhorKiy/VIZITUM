@@ -46,10 +46,81 @@ describe("platform tenant management", () => {
 
     assert.equal(updated.contactName, "Olena Marchuk");
     assert.equal(updated.contactEmail, "olena@example.com");
-    assert.equal(updated.contactPhone, "+380 44 123 4567");
+    assert.equal(updated.contactPhone, "+380441234567");
     assert.deepEqual(store.events[0]?.metadata, {
       fields: ["contactName", "contactEmail", "contactPhone"],
     });
+  });
+
+  it("updates the phone country and validates a national phone against it", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    const updated = await service.updateTenant("tenant-1", {
+      phoneCountry: "de",
+      contactPhone: "030 901820",
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(updated.phoneCountry, "DE");
+    assert.equal(updated.contactPhone, "+4930901820");
+  });
+
+  it("rejects an invalid phone country on update", async () => {
+    const store = createStore({ id: "tenant-1", status: "pilot" });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { phoneCountry: "Germany" }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.ok(response.fieldErrors.phoneCountry);
+        return true;
+      },
+    );
+  });
+
+  it("rejects a contact phone that does not parse on update", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      phoneCountry: "UA",
+    });
+    const service = createPlatformService(store);
+
+    await assert.rejects(
+      () => service.updateTenant("tenant-1", { contactPhone: "not a phone" }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        const response = error.getResponse() as {
+          fieldErrors: Record<string, string[]>;
+        };
+        assert.ok(response.fieldErrors.contactPhone);
+        return true;
+      },
+    );
+  });
+
+  it("passes an unchanged legacy contact phone through without re-validation", async () => {
+    const store = createStore({
+      id: "tenant-1",
+      status: "pilot",
+      phoneCountry: "UA",
+      contactPhone: "044-123 (legacy)",
+    });
+    const service = createPlatformService(store);
+
+    const updated = await service.updateTenant("tenant-1", {
+      contactName: "New Contact",
+      contactPhone: "044-123 (legacy)",
+      actorUserId: "owner-1",
+    });
+
+    assert.equal(updated.contactName, "New Contact");
+    assert.equal(updated.contactPhone, "044-123 (legacy)");
   });
 
   it("rejects a malformed contact email on update", async () => {

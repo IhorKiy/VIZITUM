@@ -30,6 +30,7 @@
     "seed:demo-roles": "node scripts/seed-demo-roles.mjs",
     "seed:staging-admin": "node scripts/seed-staging-admin.mjs",
     "seed:platform-owner": "node scripts/seed-platform-owner.mjs",
+    "backfill:phone-e164": "node scripts/backfill-phone-e164.mjs",
     "start": "node dist/main.js",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "worker:cleanup": "WORKER_TASK=cleanup node --require ts-node/register src/worker.ts",
@@ -63,6 +64,7 @@
     "@prisma/client": "^7.8.0",
     "argon2": "^0.44.0",
     "dotenv": "^17.4.2",
+    "libphonenumber-js": "^1.13.9",
     "pg": "^8.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"

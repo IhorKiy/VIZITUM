@@ -111,6 +111,8 @@
     },
     "anyOption": "—",
     "datePlaceholder": "__.__.____",
+    "phoneInvalid": "Введіть дійсний номер телефону.",
+    "phoneInternationalRequired": "Введіть номер у міжнародному форматі, починаючи з +.",
     "locationInsights": {
       "potentialTitle": "Потенціал",
       "potentialCount": "{count, plural, one {# товарна категорія} few {# товарні категорії} many {# товарних категорій} other {# товарної категорії}}",

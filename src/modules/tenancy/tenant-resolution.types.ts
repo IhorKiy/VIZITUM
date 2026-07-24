@@ -16,6 +16,9 @@ export type PublicTenantLocale = {
   slug: string;
   language: string;
   timezone: string;
+  // ISO 3166-1 alpha-2 default country for phone entry; null means only
+  // "+"-prefixed international input is accepted for this tenant.
+  phoneCountry: string | null;
 };
 
 export type PublicTenantBranding = {

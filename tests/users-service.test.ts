@@ -185,6 +185,11 @@ describe("users service", () => {
 
   function withTransaction(client: Record<string, unknown>) {
     return {
+      // updateUser resolves the tenant's phoneCountry before opening the
+      // transaction; individual tests can override this default.
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
+      },
       ...client,
       $transaction: async (
         callback: (tx: Record<string, unknown>) => Promise<unknown>,
@@ -423,7 +428,7 @@ describe("users service", () => {
     await assert.rejects(
       () =>
         service.updateUser(context as never, "super-1", {
-          phone: "+15551234567",
+          phone: "+380671234567",
         }),
       (error: { response?: { code?: string } }) =>
         error.response?.code === "SUPERADMIN_PROTECTED",

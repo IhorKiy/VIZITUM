@@ -4,20 +4,33 @@ import { describe, it } from "node:test";
 import { TenancyService } from "../src/modules/tenancy/tenancy.service";
 
 function buildService(
-  tenants: Array<{ slug: string; language: string; timezone: string }>,
+  tenants: Array<{
+    slug: string;
+    language: string;
+    timezone: string;
+    phoneCountry?: string | null;
+  }>,
 ) {
   return new TenancyService({
     platformTenant: {
-      findUnique: async ({ where }: { where: { slug: string } }) =>
-        tenants.find((tenant) => tenant.slug === where.slug) ?? null,
+      findUnique: async ({ where }: { where: { slug: string } }) => {
+        const tenant = tenants.find((entry) => entry.slug === where.slug);
+
+        return tenant ? { phoneCountry: null, ...tenant } : null;
+      },
     },
   } as never);
 }
 
 describe("public tenant locale lookup", () => {
-  it("returns slug, language and timezone for an existing tenant", async () => {
+  it("returns slug, language, timezone and phone country for an existing tenant", async () => {
     const service = buildService([
-      { slug: "acme", language: "uk", timezone: "Europe/Kyiv" },
+      {
+        slug: "acme",
+        language: "uk",
+        timezone: "Europe/Kyiv",
+        phoneCountry: "UA",
+      },
     ]);
 
     const locale = await service.getPublicTenantLocale("acme");
@@ -26,7 +39,18 @@ describe("public tenant locale lookup", () => {
       slug: "acme",
       language: "uk",
       timezone: "Europe/Kyiv",
+      phoneCountry: "UA",
     });
+  });
+
+  it("returns a null phone country for a legacy tenant that has none", async () => {
+    const service = buildService([
+      { slug: "acme", language: "uk", timezone: "Europe/Kyiv" },
+    ]);
+
+    const locale = await service.getPublicTenantLocale("acme");
+
+    assert.equal(locale.phoneCountry, null);
   });
 
   it("normalizes the slug before lookup", async () => {

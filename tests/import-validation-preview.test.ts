@@ -15,6 +15,9 @@ const context = {
 describe("import validation preview", () => {
   it("validates users against tenant state and file duplicates", async () => {
     const service = new ImportsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
+      },
       user: {
         findMany: async () => [{ email: "existing@example.com" }],
       },
@@ -57,8 +60,89 @@ describe("import validation preview", () => {
     );
   });
 
+  it("flags invalid phones with per-row errors and accepts national and international numbers", async () => {
+    const service = new ImportsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
+      },
+      user: {
+        findMany: async () => [],
+      },
+    } as never);
+
+    const preview = await service.validateImportPreview(context as never, {
+      templateType: "users",
+      columns: ["email", "name", "roles", "phone"],
+      rows: [
+        {
+          email: "national@example.com",
+          name: "National Phone",
+          roles: "field_representative",
+          phone: "067 123 45 67",
+        },
+        {
+          email: "international@example.com",
+          name: "International Phone",
+          roles: "field_representative",
+          phone: "+49 30 901820",
+        },
+        {
+          email: "bad@example.com",
+          name: "Bad Phone",
+          roles: "field_representative",
+          phone: "not a phone",
+        },
+        {
+          email: "empty@example.com",
+          name: "No Phone",
+          roles: "field_representative",
+          phone: "",
+        },
+      ],
+    });
+
+    assert.equal(preview.rowCount, 4);
+    assert.equal(preview.errorRowCount, 1);
+    assert.deepEqual(
+      preview.issues.map((issue) => [issue.rowNumber, issue.code]),
+      [[4, "PHONE_INVALID"]],
+    );
+  });
+
+  it("flags national phones as errors when the tenant has no phone country", async () => {
+    const service = new ImportsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: null }),
+      },
+      user: {
+        findMany: async () => [],
+      },
+    } as never);
+
+    const preview = await service.validateImportPreview(context as never, {
+      templateType: "users",
+      columns: ["email", "name", "roles", "phone"],
+      rows: [
+        {
+          email: "national@example.com",
+          name: "National Phone",
+          roles: "field_representative",
+          phone: "067 123 45 67",
+        },
+      ],
+    });
+
+    assert.deepEqual(
+      preview.issues.map((issue) => issue.code),
+      ["PHONE_INVALID"],
+    );
+  });
+
   it("validates contacts against tenant location references", async () => {
     const service = new ImportsService({
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
+      },
       location: {
         findMany: async (query: {
           select: { externalCode?: boolean; name?: boolean };
@@ -110,6 +194,9 @@ describe("import validation preview", () => {
     const createdJobs: unknown[] = [];
     const createdIssues: unknown[] = [];
     const prisma = {
+      platformTenant: {
+        findUniqueOrThrow: async () => ({ phoneCountry: "UA" }),
+      },
       user: {
         findMany: async () => [],
       },

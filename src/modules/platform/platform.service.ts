@@ -12,6 +12,7 @@ import {
   normalizeEmail,
   normalizeTimezone,
 } from "../../common/normalize";
+import { normalizePhoneCountry, normalizePhoneInput } from "../../common/phone";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import {
@@ -442,7 +443,12 @@ export class PlatformService {
   async updateTenant(tenantId: string, input: UpdateTenantInput) {
     const tenant = await this.prisma.platformTenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, status: true },
+      select: {
+        id: true,
+        status: true,
+        phoneCountry: true,
+        contactPhone: true,
+      },
     });
 
     if (!tenant) {
@@ -524,13 +530,42 @@ export class PlatformService {
       }
     }
 
+    // Resolved before contactPhone so an update that sets both validates the
+    // phone against the phoneCountry it arrives with, not the stored one.
+    let phoneCountry = tenant.phoneCountry;
+
+    if (input.phoneCountry !== undefined) {
+      const normalized = normalizePhoneCountry(input.phoneCountry);
+
+      if (!normalized) {
+        fieldErrors.phoneCountry = [
+          "Enter a valid ISO 3166-1 alpha-2 country code.",
+        ];
+      } else {
+        data.phoneCountry = normalized;
+        phoneCountry = normalized;
+      }
+    }
+
     if (input.contactPhone !== undefined) {
       const contactPhone = input.contactPhone.trim();
 
       if (!contactPhone) {
         fieldErrors.contactPhone = ["Contact phone cannot be empty."];
-      } else {
-        data.contactPhone = contactPhone;
+      } else if (contactPhone !== tenant.contactPhone) {
+        // An unchanged phone is passed through without validation so a tenant
+        // whose legacy contactPhone predates normalization stays editable.
+        const normalized = normalizePhoneInput(contactPhone, phoneCountry);
+
+        if (!normalized.ok) {
+          fieldErrors.contactPhone = [
+            normalized.reason === "country_required"
+              ? "Enter the phone in international format (+...) — this tenant has no phone country."
+              : "Enter a valid phone number.",
+          ];
+        } else {
+          data.contactPhone = normalized.e164;
+        }
       }
     }
 
@@ -901,7 +936,30 @@ export class PlatformService {
 
     const contactName = input.contactName?.trim();
     const contactEmail = normalizeEmail(input.contactEmail);
-    const contactPhone = input.contactPhone?.trim();
+    const rawContactPhone = input.contactPhone?.trim();
+    const country = input.country?.trim() || DEFAULT_COUNTRY;
+
+    // The phone country defaults from the tenant's country when that is a
+    // valid ISO alpha-2 code; otherwise the owner must pick one explicitly.
+    let phoneCountry: string | null = null;
+
+    if (input.phoneCountry !== undefined && input.phoneCountry.trim()) {
+      phoneCountry = normalizePhoneCountry(input.phoneCountry);
+
+      if (!phoneCountry) {
+        fieldErrors.phoneCountry = [
+          "Enter a valid ISO 3166-1 alpha-2 country code.",
+        ];
+      }
+    } else {
+      phoneCountry = normalizePhoneCountry(country);
+
+      if (!phoneCountry) {
+        fieldErrors.phoneCountry = [
+          "Phone country is required when the tenant country is not an ISO 3166-1 alpha-2 code.",
+        ];
+      }
+    }
 
     if (!contactName) {
       fieldErrors.contactName = ["Contact name is required."];
@@ -913,8 +971,18 @@ export class PlatformService {
       fieldErrors.contactEmail = ["Enter a valid contact email address."];
     }
 
-    if (!contactPhone) {
+    let contactPhone: string | null = null;
+
+    if (!rawContactPhone) {
       fieldErrors.contactPhone = ["Contact phone is required."];
+    } else if (!fieldErrors.phoneCountry) {
+      const normalized = normalizePhoneInput(rawContactPhone, phoneCountry);
+
+      if (!normalized.ok) {
+        fieldErrors.contactPhone = ["Enter a valid phone number."];
+      } else {
+        contactPhone = normalized.e164;
+      }
     }
 
     if (Object.keys(fieldErrors).length) {
@@ -946,12 +1014,13 @@ export class PlatformService {
         data: {
           name,
           slug,
-          country: input.country?.trim() || DEFAULT_COUNTRY,
+          country,
           timezone,
           language: input.language?.trim() || DEFAULT_LANGUAGE,
           contactName,
           contactEmail,
           contactPhone,
+          phoneCountry,
           segmentTemplate: input.segmentTemplate,
           databaseKey: DEFAULT_DATABASE_KEY,
           primaryDomain: input.primaryDomain?.trim() || null,

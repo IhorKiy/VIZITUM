@@ -16,6 +16,7 @@ import {
 import { randomBytes } from "node:crypto";
 
 import { normalizeEmail } from "../../common/normalize";
+import { normalizePhoneInput } from "../../common/phone";
 import {
   createPaginatedResponse,
   type PaginatedResponse,
@@ -270,6 +271,51 @@ export class UsersService {
   ): Promise<UserResponse> {
     const status = normalizeUserStatus(body.status);
 
+    // Validated against the tenant's phoneCountry before the transaction so a
+    // bad phone never costs a serializable-transaction round trip. An
+    // unchanged phone skips validation entirely (and drops out of the update)
+    // so a user whose legacy phone predates normalization can still have
+    // their name/status edited.
+    let includePhone = false;
+    let phone: string | null = null;
+
+    if (body.phone === null || typeof body.phone === "string") {
+      const [tenant, currentUser] = await Promise.all([
+        this.prisma.platformTenant.findUniqueOrThrow({
+          where: { id: context.tenantId },
+          select: { phoneCountry: true },
+        }),
+        this.prisma.user.findFirst({
+          where: { id: userId, tenantId: context.tenantId },
+          select: { phone: true },
+        }),
+      ]);
+
+      if (body.phone !== (currentUser?.phone ?? null)) {
+        const normalizedPhone = normalizePhoneInput(
+          body.phone,
+          tenant.phoneCountry,
+        );
+
+        if (!normalizedPhone.ok) {
+          throw new BadRequestException({
+            code: "USER_PHONE_INVALID",
+            message: "Phone number is invalid.",
+            fieldErrors: {
+              phone: [
+                normalizedPhone.reason === "country_required"
+                  ? "Enter the phone in international format (+...)."
+                  : "Enter a valid phone number.",
+              ],
+            },
+          });
+        }
+
+        includePhone = true;
+        phone = normalizedPhone.e164;
+      }
+    }
+
     const { user: updatedUser, statusChangeAudit } =
       await withSerializationRetry(() =>
         this.prisma.$transaction(
@@ -317,9 +363,7 @@ export class UsersService {
                 ...(typeof body.name === "string" && body.name.trim()
                   ? { name: body.name.trim() }
                   : {}),
-                ...(body.phone === null || typeof body.phone === "string"
-                  ? { phone: normalizeOptionalString(body.phone) }
-                  : {}),
+                ...(includePhone ? { phone } : {}),
                 ...(status ? { status } : {}),
               },
               include: { roles: true },
@@ -1016,16 +1060,6 @@ export function resolveInviteStatus(status: string, expiresAt: Date): string {
   }
 
   return status;
-}
-
-function normalizeOptionalString(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalizedValue = value.trim();
-
-  return normalizedValue || null;
 }
 
 function throwInvalidRole(): never {

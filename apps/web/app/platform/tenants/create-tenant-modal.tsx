@@ -1,11 +1,15 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
+import { PhoneInput } from "../../../components/phone-input";
 import type { PlatformSegmentTemplate } from "../../../lib/api-client";
 import { defaultTimezoneOption, listTimezones } from "../../../lib/timezones";
 import { DEFAULT_TENANT_LANGUAGE, LANGUAGE_OPTIONS } from "./language-options";
+import { phoneCountryOptions } from "./phone-country-options";
+
+const DEFAULT_PHONE_COUNTRY = "UA";
 
 type CreateTenantModalProps = {
   action: (formData: FormData) => Promise<void>;
@@ -19,6 +23,9 @@ export function CreateTenantModal({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const timezones = listTimezones();
   const defaultTimezone = defaultTimezoneOption(timezones);
+  // The contact phone validates against the selected phone country live, so
+  // the select is controlled state rather than a plain uncontrolled field.
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_PHONE_COUNTRY);
 
   return (
     <>
@@ -110,8 +117,29 @@ export function CreateTenantModal({
             <input name="contactEmail" type="email" required />
           </label>
           <label>
+            Phone country
+            <select
+              name="phoneCountry"
+              onChange={(event) => setPhoneCountry(event.target.value)}
+              required
+              value={phoneCountry}
+            >
+              {phoneCountryOptions().map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             Contact phone
-            <input name="contactPhone" type="tel" required />
+            <PhoneInput
+              countryRequiredMessage="Enter the phone in international format starting with +."
+              invalidMessage="Enter a valid phone number."
+              name="contactPhone"
+              phoneCountry={phoneCountry}
+              required
+            />
           </label>
           <label>
             Primary domain

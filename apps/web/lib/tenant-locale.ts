@@ -10,6 +10,10 @@ export const DEFAULT_TIME_ZONE = "UTC";
 export type ResolvedTenantLocale = {
   locale: AppLocale;
   timeZone: string;
+  // Tenant's ISO alpha-2 default country for phone entry; null (unknown
+  // tenant, legacy tenant or API failure) means phone inputs only accept
+  // "+"-international numbers.
+  phoneCountry: string | null;
 };
 
 // "en" is the English marketing landing (app/en/page.tsx), which shadows the
@@ -53,7 +57,11 @@ export async function resolveTenantLocale(
   tenantSlug: string | null,
 ): Promise<ResolvedTenantLocale> {
   if (!tenantSlug) {
-    return { locale: DEFAULT_LOCALE, timeZone: DEFAULT_TIME_ZONE };
+    return {
+      locale: DEFAULT_LOCALE,
+      timeZone: DEFAULT_TIME_ZONE,
+      phoneCountry: null,
+    };
   }
 
   try {
@@ -63,12 +71,17 @@ export async function resolveTenantLocale(
     );
 
     if (!response.ok) {
-      return { locale: DEFAULT_LOCALE, timeZone: DEFAULT_TIME_ZONE };
+      return {
+        locale: DEFAULT_LOCALE,
+        timeZone: DEFAULT_TIME_ZONE,
+        phoneCountry: null,
+      };
     }
 
     const payload = (await response.json()) as {
       language?: unknown;
       timezone?: unknown;
+      phoneCountry?: unknown;
     };
 
     return {
@@ -77,8 +90,16 @@ export async function resolveTenantLocale(
         typeof payload.timezone === "string" && payload.timezone
           ? payload.timezone
           : DEFAULT_TIME_ZONE,
+      phoneCountry:
+        typeof payload.phoneCountry === "string" && payload.phoneCountry
+          ? payload.phoneCountry
+          : null,
     };
   } catch {
-    return { locale: DEFAULT_LOCALE, timeZone: DEFAULT_TIME_ZONE };
+    return {
+      locale: DEFAULT_LOCALE,
+      timeZone: DEFAULT_TIME_ZONE,
+      phoneCountry: null,
+    };
   }
 }

@@ -1574,6 +1574,9 @@ export type PlatformTenant = {
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  // ISO 3166-1 alpha-2 default country for phone entry; null on legacy
+  // tenants means only "+"-international phone input is accepted.
+  phoneCountry: string | null;
   status: string;
   productMode: string;
   // Whether the tenant tracks products/SKUs (gates the admin "Products" area).
@@ -1608,6 +1611,7 @@ export type CreatePlatformTenantInput = {
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
+  phoneCountry?: string;
   primaryDomain?: string;
 };
 
@@ -1659,6 +1663,7 @@ export type UpdatePlatformTenantInput = {
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
+  phoneCountry?: string;
   primaryDomain?: string | null;
   status?: string;
   // A positive integer sets a per-tenant override; null clears it so the cap
