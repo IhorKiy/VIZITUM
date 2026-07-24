@@ -600,6 +600,10 @@ function TodayRouteStopRow({
             className="route-stop-menu-trigger"
             onClick={toggleActions}
             ref={menuButtonRef}
+            // Hidden while the row is open (it slides away with the surface);
+            // drop it from the tab order then too, mirroring the action buttons
+            // in reverse, so a forward Tab can't land on the invisible trigger.
+            tabIndex={offset !== 0 ? -1 : undefined}
             type="button"
           >
             <MoreIcon />
