@@ -94,6 +94,7 @@ describe("routes permissions", () => {
       RoutesController.prototype.deleteRoutePlan,
       RoutesController.prototype.createRouteItem,
       RoutesController.prototype.updateRouteItem,
+      RoutesController.prototype.deleteRouteItem,
       RoutesController.prototype.reorderRouteItems,
     ];
 
@@ -393,6 +394,116 @@ describe("route plan removal", () => {
     ]);
     // Audited through the same transaction as the delete, so neither can
     // exist without the other.
+    assert.deepEqual(auditClients, [prisma]);
+  });
+});
+
+describe("route item removal", () => {
+  it("forbids a representative from deleting a stop on another representative's plan", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-b",
+        }),
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.deleteRouteItem(
+        representativeContext as never,
+        "plan-a",
+        "item-1",
+      ),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(error.getResponse?.().code, "ROUTE_SCOPE_FORBIDDEN");
+        return true;
+      },
+    );
+  });
+
+  it("rejects deleting a stop that does not belong to the plan", async () => {
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+        }),
+      },
+      routeItem: {
+        findFirst: async () => null,
+      },
+    };
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await assert.rejects(
+      service.deleteRouteItem(
+        representativeContext as never,
+        "plan-a",
+        "item-missing",
+      ),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(error.getResponse?.().code, "ROUTE_ITEM_NOT_FOUND");
+        return true;
+      },
+    );
+  });
+
+  it("deletes a representative's own stop and records an audit event through the same transaction", async () => {
+    let deleteWhere: unknown;
+    const auditEvents: unknown[] = [];
+    const auditClients: unknown[] = [];
+    const prisma = {
+      routePlan: {
+        findFirst: async () => ({
+          id: "plan-a",
+          representativeUserId: "rep-a",
+        }),
+      },
+      routeItem: {
+        findFirst: async () =>
+          buildRouteItem({ id: "item-1", locationId: "loc-1" }),
+        delete: async (args: unknown) => {
+          deleteWhere = args;
+          return buildRouteItem({ id: "item-1" });
+        },
+      },
+      // Delete + audit share one transaction; hand this same object back as
+      // the tx client so the routing is observable (mirrors deleteRoutePlan).
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+    };
+    const audit = {
+      recordEvent: async (
+        context: { userId?: string },
+        input: unknown,
+        client?: unknown,
+      ): Promise<void> => {
+        auditEvents.push({ actorUserId: context.userId, input });
+        auditClients.push(client);
+      },
+    };
+    const service = new RoutesService(prisma as never, audit as never);
+
+    const response = await service.deleteRouteItem(
+      representativeContext as never,
+      "plan-a",
+      "item-1",
+    );
+
+    assert.deepEqual(response, { deleted: true });
+    assert.deepEqual(deleteWhere, { where: { id: "item-1" } });
+    assert.deepEqual(auditEvents, [
+      {
+        actorUserId: "rep-a",
+        input: {
+          entityType: "route_item",
+          entityId: "item-1",
+          eventType: "route_item.deleted",
+          metadata: { routePlanId: "plan-a", locationId: "loc-1" },
+        },
+      },
+    ]);
     assert.deepEqual(auditClients, [prisma]);
   });
 });

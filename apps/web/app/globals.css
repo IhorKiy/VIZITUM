@@ -4301,6 +4301,68 @@ textarea {
   background: var(--surface-muted);
 }
 
+/* Swipe-to-reveal (field home, mobile). The row clips its content
+   (overflow:hidden above); .route-stop-surface holds the drag handle + link
+   and slides left over the action buttons, which sit pinned behind its right
+   edge. The surface's solid background hides the actions until it moves. */
+.route-stop-swipeable {
+  position: relative;
+}
+
+.route-stop-surface {
+  align-items: center;
+  background: inherit;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  transition: transform 0.18s ease;
+  will-change: transform;
+  z-index: 1;
+}
+
+.route-stop-actions {
+  bottom: 0;
+  display: flex;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 0;
+}
+
+.route-stop-action-form {
+  display: flex;
+}
+
+.route-stop-action {
+  align-items: center;
+  border: none;
+  color: #f7fbf8;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 4px;
+  justify-content: center;
+  line-height: 1.1;
+  padding: 0 8px;
+  text-align: center;
+  width: 92px;
+}
+
+.route-stop-action.is-visit {
+  background: var(--accent);
+}
+
+.route-stop-action.is-remove {
+  background: var(--danger);
+}
+
+.route-stop-action.is-remove.is-confirm {
+  background: var(--danger-strong, #b3261e);
+}
+
 .route-stop-summary {
   align-items: center;
   cursor: pointer;
