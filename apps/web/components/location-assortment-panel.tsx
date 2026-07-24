@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { AssortmentStatus, LocationAssortment } from "../lib/api-client";
 import { ASSORTMENT_STATUSES } from "../lib/assortment-status";
 import { formatDate, formatEnumLabel } from "../lib/format";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PackageIcon, TrashIcon } from "./icons";
 import { LocationAssortmentModal } from "./location-assortment-modal";
 import { PendingSubmitButton } from "./pending-submit-button";
@@ -248,6 +249,7 @@ export function LocationAssortmentPanel({
                   {t("comment")}
                   <textarea
                     defaultValue={row.comment ?? ""}
+                    maxLength={INPUT_LIMITS.comment}
                     name="comment"
                     rows={2}
                   />

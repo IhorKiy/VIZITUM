@@ -546,7 +546,7 @@ export default async function PlatformTenantsPage({
                       eyebrow="Tenant country"
                       fieldLabel="Country"
                       inputName="country"
-                      maxLength={INPUT_LIMITS.countryCode}
+                      maxLength={INPUT_LIMITS.country}
                       placeholder="UA"
                       tenantId={tenant.id}
                       title="Change country"

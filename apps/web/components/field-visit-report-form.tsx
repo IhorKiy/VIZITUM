@@ -1014,6 +1014,7 @@ export function FieldVisitReportForm({
                               <span>{t("skuStockLabel")}</span>
                               <input
                                 inputMode="numeric"
+                                maxLength={INPUT_LIMITS.quantity}
                                 onChange={(event) =>
                                   updateRow(row.productId, {
                                     stock: event.target.value,
@@ -1026,6 +1027,7 @@ export function FieldVisitReportForm({
                               <span>{t("skuOrderLabel")}</span>
                               <input
                                 inputMode="numeric"
+                                maxLength={INPUT_LIMITS.quantity}
                                 onChange={(event) =>
                                   updateRow(row.productId, {
                                     order: event.target.value,
@@ -1038,6 +1040,7 @@ export function FieldVisitReportForm({
                               <span>{t("skuSaleLabel")}</span>
                               <input
                                 inputMode="numeric"
+                                maxLength={INPUT_LIMITS.quantity}
                                 onChange={(event) =>
                                   updateRow(row.productId, {
                                     sale: event.target.value,

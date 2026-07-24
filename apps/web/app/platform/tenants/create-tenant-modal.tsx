@@ -94,7 +94,7 @@ export function CreateTenantModal({
           <label>
             Country
             <input
-              maxLength={INPUT_LIMITS.countryCode}
+              maxLength={INPUT_LIMITS.country}
               name="country"
               placeholder="UA"
               type="text"

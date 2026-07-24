@@ -2,6 +2,7 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import type { LocationPotential } from "../lib/api-client";
 import { formatDate } from "../lib/format";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { BanknoteIcon, TrashIcon } from "./icons";
 import { LocationPotentialModal } from "./location-potential-modal";
 import { PendingSubmitButton } from "./pending-submit-button";
@@ -209,6 +210,7 @@ export function LocationPotentialPanel({
                   {t("comment")}
                   <textarea
                     defaultValue={row.comment ?? ""}
+                    maxLength={INPUT_LIMITS.comment}
                     name="comment"
                     rows={2}
                   />

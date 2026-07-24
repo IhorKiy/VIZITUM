@@ -13,7 +13,10 @@ export const INPUT_LIMITS = {
   slug: 64,
   // External codes and SKUs.
   code: 64,
-  countryCode: 2,
+  // Tenant country: the backend accepts either an ISO 3166-1 alpha-2 code or
+  // a free-text country name (platform.service.ts), so allow the longest
+  // real-world country name rather than capping at 2.
+  country: 56,
   // Longest registrable DNS name.
   domain: 253,
   addressLine: 200,
@@ -29,4 +32,7 @@ export const INPUT_LIMITS = {
   comment: 500,
   // Manually pasted invite tokens.
   token: 200,
+  // Free-text numeric quantity fields (inputMode="numeric" without
+  // type="number"), e.g. SKU stock/order/sale in the visit report.
+  quantity: 9,
 } as const;
