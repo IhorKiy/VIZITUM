@@ -818,6 +818,21 @@ textarea {
   padding: 12px;
 }
 
+/* When the open-tasks card links through to the task list, keep the card's
+   own look (no link underline/blue) and add a subtle pressable affordance. */
+.location-mini-card-link {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.location-mini-card-link:hover {
+  background: var(--surface-muted, rgba(0, 0, 0, 0.02));
+  border-color: var(--accent);
+}
+
 .location-mini-card header {
   align-items: flex-start;
   display: flex;
@@ -3151,6 +3166,16 @@ textarea {
      unwrapped line push the card wider than the list instead of clamping. */
   min-width: 0;
   padding: 14px 16px;
+  /* Keep the card clear of the sticky top bar when reached via a #task-<id>
+     anchor (e.g. from an open-tasks link on a location card). */
+  scroll-margin-top: 84px;
+}
+
+/* Briefly outline the task a #task-<id> anchor lands on so it's easy to spot
+   in the list. */
+.list-card:target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft, rgba(31, 122, 92, 0.25));
 }
 
 .list-card-top {

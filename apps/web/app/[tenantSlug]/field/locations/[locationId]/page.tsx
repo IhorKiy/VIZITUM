@@ -566,7 +566,11 @@ export default async function LocationDetailPage({
           {openTasks.length > 0 ? (
             <div className="field-card-list">
               {openTasks.map((item: Task) => (
-                <article className="location-mini-card" key={item.id}>
+                <a
+                  className="location-mini-card location-mini-card-link"
+                  href={`/${tenantSlug}/field/tasks#task-${item.id}`}
+                  key={item.id}
+                >
                   <header>
                     <div>
                       <h3>{item.title}</h3>
@@ -585,7 +589,7 @@ export default async function LocationDetailPage({
                     {t("tasks.due")}{" "}
                     {formatDateTime(format, item.dueDate, tCommon("notSet"))}
                   </p>
-                </article>
+                </a>
               ))}
             </div>
           ) : (

@@ -450,6 +450,7 @@ function TasksCards({
         return (
           <li
             className={`list-card${overdue ? " is-overdue" : ""}`}
+            id={`task-${task.id}`}
             key={task.id}
           >
             <div className="list-card-top">
