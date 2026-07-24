@@ -6,9 +6,20 @@ import { statusPillTone } from "./format";
 // only has to be added in one place.
 export const taskStatuses: TaskStatus[] = ["in_progress", "done"];
 
-// Defers to the shared status tone rather than repeating the mapping: the two
-// had drifted into colouring "open" and "in_progress" alike.
+// Task pills carry their own tone mapping rather than deferring wholesale to
+// statusPillTone: in_progress is the work actively moving, so it takes the
+// brand accent to draw the eye. statusPillTone maps *both* done and in_progress
+// onto the accent (done via "active", in_progress would collide), so done takes
+// the calmer blue that in_progress vacated to stay visually distinct.
 export function taskStatusTone(status: TaskStatus) {
+  if (status === "in_progress") {
+    return "active";
+  }
+
+  if (status === "done") {
+    return "info";
+  }
+
   return statusPillTone(status);
 }
 
