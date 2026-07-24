@@ -158,6 +158,7 @@ For a fresh checkout (or after `docker compose down`), `npm run dev:bootstrap` c
 - Do not treat paid PostgreSQL backup setup as a current blocker; it is a final production-pilot gate.
 - Preserve tenant isolation: never trust `tenantId` from request bodies and ensure tenant-owned data access uses request context.
 - Keep navigation permission-aware. Users can have multiple roles, and screens should appear based on effective permissions.
+- Every free-text `<input>`/`<textarea>` in `apps/web` must carry a `maxLength` from `apps/web/lib/input-limits.ts` (`INPUT_LIMITS`). New fields reuse an existing key or add a new one with a sensible cap; never ship an unbounded text field or hardcode a magic number. If the backend enforces a limit on the same field, keep the two in sync.
 - Team Manager full tenant view means operational read access, not Company Admin rights.
 - Manual report confirmation must remain available whenever AI transcription/extraction is weak, delayed or unavailable.
 - Treat `tests/` as executable specification. When changing behavior covered by `docs/reference/executable-spec.md`, read and update the matching tests.

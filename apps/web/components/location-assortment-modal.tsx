@@ -14,6 +14,7 @@ import { useTranslations } from "next-intl";
 import type { LocationAssortment } from "../lib/api-client";
 import { ASSORTMENT_STATUSES } from "../lib/assortment-status";
 import { formatEnumLabel } from "../lib/format";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PencilIcon, PlusIcon, SearchIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 
@@ -244,6 +245,7 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
                 aria-expanded={open}
                 autoComplete="off"
                 className="product-picker-input"
+                maxLength={INPUT_LIMITS.search}
                 onChange={(event) => {
                   setQuery(event.target.value);
                   setSelectedId("");
@@ -404,6 +406,7 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
           {t("assortmentModal.comment")}
           <textarea
             defaultValue={row?.comment ?? undefined}
+            maxLength={INPUT_LIMITS.comment}
             name="comment"
             placeholder={t("assortmentModal.commentPlaceholder")}
             rows={3}

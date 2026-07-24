@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import { formatEnumLabel } from "../lib/format";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { TENANT_ROLES } from "../lib/tenant-roles";
 import { PendingSubmitButton } from "./pending-submit-button";
 
@@ -58,6 +59,7 @@ export function InviteUserModal({
           <label>
             {t("email")}
             <input
+              maxLength={INPUT_LIMITS.email}
               name="email"
               placeholder={t("emailPlaceholder")}
               required

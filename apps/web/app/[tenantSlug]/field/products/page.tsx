@@ -24,6 +24,7 @@ import {
   normalizeFilterValue,
   statusTone,
 } from "../../../../lib/format";
+import { INPUT_LIMITS } from "../../../../lib/input-limits";
 
 type FieldProductsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -199,6 +200,7 @@ export default async function FieldProductsPage({
               <FilterField icon={<SearchIcon />} label={t("search")}>
                 <input
                   defaultValue={search ?? ""}
+                  maxLength={INPUT_LIMITS.search}
                   name="search"
                   placeholder={t("searchPlaceholder")}
                   type="search"

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { CheckIcon, CloseIcon, PencilIcon } from "./icons";
 
 type TaskDetailsEditorProps = {
@@ -110,6 +111,7 @@ export function TaskDetailsEditor({
         className="task-details-input"
         defaultValue={value}
         disabled={pending}
+        maxLength={INPUT_LIMITS.notes}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();

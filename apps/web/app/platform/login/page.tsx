@@ -4,6 +4,7 @@ import { buildApiUrl } from "../../../lib/api-client";
 import { buildRequestHeaders } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
 import { getFormString } from "../../../lib/form";
+import { INPUT_LIMITS } from "../../../lib/input-limits";
 
 type PlatformLoginPageProps = {
   searchParams: Promise<{ error?: string }>;
@@ -73,12 +74,19 @@ export default async function PlatformLoginPage({
         <form action={loginAction} className="form-stack">
           <label>
             Email
-            <input autoComplete="email" name="email" required type="email" />
+            <input
+              autoComplete="email"
+              maxLength={INPUT_LIMITS.email}
+              name="email"
+              required
+              type="email"
+            />
           </label>
           <label>
             Password
             <input
               autoComplete="current-password"
+              maxLength={INPUT_LIMITS.password}
               name="password"
               required
               type="password"

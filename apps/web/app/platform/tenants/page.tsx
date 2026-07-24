@@ -39,6 +39,7 @@ import { LanguageForm } from "./language-form";
 import { ProductsForm } from "./products-form";
 import { TimezoneForm } from "./timezone-form";
 import { getFormString } from "../../../lib/form";
+import { INPUT_LIMITS } from "../../../lib/input-limits";
 import { formatPhoneForDisplay, phoneHref } from "../../../lib/phone";
 import { PhoneCountryForm } from "./phone-country-form";
 import { PhoneFieldForm } from "./phone-field-form";
@@ -545,6 +546,7 @@ export default async function PlatformTenantsPage({
                       eyebrow="Tenant country"
                       fieldLabel="Country"
                       inputName="country"
+                      maxLength={INPUT_LIMITS.countryCode}
                       placeholder="UA"
                       tenantId={tenant.id}
                       title="Change country"
@@ -634,6 +636,7 @@ export default async function PlatformTenantsPage({
                       hiddenFields={{ field: "contactName" }}
                       inputName="value"
                       inputType="text"
+                      maxLength={INPUT_LIMITS.name}
                       tenantId={tenant.id}
                       title="Edit contact name"
                       triggerLabel={`Edit contact name for ${tenant.name}`}
@@ -664,6 +667,7 @@ export default async function PlatformTenantsPage({
                       hiddenFields={{ field: "contactEmail" }}
                       inputName="value"
                       inputType="email"
+                      maxLength={INPUT_LIMITS.email}
                       tenantId={tenant.id}
                       title="Edit contact email"
                       triggerLabel={`Edit contact email for ${tenant.name}`}

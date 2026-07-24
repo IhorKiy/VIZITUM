@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import type { LocationContact } from "../lib/api-client";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PencilIcon, PlusIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 import { PhoneInput } from "./phone-input";
@@ -121,6 +122,7 @@ export function LocationContactFormModal(props: LocationContactFormModalProps) {
           </span>
           <input
             defaultValue={row?.name ?? undefined}
+            maxLength={INPUT_LIMITS.name}
             name="name"
             placeholder={t("contactsModal.namePlaceholder")}
             required
@@ -143,6 +145,7 @@ export function LocationContactFormModal(props: LocationContactFormModalProps) {
           {t("contactsModal.email")}
           <input
             defaultValue={row?.email ?? undefined}
+            maxLength={INPUT_LIMITS.email}
             name="email"
             type="email"
           />
@@ -152,6 +155,7 @@ export function LocationContactFormModal(props: LocationContactFormModalProps) {
           {t("contactsModal.notes")}
           <textarea
             defaultValue={row?.notes ?? undefined}
+            maxLength={INPUT_LIMITS.notes}
             name="notes"
             placeholder={t("contactsModal.notesPlaceholder")}
             rows={3}

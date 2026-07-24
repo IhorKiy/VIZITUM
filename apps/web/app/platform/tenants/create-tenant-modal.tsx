@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import { PhoneInput } from "../../../components/phone-input";
 import type { PlatformSegmentTemplate } from "../../../lib/api-client";
+import { INPUT_LIMITS } from "../../../lib/input-limits";
 import { defaultTimezoneOption, listTimezones } from "../../../lib/timezones";
 import { DEFAULT_TENANT_LANGUAGE, LANGUAGE_OPTIONS } from "./language-options";
 import { phoneCountryOptions } from "./phone-country-options";
@@ -61,11 +62,21 @@ export function CreateTenantModal({
         <form action={action} className="visit-form compact modal-form">
           <label>
             Name
-            <input name="name" type="text" required />
+            <input
+              maxLength={INPUT_LIMITS.name}
+              name="name"
+              required
+              type="text"
+            />
           </label>
           <label>
             Slug
-            <input name="slug" type="text" required />
+            <input
+              maxLength={INPUT_LIMITS.slug}
+              name="slug"
+              required
+              type="text"
+            />
           </label>
           <label>
             Segment template
@@ -82,7 +93,12 @@ export function CreateTenantModal({
           </label>
           <label>
             Country
-            <input name="country" type="text" placeholder="UA" />
+            <input
+              maxLength={INPUT_LIMITS.countryCode}
+              name="country"
+              placeholder="UA"
+              type="text"
+            />
           </label>
           <label>
             Timezone
@@ -110,11 +126,21 @@ export function CreateTenantModal({
           </label>
           <label>
             Contact name
-            <input name="contactName" type="text" required />
+            <input
+              maxLength={INPUT_LIMITS.name}
+              name="contactName"
+              required
+              type="text"
+            />
           </label>
           <label>
             Contact email
-            <input name="contactEmail" type="email" required />
+            <input
+              maxLength={INPUT_LIMITS.email}
+              name="contactEmail"
+              required
+              type="email"
+            />
           </label>
           <label>
             Phone country
@@ -143,7 +169,11 @@ export function CreateTenantModal({
           </label>
           <label>
             Primary domain
-            <input name="primaryDomain" type="text" />
+            <input
+              maxLength={INPUT_LIMITS.domain}
+              name="primaryDomain"
+              type="text"
+            />
           </label>
 
           <div className="modal-actions">

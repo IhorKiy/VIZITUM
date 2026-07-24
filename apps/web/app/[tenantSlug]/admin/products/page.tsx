@@ -37,6 +37,7 @@ import {
 } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 import { buildEntityGroups } from "../../../../lib/grouping";
+import { INPUT_LIMITS } from "../../../../lib/input-limits";
 
 type AdminProductsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -443,6 +444,7 @@ export default async function AdminProductsPage({
               <FilterField icon={<SearchIcon />} label={t("search")}>
                 <input
                   defaultValue={search ?? ""}
+                  maxLength={INPUT_LIMITS.search}
                   name="search"
                   placeholder={t("searchPlaceholder")}
                   type="text"
@@ -606,6 +608,7 @@ function ProductRow({
             field="sku"
             kind="text"
             label={t("sku")}
+            maxLength={INPUT_LIMITS.code}
             placeholder={t("noSku")}
             updateAction={updateProductAction}
             value={product.sku ?? ""}

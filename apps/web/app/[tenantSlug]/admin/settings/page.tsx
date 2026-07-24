@@ -16,6 +16,7 @@ import {
   TENANT_COLOR_SCHEMES,
 } from "../../../../lib/branding";
 import { getFormString } from "../../../../lib/form";
+import { INPUT_LIMITS } from "../../../../lib/input-limits";
 
 type AdminSettingsPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -372,7 +373,7 @@ export default async function AdminSettingsPage({
               aria-label={tSettings("voiceHintTitle")}
               className="voice-hint-textarea"
               defaultValue={settings.fieldReportVoiceHint ?? ""}
-              maxLength={2000}
+              maxLength={INPUT_LIMITS.notes}
               name="fieldReportVoiceHint"
               placeholder={tSettings("voiceHintPlaceholder")}
               rows={6}
