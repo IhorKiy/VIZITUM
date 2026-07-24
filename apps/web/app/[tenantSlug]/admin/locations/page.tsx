@@ -55,6 +55,7 @@ import {
 } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 import { buildEntityGroups } from "../../../../lib/grouping";
+import { INPUT_LIMITS } from "../../../../lib/input-limits";
 import { resolveTenantLocale } from "../../../../lib/tenant-locale";
 
 // Locations / Chains — a single admin screen that merges the former Locations
@@ -939,6 +940,7 @@ function LocationsSection({
               <FilterField icon={<SearchIcon />} label={t("search")}>
                 <input
                   defaultValue={search ?? ""}
+                  maxLength={INPUT_LIMITS.search}
                   name="locSearch"
                   placeholder={t("searchPlaceholder")}
                   type="text"
@@ -1105,6 +1107,7 @@ function ChainsSection({
               <FilterField icon={<SearchIcon />} label={t("search")}>
                 <input
                   defaultValue={search ?? ""}
+                  maxLength={INPUT_LIMITS.search}
                   name="chainSearch"
                   placeholder={t("searchPlaceholder")}
                   type="text"
@@ -1259,24 +1262,36 @@ function LocationRow({
               {t("number")}
               <input
                 defaultValue={location.externalCode ?? ""}
+                maxLength={INPUT_LIMITS.code}
                 name="externalCode"
               />
             </label>
             <label>
               {t("name")}
-              <input defaultValue={location.name} name="name" required />
+              <input
+                defaultValue={location.name}
+                maxLength={INPUT_LIMITS.name}
+                name="name"
+                required
+              />
             </label>
             <label>
               {t("address")}
               <input
                 defaultValue={location.addressLine}
+                maxLength={INPUT_LIMITS.addressLine}
                 name="addressLine"
                 required
               />
             </label>
             <label>
               {t("city")}
-              <input defaultValue={location.city} name="city" required />
+              <input
+                defaultValue={location.city}
+                maxLength={INPUT_LIMITS.city}
+                name="city"
+                required
+              />
             </label>
             <label>
               {t("chain")}
@@ -1319,7 +1334,11 @@ function LocationRow({
             <input name="contact1Id" type="hidden" value={contact1?.id ?? ""} />
             <label>
               {t("contactPerson")}
-              <input defaultValue={contact1?.name ?? ""} name="contact1Name" />
+              <input
+                defaultValue={contact1?.name ?? ""}
+                maxLength={INPUT_LIMITS.name}
+                name="contact1Name"
+              />
             </label>
             <label>
               {t("phone")}
@@ -1335,7 +1354,11 @@ function LocationRow({
             <input name="contact2Id" type="hidden" value={contact2?.id ?? ""} />
             <label>
               {t("contactPerson2")}
-              <input defaultValue={contact2?.name ?? ""} name="contact2Name" />
+              <input
+                defaultValue={contact2?.name ?? ""}
+                maxLength={INPUT_LIMITS.name}
+                name="contact2Name"
+              />
             </label>
             <label>
               {t("phone2")}
@@ -1377,6 +1400,7 @@ function LocationRow({
               {t("notes")}
               <textarea
                 defaultValue={location.notes ?? ""}
+                maxLength={INPUT_LIMITS.notes}
                 name="notes"
                 rows={3}
               />
@@ -1474,6 +1498,7 @@ function ChainRow({
             field="externalCode"
             kind="text"
             label={t("externalCode")}
+            maxLength={INPUT_LIMITS.code}
             updateAction={updateChainAction}
             value={chain.externalCode ?? ""}
             displayText={chain.externalCode ?? ""}
@@ -1485,6 +1510,7 @@ function ChainRow({
             field="notes"
             kind="text"
             label={t("notes")}
+            maxLength={INPUT_LIMITS.notes}
             updateAction={updateChainAction}
             value={chain.notes ?? ""}
             displayText={chain.notes ?? ""}

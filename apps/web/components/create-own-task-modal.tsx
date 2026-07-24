@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { getFormString } from "../lib/form";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PendingSubmitButton } from "./pending-submit-button";
 
 type CreateOwnTaskOption = {
@@ -161,6 +162,7 @@ export function CreateOwnTaskModal({
             {t("formTitle")}
             <textarea
               defaultValue={draft?.title ?? ""}
+              maxLength={INPUT_LIMITS.title}
               name="title"
               placeholder={t("formTitlePlaceholder")}
               required
@@ -171,6 +173,7 @@ export function CreateOwnTaskModal({
             {t("formDetails")}
             <textarea
               defaultValue={draft?.description ?? ""}
+              maxLength={INPUT_LIMITS.notes}
               name="description"
               placeholder={t("formDetailsPlaceholder")}
               rows={3}

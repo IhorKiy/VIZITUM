@@ -6,6 +6,7 @@ import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
 import { normalizeTenantName } from "../../../../lib/navigation";
 import { getFormString } from "../../../../lib/form";
+import { INPUT_LIMITS } from "../../../../lib/input-limits";
 import { resolveTenantLocale } from "../../../../lib/tenant-locale";
 
 type AcceptInvitePageProps = {
@@ -80,6 +81,7 @@ export default async function AcceptInvitePage({
               {t("token")}
               <input
                 autoComplete="one-time-code"
+                maxLength={INPUT_LIMITS.token}
                 name="token"
                 required
                 type="text"
@@ -88,7 +90,13 @@ export default async function AcceptInvitePage({
           )}
           <label>
             {t("fullName")}
-            <input autoComplete="name" name="name" required type="text" />
+            <input
+              autoComplete="name"
+              maxLength={INPUT_LIMITS.name}
+              name="name"
+              required
+              type="text"
+            />
           </label>
           <label>
             {t("phone")}
@@ -103,6 +111,7 @@ export default async function AcceptInvitePage({
             {t("password")}
             <input
               autoComplete="new-password"
+              maxLength={INPUT_LIMITS.password}
               minLength={8}
               name="password"
               required

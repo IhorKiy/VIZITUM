@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { CheckIcon, NoteIcon } from "./icons";
 
 type LocationNotesModalProps = {
@@ -86,6 +87,7 @@ export function LocationNotesModal({
           <label>
             {t("notesModal.label")}
             <textarea
+              maxLength={INPUT_LIMITS.notes}
               name="notes"
               onChange={(event) => setValue(event.target.value)}
               placeholder={t("notesModal.placeholder")}

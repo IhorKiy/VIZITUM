@@ -37,6 +37,7 @@ import {
 } from "../../../../lib/api-client";
 import type { CommonTranslator, IntlFormatter } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import { INPUT_LIMITS } from "../../../../lib/input-limits";
 import { RouteStopDragList } from "./route-stop-drag-list";
 
 type PlanningPageProps = {
@@ -474,7 +475,13 @@ function RoutesTabView({
         <form action={createRouteTemplateAction} className="visit-form compact">
           <label>
             {t("createRouteNameLabel")}
-            <input autoFocus name="name" required type="text" />
+            <input
+              autoFocus
+              maxLength={INPUT_LIMITS.name}
+              name="name"
+              required
+              type="text"
+            />
           </label>
           <div className="toolbar">
             <Link className="secondary-button" href={routesTabHref(tenantSlug)}>

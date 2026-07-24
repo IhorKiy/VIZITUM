@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { CheckIcon, CloseIcon, PencilIcon } from "./icons";
 
 type Option = { value: string; label: string };
@@ -23,6 +24,9 @@ type InlineFieldEditorProps = {
   // Read-only text shown when not editing (localized label for selects).
   displayText: string;
   kind: "text" | "select";
+  // maxLength for the text input; defaults to the name cap — pass a more
+  // specific INPUT_LIMITS key when the edited field is clearly not a name.
+  maxLength?: number;
   options?: Option[];
   required?: boolean;
   placeholder?: string;
@@ -39,6 +43,7 @@ export function InlineFieldEditor({
   value,
   displayText,
   kind,
+  maxLength = INPUT_LIMITS.name,
   options,
   required = false,
   placeholder,
@@ -150,6 +155,7 @@ export function InlineFieldEditor({
             aria-label={label}
             defaultValue={value}
             disabled={pending}
+            maxLength={maxLength}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();

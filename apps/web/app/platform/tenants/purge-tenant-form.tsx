@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
+import { INPUT_LIMITS } from "../../../lib/input-limits";
 
 type PurgeTenantFormProps = {
   action: (formData: FormData) => void | Promise<void>;
@@ -89,6 +90,7 @@ export function PurgeTenantForm({
             Type the tenant slug <strong>{tenantSlug}</strong> to confirm
             <input
               autoComplete="off"
+              maxLength={INPUT_LIMITS.slug}
               name="confirmSlug"
               onChange={(event) => setConfirmSlug(event.target.value)}
               placeholder={tenantSlug}

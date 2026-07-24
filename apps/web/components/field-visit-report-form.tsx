@@ -10,6 +10,7 @@ import {
   registerFieldReportAudioAction,
   transcribeFieldReportAction,
 } from "../lib/field-report-actions";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -858,6 +859,7 @@ export function FieldVisitReportForm({
           <label>
             <span>{t("notesLabel")}</span>
             <textarea
+              maxLength={INPUT_LIMITS.notes}
               onChange={(event) => setNotes(event.target.value)}
               placeholder={t("notesPlaceholder")}
               value={notes}
@@ -892,6 +894,7 @@ export function FieldVisitReportForm({
                     <SearchIcon />
                     <input
                       autoFocus
+                      maxLength={INPUT_LIMITS.search}
                       onChange={(event) => setProductSearch(event.target.value)}
                       placeholder={t("productSearchPlaceholder")}
                       value={productSearch}
@@ -1011,6 +1014,7 @@ export function FieldVisitReportForm({
                               <span>{t("skuStockLabel")}</span>
                               <input
                                 inputMode="numeric"
+                                maxLength={INPUT_LIMITS.quantity}
                                 onChange={(event) =>
                                   updateRow(row.productId, {
                                     stock: event.target.value,
@@ -1023,6 +1027,7 @@ export function FieldVisitReportForm({
                               <span>{t("skuOrderLabel")}</span>
                               <input
                                 inputMode="numeric"
+                                maxLength={INPUT_LIMITS.quantity}
                                 onChange={(event) =>
                                   updateRow(row.productId, {
                                     order: event.target.value,
@@ -1035,6 +1040,7 @@ export function FieldVisitReportForm({
                               <span>{t("skuSaleLabel")}</span>
                               <input
                                 inputMode="numeric"
+                                maxLength={INPUT_LIMITS.quantity}
                                 onChange={(event) =>
                                   updateRow(row.productId, {
                                     sale: event.target.value,
@@ -1045,6 +1051,7 @@ export function FieldVisitReportForm({
                             </label>
                           </div>
                           <textarea
+                            maxLength={INPUT_LIMITS.comment}
                             onChange={(event) =>
                               updateRow(row.productId, {
                                 comment: event.target.value,
@@ -1093,6 +1100,7 @@ export function FieldVisitReportForm({
                 </div>
                 <textarea
                   autoFocus={!entry.description}
+                  maxLength={INPUT_LIMITS.notes}
                   onChange={(event) =>
                     setTaskEntries((current) =>
                       current.map((item) =>
@@ -1153,6 +1161,7 @@ export function FieldVisitReportForm({
           <label>
             <span>{t("nextActionLabel")}</span>
             <input
+              maxLength={INPUT_LIMITS.title}
               onChange={(event) => setNextAction(event.target.value)}
               placeholder={t("nextActionPlaceholder")}
               value={nextAction}

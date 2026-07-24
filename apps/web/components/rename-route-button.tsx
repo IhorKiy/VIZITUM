@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PencilIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 
@@ -82,6 +83,7 @@ export function RenameRouteButton({
             <input
               autoFocus
               defaultValue={templateName}
+              maxLength={INPUT_LIMITS.name}
               name="name"
               required
               type="text"

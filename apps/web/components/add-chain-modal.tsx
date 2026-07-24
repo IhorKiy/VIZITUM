@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PendingSubmitButton } from "./pending-submit-button";
 
 type AddChainModalProps = {
@@ -47,15 +48,15 @@ export function AddChainModal({ action }: AddChainModalProps) {
         <form action={action} className="visit-form compact modal-form">
           <label>
             {t("name")}
-            <input name="name" required />
+            <input maxLength={INPUT_LIMITS.name} name="name" required />
           </label>
           <label>
             {t("externalCode")}
-            <input name="externalCode" />
+            <input maxLength={INPUT_LIMITS.code} name="externalCode" />
           </label>
           <label>
             {t("notes")}
-            <input name="notes" />
+            <input maxLength={INPUT_LIMITS.notes} name="notes" />
           </label>
 
           <div className="modal-actions">

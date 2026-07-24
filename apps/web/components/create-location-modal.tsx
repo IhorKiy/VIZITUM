@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import type { Chain, LocationCategory, TenantUser } from "../lib/api-client";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PendingSubmitButton } from "./pending-submit-button";
 
 type CreateLocationModalProps = {
@@ -60,19 +61,23 @@ export function CreateLocationModal({
         >
           <label>
             {t("number")}
-            <input name="externalCode" />
+            <input maxLength={INPUT_LIMITS.code} name="externalCode" />
           </label>
           <label>
             {t("name")}
-            <input name="name" required />
+            <input maxLength={INPUT_LIMITS.name} name="name" required />
           </label>
           <label>
             {t("address")}
-            <input name="addressLine" required />
+            <input
+              maxLength={INPUT_LIMITS.addressLine}
+              name="addressLine"
+              required
+            />
           </label>
           <label>
             {t("city")}
-            <input name="city" required />
+            <input maxLength={INPUT_LIMITS.city} name="city" required />
           </label>
           <label>
             {t("chain")}
@@ -111,7 +116,7 @@ export function CreateLocationModal({
           </label>
           <label className="visit-form-full">
             {t("notes")}
-            <textarea name="notes" rows={3} />
+            <textarea maxLength={INPUT_LIMITS.notes} name="notes" rows={3} />
           </label>
 
           <div className="modal-actions visit-form-full">

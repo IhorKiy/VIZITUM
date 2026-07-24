@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { CheckIcon, CloseIcon, PencilIcon } from "./icons";
 
 type UserNameFieldProps = {
@@ -98,6 +99,7 @@ export function UserNameField({
         className="user-name-input"
         defaultValue={name}
         disabled={pending}
+        maxLength={INPUT_LIMITS.name}
         onKeyDown={(event) => {
           event.stopPropagation();
           if (event.key === "Enter") {

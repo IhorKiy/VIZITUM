@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import type { LocationPotential } from "../lib/api-client";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PencilIcon, PlusIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 
@@ -241,6 +242,7 @@ export function LocationPotentialModal(props: LocationPotentialModalProps) {
           {t("potentialModal.comment")}
           <textarea
             defaultValue={row?.comment ?? undefined}
+            maxLength={INPUT_LIMITS.comment}
             name="comment"
             placeholder={t("potentialModal.commentPlaceholder")}
             rows={3}

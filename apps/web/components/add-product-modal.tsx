@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import type { ProductCategory } from "../lib/api-client";
+import { INPUT_LIMITS } from "../lib/input-limits";
 import { PendingSubmitButton } from "./pending-submit-button";
 
 type AddProductModalProps = {
@@ -49,11 +50,20 @@ export function AddProductModal({ action, categories }: AddProductModalProps) {
         <form action={action} className="visit-form compact modal-form">
           <label>
             {t("name")}
-            <input name="name" placeholder={t("namePlaceholder")} required />
+            <input
+              maxLength={INPUT_LIMITS.name}
+              name="name"
+              placeholder={t("namePlaceholder")}
+              required
+            />
           </label>
           <label>
             {t("sku")}
-            <input name="sku" placeholder={t("skuPlaceholder")} />
+            <input
+              maxLength={INPUT_LIMITS.code}
+              name="sku"
+              placeholder={t("skuPlaceholder")}
+            />
           </label>
           <label>
             {t("category")}

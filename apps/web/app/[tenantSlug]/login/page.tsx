@@ -11,6 +11,7 @@ import {
   zoneHomePath,
 } from "../../../lib/navigation";
 import { getFormString } from "../../../lib/form";
+import { INPUT_LIMITS } from "../../../lib/input-limits";
 
 type LoginPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -110,12 +111,19 @@ export default async function LoginPage({
         <form action={loginAction} className="form-stack">
           <label>
             {t("email")}
-            <input autoComplete="email" name="email" required type="email" />
+            <input
+              autoComplete="email"
+              maxLength={INPUT_LIMITS.email}
+              name="email"
+              required
+              type="email"
+            />
           </label>
           <label>
             {t("password")}
             <input
               autoComplete="current-password"
+              maxLength={INPUT_LIMITS.password}
               name="password"
               required
               type="password"

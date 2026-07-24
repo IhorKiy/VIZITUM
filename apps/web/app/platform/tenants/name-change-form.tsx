@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import { INPUT_LIMITS } from "../../../lib/input-limits";
 import { FieldIconButton, PencilIcon } from "./field-icon-button";
 
 type NameChangeFormProps = {
@@ -72,6 +73,7 @@ export function NameChangeForm({
           <label>
             Name
             <input
+              maxLength={INPUT_LIMITS.name}
               name="name"
               onChange={(event) => setName(event.target.value)}
               required

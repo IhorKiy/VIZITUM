@@ -28,6 +28,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { formatDateTime, normalizeFilterValue } from "../../../../lib/format";
+import { INPUT_LIMITS } from "../../../../lib/input-limits";
 import { isTaskUnfinished } from "../../../../lib/task-status";
 
 type ManagerRepresentativesPageProps = {
@@ -220,6 +221,7 @@ export default async function ManagerRepresentativesPage({
               <FilterField icon={<SearchIcon />} label={t("search")}>
                 <input
                   defaultValue={search ?? ""}
+                  maxLength={INPUT_LIMITS.search}
                   name="search"
                   placeholder={t("searchPlaceholder")}
                   type="search"

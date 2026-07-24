@@ -19,6 +19,9 @@ type SingleFieldFormProps = {
   // Name of the form field the server action reads.
   inputName: string;
   inputType?: "text" | "email" | "tel";
+  // maxLength for the text input; every call site should pass the matching
+  // INPUT_LIMITS key for the edited field.
+  maxLength?: number;
   // When set, the field renders as a <select> of these options instead of a
   // text input (used by the Phone country field).
   options?: { value: string; label: string }[];
@@ -43,6 +46,7 @@ export function SingleFieldForm({
   confirmLabel,
   inputName,
   inputType = "text",
+  maxLength,
   options,
   placeholder,
   hiddenFields,
@@ -127,6 +131,7 @@ export function SingleFieldForm({
               </select>
             ) : (
               <input
+                maxLength={maxLength}
                 name={inputName}
                 onChange={(event) => setValue(event.target.value)}
                 placeholder={placeholder}

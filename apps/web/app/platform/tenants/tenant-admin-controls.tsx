@@ -4,6 +4,7 @@ import { useRef } from "react";
 
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import type { TenantUser } from "../../../lib/api-client";
+import { INPUT_LIMITS } from "../../../lib/input-limits";
 import { FieldIconButton, PlusIcon, UsersIcon } from "./field-icon-button";
 
 type TenantAdminControlsProps = {
@@ -82,6 +83,7 @@ export function TenantAdminControls({
           <label>
             Email
             <input
+              maxLength={INPUT_LIMITS.email}
               name="email"
               placeholder="superadmin@example.com"
               required

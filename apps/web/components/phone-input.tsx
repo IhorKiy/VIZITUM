@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { INPUT_LIMITS } from "../lib/input-limits";
 import {
   dialCodeForCountry,
   formatPhoneForDisplay,
@@ -120,6 +121,7 @@ export function PhoneInput({
       <input name={name} type="hidden" value={e164} />
       <input
         autoComplete={autoComplete ?? "tel"}
+        maxLength={INPUT_LIMITS.phone}
         onBlur={(event) => applyValue(event.target.value, true)}
         onChange={(event) => {
           dirtyRef.current = true;
