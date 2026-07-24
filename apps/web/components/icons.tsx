@@ -56,6 +56,23 @@ export function CheckIcon() {
   );
 }
 
+export function MoreIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="currentColor"
+      height="16"
+      stroke="none"
+      viewBox="0 0 24 24"
+      width="16"
+    >
+      <circle cx="12" cy="5" r="1.75" />
+      <circle cx="12" cy="12" r="1.75" />
+      <circle cx="12" cy="19" r="1.75" />
+    </svg>
+  );
+}
+
 export function DownloadIcon() {
   return (
     <svg

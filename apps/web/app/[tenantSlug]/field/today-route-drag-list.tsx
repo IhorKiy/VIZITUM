@@ -24,6 +24,7 @@ import {
   CheckIcon,
   GripIcon,
   MapPinIcon,
+  MoreIcon,
   TrashIcon,
 } from "../../../components/icons";
 
@@ -321,15 +322,20 @@ function TodayRouteStopRow({
       : ""
   }`;
 
-  // Swipe is a mobile-only convenience wired to real server actions, so it
-  // stays off in the offline demo (where there is no plan to mutate). A
-  // visited stop has no swipe actions at all: it can't be re-marked visited,
-  // and the backend refuses to remove a visited stop (ROUTE_ITEM_NOT_REMOVABLE),
-  // so both actions ("visited" + "remove") only apply to an unvisited stop.
-  const swipeEnabled = !isDemoMode && !stop.visited;
+  // The two row actions ("visited" + "remove") are wired to real server
+  // actions, so they stay off in the offline demo (where there is no plan to
+  // mutate). A visited stop has no actions at all: it can't be re-marked
+  // visited, and the backend refuses to remove a visited stop
+  // (ROUTE_ITEM_NOT_REMOVABLE). The same actions are reachable two ways —
+  // by swiping the row (touch) or via the overflow menu button (keyboard,
+  // pointer and screen reader) — both just reveal the buttons below.
+  const actionsEnabled = !isDemoMode && !stop.visited;
   const actionsWidth = 2 * ACTION_WIDTH;
+  const actionsId = `route-stop-actions-${stop.id}`;
 
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const firstActionRef = useRef<HTMLButtonElement>(null);
   const [offset, setOffset] = useState(0);
   // While a finger is dragging, transforms must track it 1:1 (no CSS easing);
   // easing is re-enabled only for the release snap.
@@ -337,13 +343,28 @@ function TodayRouteStopRow({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const offsetRef = useRef(0);
   const swipedRef = useRef(false);
+  // Set when the row is opened/closed via the overflow menu (not by a swipe),
+  // so focus follows the reveal for keyboard users without stealing focus
+  // mid-swipe on touch.
+  const focusFirstActionRef = useRef(false);
+  const focusTriggerRef = useRef(false);
   offsetRef.current = offset;
 
   // A remove needs a second, deliberate tap; closing the row cancels that
-  // pending confirmation so it never lingers invisibly.
+  // pending confirmation so it never lingers invisibly. Focus moves are driven
+  // here (after the DOM commits) rather than from the click handler, so the
+  // just-revealed action / restored trigger is actually focusable by then.
   useEffect(() => {
     if (offset === 0) {
       setConfirmRemove(false);
+
+      if (focusTriggerRef.current) {
+        focusTriggerRef.current = false;
+        menuButtonRef.current?.focus();
+      }
+    } else if (focusFirstActionRef.current) {
+      focusFirstActionRef.current = false;
+      firstActionRef.current?.focus();
     }
   }, [offset]);
 
@@ -353,7 +374,7 @@ function TodayRouteStopRow({
   useEffect(() => {
     const el = surfaceRef.current;
 
-    if (!el || !swipeEnabled) {
+    if (!el || !actionsEnabled) {
       return;
     }
 
@@ -431,7 +452,7 @@ function TodayRouteStopRow({
       el.removeEventListener("touchend", handleEnd);
       el.removeEventListener("touchcancel", handleEnd);
     };
-  }, [actionsWidth, swipeEnabled]);
+  }, [actionsWidth, actionsEnabled]);
 
   function handleSummaryClick(event: React.MouseEvent) {
     // A swipe ends in a click; if the row is open (or just swiped), that click
@@ -443,20 +464,56 @@ function TodayRouteStopRow({
     }
   }
 
+  function closeActions() {
+    setSnapping(true);
+    setOffset(0);
+  }
+
+  // The overflow-menu button reveals the very same action buttons the swipe
+  // does — the non-gesture path to them for keyboard, pointer and screen-reader
+  // users (touch swipe alone left removal unreachable to them). Opening moves
+  // focus onto the first action, which sits before this button in the DOM and
+  // would otherwise be skipped by a forward Tab.
+  function toggleActions() {
+    setSnapping(true);
+
+    if (offsetRef.current === 0) {
+      focusFirstActionRef.current = true;
+      setOffset(-actionsWidth);
+    } else {
+      setOffset(0);
+    }
+  }
+
+  function handleActionsKeyDown(event: React.KeyboardEvent) {
+    if (event.key === "Escape" && offsetRef.current !== 0) {
+      event.preventDefault();
+      // Return focus to the trigger once it's visible again after the close.
+      focusTriggerRef.current = true;
+      closeActions();
+    }
+  }
+
   return (
     <li
-      className={`route-stop${swipeEnabled ? " route-stop-swipeable" : ""}${isDragging ? " dragging" : ""}${stop.visited ? " visited" : ""}${offset !== 0 ? " swiped" : ""}`}
+      className={`route-stop${actionsEnabled ? " route-stop-swipeable" : ""}${isDragging ? " dragging" : ""}${stop.visited ? " visited" : ""}${offset !== 0 ? " swiped" : ""}`}
       ref={setNodeRef}
       style={style}
     >
-      {swipeEnabled ? (
-        <div className="route-stop-actions" aria-hidden={offset === 0}>
+      {actionsEnabled ? (
+        <div
+          className="route-stop-actions"
+          aria-hidden={offset === 0}
+          id={actionsId}
+          onKeyDown={handleActionsKeyDown}
+        >
           <form action={markVisitedAction} className="route-stop-action-form">
             <input type="hidden" name="routePlanId" value={stop.routePlanId} />
             <input type="hidden" name="routeItemId" value={stop.id} />
             <button
               aria-label={t("swipeMarkVisitedAria", { name: stop.name })}
               className="route-stop-action is-visit"
+              ref={firstActionRef}
               tabIndex={offset === 0 ? -1 : undefined}
               type="submit"
             >
@@ -492,11 +549,11 @@ function TodayRouteStopRow({
         className="route-stop-surface"
         ref={surfaceRef}
         style={{
-          // Guard on swipeEnabled so a row that was swiped open and then
+          // Guard on actionsEnabled so a row that was swiped open and then
           // marked visited (the server action redirects but React keeps this
           // instance, so `offset` persists) snaps back flush instead of
           // leaving the now-actionless row shifted.
-          transform: `translateX(${swipeEnabled ? offset : 0}px)`,
+          transform: `translateX(${actionsEnabled ? offset : 0}px)`,
           transition: snapping ? undefined : "none",
         }}
       >
@@ -534,6 +591,20 @@ function TodayRouteStopRow({
             </span>
           </span>
         </a>
+
+        {actionsEnabled ? (
+          <button
+            aria-controls={actionsId}
+            aria-expanded={offset !== 0}
+            aria-label={t("stopMenuAria", { name: stop.name })}
+            className="route-stop-menu-trigger"
+            onClick={toggleActions}
+            ref={menuButtonRef}
+            type="button"
+          >
+            <MoreIcon />
+          </button>
+        ) : null}
       </div>
     </li>
   );

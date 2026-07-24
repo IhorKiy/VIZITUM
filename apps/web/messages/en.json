@@ -1043,6 +1043,7 @@
       "swipeRemove": "Remove",
       "swipeRemoveConfirm": "Sure?",
       "swipeRemoveAria": "Remove {name} from the route",
+      "stopMenuAria": "Actions for {name}",
       "demoBody": "Showing sample visits until the Nest API returns an authenticated session. Reason: {reason}",
       "todayRouteAria": "Today's route",
       "progressToday": "Progress today",

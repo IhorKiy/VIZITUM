@@ -1043,6 +1043,7 @@
       "swipeRemove": "Видалити",
       "swipeRemoveConfirm": "Точно?",
       "swipeRemoveAria": "Видалити {name} з маршруту",
+      "stopMenuAria": "Дії для {name}",
       "demoBody": "Показуємо приклади візитів, доки Nest API не поверне автентифіковану сесію. Причина: {reason}",
       "todayRouteAria": "Маршрут на сьогодні",
       "progressToday": "Прогрес сьогодні",
