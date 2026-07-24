@@ -214,12 +214,12 @@ export default async function AdminSettingsPage({
   }
 
   const settings = settingsResult.data;
-  const savedMessages: Record<string, { title: string }> = {
-    colors: { title: tBranding("savedColorsTitle") },
-    logo: { title: tBranding("savedLogoTitle") },
-    logoRemoved: { title: tBranding("removedLogoTitle") },
-    locationCategories: { title: tSettings("locationCategoriesSavedTitle") },
-    voiceHint: { title: tSettings("voiceHintSavedTitle") },
+  const savedMessages: Record<string, string> = {
+    colors: tBranding("savedColorsTitle"),
+    logo: tBranding("savedLogoTitle"),
+    logoRemoved: tBranding("removedLogoTitle"),
+    locationCategories: tSettings("locationCategoriesSavedTitle"),
+    voiceHint: tSettings("voiceHintSavedTitle"),
   };
   const savedMessage = saved ? savedMessages[saved] : undefined;
 
@@ -237,7 +237,7 @@ export default async function AdminSettingsPage({
           ariaLabel={tBranding("savedAria")}
           clearParams={["saved"]}
           eyebrow={tCommon("notice.updated")}
-          title={savedMessage.title}
+          title={savedMessage}
           tone="success"
         />
       ) : null}

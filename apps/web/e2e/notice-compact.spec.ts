@@ -1,6 +1,3 @@
-import { execFileSync } from "node:child_process";
-import path from "node:path";
-
 import { expect, test, type Page } from "@playwright/test";
 
 // Smoke contract for the DismissableNotice compact default: a title-only
@@ -8,20 +5,12 @@ import { expect, test, type Page } from "@playwright/test";
 // success notice whose body carries real data (counts) and any danger notice
 // keep the boxed panel. The notices are driven purely by the query params the
 // server actions redirect with, so the checks navigate with crafted params
-// and mutate no data.
+// and mutate no data — the shared field tenant (seeded in global-setup.ts)
+// is only needed for the signed-in rep, not for any route state.
 
 const TENANT_SLUG = "e2e-field-revisit";
 const REP_EMAIL = "rep@e2e-field-revisit.local";
 const REP_PASSWORD = "E2eField12345!";
-
-test.beforeAll(() => {
-  const repoRoot = path.resolve(__dirname, "..", "..", "..");
-
-  execFileSync("node", ["scripts/seed-e2e-field-revisit.mjs"], {
-    cwd: repoRoot,
-    stdio: "inherit",
-  });
-});
 
 async function signIn(page: Page): Promise<void> {
   await page.goto(`/${TENANT_SLUG}/login`);
@@ -53,7 +42,7 @@ test("success confirmations compact to one line; content keeps the panel", async
   );
   await expect(page.locator(".notice-inline")).toHaveCount(0);
 
-  // Danger notice → still the boxed panel, and it must not auto-dismiss.
+  // Danger notice → still the boxed panel.
   await page.goto(`/${TENANT_SLUG}/field/tasks?error=task`);
   await expect(page.locator(".notice-panel.danger")).toContainText(
     "Follow-up update failed",
