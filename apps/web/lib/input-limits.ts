@@ -25,7 +25,8 @@ export const INPUT_LIMITS = {
   // Task titles, "next action" and similar one-line summaries.
   title: 200,
   // Long free text: visit/location/contact notes, task descriptions. Matches
-  // the backend cap on the field-report voice hint (settings.service.ts).
+  // the backend cap on the field-report voice hint
+  // (MAX_FIELD_REPORT_VOICE_HINT_LENGTH in settings/field-report-voice-hint.ts).
   notes: 2000,
   // Location-insights comments (potential, assortment, SKU) — backend rejects
   // anything above MAX_COMMENT_LENGTH = 500 (location-insights-parsing.ts).
