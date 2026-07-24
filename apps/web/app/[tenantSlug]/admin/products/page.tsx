@@ -314,15 +314,6 @@ export default async function AdminProductsPage({
       {pageState.created ? (
         <DismissableNotice
           ariaLabel={t("createdAria")}
-          body={
-            pageState.created === "category"
-              ? t("createdCategoryBody")
-              : pageState.created === "categoryUpdated"
-                ? t("updatedCategoryBody")
-                : pageState.created === "categoryRemoved"
-                  ? t("removedCategoryBody")
-                  : t("createdProductBody")
-          }
           clearParams={["created"]}
           eyebrow={t("createdEyebrow")}
           title={
@@ -341,7 +332,6 @@ export default async function AdminProductsPage({
       {pageState.updated ? (
         <DismissableNotice
           ariaLabel={t("updatedAria")}
-          body={t("updatedBody")}
           clearParams={["updated"]}
           eyebrow={t("updatedEyebrow")}
           title={t("updatedTitle")}
@@ -352,7 +342,6 @@ export default async function AdminProductsPage({
       {pageState.deleted ? (
         <DismissableNotice
           ariaLabel={t("deletedAria")}
-          body={t("deletedBody")}
           clearParams={["deleted"]}
           eyebrow={t("deletedEyebrow")}
           title={t("deletedTitle")}
