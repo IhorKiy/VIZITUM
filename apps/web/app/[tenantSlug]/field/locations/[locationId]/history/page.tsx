@@ -134,11 +134,16 @@ export default async function LocationHistoryPage({
                       </h3>
                       <p>{formatEnumLabel(tCommon, item.visitType)}</p>
                     </div>
-                    <span
-                      className={`status-pill ${statusPillTone(item.status)}`}
-                    >
-                      {formatEnumLabel(tCommon, item.status)}
-                    </span>
+                    {/* This list is visit history, so "completed" is implied and
+                        the badge is redundant. Only surface the non-obvious
+                        "cancelled" status. */}
+                    {item.status !== "completed" ? (
+                      <span
+                        className={`status-pill ${statusPillTone(item.status)}`}
+                      >
+                        {formatEnumLabel(tCommon, item.status)}
+                      </span>
+                    ) : null}
                   </header>
                 </a>
               ))}
