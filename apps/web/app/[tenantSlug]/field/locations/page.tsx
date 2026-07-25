@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { BackLink } from "../../../../components/back-link";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
 import { FilterField } from "../../../../components/filter-field";
 import {
@@ -112,18 +113,14 @@ export default async function FieldLocationsPage({
   if (!locationsResult.ok) {
     return (
       <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
+        <BackLink
+          href={`/${tenantSlug}/field/general`}
+          label={t("backToGeneral")}
+        />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
             <h1>{t("title")}</h1>
-          </div>
-          <div className="toolbar">
-            <a
-              className="secondary-button"
-              href={`/${tenantSlug}/field/general`}
-            >
-              {t("backToGeneral")}
-            </a>
           </div>
         </header>
 
@@ -148,16 +145,15 @@ export default async function FieldLocationsPage({
 
   return (
     <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
+      <BackLink
+        href={`/${tenantSlug}/field/general`}
+        label={t("backToGeneral")}
+      />
       <header className="page-header">
         <div>
           <p className="eyebrow">{tField("flowEyebrow")}</p>
           <h1>{t("title")}</h1>
           <p>{t("body")}</p>
-        </div>
-        <div className="toolbar">
-          <a className="secondary-button" href={`/${tenantSlug}/field/general`}>
-            {t("backToGeneral")}
-          </a>
         </div>
       </header>
 

@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
+import { BackLink } from "../../../../../components/back-link";
 import { LocationAssortmentPanel } from "../../../../../components/location-assortment-panel";
 import { LocationPotentialPanel } from "../../../../../components/location-potential-panel";
 import {
@@ -29,18 +30,14 @@ export default async function AdminLocationDetailPage({
   if (!locationResult.ok) {
     return (
       <AppShell activeArea="admin-locations" tenantSlug={tenantSlug}>
+        <BackLink
+          href={`/${tenantSlug}/admin/locations`}
+          label={t("detailBackAria")}
+        />
         <header className="page-header">
           <div>
             <p className="eyebrow">{t("detailEyebrow")}</p>
             <h1>{t("detailNotFoundTitle")}</h1>
-          </div>
-          <div className="toolbar">
-            <a
-              className="secondary-button"
-              href={`/${tenantSlug}/admin/locations`}
-            >
-              {t("detailBackToList")}
-            </a>
           </div>
         </header>
       </AppShell>
@@ -81,106 +78,106 @@ export default async function AdminLocationDetailPage({
 
   return (
     <AppShell activeArea="admin-locations" tenantSlug={tenantSlug}>
-      <div className="location-header panel">
-        <div className="location-header-top">
-          <a
-            aria-label={t("detailBackAria")}
-            className="location-header-back"
-            href={`/${tenantSlug}/admin/locations`}
-          >
-            ‹
-          </a>
+      {/* Same shape as the field location detail screen: the back link sits
+          above the header card, not inside it. */}
+      <div className="location-detail-sections">
+        <BackLink
+          href={`/${tenantSlug}/admin/locations`}
+          inline
+          label={t("detailBackAria")}
+        />
+        <div className="location-header panel">
           <h1 className="location-header-title">{location.name}</h1>
+          <p className="location-header-address">
+            {location.addressLine}, {location.city}
+          </p>
         </div>
-        <p className="location-header-address">
-          {location.addressLine}, {location.city}
-        </p>
-      </div>
 
-      {productsEnabled && location.archived ? (
-        <section
-          aria-label={tLocationInsights("archivedAria")}
-          className="notice-panel"
-        >
-          <div>
-            <p className="eyebrow">{t("detailEyebrow")}</p>
-            <h2>{tLocationInsights("archivedTitle")}</h2>
-            <p>{tLocationInsights("archivedBody")}</p>
-          </div>
-        </section>
-      ) : null}
+        {productsEnabled && location.archived ? (
+          <section
+            aria-label={tLocationInsights("archivedAria")}
+            className="notice-panel"
+          >
+            <div>
+              <p className="eyebrow">{t("detailEyebrow")}</p>
+              <h2>{tLocationInsights("archivedTitle")}</h2>
+              <p>{tLocationInsights("archivedBody")}</p>
+            </div>
+          </section>
+        ) : null}
 
-      {productsEnabled && !location.archived ? (
-        <>
-          <details className="panel location-feature">
-            <summary className="location-feature-summary">
-              <span className="location-feature-heading">
-                <span className="location-feature-icon" aria-hidden="true">
-                  💰
-                </span>
-                <span className="location-feature-titles">
-                  <span className="location-feature-name">
-                    {tLocationInsights("potentialTitle")}
+        {productsEnabled && !location.archived ? (
+          <>
+            <details className="panel location-feature">
+              <summary className="location-feature-summary">
+                <span className="location-feature-heading">
+                  <span className="location-feature-icon" aria-hidden="true">
+                    💰
                   </span>
-                  <span className="location-feature-meta">
-                    {tLocationInsights("potentialCount", {
-                      count: potentialRows.length,
-                    })}
+                  <span className="location-feature-titles">
+                    <span className="location-feature-name">
+                      {tLocationInsights("potentialTitle")}
+                    </span>
+                    <span className="location-feature-meta">
+                      {tLocationInsights("potentialCount", {
+                        count: potentialRows.length,
+                      })}
+                    </span>
                   </span>
                 </span>
-              </span>
-              <span className="location-feature-actions">
-                <span className="location-feature-chevron" aria-hidden="true">
-                  ›
+                <span className="location-feature-actions">
+                  <span className="location-feature-chevron" aria-hidden="true">
+                    ›
+                  </span>
                 </span>
-              </span>
-            </summary>
-            {/* Deliberately read-only regardless of the session's
+              </summary>
+              {/* Deliberately read-only regardless of the session's
                 location_insights.manage permission: potential/assortment are
                 maintained by field reps on their detail screen, and the admin
                 surface only reviews them. The backend permission stays as an
                 API-level escape hatch for corrections. */}
-            <LocationPotentialPanel
-              availableCategories={[]}
-              canManage={false}
-              rows={potentialRows}
-            />
-          </details>
+              <LocationPotentialPanel
+                availableCategories={[]}
+                canManage={false}
+                rows={potentialRows}
+              />
+            </details>
 
-          <details className="panel location-feature">
-            <summary className="location-feature-summary">
-              <span className="location-feature-heading">
-                <span className="location-feature-icon" aria-hidden="true">
-                  📦
-                </span>
-                <span className="location-feature-titles">
-                  <span className="location-feature-name">
-                    {tLocationInsights("assortmentTitle")}
+            <details className="panel location-feature">
+              <summary className="location-feature-summary">
+                <span className="location-feature-heading">
+                  <span className="location-feature-icon" aria-hidden="true">
+                    📦
                   </span>
-                  <span className="location-feature-meta">
-                    {tLocationInsights("assortmentCount", {
-                      count: assortmentRows.length,
-                    })}
+                  <span className="location-feature-titles">
+                    <span className="location-feature-name">
+                      {tLocationInsights("assortmentTitle")}
+                    </span>
+                    <span className="location-feature-meta">
+                      {tLocationInsights("assortmentCount", {
+                        count: assortmentRows.length,
+                      })}
+                    </span>
                   </span>
                 </span>
-              </span>
-              <span className="location-feature-actions">
-                <span className="location-feature-chevron" aria-hidden="true">
-                  ›
+                <span className="location-feature-actions">
+                  <span className="location-feature-chevron" aria-hidden="true">
+                    ›
+                  </span>
                 </span>
-              </span>
-            </summary>
-            <LocationAssortmentPanel
-              availableProducts={[]}
-              canManage={false}
-              coveragePct={assortmentCoverage.pct}
-              inStockCount={assortmentCoverage.inStock}
-              requiredCount={assortmentCoverage.required}
-              rows={assortmentRows}
-            />
-          </details>
-        </>
-      ) : null}
+              </summary>
+              <LocationAssortmentPanel
+                availableProducts={[]}
+                canManage={false}
+                coveragePct={assortmentCoverage.pct}
+                inStockCount={assortmentCoverage.inStock}
+                requiredCount={assortmentCoverage.required}
+                rows={assortmentRows}
+              />
+            </details>
+          </>
+        ) : null}
+      </div>
     </AppShell>
   );
 }

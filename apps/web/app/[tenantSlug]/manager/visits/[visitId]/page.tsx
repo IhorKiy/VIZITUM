@@ -1,4 +1,5 @@
 import { AppShell } from "../../../../../components/app-shell";
+import { BackLink } from "../../../../../components/back-link";
 import {
   getVisit,
   getVisitReport,
@@ -43,19 +44,15 @@ export default async function ManagerVisitDetailPage({
   if (!visitResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
+        <BackLink
+          href={`/${tenantSlug}/manager/visits`}
+          label={t("backToVisits")}
+        />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tManager("eyebrow")}</p>
             <h1>{t("title")}</h1>
             <p>{t("signedOutBody")}</p>
-          </div>
-          <div className="toolbar">
-            <a
-              className="primary-button"
-              href={`/${tenantSlug}/manager/visits`}
-            >
-              {t("backToVisits")}
-            </a>
           </div>
         </header>
 
@@ -74,6 +71,10 @@ export default async function ManagerVisitDetailPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
+      <BackLink
+        href={`/${tenantSlug}/manager/visits`}
+        label={t("backToVisits")}
+      />
       <header className="page-header">
         <div>
           <p className="eyebrow">{tManager("eyebrow")}</p>
@@ -83,9 +84,6 @@ export default async function ManagerVisitDetailPage({
         <div className="toolbar">
           <a className="secondary-button" href={`/${tenantSlug}/manager/tasks`}>
             {t("tasks")}
-          </a>
-          <a className="primary-button" href={`/${tenantSlug}/manager/visits`}>
-            {t("backToVisits")}
           </a>
         </div>
       </header>

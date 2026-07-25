@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { BackLink } from "../../../../components/back-link";
 import { CardFact } from "../../../../components/card-fact";
 import {
   CreateOwnTaskModal,
@@ -257,15 +258,11 @@ export default async function FieldTasksPage({
   if (!tasksResult.ok) {
     return (
       <AppShell activeArea="field-tasks" tenantSlug={tenantSlug}>
+        <BackLink href={`/${tenantSlug}/field`} label={tField("backToRoute")} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
             <h1>{t("title")}</h1>
-          </div>
-          <div className="toolbar">
-            <a className="secondary-button" href={`/${tenantSlug}/field`}>
-              {tField("backToRoute")}
-            </a>
           </div>
         </header>
 

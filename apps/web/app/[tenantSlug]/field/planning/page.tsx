@@ -4,6 +4,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { AssignRouteButton } from "../../../../components/assign-route-button";
+import { BackLink } from "../../../../components/back-link";
 import { CopyLastMonthButton } from "../../../../components/copy-last-month-button";
 import { DeleteRouteButton } from "../../../../components/delete-route-button";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
@@ -514,9 +515,10 @@ function RoutesTabView({
       <>
         {statusNotice}
 
-        <Link className="route-back-link" href={routesTabHref(tenantSlug)}>
-          <span aria-hidden="true">‹</span> {t("routeEditorBack")}
-        </Link>
+        <BackLink
+          href={routesTabHref(tenantSlug)}
+          label={t("routeEditorBack")}
+        />
 
         <div className="route-name-card">
           <div className="route-name-summary">

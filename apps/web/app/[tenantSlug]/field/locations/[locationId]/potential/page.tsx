@@ -2,11 +2,9 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../../components/app-shell";
+import { BackLink } from "../../../../../../components/back-link";
 import { DismissableNotice } from "../../../../../../components/dismissable-notice";
-import {
-  ArrowLeftIcon,
-  BanknoteIcon,
-} from "../../../../../../components/icons";
+import { BanknoteIcon } from "../../../../../../components/icons";
 import { LocationPotentialModal } from "../../../../../../components/location-potential-modal";
 import { LocationPotentialPanel } from "../../../../../../components/location-potential-panel";
 import {
@@ -132,13 +130,11 @@ export default async function LocationPotentialPage({
       ) : null}
 
       <div className="location-detail-sections">
-        <a
-          aria-label={t("location.backToLocationAria")}
-          className="location-back"
+        <BackLink
           href={backHref}
-        >
-          <ArrowLeftIcon size={20} />
-        </a>
+          inline
+          label={t("location.backToLocationAria")}
+        />
         <div className="panel location-header">
           <div className="location-header-summary">
             <div className="location-header-identity">

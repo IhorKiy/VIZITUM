@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { BackLink } from "../../../../components/back-link";
 import {
   getCurrentSession,
   listAdminLocations,
@@ -96,16 +97,12 @@ export default async function GeneralPage({ params }: GeneralPageProps) {
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-general">
+      <BackLink href={`/${tenantSlug}/field`} label={tField("backToRoute")} />
       <header className="page-header">
         <div>
           <p className="eyebrow">{t("eyebrow")}</p>
           <h1>{t("title")}</h1>
           <p>{t("body")}</p>
-        </div>
-        <div className="toolbar" aria-label={t("generalActions")}>
-          <a className="secondary-button" href={`/${tenantSlug}/field`}>
-            {tField("backToRoute")}
-          </a>
         </div>
       </header>
 

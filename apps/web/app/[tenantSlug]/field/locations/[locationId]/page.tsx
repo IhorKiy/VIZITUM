@@ -2,10 +2,10 @@ import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
+import { BackLink } from "../../../../../components/back-link";
 import { DismissableNotice } from "../../../../../components/dismissable-notice";
 import {
   ActivityIcon,
-  ArrowLeftIcon,
   BanknoteIcon,
   ListTodoIcon,
   MapPinIcon,
@@ -196,15 +196,11 @@ export default async function LocationDetailPage({
   if (!isDemoLocation && !locationResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
+        <BackLink href={`/${tenantSlug}/field`} label={t("backToRoute")} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{t("flowEyebrow")}</p>
             <h1>{t("location.notFoundTitle")}</h1>
-          </div>
-          <div className="toolbar" aria-label={t("location.locationActions")}>
-            <a className="secondary-button" href={`/${tenantSlug}/field`}>
-              {t("backToRoute")}
-            </a>
           </div>
         </header>
         <section
@@ -382,13 +378,11 @@ export default async function LocationDetailPage({
       ) : null}
 
       <div className="location-detail-sections">
-        <a
-          aria-label={t("location.backAria")}
-          className="location-back"
+        <BackLink
           href={`/${tenantSlug}/field`}
-        >
-          <ArrowLeftIcon size={20} />
-        </a>
+          inline
+          label={t("location.backAria")}
+        />
         <div className="panel location-header">
           <div className="location-header-summary">
             <div className="location-header-identity">
