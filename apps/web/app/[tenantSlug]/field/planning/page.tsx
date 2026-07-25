@@ -844,13 +844,19 @@ function buildTemplateStatusNotice(
     return null;
   }
 
+  // Success entries stay title-only so they render as the compact line;
+  // "deleted" keeps its body because it carries a real caveat (days already
+  // assigned from the route keep their stops).
   const noticeMap: Record<
     string,
-    { title: string; body: string; tone: "success" | "danger" } | undefined
+    { title: string; body?: string; tone: "success" | "danger" } | undefined
   > = {
     created: {
       title: t("routeCreatedTitle"),
-      body: t("routeCreatedBody"),
+      tone: "success",
+    },
+    renamed: {
+      title: t("renamedTitle"),
       tone: "success",
     },
     deleted: {
@@ -860,12 +866,10 @@ function buildTemplateStatusNotice(
     },
     "item-added": {
       title: t("itemAddedTitle"),
-      body: t("itemAddedBody"),
       tone: "success",
     },
     "item-removed": {
       title: t("itemRemovedTitle"),
-      body: t("itemRemovedBody"),
       tone: "success",
     },
     failed: {
@@ -922,18 +926,17 @@ function buildPlanningStatusNotice(
     );
   }
 
+  // Success entries stay title-only so they render as the compact line.
   const noticeMap: Record<
     string,
-    { title: string; body: string; tone: "success" | "danger" } | undefined
+    { title: string; body?: string; tone: "success" | "danger" } | undefined
   > = {
     assigned: {
       title: t("assignedTitle"),
-      body: t("assignedBody"),
       tone: "success",
     },
     unassigned: {
       title: t("unassignedTitle"),
-      body: t("unassignedBody"),
       tone: "success",
     },
     failed: {
