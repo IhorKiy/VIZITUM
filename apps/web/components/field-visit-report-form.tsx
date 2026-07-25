@@ -740,9 +740,9 @@ export function FieldVisitReportForm({
         </section>
       ) : null}
       {transcriptionMessage ? (
-        <section className="notice-panel success">
-          <p>{transcriptionMessage}</p>
-        </section>
+        <p className="notice-inline success" role="status">
+          {transcriptionMessage}
+        </p>
       ) : null}
 
       {step === "capture" ? (
