@@ -846,6 +846,69 @@ textarea {
   margin-top: 3px;
 }
 
+/* Field visit history: the rep's day is the scanning unit, so visits sit under
+   a day header carrying the date and a "N visits · X completed" recap instead
+   of in one flat list. */
+.visit-day-groups {
+  display: grid;
+  gap: 20px;
+  margin-top: 14px;
+}
+
+.visit-day-header {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+}
+
+.visit-day-header h3 {
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.visit-day-header p {
+  margin: 0;
+}
+
+/* The card is one big link, so its footer affordance is a span rather than a
+   nested anchor and carries no margin of its own inside the card's grid gap. */
+.visit-history-card .list-card-open {
+  margin-top: 0;
+}
+
+/* A gold rail on a visit still to be finished — the same edge-scanning cue
+   overdue tasks use, in the attention colour rather than the danger one: an
+   unconfirmed report is a loose end, not a failure. */
+.visit-history-card.is-unfinished {
+  border-color: color-mix(in srgb, var(--gold) 40%, var(--line));
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.visit-history-card.is-unfinished .list-card-open {
+  color: var(--gold);
+}
+
+.list-pagination {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.list-pagination p {
+  margin: 0;
+}
+
 .visit-form.compact {
   border-top: 0;
   margin-top: 0;
