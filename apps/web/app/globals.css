@@ -402,15 +402,6 @@ textarea {
   padding-bottom: 16px;
 }
 
-.visit-report-back {
-  color: var(--ink);
-  flex-shrink: 0;
-  font-size: 26px;
-  line-height: 1;
-  padding: 0 10px;
-  text-decoration: none;
-}
-
 .visit-report-header h1 {
   font-size: 20px;
   margin: 0;
@@ -4465,23 +4456,8 @@ textarea {
 }
 
 /* Route builder (field/planning/page.tsx activeTemplate branch +
-   route-stop-drag-list.tsx): plain back link, the route-name/add-stop
-   <details> cards, the stop list's drag handle and remove form. */
-.route-back-link {
-  align-items: center;
-  color: var(--muted);
-  display: inline-flex;
-  font-size: 13px;
-  font-weight: 700;
-  gap: 4px;
-  margin-bottom: 16px;
-  text-decoration: none;
-}
-
-.route-back-link:hover {
-  color: var(--ink);
-}
-
+   route-stop-drag-list.tsx): the route-name/add-stop <details> cards, the
+   stop list's drag handle and remove form. */
 .route-name-card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -4682,10 +4658,11 @@ textarea {
   grid-row: 1 / 3;
 }
 
-/* Standalone back affordance above the location header / sub-page header — a
-   left arrow that returns to the previous screen. align-self keeps it from
-   stretching to the full width of the flex-column it sits in. */
-.location-back {
+/* Standalone back affordance above a screen header — a left arrow that
+   returns to the previous screen (components/back-link.tsx, used by every
+   screen that offers one). align-self keeps it from stretching to the full
+   width of the flex-column it sits in. */
+.back-link {
   align-items: center;
   align-self: flex-start;
   background: var(--surface);
@@ -4700,8 +4677,15 @@ textarea {
   width: 40px;
 }
 
-.location-back:hover {
+.back-link:hover {
   background: var(--surface-muted);
+}
+
+/* Default wrapper: lines the link up with the 1180px column .page-header and
+   the panels below it share, instead of the full width of .main-surface. */
+.page-back {
+  margin: 0 auto 12px;
+  max-width: 1180px;
 }
 
 .location-header-title {

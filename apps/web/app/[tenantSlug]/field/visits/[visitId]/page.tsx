@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
+import { BackLink } from "../../../../../components/back-link";
 import { ConfirmedFieldReportSummary } from "../../../../../components/confirmed-field-report-summary";
 import { FieldVisitReportForm } from "../../../../../components/field-visit-report-form";
 import {
@@ -69,16 +70,12 @@ export default async function VisitDetailPage({
   if (isDemoVisit) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
+        <BackLink href={`/${tenantSlug}/field`} label={tField("backToRoute")} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{t("eyebrow")}</p>
             <h1>{demoName ?? t("demoStatus")}</h1>
             <p>{demoAddress ?? ""}</p>
-          </div>
-          <div className="toolbar" aria-label={t("visitActions")}>
-            <a className="secondary-button" href={`/${tenantSlug}/field`}>
-              {tField("backToRoute")}
-            </a>
           </div>
         </header>
         <section
@@ -99,15 +96,11 @@ export default async function VisitDetailPage({
   if (!visitResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
+        <BackLink href={`/${tenantSlug}/field`} label={tField("backToRoute")} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
             <h1>{t("notFoundTitle")}</h1>
-          </div>
-          <div className="toolbar" aria-label={t("visitActions")}>
-            <a className="secondary-button" href={`/${tenantSlug}/field`}>
-              {tField("backToRoute")}
-            </a>
           </div>
         </header>
         <section
@@ -147,30 +140,26 @@ export default async function VisitDetailPage({
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       {isLocked ? (
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">{t("eyebrow")}</p>
-            <h1>{visit.location.name}</h1>
-            <p>{locationAddress}</p>
-          </div>
-          <div className="toolbar" aria-label={t("visitActions")}>
-            <a
-              className="secondary-button"
-              href={`/${tenantSlug}/field/locations/${visit.locationId}`}
-            >
-              {t("backToLocation")}
-            </a>
-          </div>
-        </header>
+        <>
+          <BackLink
+            href={`/${tenantSlug}/field/locations/${visit.locationId}`}
+            label={t("backToLocation")}
+          />
+          <header className="page-header">
+            <div>
+              <p className="eyebrow">{t("eyebrow")}</p>
+              <h1>{visit.location.name}</h1>
+              <p>{locationAddress}</p>
+            </div>
+          </header>
+        </>
       ) : (
         <header className="visit-report-header">
-          <a
-            aria-label={t("backToLocation")}
-            className="visit-report-back"
+          <BackLink
             href={`/${tenantSlug}/field/locations/${visit.locationId}`}
-          >
-            ‹
-          </a>
+            inline
+            label={t("backToLocation")}
+          />
           <div>
             <h1>{visit.location.name}</h1>
             <p>{locationAddress}</p>
