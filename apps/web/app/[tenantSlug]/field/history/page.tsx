@@ -134,7 +134,9 @@ export default async function FieldHistoryPage({
     const params = new URLSearchParams(periodParams);
     params.set("pageSize", "1");
 
-    if (status) {
+    // `status` alone would treat an empty array as truthy and send a bare
+    // `status=`, so the array branch checks its own length instead.
+    if (status && (!Array.isArray(status) || status.length > 0)) {
       params.set("status", Array.isArray(status) ? status.join(",") : status);
     }
 

@@ -990,17 +990,28 @@ function buildVisitWhere(
         }
       : {}),
     // A never-started draft (startedAt: null) has no startedAt to fall in the
-    // period, so it would otherwise disappear from a date-filtered list and
-    // the "needs follow-up" counter the moment a period filter is active —
-    // exactly the loose ends this screen exists to surface. Falling back to
-    // createdAt for those rows mirrors the frontend's own
-    // `startedAt ?? createdAt` day-grouping key, so the list, its day
-    // grouping and the counters all agree on the same set of visits.
+    // period, so without this fallback it would silently disappear from any
+    // date-filtered caller of this shared query — the field history list and
+    // its "needs follow-up" counter, the day-summary aggregate, and the
+    // manager visit list all build their WHERE clause through
+    // buildVisitWhere, not just field history. Falling back to createdAt
+    // mirrors the field history frontend's own `startedAt ?? createdAt`
+    // day-grouping key, so every consumer of this endpoint agrees on the
+    // same set of visits.
+    //
+    // Wrapped in AND rather than spread as a bare top-level `OR`: a future
+    // filter that also needs its own OR condition would silently overwrite
+    // this one otherwise, since object-spread keeps only the last value
+    // written to a given key.
     ...(startedAtRange
       ? {
-          OR: [
-            { startedAt: startedAtRange },
-            { startedAt: null, createdAt: startedAtRange },
+          AND: [
+            {
+              OR: [
+                { startedAt: startedAtRange },
+                { startedAt: null, createdAt: startedAtRange },
+              ],
+            },
           ],
         }
       : {}),

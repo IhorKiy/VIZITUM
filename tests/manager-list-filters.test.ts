@@ -45,19 +45,23 @@ describe("manager list filters", () => {
         routePlanId: "route-a",
       },
       status: "completed",
-      OR: [
+      AND: [
         {
-          startedAt: {
-            gte: new Date("2026-07-01T00:00:00.000Z"),
-            lte: new Date("2026-07-03T23:59:59.999Z"),
-          },
-        },
-        {
-          startedAt: null,
-          createdAt: {
-            gte: new Date("2026-07-01T00:00:00.000Z"),
-            lte: new Date("2026-07-03T23:59:59.999Z"),
-          },
+          OR: [
+            {
+              startedAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z"),
+                lte: new Date("2026-07-03T23:59:59.999Z"),
+              },
+            },
+            {
+              startedAt: null,
+              createdAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z"),
+                lte: new Date("2026-07-03T23:59:59.999Z"),
+              },
+            },
+          ],
         },
       ],
     });
@@ -106,22 +110,28 @@ describe("manager list filters", () => {
 
     // A never-started draft has no startedAt to test against the period, so
     // it must still match via createdAt or it would silently drop out of a
-    // date-filtered history list and its "needs follow-up" counter.
+    // date-filtered history list and its "needs follow-up" counter. The OR
+    // lives inside an AND array rather than as a bare top-level key so a
+    // future filter's own OR condition can't silently overwrite this one.
     assert.deepEqual(capturedWhere, {
       tenantId: "tenant-a",
-      OR: [
+      AND: [
         {
-          startedAt: {
-            gte: new Date("2026-07-01T00:00:00.000Z"),
-            lte: new Date("2026-07-03T23:59:59.999Z"),
-          },
-        },
-        {
-          startedAt: null,
-          createdAt: {
-            gte: new Date("2026-07-01T00:00:00.000Z"),
-            lte: new Date("2026-07-03T23:59:59.999Z"),
-          },
+          OR: [
+            {
+              startedAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z"),
+                lte: new Date("2026-07-03T23:59:59.999Z"),
+              },
+            },
+            {
+              startedAt: null,
+              createdAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z"),
+                lte: new Date("2026-07-03T23:59:59.999Z"),
+              },
+            },
+          ],
         },
       ],
     });
