@@ -269,9 +269,9 @@ export class StorageService {
     const canUploadImport =
       storageObject.purpose === "import_file" &&
       context.permissions.includes(PERMISSIONS.IMPORTS_UPLOAD);
-    // `attachment` is the field report's problem photo: same owner-scoped rule
-    // as the voice note it sits beside, since both are uploaded by the rep
-    // while filling in one visit.
+    // `visit_attachment` is the field report's problem photo: same
+    // owner-scoped rule as the voice note it sits beside, since both are
+    // uploaded by the rep while filling in one visit.
     const canUpdateOwnVisitArtifact =
       VISIT_ARTIFACT_PURPOSES.includes(storageObject.purpose) &&
       context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) &&

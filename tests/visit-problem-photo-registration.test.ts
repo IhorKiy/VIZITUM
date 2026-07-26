@@ -121,6 +121,10 @@ describe("visit problem photo registration", () => {
     assert.equal(sweep.where.tenantId, "tenant-a");
     assert.equal(sweep.where.purpose, "visit_attachment");
     assert.equal(sweep.where.status, "active");
+    // A claimed photo has `expiresAt: null` — a later registration against
+    // the same visit must expire only unclaimed ones, or it would break the
+    // image a confirmed report still references.
+    assert.deepEqual(sweep.where.expiresAt, { not: null });
     assert.deepEqual(sweep.where.objectKey, {
       startsWith: "tenants/tenant-a/visits/visit-a/photos/",
     });

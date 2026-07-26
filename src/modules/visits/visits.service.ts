@@ -445,11 +445,15 @@ export class VisitsService {
     const objectKeyPrefix = buildVisitPhotoPrefix(context.tenantId, visit.id);
 
     const storageObject = await this.prisma.$transaction(async (tx) => {
+      // Only unclaimed photos still carry an expiry — a photo a confirmed
+      // report already claimed has `expiresAt: null` and must survive a later
+      // registration against the same visit.
       await tx.storageObject.updateMany({
         where: {
           tenantId: context.tenantId,
           purpose: "visit_attachment",
           status: "active",
+          expiresAt: { not: null },
           objectKey: { startsWith: objectKeyPrefix },
         },
         data: { status: "expired", expiresAt: now },
