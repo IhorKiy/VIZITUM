@@ -28,6 +28,8 @@ import type {
   ListVisitsQuery,
   RegisterAudioUploadRequestBody,
   RegisteredAudioUploadResponse,
+  RegisterProblemPhotoRequestBody,
+  RegisteredProblemPhotoResponse,
   ReportResponse,
   UpdateVisitRequestBody,
   VisitNoteResponse,
@@ -44,6 +46,18 @@ const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
   "audio/aac",
   "audio/mpeg",
   "audio/wav",
+]);
+const MAX_PROBLEM_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+const SUPPORTED_PHOTO_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+const PHOTO_CONTENT_TYPE_ALIASES = new Map([
+  ["image/jpg", "image/jpeg"],
+  ["image/pjpeg", "image/jpeg"],
 ]);
 const AUDIO_CONTENT_TYPE_ALIASES = new Map([
   ["audio/m4a", "audio/mp4"],
@@ -371,6 +385,86 @@ export class VisitsService {
             uploadUrl: {
               url: uploadUrl.url,
               method: "PUT",
+              expiresAt: uploadUrl.expiresAt,
+              headers: uploadUrl.headers,
+            },
+          }
+        : {}),
+    };
+  }
+
+  // Photo evidence for the "problem" exception on the field report. Same
+  // register-then-presigned-PUT shape as the audio upload above (the bytes
+  // never travel through a Server Action), but the object outlives the visit
+  // — it is the report's attachment, so it gets no `expiresAt` and no
+  // `VisitNote` row.
+  async registerProblemPhotoUpload(
+    context: RequestContext,
+    visitId: string,
+    body: RegisterProblemPhotoRequestBody,
+  ): Promise<RegisteredProblemPhotoResponse> {
+    const visit = await this.findTenantVisit(context.tenantId, visitId);
+
+    this.assertCanUpdateVisit(context, visit.representativeUserId);
+
+    if (!context.userId) {
+      throwMissingVisitPermission();
+    }
+
+    const fileName = normalizeAudioFileName(body.fileName);
+    const contentType = normalizePhotoContentType(body.contentType, fileName);
+    const sizeBytes = normalizePhotoSizeBytes(body.sizeBytes);
+
+    if (!fileName || !contentType) {
+      throw new BadRequestException({
+        code: "PHOTO_UPLOAD_INVALID",
+        message: "Photo file name and supported content type are required.",
+        fieldErrors: {
+          fileName: fileName ? [] : ["File name is required."],
+          contentType: contentType
+            ? []
+            : ["Supported image content type is required."],
+        },
+      });
+    }
+
+    const storageObject = await this.prisma.storageObject.create({
+      data: {
+        tenantId: context.tenantId,
+        bucket: this.storageService?.getDefaultBucket() ?? "vizitum",
+        objectKey: buildProblemPhotoObjectKey(
+          context.tenantId,
+          visit.id,
+          fileName,
+        ),
+        purpose: "attachment",
+        contentType,
+        sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
+        status: "active",
+        createdByUserId: context.userId,
+      },
+    });
+
+    const uploadUrl = this.storageService
+      ? await this.storageService.createPresignedUploadUrl(
+          context,
+          storageObject.id,
+        )
+      : undefined;
+
+    return {
+      storageObject: {
+        id: storageObject.id,
+        bucket: storageObject.bucket,
+        objectKey: storageObject.objectKey,
+        contentType: storageObject.contentType,
+        sizeBytes: storageObject.sizeBytes?.toString() ?? null,
+      },
+      ...(uploadUrl
+        ? {
+            uploadUrl: {
+              url: uploadUrl.url,
+              method: "PUT" as const,
               expiresAt: uploadUrl.expiresAt,
               headers: uploadUrl.headers,
             },
@@ -862,6 +956,95 @@ function normalizeAudioSizeBytes(value: unknown): number | null {
   }
 
   return parsedValue;
+}
+
+function normalizePhotoContentType(
+  value: unknown,
+  fileName?: string | null,
+): string | null {
+  const normalizedValue = normalizeRequiredString(value)?.toLowerCase();
+  const aliasedValue = normalizedValue
+    ? (PHOTO_CONTENT_TYPE_ALIASES.get(normalizedValue) ?? normalizedValue)
+    : null;
+
+  if (aliasedValue && SUPPORTED_PHOTO_CONTENT_TYPES.has(aliasedValue)) {
+    return aliasedValue;
+  }
+
+  return normalizePhotoContentTypeFromFileName(fileName);
+}
+
+function normalizePhotoContentTypeFromFileName(
+  fileName: string | null | undefined,
+): string | null {
+  const extension = fileName?.split(".").pop()?.toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") {
+    return "image/jpeg";
+  }
+
+  if (extension === "png") {
+    return "image/png";
+  }
+
+  if (extension === "webp") {
+    return "image/webp";
+  }
+
+  if (extension === "heic") {
+    return "image/heic";
+  }
+
+  if (extension === "heif") {
+    return "image/heif";
+  }
+
+  return null;
+}
+
+function normalizePhotoSizeBytes(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+
+  if (
+    !Number.isInteger(parsedValue) ||
+    parsedValue <= 0 ||
+    parsedValue > MAX_PROBLEM_PHOTO_SIZE_BYTES
+  ) {
+    throw new BadRequestException({
+      code: "PHOTO_UPLOAD_SIZE_INVALID",
+      message: "Photo size must be a positive integer up to 10 MB.",
+      fieldErrors: {
+        sizeBytes: ["Photo size must be a positive integer up to 10 MB."],
+      },
+    });
+  }
+
+  return parsedValue;
+}
+
+function buildProblemPhotoObjectKey(
+  tenantId: string,
+  visitId: string,
+  fileName: string,
+): string {
+  return [
+    "tenants",
+    tenantId,
+    "visits",
+    visitId,
+    "photos",
+    randomUUID(),
+    fileName,
+  ].join("/");
 }
 
 function buildTemporaryAudioObjectKey(

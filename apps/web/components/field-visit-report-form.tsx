@@ -4,58 +4,54 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
-import type { FieldReportExtractedData, Product } from "../lib/api-client";
+import type {
+  FieldReportExtractedData,
+  NoOrderReason,
+  Product,
+} from "../lib/api-client";
 import {
   confirmFieldReportAction,
   registerFieldReportAudioAction,
+  registerProblemPhotoAction,
   transcribeFieldReportAction,
 } from "../lib/field-report-actions";
 import { INPUT_LIMITS } from "../lib/input-limits";
+import { deriveVisitOutcome, NO_ORDER_REASONS } from "../lib/visit-result";
 import {
+  AlertTriangleIcon,
+  CameraIcon,
   CheckIcon,
   ChevronDownIcon,
   CloseIcon,
   HelpCircleIcon,
-  ListTodoIcon,
   LoaderIcon,
+  MessageSquareIcon,
   MicIcon,
   PackageIcon,
-  PlusIcon,
   SaveIcon,
   SearchIcon,
   StopIcon,
 } from "./icons";
 
-type Outcome = "positive" | "neutral" | "negative";
-type StockStatus = "in_stock" | "low_stock" | "out_of_stock";
-type ProductUpdateStatus =
-  "in_stock" | "out_of_stock" | "to_order" | "not_relevant";
-type TaskType = "assortment" | "merchandising" | "recommendation" | "special";
+type ProblemType = "return" | "damaged" | "expired" | "conflict";
 
-// One row per product touched during the visit. `presented` feeds the
-// report's presented-products list; a non-null `status` (or any quantity /
-// comment) additionally emits a product update — the same two collections
-// the old two-section UI produced, so confirmedData keeps its shape.
-type ProductRow = {
-  productId: string;
-  presented: boolean;
-  status: ProductUpdateStatus | null;
-  stock: string;
-  order: string;
-  sale: string;
-  comment: string;
-  detailsOpen: boolean;
-};
-
-type TaskEntry = {
-  type: TaskType;
-  description: string;
+// The chips and the catalog search both feed the same shelf list, and only
+// ever need enough of a product to label and match it.
+type ShelfProduct = {
+  id: string;
+  name: string;
+  sku: string | null;
+  category?: string | null;
 };
 
 type FieldVisitReportFormProps = {
   tenantSlug: string;
   visitId: string;
   products: Product[];
+  // The outlet's key SKUs (assortment rows flagged `shouldBeListed`), shown
+  // as one-tap chips. Empty when the outlet has no assortment set up — the
+  // catalog search inside the panel still covers that case.
+  shelfProducts: ShelfProduct[];
   voiceHint: string | null;
 };
 
@@ -69,37 +65,6 @@ function todayIsoDate(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
-function createProductRow(productId: string): ProductRow {
-  return {
-    productId,
-    presented: true,
-    status: null,
-    stock: "",
-    order: "",
-    sale: "",
-    comment: "",
-    detailsOpen: false,
-  };
-}
-
-function rowHasUpdateData(row: ProductRow): boolean {
-  return (
-    row.status !== null ||
-    Boolean(row.stock.trim()) ||
-    Boolean(row.order.trim()) ||
-    Boolean(row.sale.trim()) ||
-    Boolean(row.comment.trim())
-  );
-}
-
-function parseOptionalNumber(value: string): number | null {
-  return value.trim() ? Number(value) : null;
-}
-
-function hasInvalidNumber(...values: string[]): boolean {
-  return values.some((value) => value.trim() && !/^\d+$/.test(value.trim()));
-}
-
 function normalizeLookup(value?: string | null): string {
   return value?.trim().toLowerCase() ?? "";
 }
@@ -108,39 +73,10 @@ function isIsoDate(value?: string | null): boolean {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
 }
 
-function toDraftNumber(value: number | null): string {
-  return value === null ? "" : String(value);
-}
-
-function findCatalogProduct(
-  products: Product[],
-  productName?: string | null,
-  productCode?: string | null,
-): Product | undefined {
-  const code = normalizeLookup(productCode);
-
-  if (code) {
-    const exactCodeMatch = products.find(
-      (product) => normalizeLookup(product.sku) === code,
-    );
-    if (exactCodeMatch) return exactCodeMatch;
-  }
-
-  const name = normalizeLookup(productName);
-  if (!name) return undefined;
-
-  return products.find((product) => {
-    const catalogName = normalizeLookup(product.name);
-    return (
-      catalogName === name ||
-      catalogName.includes(name) ||
-      name.includes(catalogName)
-    );
-  });
-}
-
-function matchPresentedProductIds(
-  products: Product[],
+// Fuzzy-matches spoken product names/codes against the products on screen,
+// so a voice note naming an absent SKU lights up its chip.
+function matchProductIds(
+  products: ShelfProduct[],
   names: string[],
 ): Set<string> {
   if (!products.length || !names.length) return new Set();
@@ -164,7 +100,7 @@ function matchPresentedProductIds(
   );
 }
 
-function formatProductDisplayName(product: Product): string {
+function formatProductDisplayName(product: ShelfProduct): string {
   return [product.sku, product.name].filter(Boolean).join(" · ");
 }
 
@@ -188,24 +124,18 @@ function resolveMediaRecorderMimeType(): string | undefined {
   return undefined;
 }
 
-const TASK_TYPES: TaskType[] = [
-  "assortment",
-  "merchandising",
-  "recommendation",
-  "special",
-];
-
-const PRODUCT_STATUS_OPTIONS: ProductUpdateStatus[] = [
-  "in_stock",
-  "out_of_stock",
-  "to_order",
-  "not_relevant",
+const PROBLEM_TYPES: ProblemType[] = [
+  "return",
+  "damaged",
+  "expired",
+  "conflict",
 ];
 
 export function FieldVisitReportForm({
   tenantSlug,
   visitId,
   products,
+  shelfProducts,
   voiceHint,
 }: FieldVisitReportFormProps) {
   const t = useTranslations("field.visit");
@@ -218,14 +148,34 @@ export function FieldVisitReportForm({
   const [voiceHintOpen, setVoiceHintOpen] = useState(false);
   const [visitDate, setVisitDate] = useState(todayIsoDate);
   const [dateEditing, setDateEditing] = useState(false);
-  const [outcome, setOutcome] = useState<Outcome>("neutral");
-  const [stockStatus, setStockStatus] = useState<StockStatus>("in_stock");
-  const [productRows, setProductRows] = useState<ProductRow[]>([]);
+  // Null until the rep taps one: the result is the only required field on the
+  // form, and a preselected value would report itself unread on every rushed
+  // visit — exactly the noise this screen exists to avoid.
+  const [orderPlaced, setOrderPlaced] = useState<boolean | null>(null);
+  const [noOrderReason, setNoOrderReason] = useState<NoOrderReason | null>(
+    null,
+  );
+  // Products the rep tapped as absent from the shelf, in tap order. This is
+  // the whole of the shelf check: no per-SKU statuses, quantities or
+  // comments, because a full audit is what turns this screen into "all ok".
+  const [missingProductIds, setMissingProductIds] = useState<string[]>([]);
+  const [shelfOpen, setShelfOpen] = useState(false);
+  // Problem is recorded by exception: no problem, no fields and no record.
+  const [problemOpen, setProblemOpen] = useState(false);
+  const [problemType, setProblemType] = useState<ProblemType | null>(null);
+  const [problemNote, setProblemNote] = useState("");
+  const [problemPhoto, setProblemPhoto] = useState<{
+    objectId: string;
+    fileName: string;
+  } | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [notes, setNotes] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
+  // The one-sentence commitment for the next visit. It is the record the rep
+  // reads at the door next time, so it sits second on the form and doubles as
+  // the follow-up task — there is no separate task section to fill in.
   const [nextAction, setNextAction] = useState("");
-  const [taskDueDate, setTaskDueDate] = useState("");
-  const [taskEntries, setTaskEntries] = useState<TaskEntry[]>([]);
-  const [taskPickerOpen, setTaskPickerOpen] = useState(false);
+  const [nextActionDueDate, setNextActionDueDate] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,7 +197,6 @@ export function FieldVisitReportForm({
     null,
   );
   const productDropdownRef = useRef<HTMLDivElement>(null);
-  const taskPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -258,85 +207,100 @@ export function FieldVisitReportForm({
         setProductDropdownOpen(false);
         setProductSearch("");
       }
-      if (
-        taskPickerRef.current &&
-        !taskPickerRef.current.contains(event.target as Node)
-      ) {
-        setTaskPickerOpen(false);
-      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const taskTypeLabels = useMemo<Record<TaskType, string>>(
+  const noOrderReasonLabels = useMemo<Record<NoOrderReason, string>>(
     () => ({
-      assortment: t("taskAssortmentLabel"),
-      merchandising: t("taskMerchandisingLabel"),
-      recommendation: t("taskRecommendationLabel"),
-      special: t("taskSpecialLabel"),
+      closed: t("noOrderReasonClosed"),
+      no_decision_maker: t("noOrderReasonNoDecisionMaker"),
+      has_stock: t("noOrderReasonHasStock"),
+      no_money: t("noOrderReasonNoMoney"),
+      refused: t("noOrderReasonRefused"),
+      other: t("noOrderReasonOther"),
     }),
     [t],
   );
-  const taskTypePlaceholders = useMemo<Record<TaskType, string>>(
+  const problemTypeLabels = useMemo<Record<ProblemType, string>>(
     () => ({
-      assortment: t("taskAssortmentPlaceholder"),
-      merchandising: t("taskMerchandisingPlaceholder"),
-      recommendation: t("taskRecommendationPlaceholder"),
-      special: t("taskSpecialPlaceholder"),
-    }),
-    [t],
-  );
-
-  const outcomeOptions = useMemo(
-    () => [
-      { value: "positive" as const, label: t("outcomePositive") },
-      { value: "neutral" as const, label: t("outcomeNeutral") },
-      { value: "negative" as const, label: t("outcomeNegative") },
-    ],
-    [t],
-  );
-  const stockOptions = useMemo(
-    () => [
-      { value: "in_stock" as const, label: t("stockInStock") },
-      { value: "low_stock" as const, label: t("stockLowStock") },
-      { value: "out_of_stock" as const, label: t("stockOutOfStock") },
-    ],
-    [t],
-  );
-  const productStatusLabels = useMemo<Record<ProductUpdateStatus, string>>(
-    () => ({
-      in_stock: t("skuStatusInStock"),
-      out_of_stock: t("skuStatusOutOfStock"),
-      to_order: t("skuStatusToOrder"),
-      not_relevant: t("skuStatusNotRelevant"),
+      return: t("problemTypeReturn"),
+      damaged: t("problemTypeDamaged"),
+      expired: t("problemTypeExpired"),
+      conflict: t("problemTypeConflict"),
     }),
     [t],
   );
 
-  function toggleProductRow(productId: string) {
-    setProductRows((current) => {
-      const existing = current.find((row) => row.productId === productId);
-      if (!existing) return [...current, createProductRow(productId)];
-      return current.filter((row) => row.productId !== productId);
-    });
+  function pickResult(placed: boolean) {
+    setOrderPlaced(placed);
+    if (placed) setNoOrderReason(null);
   }
 
-  function updateRow(productId: string, patch: Partial<ProductRow>) {
-    setProductRows((current) =>
-      current.map((row) =>
-        row.productId === productId ? { ...row, ...patch } : row,
-      ),
-    );
+  // Register the object, then PUT the image straight to storage from the
+  // browser, same as the voice note: a Server Action would cap the body at
+  // ~1 MB, which a phone photo clears on its own.
+  async function handlePhotoSelected(file: File) {
+    setIsUploadingPhoto(true);
+    setError(null);
+
+    try {
+      const registerResult = await registerProblemPhotoAction(visitId, {
+        fileName: file.name || "problem-photo.jpg",
+        contentType: file.type || "image/jpeg",
+        sizeBytes: file.size,
+      });
+
+      if (!registerResult.ok) {
+        setError(registerResult.message);
+        return;
+      }
+
+      const uploadUrl = registerResult.data.uploadUrl;
+
+      if (!uploadUrl) {
+        setError(t("problemPhotoErrorNotice"));
+        return;
+      }
+
+      const uploadResponse = await fetch(uploadUrl.url, {
+        method: uploadUrl.method,
+        headers: uploadUrl.headers,
+        body: file,
+      });
+
+      if (!uploadResponse.ok) {
+        setError(t("problemPhotoErrorNotice"));
+        return;
+      }
+
+      setProblemPhoto({
+        objectId: registerResult.data.storageObject.id,
+        fileName: file.name || "problem-photo.jpg",
+      });
+    } catch {
+      setError(t("problemPhotoErrorNotice"));
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   }
 
-  function addTaskEntry(type: TaskType) {
-    setTaskEntries((current) =>
-      current.some((entry) => entry.type === type)
-        ? current
-        : [...current, { type, description: "" }],
+  // Collapsing the problem row discards it: the whole point of the exception
+  // is that a visit without a problem carries no problem record.
+  function closeProblem() {
+    setProblemOpen(false);
+    setProblemType(null);
+    setProblemNote("");
+    setProblemPhoto(null);
+  }
+
+  function toggleMissingProduct(productId: string) {
+    setMissingProductIds((current) =>
+      current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId],
     );
-    setTaskPickerOpen(false);
   }
 
   function applyExtractedVisitData(data: FieldReportExtractedData): string[] {
@@ -347,101 +311,45 @@ export function FieldVisitReportForm({
       if (data.visitDate !== todayIsoDate())
         filledSections.push(t("sectionDate"));
     }
-    if (data.outcome) setOutcome(data.outcome);
-    if (data.stockStatus) setStockStatus(data.stockStatus);
-    if (data.outcome || data.stockStatus)
+    if (data.orderPlaced !== null) {
+      setOrderPlaced(data.orderPlaced);
+      setNoOrderReason(data.orderPlaced ? null : data.noOrderReason);
       filledSections.push(t("sectionResult"));
-
-    const matchedPresentedIds = matchPresentedProductIds(
-      products,
-      data.productsPresented,
-    );
-
-    const matchedUpdates = products.length
-      ? data.productUpdates
-          .map((update) => {
-            const product = findCatalogProduct(
-              products,
-              update.productName,
-              update.productCode,
-            );
-            if (!product) return null;
-
-            return {
-              productId: product.id,
-              status: update.status ?? null,
-              stock: toDraftNumber(update.stock),
-              order: toDraftNumber(update.order),
-              sale: toDraftNumber(update.sale),
-              comment: update.comment ?? "",
-            };
-          })
-          .filter(
-            (update): update is NonNullable<typeof update> => update !== null,
-          )
-      : [];
-
-    if (matchedPresentedIds.size > 0 || matchedUpdates.length > 0) {
-      setProductRows((current) => {
-        const next = [...current];
-
-        const ensureRow = (productId: string): number => {
-          const index = next.findIndex((row) => row.productId === productId);
-          if (index >= 0) return index;
-          next.push({ ...createProductRow(productId), presented: false });
-          return next.length - 1;
-        };
-
-        matchedPresentedIds.forEach((productId) => {
-          const index = ensureRow(productId);
-          next[index] = { ...next[index], presented: true };
-        });
-
-        matchedUpdates.forEach((update) => {
-          const index = ensureRow(update.productId);
-          const row = next[index];
-          next[index] = {
-            ...row,
-            status: update.status ?? row.status,
-            stock: update.stock || row.stock,
-            order: update.order || row.order,
-            sale: update.sale || row.sale,
-            comment: update.comment || row.comment,
-            detailsOpen:
-              row.detailsOpen ||
-              Boolean(
-                update.stock || update.order || update.sale || update.comment,
-              ),
-          };
-        });
-
-        return next;
-      });
-      filledSections.push(t("sectionProducts"));
     }
 
-    if (data.notes) setNotes(data.notes);
+    const matchedMissingIds = matchProductIds(
+      [...shelfProducts, ...products],
+      data.missingProducts,
+    );
+
+    if (matchedMissingIds.size > 0) {
+      setMissingProductIds((current) => [
+        ...current,
+        ...[...matchedMissingIds].filter((id) => !current.includes(id)),
+      ]);
+      setShelfOpen(true);
+      filledSections.push(t("sectionShelf"));
+    }
+
+    if (data.notes) {
+      setNotes(data.notes);
+      // Otherwise transcribed notes would sit inside a collapsed row where the
+      // rep can't see what the AI wrote before saving.
+      setNotesOpen(true);
+      filledSections.push(t("sectionNotes"));
+    }
+
+    if (data.problemType || data.problemNote) {
+      setProblemType(data.problemType);
+      setProblemNote(data.problemNote ?? "");
+      setProblemOpen(true);
+      filledSections.push(t("sectionProblem"));
+    }
+
     if (data.nextAction) setNextAction(data.nextAction);
-    if (data.notes || data.nextAction) filledSections.push(t("sectionNotes"));
-
-    if (data.tasks.dueDate && isIsoDate(data.tasks.dueDate))
-      setTaskDueDate(data.tasks.dueDate);
-    const extractedTaskTypes = TASK_TYPES.filter((type) =>
-      Boolean(data.tasks[type]),
-    );
-    if (extractedTaskTypes.length > 0) {
-      setTaskEntries((current) => {
-        const next = [...current];
-        extractedTaskTypes.forEach((type) => {
-          const description = data.tasks[type] ?? "";
-          const index = next.findIndex((entry) => entry.type === type);
-          if (index >= 0) next[index] = { ...next[index], description };
-          else next.push({ type, description });
-        });
-        return next;
-      });
-      filledSections.push(t("sectionTasks"));
-    }
+    if (data.nextActionDueDate && isIsoDate(data.nextActionDueDate))
+      setNextActionDueDate(data.nextActionDueDate);
+    if (data.nextAction) filledSections.push(t("sectionNextAction"));
 
     return filledSections;
   }
@@ -583,98 +491,75 @@ export function FieldVisitReportForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const invalidProductRow = productRows.some((row) =>
-      hasInvalidNumber(row.stock, row.order, row.sale),
-    );
-    if (invalidProductRow) {
-      setError(t("invalidSkuNumbersError"));
-      return;
-    }
-
-    // One accidental tap on "Save report" would otherwise permanently lock
-    // the visit as completed with a content-free report — require at least
-    // one real piece of the report before letting it through.
-    const hasReportContent =
-      Boolean(notes.trim()) ||
-      Boolean(nextAction.trim()) ||
-      productRows.length > 0 ||
-      taskEntries.some((entry) => entry.description.trim());
-
-    if (!hasReportContent) {
-      setError(t("emptyReportError"));
+    // Confirming a report locks the visit as completed for good, so the form
+    // still refuses to submit nothing — but the bar is now the visit result
+    // itself rather than any-field-touched: it is the one thing every visit
+    // has, and demanding it costs a single tap.
+    if (orderPlaced === null) {
+      setError(t("resultRequiredError"));
       return;
     }
 
     setIsSubmitting(true);
     setError(null);
 
-    const presentedProducts = productRows
-      .filter((row) => row.presented)
-      .map((row) => products.find((product) => product.id === row.productId))
-      .filter((product): product is Product => Boolean(product));
+    // Every tapped chip means one thing — this SKU was not on the shelf — so
+    // the report's product updates are all `out_of_stock` with no quantities
+    // to reconcile.
+    const missingProducts = missingProductIds
+      .map((productId) => productById.get(productId))
+      .filter((product): product is ShelfProduct => Boolean(product));
 
-    const productUpdates = productRows.filter(rowHasUpdateData).map((row) => {
-      const product = products.find((item) => item.id === row.productId);
+    const productUpdates = missingProducts.map((product) => ({
+      productId: product.id,
+      productName: product.name,
+      productCode: product.sku,
+      status: "out_of_stock" as const,
+      stock: null,
+      order: null,
+      sale: null,
+      comment: "",
+    }));
 
-      return {
-        productId: row.productId,
-        productName: product?.name ?? "",
-        productCode: product?.sku ?? null,
-        status: row.status ?? "in_stock",
-        stock: parseOptionalNumber(row.stock),
-        order: parseOptionalNumber(row.order),
-        sale: parseOptionalNumber(row.sale),
-        comment: row.comment.trim(),
-      };
-    });
-
-    const mentionedProducts = [
-      ...presentedProducts.map((product) => ({
-        name: product.name,
-        status: "presented",
-        evidence: "",
-      })),
-      ...productUpdates
-        .filter((update) => update.productName)
-        .map((update) => ({
-          name: update.productName,
-          status:
-            update.status === "out_of_stock" || update.status === "to_order"
-              ? "issue"
-              : "presented",
-          evidence:
-            update.comment ||
-            [
-              update.stock !== null
-                ? `${t("skuStockLabel")}: ${update.stock}`
-                : null,
-              update.order !== null
-                ? `${t("skuOrderLabel")}: ${update.order}`
-                : null,
-              update.sale !== null
-                ? `${t("skuSaleLabel")}: ${update.sale}`
-                : null,
-            ]
-              .filter(Boolean)
-              .join(", "),
-        })),
-    ];
+    const mentionedProducts = missingProducts.map((product) => ({
+      name: product.name,
+      status: "issue",
+      evidence: "",
+    }));
 
     const trimmedNotes = notes.trim();
     const trimmedNextAction = nextAction.trim();
+    const trimmedProblemNote = problemNote.trim();
 
-    const tasksToCreate = taskEntries
-      .map((entry) => ({
-        title: taskTypeLabels[entry.type],
-        description: entry.description.trim(),
-      }))
-      .filter((task) => task.description)
-      .map((task) => ({
-        title: task.title,
-        description: task.description,
-        dueDate: taskDueDate || null,
-        assignee: "representative",
-      }));
+    // By exception: a problem exists only if the rep said something about it.
+    // An opened-then-emptied panel leaves no trace in the report.
+    const problem =
+      problemType || trimmedProblemNote || problemPhoto
+        ? {
+            type: problemType,
+            note: trimmedProblemNote,
+            photoObjectId: problemPhoto?.objectId ?? null,
+          }
+        : null;
+
+    // The agreement is the follow-up task: one line the rep already wrote,
+    // turned into the row they'll see on the next visit, instead of a second
+    // pass over four task-type boxes that said the same thing.
+    const tasksToCreate = trimmedNextAction
+      ? [
+          {
+            title: trimmedNextAction,
+            description: "",
+            dueDate: nextActionDueDate || null,
+            assignee: "representative",
+          },
+        ]
+      : [];
+
+    // Manager report views and every already-confirmed report read the
+    // positive/neutral/negative `outcome`, so it stays in the payload —
+    // derived from what the rep actually reported rather than asked for.
+    const outcome = deriveVisitOutcome(orderPlaced, noOrderReason);
 
     const confirmedData = {
       summary: trimmedNotes || trimmedNextAction,
@@ -690,16 +575,16 @@ export function FieldVisitReportForm({
       fieldReport: {
         visitDate,
         outcome,
-        stockStatus,
-        presentedProductIds: presentedProducts.map((product) => product.id),
-        presentedProducts: presentedProducts.map((product) => ({
-          id: product.id,
-          name: product.name,
-          sku: product.sku,
-        })),
+        orderPlaced,
+        noOrderReason,
+        // Derived, not asked: an untouched shelf check says nothing about the
+        // shelf, so it stays null instead of claiming everything is in stock.
+        stockStatus: missingProducts.length > 0 ? "out_of_stock" : null,
         notes: trimmedNotes,
         nextAction: trimmedNextAction,
+        nextActionDueDate: nextActionDueDate || null,
         productUpdates,
+        problem,
       },
     };
 
@@ -719,10 +604,19 @@ export function FieldVisitReportForm({
       (value ?? "").toLowerCase().includes(productSearch.toLowerCase()),
     ),
   );
-  const rowProductIds = new Set(productRows.map((row) => row.productId));
-  const availableTaskTypes = TASK_TYPES.filter(
-    (type) => !taskEntries.some((entry) => entry.type === type),
+  const productById = new Map<string, ShelfProduct>(
+    [...shelfProducts, ...products].map((product) => [product.id, product]),
   );
+  const missingProductIdSet = new Set(missingProductIds);
+  // The outlet's key SKUs, plus anything picked out of the full catalog — a
+  // product tapped through the search has to stay visible as a chip too.
+  const shelfChips = [
+    ...shelfProducts,
+    ...missingProductIds
+      .filter((id) => !shelfProducts.some((product) => product.id === id))
+      .map((id) => productById.get(id))
+      .filter((product): product is ShelfProduct => Boolean(product)),
+  ];
   const showDateInput = dateEditing || visitDate !== todayIsoDate();
 
   return (
@@ -815,358 +709,344 @@ export function FieldVisitReportForm({
           </button>
 
           <div>
-            <span className="form-field-title">{t("outcomeLabel")}</span>
+            <span className="form-field-title">
+              {t("outcomeLabel")}
+              <span className="form-field-required">{t("resultRequired")}</span>
+            </span>
             <div
-              className="segmented"
+              className="visit-result-tabs"
               role="group"
               aria-label={t("outcomeLabel")}
             >
-              {outcomeOptions.map((option) => (
-                <button
-                  aria-pressed={outcome === option.value}
-                  className={`segmented-option${outcome === option.value ? " active" : ""}`}
-                  key={option.value}
-                  onClick={() => setOutcome(option.value)}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <span className="form-field-title">{t("stockStatusLabel")}</span>
-            <div
-              className="segmented"
-              role="group"
-              aria-label={t("stockStatusLabel")}
-            >
-              {stockOptions.map((option) => (
-                <button
-                  aria-pressed={stockStatus === option.value}
-                  className={`segmented-option${stockStatus === option.value ? " active" : ""}`}
-                  key={option.value}
-                  onClick={() => setStockStatus(option.value)}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <label>
-            <span>{t("notesLabel")}</span>
-            <textarea
-              maxLength={INPUT_LIMITS.notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder={t("notesPlaceholder")}
-              value={notes}
-            />
-          </label>
-
-          <div className="field-panel-card">
-            <div className="field-panel-card-toggle">
-              <PackageIcon />
-              <span>{t("productsTitle")}</span>
-              {productRows.length > 0 ? (
-                <span className="eyebrow">
-                  {t("productsCount", { count: productRows.length })}
-                </span>
-              ) : null}
-            </div>
-
-            <div className="combo-field" ref={productDropdownRef}>
               <button
-                aria-expanded={productDropdownOpen}
-                className="combo-trigger"
-                onClick={() => setProductDropdownOpen((open) => !open)}
+                aria-pressed={orderPlaced === true}
+                className={`visit-result-tab${orderPlaced === true ? " order" : ""}`}
+                onClick={() => pickResult(true)}
                 type="button"
               >
-                <span>{t("productsAddPlaceholder")}</span>
-                <ChevronDownIcon />
+                {t("resultOrderPlaced")}
               </button>
-
-              {productDropdownOpen ? (
-                <div className="combo-panel">
-                  <div className="combo-search">
-                    <SearchIcon />
-                    <input
-                      autoFocus
-                      maxLength={INPUT_LIMITS.search}
-                      onChange={(event) => setProductSearch(event.target.value)}
-                      placeholder={t("productSearchPlaceholder")}
-                      value={productSearch}
-                    />
-                    {productSearch ? (
-                      <button
-                        onClick={() => setProductSearch("")}
-                        type="button"
-                      >
-                        <CloseIcon />
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="combo-list">
-                    {!products.length ? (
-                      <p className="combo-empty">{t("productsEmpty")}</p>
-                    ) : filteredProducts.length === 0 ? (
-                      <p className="combo-empty">{t("productsNoMatch")}</p>
-                    ) : (
-                      filteredProducts.map((product) => {
-                        const selected = rowProductIds.has(product.id);
-                        return (
-                          <button
-                            className={`combo-option${selected ? " selected" : ""}`}
-                            key={product.id}
-                            onClick={() => toggleProductRow(product.id)}
-                            type="button"
-                          >
-                            <span className="combo-option-check">
-                              {selected ? <CheckIcon /> : null}
-                            </span>
-                            <span>{product.name}</span>
-                            {product.sku || product.category ? (
-                              <span className="combo-option-meta">
-                                {[product.sku, product.category]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </span>
-                            ) : null}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              ) : null}
+              <button
+                aria-pressed={orderPlaced === false}
+                className={`visit-result-tab${orderPlaced === false ? " no-order" : ""}`}
+                onClick={() => pickResult(false)}
+                type="button"
+              >
+                {t("resultNoOrder")}
+              </button>
             </div>
 
-            {productRows.length > 0 ? (
-              <div className="sku-card-list">
-                {productRows.map((row) => {
-                  const product = products.find(
-                    (item) => item.id === row.productId,
-                  );
-                  return (
-                    <div className="sku-card" key={row.productId}>
-                      <div className="sku-card-header">
-                        <p>
-                          {product ? formatProductDisplayName(product) : ""}
-                        </p>
-                        <button
-                          aria-label={t("removeProductAria", {
-                            name: product?.name ?? "",
-                          })}
-                          onClick={() => toggleProductRow(row.productId)}
-                          type="button"
-                        >
-                          <CloseIcon />
-                        </button>
-                      </div>
-                      <div className="chip-list">
-                        <button
-                          aria-pressed={row.presented}
-                          className={`status-chip${row.presented ? " active" : ""}`}
-                          onClick={() =>
-                            updateRow(row.productId, {
-                              presented: !row.presented,
-                            })
-                          }
-                          type="button"
-                        >
-                          {t("productPresentedChip")}
-                        </button>
-                        {PRODUCT_STATUS_OPTIONS.map((status) => (
-                          <button
-                            aria-pressed={row.status === status}
-                            className={`status-chip${row.status === status ? " active" : ""}`}
-                            key={status}
-                            onClick={() =>
-                              updateRow(row.productId, {
-                                status: row.status === status ? null : status,
-                              })
-                            }
-                            type="button"
-                          >
-                            {productStatusLabels[status]}
-                          </button>
-                        ))}
-                      </div>
-                      <button
-                        aria-expanded={row.detailsOpen}
-                        className="inline-toggle"
-                        onClick={() =>
-                          updateRow(row.productId, {
-                            detailsOpen: !row.detailsOpen,
-                          })
-                        }
-                        type="button"
-                      >
-                        {t("productDetailsToggle")}
-                        <ChevronDownIcon />
-                      </button>
-                      {row.detailsOpen ? (
-                        <>
-                          <div className="sku-card-quantities">
-                            <label>
-                              <span>{t("skuStockLabel")}</span>
-                              <input
-                                inputMode="numeric"
-                                maxLength={INPUT_LIMITS.quantity}
-                                onChange={(event) =>
-                                  updateRow(row.productId, {
-                                    stock: event.target.value,
-                                  })
-                                }
-                                value={row.stock}
-                              />
-                            </label>
-                            <label>
-                              <span>{t("skuOrderLabel")}</span>
-                              <input
-                                inputMode="numeric"
-                                maxLength={INPUT_LIMITS.quantity}
-                                onChange={(event) =>
-                                  updateRow(row.productId, {
-                                    order: event.target.value,
-                                  })
-                                }
-                                value={row.order}
-                              />
-                            </label>
-                            <label>
-                              <span>{t("skuSaleLabel")}</span>
-                              <input
-                                inputMode="numeric"
-                                maxLength={INPUT_LIMITS.quantity}
-                                onChange={(event) =>
-                                  updateRow(row.productId, {
-                                    sale: event.target.value,
-                                  })
-                                }
-                                value={row.sale}
-                              />
-                            </label>
-                          </div>
-                          <textarea
-                            maxLength={INPUT_LIMITS.comment}
-                            onChange={(event) =>
-                              updateRow(row.productId, {
-                                comment: event.target.value,
-                              })
-                            }
-                            placeholder={t("skuCommentPlaceholder")}
-                            value={row.comment}
-                          />
-                        </>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="field-panel-card">
-            <div className="field-panel-card-toggle">
-              <ListTodoIcon />
-              <span>{t("nextVisitTasksTitle")}</span>
-              {taskEntries.length > 0 ? (
-                <span className="eyebrow">
-                  {t("tasksCount", { count: taskEntries.length })}
-                </span>
-              ) : null}
-            </div>
-
-            {taskEntries.map((entry) => (
-              <div className="sku-card" key={entry.type}>
-                <div className="sku-card-header">
-                  <p>{taskTypeLabels[entry.type]}</p>
+            {orderPlaced === false ? (
+              <div
+                className="chip-list visit-result-reasons"
+                role="group"
+                aria-label={t("noOrderReasonLabel")}
+              >
+                {NO_ORDER_REASONS.map((reason) => (
                   <button
-                    aria-label={t("removeTaskAria", {
-                      title: taskTypeLabels[entry.type],
-                    })}
+                    aria-pressed={noOrderReason === reason}
+                    className={`status-chip danger${noOrderReason === reason ? " active" : ""}`}
+                    key={reason}
                     onClick={() =>
-                      setTaskEntries((current) =>
-                        current.filter((item) => item.type !== entry.type),
+                      setNoOrderReason((current) =>
+                        current === reason ? null : reason,
                       )
                     }
                     type="button"
                   >
-                    <CloseIcon />
+                    {noOrderReasonLabels[reason]}
                   </button>
-                </div>
-                <textarea
-                  autoFocus={!entry.description}
-                  maxLength={INPUT_LIMITS.notes}
-                  onChange={(event) =>
-                    setTaskEntries((current) =>
-                      current.map((item) =>
-                        item.type === entry.type
-                          ? { ...item, description: event.target.value }
-                          : item,
-                      ),
-                    )
-                  }
-                  placeholder={taskTypePlaceholders[entry.type]}
-                  value={entry.description}
-                />
-              </div>
-            ))}
-
-            {taskEntries.length > 0 ? (
-              <label>
-                <span>{t("nextVisitTasksDueDate")}</span>
-                <input
-                  onChange={(event) => setTaskDueDate(event.target.value)}
-                  type="date"
-                  value={taskDueDate}
-                />
-              </label>
-            ) : null}
-
-            {availableTaskTypes.length > 0 ? (
-              <div className="combo-field" ref={taskPickerRef}>
-                <button
-                  aria-expanded={taskPickerOpen}
-                  className="secondary-button add-task-button"
-                  onClick={() => setTaskPickerOpen((open) => !open)}
-                  type="button"
-                >
-                  <PlusIcon />
-                  {t("addTask")}
-                </button>
-                {taskPickerOpen ? (
-                  <div className="combo-panel">
-                    <div className="combo-list">
-                      {availableTaskTypes.map((type) => (
-                        <button
-                          className="combo-option"
-                          key={type}
-                          onClick={() => addTaskEntry(type)}
-                          type="button"
-                        >
-                          <span>{taskTypeLabels[type]}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                ))}
               </div>
             ) : null}
           </div>
 
-          <label>
-            <span>{t("nextActionLabel")}</span>
-            <input
-              maxLength={INPUT_LIMITS.title}
-              onChange={(event) => setNextAction(event.target.value)}
-              placeholder={t("nextActionPlaceholder")}
-              value={nextAction}
-            />
-          </label>
+          <div className="visit-agreement">
+            <label>
+              <span>{t("nextActionLabel")}</span>
+              <textarea
+                maxLength={INPUT_LIMITS.title}
+                onChange={(event) => setNextAction(event.target.value)}
+                placeholder={t("nextActionPlaceholder")}
+                rows={2}
+                value={nextAction}
+              />
+            </label>
+            <p className="form-hint">{t("nextActionHint")}</p>
+
+            {nextAction.trim() ? (
+              <label>
+                <span>{t("nextActionDueDateLabel")}</span>
+                <input
+                  onChange={(event) => setNextActionDueDate(event.target.value)}
+                  type="date"
+                  value={nextActionDueDate}
+                />
+              </label>
+            ) : null}
+          </div>
+
+          {shelfOpen ? (
+            <div className="shelf-panel">
+              <div className="panel-head">
+                <p>{t("shelfTitle")}</p>
+                <button
+                  aria-label={t("shelfCollapseAria")}
+                  onClick={() => setShelfOpen(false)}
+                  type="button"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <p className="form-hint">
+                {shelfChips.length > 0 ? t("shelfHint") : t("shelfEmptyHint")}
+              </p>
+
+              {shelfChips.length > 0 ? (
+                <div
+                  className="chip-list"
+                  role="group"
+                  aria-label={t("shelfTitle")}
+                >
+                  {shelfChips.map((product) => {
+                    const missing = missingProductIdSet.has(product.id);
+                    return (
+                      <button
+                        aria-pressed={missing}
+                        className={`status-chip danger${missing ? " active" : ""}`}
+                        key={product.id}
+                        onClick={() => toggleMissingProduct(product.id)}
+                        type="button"
+                      >
+                        {formatProductDisplayName(product)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div className="combo-field" ref={productDropdownRef}>
+                <button
+                  aria-expanded={productDropdownOpen}
+                  className="combo-trigger"
+                  onClick={() => setProductDropdownOpen((open) => !open)}
+                  type="button"
+                >
+                  <span>{t("shelfOtherProduct")}</span>
+                  <ChevronDownIcon />
+                </button>
+
+                {productDropdownOpen ? (
+                  <div className="combo-panel">
+                    <div className="combo-search">
+                      <SearchIcon />
+                      <input
+                        autoFocus
+                        maxLength={INPUT_LIMITS.search}
+                        onChange={(event) =>
+                          setProductSearch(event.target.value)
+                        }
+                        placeholder={t("productSearchPlaceholder")}
+                        value={productSearch}
+                      />
+                      {productSearch ? (
+                        <button
+                          onClick={() => setProductSearch("")}
+                          type="button"
+                        >
+                          <CloseIcon />
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="combo-list">
+                      {!products.length ? (
+                        <p className="combo-empty">{t("productsEmpty")}</p>
+                      ) : filteredProducts.length === 0 ? (
+                        <p className="combo-empty">{t("productsNoMatch")}</p>
+                      ) : (
+                        filteredProducts.map((product) => {
+                          const selected = missingProductIdSet.has(product.id);
+                          return (
+                            <button
+                              className={`combo-option${selected ? " selected" : ""}`}
+                              key={product.id}
+                              onClick={() => toggleMissingProduct(product.id)}
+                              type="button"
+                            >
+                              <span className="combo-option-check">
+                                {selected ? <CheckIcon /> : null}
+                              </span>
+                              <span>{product.name}</span>
+                              {product.sku || product.category ? (
+                                <span className="combo-option-meta">
+                                  {[product.sku, product.category]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <button
+              aria-controls="shelf-panel"
+              aria-expanded={false}
+              className={`exception-row${missingProductIds.length > 0 ? " filled" : ""}`}
+              onClick={() => setShelfOpen(true)}
+              type="button"
+            >
+              <span aria-hidden="true" className="row-icon">
+                <PackageIcon />
+              </span>
+              <span className="label">{t("shelfTitle")}</span>
+              <span className="opt">
+                {missingProductIds.length > 0
+                  ? t("shelfMissingCount", { count: missingProductIds.length })
+                  : t("shelfOptional")}
+              </span>
+              <span aria-hidden="true" className="caret">
+                <ChevronDownIcon />
+              </span>
+            </button>
+          )}
+
+          {problemOpen ? (
+            <div className="problem-panel">
+              <div className="panel-head danger">
+                <p>{t("problemTitle")}</p>
+                <button
+                  aria-label={t("problemDiscardAria")}
+                  onClick={closeProblem}
+                  type="button"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <div
+                className="chip-list"
+                role="group"
+                aria-label={t("problemTypeLabel")}
+              >
+                {PROBLEM_TYPES.map((type) => (
+                  <button
+                    aria-pressed={problemType === type}
+                    className={`status-chip danger${problemType === type ? " active" : ""}`}
+                    key={type}
+                    onClick={() =>
+                      setProblemType((current) =>
+                        current === type ? null : type,
+                      )
+                    }
+                    type="button"
+                  >
+                    {problemTypeLabels[type]}
+                  </button>
+                ))}
+              </div>
+
+              <label className="problem-photo-button">
+                <CameraIcon />
+                <span>
+                  {isUploadingPhoto
+                    ? t("problemPhotoUploading")
+                    : problemPhoto
+                      ? problemPhoto.fileName
+                      : t("problemPhotoAdd")}
+                </span>
+                <input
+                  accept="image/*"
+                  capture="environment"
+                  disabled={isUploadingPhoto}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (file) void handlePhotoSelected(file);
+                  }}
+                  type="file"
+                />
+              </label>
+
+              {problemPhoto ? (
+                <button
+                  className="inline-toggle"
+                  onClick={() => setProblemPhoto(null)}
+                  type="button"
+                >
+                  {t("problemPhotoRemove")}
+                </button>
+              ) : null}
+
+              <input
+                maxLength={INPUT_LIMITS.title}
+                onChange={(event) => setProblemNote(event.target.value)}
+                placeholder={t("problemNotePlaceholder")}
+                value={problemNote}
+              />
+            </div>
+          ) : (
+            <button
+              aria-expanded={false}
+              className="exception-row"
+              onClick={() => setProblemOpen(true)}
+              type="button"
+            >
+              <span aria-hidden="true" className="row-icon danger">
+                <AlertTriangleIcon />
+              </span>
+              <span className="label">{t("problemTitle")}</span>
+              <span className="opt">{t("problemOptional")}</span>
+              <span aria-hidden="true" className="caret">
+                <ChevronDownIcon />
+              </span>
+            </button>
+          )}
+
+          {notesOpen ? (
+            <div className="notes-panel">
+              <div className="panel-head">
+                <p>{t("notesLabel")}</p>
+                <button
+                  aria-label={t("notesCollapseAria")}
+                  onClick={() => setNotesOpen(false)}
+                  type="button"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+              <textarea
+                autoFocus
+                maxLength={INPUT_LIMITS.notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder={t("notesPlaceholder")}
+                value={notes}
+              />
+            </div>
+          ) : (
+            <button
+              aria-expanded={false}
+              className={`exception-row${notes.trim() ? " filled" : ""}`}
+              onClick={() => setNotesOpen(true)}
+              type="button"
+            >
+              <span aria-hidden="true" className="row-icon quiet">
+                <MessageSquareIcon />
+              </span>
+              <span className="label">{t("notesLabel")}</span>
+              <span className="opt">
+                {notes.trim() ? t("notesFilled") : t("notesOptional")}
+              </span>
+              <span aria-hidden="true" className="caret">
+                <ChevronDownIcon />
+              </span>
+            </button>
+          )}
 
           {showDateInput ? (
             <label>

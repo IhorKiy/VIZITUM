@@ -3,9 +3,11 @@
 import {
   confirmFieldVisitReport,
   registerFieldReportAudioUpload,
+  registerVisitProblemPhoto,
   transcribeFieldVisitReport,
   type ApiResult,
   type RegisteredAudioUpload,
+  type RegisteredProblemPhoto,
   type Report,
   type TranscribeFieldReportResult,
 } from "./api-client";
@@ -29,6 +31,15 @@ export async function registerFieldReportAudioAction(
   input: { fileName: string; contentType: string; sizeBytes: number },
 ): Promise<ApiResult<RegisteredAudioUpload>> {
   return registerFieldReportAudioUpload(visitId, input);
+}
+
+// The photo bytes travel browser -> storage over the presigned PUT URL this
+// returns, for the same body-limit reason as the audio above.
+export async function registerProblemPhotoAction(
+  visitId: string,
+  input: { fileName: string; contentType: string; sizeBytes: number },
+): Promise<ApiResult<RegisteredProblemPhoto>> {
+  return registerVisitProblemPhoto(visitId, input);
 }
 
 export async function transcribeFieldReportAction(

@@ -14,92 +14,59 @@ type FieldReportJsonSchema = {
   readonly additionalProperties?: boolean;
 };
 
-const productUpdateSchema: FieldReportJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "productName",
-    "productCode",
-    "status",
-    "stock",
-    "order",
-    "sale",
-    "comment",
-  ],
-  properties: {
-    productName: { type: ["string", "null"] },
-    productCode: { type: ["string", "null"] },
-    status: {
-      type: ["string", "null"],
-      enum: ["in_stock", "out_of_stock", "to_order", "not_relevant", null],
-    },
-    stock: { type: ["integer", "null"] },
-    order: { type: ["integer", "null"] },
-    sale: { type: ["integer", "null"] },
-    comment: { type: ["string", "null"] },
-  },
-};
-
-const tasksSchema: FieldReportJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: [
-    "dueDate",
-    "assortment",
-    "merchandising",
-    "recommendation",
-    "special",
-    "note",
-  ],
-  properties: {
-    dueDate: { type: ["string", "null"] },
-    assortment: { type: ["string", "null"] },
-    merchandising: { type: ["string", "null"] },
-    recommendation: { type: ["string", "null"] },
-    special: { type: ["string", "null"] },
-    note: { type: ["string", "null"] },
-  },
-};
-
 export const FIELD_REPORT_EXTRACTION_SCHEMA: FieldReportJsonSchema = {
   type: "object",
   additionalProperties: false,
   required: [
-    "outcome",
+    "orderPlaced",
+    "noOrderReason",
     "visitDate",
-    "productsPresented",
-    "stockStatus",
     "notes",
     "nextAction",
-    "productUpdates",
-    "tasks",
+    "nextActionDueDate",
+    "missingProducts",
+    "problemType",
+    "problemNote",
   ],
   properties: {
-    outcome: {
+    orderPlaced: { type: ["boolean", "null"] },
+    noOrderReason: {
       type: ["string", "null"],
-      enum: ["positive", "neutral", "negative", null],
+      enum: [
+        "closed",
+        "no_decision_maker",
+        "has_stock",
+        "no_money",
+        "refused",
+        "other",
+        null,
+      ],
     },
     visitDate: {
       type: ["string", "null"],
       description: "YYYY-MM-DD",
     },
-    productsPresented: {
+    missingProducts: {
       type: "array",
       items: { type: "string" },
-      description: "Product or SKU names presented during the visit.",
-    },
-    stockStatus: {
-      type: ["string", "null"],
-      enum: ["in_stock", "low_stock", "out_of_stock", null],
+      description:
+        "Product or SKU names the transcript says were absent from the shelf.",
     },
     notes: { type: ["string", "null"] },
-    nextAction: { type: ["string", "null"] },
-    productUpdates: {
-      type: "array",
-      items: productUpdateSchema,
-      description: "SKU-level stock/order/sale facts mentioned in the note.",
+    nextAction: {
+      type: ["string", "null"],
+      description:
+        "The single commitment for the next visit, in the speaker's own words.",
     },
-    tasks: tasksSchema,
+    nextActionDueDate: {
+      type: ["string", "null"],
+      description: "YYYY-MM-DD",
+    },
+    problemType: {
+      type: ["string", "null"],
+      enum: ["return", "damaged", "expired", "conflict", null],
+    },
+    problemNote: { type: ["string", "null"] },
   },
 };
 
@@ -109,96 +76,64 @@ export const FIELD_REPORT_EXTRACTION_SCHEMA_NAME =
 export const FIELD_REPORT_EXTRACTION_SYSTEM_PROMPT = `You are a field sales representative assistant for visit reports.
 Extract structured data from a visit report transcript. Return a JSON object with this shape:
 {
-  "outcome": "positive" | "neutral" | "negative" | null,
+  "orderPlaced": boolean | null,
+  "noOrderReason": "closed" | "no_decision_maker" | "has_stock" | "no_money" | "refused" | "other" | null,
   "visitDate": "YYYY-MM-DD" | null,
-  "productsPresented": string[],
-  "stockStatus": "in_stock" | "low_stock" | "out_of_stock" | null,
   "notes": string | null,
   "nextAction": string | null,
-  "productUpdates": [
-    {
-      "productName": string | null,
-      "productCode": string | null,
-      "status": "in_stock" | "out_of_stock" | "to_order" | "not_relevant" | null,
-      "stock": integer | null,
-      "order": integer | null,
-      "sale": integer | null,
-      "comment": string | null
-    }
-  ],
-  "tasks": {
-    "dueDate": "YYYY-MM-DD" | null,
-    "assortment": string | null,
-    "merchandising": string | null,
-    "recommendation": string | null,
-    "special": string | null,
-    "note": string | null
-  }
+  "nextActionDueDate": "YYYY-MM-DD" | null,
+  "missingProducts": string[],
+  "problemType": "return" | "damaged" | "expired" | "conflict" | null,
+  "problemNote": string | null
 }
 
 Field guidance:
-- outcome is the overall visit result.
-- productsPresented lists products that were presented during the visit.
-- stockStatus is the general location-level stock status.
-- productUpdates are SKU-level facts: stock on hand, order quantity, sale quantity, status, and a comment.
-- tasks are follow-up tasks for the next visit: assortment/stock, merchandising, recommendation with feature-benefit-value, a special task, and a location-specific note.
+- orderPlaced is the visit result as a fact: true when the visit produced an order, false when it did not. Use null only when the transcript does not say either way — never guess from the speaker's tone.
+- noOrderReason explains a visit with no order, and stays null when orderPlaced is true or unknown: "closed" (the outlet was shut), "no_decision_maker" (nobody who can order was there), "has_stock" (the outlet still has stock), "no_money" (the outlet cannot pay right now), "refused" (the outlet declined to order), "other" (a stated reason none of the above cover).
+- missingProducts lists only the products the transcript says were absent, out of stock or sold out at this outlet. Leave it empty when the transcript merely mentions or presents a product without saying it was missing.
+- nextAction is the one thing agreed for the next visit — what the rep promised to bring or do, or when to come back ("bring the coffee price list", "the owner is in on Tuesday after 2pm"). It becomes the follow-up task, so keep it to a single sentence; if several commitments are mentioned, use the one the speaker treats as the reason to come back.
+- nextActionDueDate is the date that commitment is due, only when the transcript states or clearly implies one.
+- problemType and problemNote record a problem only when the transcript reports one: "return" (goods going back), "damaged" (broken or unsellable stock), "expired" (stock past its date), "conflict" (a dispute with the outlet). Both stay null for an ordinary visit — a visit with nothing wrong must not produce a problem record. problemNote is the couple of words describing it, in the speaker's own wording.
 - Prefer product names/codes from the provided product catalog when the transcript matches one closely. If a spoken product is not in the catalog, keep the spoken name.
-- Do not invent quantities, dates, products, tasks, or comments. Use null, [], or the empty object shape when something is not mentioned.
-- Preserve the transcript's own wording and language for notes, nextAction, comments, and tasks.
+- Do not invent quantities, dates, products, commitments, or comments. Use null or [] when something is not mentioned.
+- Preserve the transcript's own wording and language for notes, nextAction and comments.
 
 Respond only with the JSON object described above.`;
 
-export type FieldReportProductUpdateDraft = {
-  productName: string | null;
-  productCode: string | null;
-  status: "in_stock" | "out_of_stock" | "to_order" | "not_relevant" | null;
-  stock: number | null;
-  order: number | null;
-  sale: number | null;
-  comment: string | null;
-};
+export type FieldReportNoOrderReason =
+  | "closed"
+  | "no_decision_maker"
+  | "has_stock"
+  | "no_money"
+  | "refused"
+  | "other";
 
-export type FieldReportExtractedTasks = {
-  dueDate: string | null;
-  assortment: string | null;
-  merchandising: string | null;
-  recommendation: string | null;
-  special: string | null;
-  note: string | null;
-};
+export type FieldReportProblemType =
+  "return" | "damaged" | "expired" | "conflict";
 
 export type FieldReportExtractedData = {
-  outcome: "positive" | "neutral" | "negative" | null;
+  orderPlaced: boolean | null;
+  noOrderReason: FieldReportNoOrderReason | null;
   visitDate: string | null;
-  productsPresented: string[];
-  stockStatus: "in_stock" | "low_stock" | "out_of_stock" | null;
   notes: string | null;
   nextAction: string | null;
-  productUpdates: FieldReportProductUpdateDraft[];
-  tasks: FieldReportExtractedTasks;
+  nextActionDueDate: string | null;
+  missingProducts: string[];
+  problemType: FieldReportProblemType | null;
+  problemNote: string | null;
 };
 
 export function emptyFieldReportExtractedData(): FieldReportExtractedData {
   return {
-    outcome: null,
+    orderPlaced: null,
+    noOrderReason: null,
     visitDate: null,
-    productsPresented: [],
-    stockStatus: null,
     notes: null,
     nextAction: null,
-    productUpdates: [],
-    tasks: emptyFieldReportTasks(),
-  };
-}
-
-function emptyFieldReportTasks(): FieldReportExtractedTasks {
-  return {
-    dueDate: null,
-    assortment: null,
-    merchandising: null,
-    recommendation: null,
-    special: null,
-    note: null,
+    nextActionDueDate: null,
+    missingProducts: [],
+    problemType: null,
+    problemNote: null,
   };
 }
 
@@ -209,81 +144,45 @@ export function normalizeFieldReportExtraction(
     return emptyFieldReportExtractedData();
   }
 
+  const orderPlaced = normalizeBoolean(value.orderPlaced);
+
   return {
-    outcome: normalizeEnum(value.outcome, [
-      "positive",
-      "neutral",
-      "negative",
-    ] as const),
+    orderPlaced,
+    // A reason only ever qualifies a visit that produced no order. Dropping
+    // it otherwise keeps a model that answers both fields at once from
+    // producing a draft the form can't represent.
+    noOrderReason:
+      orderPlaced === false
+        ? normalizeEnum(value.noOrderReason, [
+            "closed",
+            "no_decision_maker",
+            "has_stock",
+            "no_money",
+            "refused",
+            "other",
+          ] as const)
+        : null,
     visitDate: normalizeDate(value.visitDate),
-    productsPresented: normalizeStringArray(value.productsPresented),
-    stockStatus: normalizeEnum(value.stockStatus, [
-      "in_stock",
-      "low_stock",
-      "out_of_stock",
-    ] as const),
     notes: normalizeString(value.notes),
     nextAction: normalizeString(value.nextAction),
-    productUpdates: normalizeProductUpdates(value.productUpdates),
-    tasks: normalizeTasks(value.tasks),
-  };
-}
-
-function normalizeProductUpdates(
-  value: unknown,
-): FieldReportProductUpdateDraft[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item): FieldReportProductUpdateDraft | null => {
-      if (!isRecord(item)) {
-        return null;
-      }
-
-      const productName = normalizeString(item.productName);
-      const productCode = normalizeString(item.productCode);
-
-      if (!productName && !productCode) {
-        return null;
-      }
-
-      return {
-        productName,
-        productCode,
-        status: normalizeEnum(item.status, [
-          "in_stock",
-          "out_of_stock",
-          "to_order",
-          "not_relevant",
-        ] as const),
-        stock: normalizeNonNegativeInteger(item.stock),
-        order: normalizeNonNegativeInteger(item.order),
-        sale: normalizeNonNegativeInteger(item.sale),
-        comment: normalizeString(item.comment),
-      };
-    })
-    .filter((item): item is FieldReportProductUpdateDraft => item !== null);
-}
-
-function normalizeTasks(value: unknown): FieldReportExtractedTasks {
-  if (!isRecord(value)) {
-    return emptyFieldReportTasks();
-  }
-
-  return {
-    dueDate: normalizeDate(value.dueDate),
-    assortment: normalizeString(value.assortment),
-    merchandising: normalizeString(value.merchandising),
-    recommendation: normalizeString(value.recommendation),
-    special: normalizeString(value.special),
-    note: normalizeString(value.note),
+    nextActionDueDate: normalizeDate(value.nextActionDueDate),
+    missingProducts: normalizeStringArray(value.missingProducts),
+    problemType: normalizeEnum(value.problemType, [
+      "return",
+      "damaged",
+      "expired",
+      "conflict",
+    ] as const),
+    problemNote: normalizeString(value.problemNote),
   };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }
 
 function normalizeString(value: unknown): string | null {
@@ -304,12 +203,6 @@ function normalizeDate(value: unknown): string | null {
   const text = normalizeString(value);
 
   return text && /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
-}
-
-function normalizeNonNegativeInteger(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0
-    ? value
-    : null;
 }
 
 function normalizeEnum<T extends string>(

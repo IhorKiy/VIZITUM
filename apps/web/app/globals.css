@@ -5483,47 +5483,6 @@ a.metric-card:hover {
   max-width: 640px;
 }
 
-.field-panel-card {
-  background: var(--surface-muted);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-}
-
-.field-panel-card-toggle {
-  align-items: center;
-  background: none;
-  border: 0;
-  color: var(--ink);
-  display: flex;
-  font-size: 14px;
-  font-weight: 800;
-  gap: 8px;
-  padding: 0;
-  text-align: left;
-  width: 100%;
-}
-
-button.field-panel-card-toggle {
-  cursor: pointer;
-}
-
-.field-panel-card-toggle .eyebrow {
-  margin-left: auto;
-}
-
-.field-panel-card-toggle svg:last-child {
-  color: var(--muted);
-  flex-shrink: 0;
-  transition: transform 160ms ease;
-}
-
-.field-panel-card-toggle[aria-expanded="true"] svg:last-child {
-  transform: rotate(180deg);
-}
-
 .field-label-row {
   align-items: center;
   display: flex;
@@ -5725,58 +5684,6 @@ button.field-panel-card-toggle {
   padding: 0;
 }
 
-.sku-card-list {
-  display: grid;
-  gap: 10px;
-}
-
-.sku-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-}
-
-.sku-card-header {
-  align-items: flex-start;
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-}
-
-.sku-card-header p {
-  margin: 0;
-}
-
-.sku-card-header button {
-  background: none;
-  border: 0;
-  color: var(--muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  padding: 0;
-}
-
-.sku-card-quantities {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.sku-card label {
-  display: grid;
-  font-size: 11px;
-  font-weight: 700;
-  gap: 4px;
-}
-
-.sku-card-quantities input {
-  min-width: 0;
-  width: 100%;
-}
-
 .field-report-submit {
   font-size: 16px;
   gap: 8px;
@@ -5850,6 +5757,252 @@ button.field-panel-card-toggle {
   color: var(--accent-strong);
 }
 
+/* Reason-for-no-order chips: the selected one reads in the danger colour so
+   the "no order" branch of the visit result stays visually one thing. */
+.status-chip.danger.active {
+  background: var(--danger-surface);
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+
+/* Visit result: two full-width taps rather than .segmented, which needs a
+   preselected option to look right. Nothing is selected until the rep
+   chooses, and the choice colours itself by what it means. */
+.visit-result-tabs {
+  display: grid;
+  gap: 8px;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+}
+
+.visit-result-tab {
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 48px;
+  padding: 8px 10px;
+}
+
+.visit-result-tab.order {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+
+.visit-result-tab.no-order {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+
+.visit-result-reasons {
+  margin-top: 10px;
+}
+
+/* The agreement sits second on the form and is the record the rep reads at
+   the door next time, so it carries an accent edge the other fields don't. */
+.visit-agreement {
+  border-left: 3px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 12px;
+}
+
+.visit-agreement .form-hint {
+  margin: -4px 0 0;
+}
+
+/* Shelf check: collapsed by default behind an .exception-row, so an untouched
+   visit shows one line instead of a product picker. */
+.shelf-panel {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.shelf-panel .form-hint {
+  margin: 0;
+}
+
+/* Problem is the one danger-toned section on the form, so it says so in the
+   panel's own surface rather than only in the chips. */
+.problem-panel {
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-line);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.notes-panel {
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+/* A file input styled as the button that opens the camera; the input itself
+   stays in the DOM for the label to trigger, just not on screen. */
+.problem-photo-button {
+  align-items: center;
+  background: var(--surface);
+  border: 1.5px dashed var(--danger-line);
+  border-radius: 12px;
+  color: var(--danger);
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+  min-height: 48px;
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.problem-photo-button input {
+  display: none;
+}
+
+.report-detail-photo {
+  display: inline-block;
+  margin-top: 4px;
+  max-width: 240px;
+}
+
+.report-detail-photo img {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+/* Title plus a plain collapse control, for a section that expanded out of an
+   .exception-row. */
+.panel-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.panel-head p {
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.panel-head button {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  padding: 0;
+}
+
+.panel-head.danger p {
+  color: var(--danger);
+}
+
+/* Row that stands in for a collapsed section: an icon that says which
+   section, the label, its state on the right, and a chevron. */
+.exception-row {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 10px;
+  min-height: 50px;
+  padding: 10px 14px;
+  text-align: left;
+  width: 100%;
+}
+
+.exception-row .row-icon {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 9px;
+  color: var(--accent);
+  display: flex;
+  flex: none;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+/* Each collapsed section carries its own icon so three rows in a row don't
+   read as one undifferentiated menu; the colour is semantic, not decorative. */
+.exception-row .row-icon.danger {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.exception-row .row-icon.quiet {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.exception-row .label {
+  white-space: nowrap;
+}
+
+.exception-row .opt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.exception-row .caret {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex: none;
+}
+
+/* Something is recorded in there — say so while it is collapsed. */
+.exception-row.filled {
+  border-color: var(--accent);
+}
+
+.exception-row.filled .row-icon {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+.exception-row.filled .opt {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.form-field-required {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+  text-transform: uppercase;
+}
+
 .inline-toggle {
   align-items: center;
   background: none;
@@ -5879,11 +6032,6 @@ button.field-panel-card-toggle {
   font-size: 13px;
   gap: 10px;
   justify-content: space-between;
-}
-
-.add-task-button {
-  gap: 6px;
-  width: 100%;
 }
 
 .spin-icon {
