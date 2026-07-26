@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { BadRequestException } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 
 import { PERMISSIONS } from "../src/modules/roles/permissions";
 import type { RequestContext } from "../src/modules/tenancy/request-context";
@@ -20,63 +21,40 @@ function createContext(
   } as RequestContext;
 }
 
-type FakeVisitRow = {
-  startedAt: Date | null;
-  createdAt: Date;
-  status: string;
-};
+type FakeSummaryRow = { day: string; total: bigint; completed: bigint };
 
 function createFakePrisma(options: {
   timezone?: string | null;
-  visits: FakeVisitRow[];
+  rows: FakeSummaryRow[];
 }) {
-  const findManyCalls: unknown[] = [];
+  const queryRawCalls: Prisma.Sql[] = [];
   const prisma = {
     platformTenant: {
       findUnique: async () =>
         options.timezone === null ? null : { timezone: options.timezone },
     },
-    visit: {
-      findMany: async (query: unknown) => {
-        findManyCalls.push(query);
-        return options.visits;
-      },
+    $queryRaw: async (query: Prisma.Sql) => {
+      queryRawCalls.push(query);
+      return options.rows;
     },
   };
 
-  return { prisma, findManyCalls };
+  return { prisma, queryRawCalls };
 }
 
+// The COALESCE(startedAt, createdAt)/timezone-bucketing itself now runs as
+// SQL inside getVisitDaySummary (see the comment there on why), so — unlike
+// the query-construction and response-mapping behavior below — it isn't
+// exercised by this mocked-Prisma suite; it was verified by hand against the
+// real local Postgres (see the PR description) since this repo's tests never
+// hit a live database.
 describe("visit day summary", () => {
-  it("groups visits into calendar days in the tenant timezone, newest first", async () => {
+  it("maps aggregated rows (bigint totals, YYYY-MM-DD day text) into the response shape", async () => {
     const { prisma } = createFakePrisma({
       timezone: "Europe/Kyiv",
-      visits: [
-        // 22:30 UTC on the 1st is already 01:30 on the 2nd in Kyiv (UTC+3
-        // in July) — this and the COALESCE fallback below both land here.
-        {
-          startedAt: new Date("2026-07-01T22:30:00.000Z"),
-          createdAt: new Date("2026-07-01T22:30:00.000Z"),
-          status: "completed",
-        },
-        {
-          startedAt: new Date("2026-07-01T10:00:00.000Z"),
-          createdAt: new Date("2026-07-01T10:00:00.000Z"),
-          status: "draft",
-        },
-        // Never started: buckets by createdAt, which is 00:00 on the 2nd
-        // in Kyiv, same day as the visit above.
-        {
-          startedAt: null,
-          createdAt: new Date("2026-07-01T21:00:00.000Z"),
-          status: "completed",
-        },
-        // 23:00 UTC on the 30th is 02:00 on the 1st in Kyiv.
-        {
-          startedAt: new Date("2026-06-30T23:00:00.000Z"),
-          createdAt: new Date("2026-06-30T23:00:00.000Z"),
-          status: "in_progress",
-        },
+      rows: [
+        { day: "2026-07-02", total: 2n, completed: 2n },
+        { day: "2026-07-01", total: 2n, completed: 0n },
       ],
     });
     const service = new VisitsService(prisma as never);
@@ -90,10 +68,7 @@ describe("visit day summary", () => {
   });
 
   it("returns no days for an empty result set", async () => {
-    const { prisma } = createFakePrisma({
-      timezone: "Europe/Kyiv",
-      visits: [],
-    });
+    const { prisma } = createFakePrisma({ timezone: "Europe/Kyiv", rows: [] });
     const service = new VisitsService(prisma as never);
 
     const summary = await service.getVisitDaySummary(createContext(), {});
@@ -101,10 +76,10 @@ describe("visit day summary", () => {
     assert.deepEqual(summary.days, []);
   });
 
-  it("scopes to the caller's own visits when only visits.read_own is held", async () => {
-    const { prisma, findManyCalls } = createFakePrisma({
+  it("aggregates in a single query scoped to the caller's own visits and the tenant timezone, when only visits.read_own is held", async () => {
+    const { prisma, queryRawCalls } = createFakePrisma({
       timezone: "Europe/Kyiv",
-      visits: [],
+      rows: [],
     });
     const service = new VisitsService(prisma as never);
 
@@ -116,18 +91,23 @@ describe("visit day summary", () => {
       {},
     );
 
-    assert.deepEqual(findManyCalls, [
-      {
-        where: { tenantId: "tenant-a", representativeUserId: "rep-a" },
-        select: { startedAt: true, createdAt: true, status: true },
-      },
+    // No findMany/count fallback: exactly one aggregate query, never a
+    // row-per-visit fetch — see the "unbounded team-scope read" note on
+    // getVisitDaySummary.
+    assert.equal(queryRawCalls.length, 1);
+    // [timezone, tenantId, representativeUserId] — the SELECT's day
+    // expression binds the timezone before the WHERE clause's own values.
+    assert.deepEqual(queryRawCalls[0].values, [
+      "Europe/Kyiv",
+      "tenant-a",
+      "rep-a",
     ]);
   });
 
-  it("applies the status and started-date filters the caller selected", async () => {
-    const { prisma, findManyCalls } = createFakePrisma({
+  it("applies the status and started-date filters with no representative condition for a team-scope caller", async () => {
+    const { prisma, queryRawCalls } = createFakePrisma({
       timezone: "Europe/Kyiv",
-      visits: [],
+      rows: [],
     });
     const service = new VisitsService(prisma as never);
 
@@ -140,23 +120,18 @@ describe("visit day summary", () => {
       },
     );
 
-    assert.deepEqual(findManyCalls, [
-      {
-        where: {
-          tenantId: "tenant-a",
-          status: "completed",
-          startedAt: {
-            gte: new Date("2026-07-01T00:00:00.000Z"),
-            lte: new Date("2026-07-02T23:59:59.999Z"),
-          },
-        },
-        select: { startedAt: true, createdAt: true, status: true },
-      },
+    assert.equal(queryRawCalls.length, 1);
+    assert.deepEqual(queryRawCalls[0].values, [
+      "Europe/Kyiv",
+      "tenant-a",
+      "completed",
+      new Date("2026-07-01T00:00:00.000Z"),
+      new Date("2026-07-02T23:59:59.999Z"),
     ]);
   });
 
   it("rejects when the tenant cannot be resolved", async () => {
-    const { prisma } = createFakePrisma({ timezone: null, visits: [] });
+    const { prisma } = createFakePrisma({ timezone: null, rows: [] });
     const service = new VisitsService(prisma as never);
 
     await assert.rejects(

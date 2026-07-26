@@ -402,6 +402,17 @@ function HistoryDays({
   // if that's already more than this page's starting offset, some of them
   // were shown on an earlier page, so this page's first day continues one
   // already headed there.
+  //
+  // This assumes each day's visits are one contiguous run in the list's own
+  // fetch order (createdAt desc) — true as long as a visit's day key
+  // (COALESCE(startedAt, createdAt), which this reads) tracks createdAt's
+  // calendar day. A visit whose startedAt was edited onto a different day
+  // than it was created breaks that: its day's visits could scatter across
+  // non-adjacent pages, and this label could land on the wrong page or miss
+  // a real continuation. Cosmetic only — the total/completed counts above
+  // stay correct regardless, since they come from the aggregate rather than
+  // this heuristic. The same assumption was already implicit in
+  // groupVisitsByDay's per-page bucketing.
   const cumulativeBeforeDay = (dayKey: string): number => {
     let sum = 0;
 
