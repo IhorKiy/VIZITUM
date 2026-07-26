@@ -4,7 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma, VisitStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { VisitStatus } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -32,6 +33,8 @@ import type {
   RegisteredProblemPhotoResponse,
   ReportResponse,
   UpdateVisitRequestBody,
+  VisitDaySummaryEntry,
+  VisitDaySummaryResponse,
   VisitNoteResponse,
   VisitResponse,
 } from "./visits.types";
@@ -107,6 +110,96 @@ export class VisitsService {
       pagination,
       total,
     );
+  }
+
+  // Per-day totals for the exact same filter listVisits uses, over the whole
+  // matching set rather than one page — so a day header stays correct even
+  // when that day's visits straddle a page boundary. Aggregated in SQL rather
+  // than fetched row-by-row: this endpoint shares visits.read_team scope with
+  // GET /visits, so with no date filter a row-fetching version would mean
+  // pulling a tenant's entire visit history into memory on every request.
+  async getVisitDaySummary(
+    context: RequestContext,
+    query: ListVisitsQuery,
+  ): Promise<VisitDaySummaryResponse> {
+    const representativeFilter = resolveVisitRepresentativeFilter(
+      context,
+      query,
+    );
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: context.tenantId },
+      select: { timezone: true },
+    });
+
+    if (!tenant) {
+      throw new BadRequestException({
+        code: "TENANT_INVALID",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    const conditions: Prisma.Sql[] = [
+      Prisma.sql`"tenantId" = ${context.tenantId}`,
+    ];
+
+    if (representativeFilter) {
+      conditions.push(
+        Prisma.sql`"representativeUserId" = ${representativeFilter}`,
+      );
+    }
+
+    if (query.locationId) {
+      conditions.push(Prisma.sql`"locationId" = ${query.locationId}`);
+    }
+
+    if (query.routePlanId) {
+      conditions.push(
+        Prisma.sql`"routeItemId" IN (SELECT id FROM route_items WHERE "tenantId" = ${context.tenantId} AND "routePlanId" = ${query.routePlanId})`,
+      );
+    }
+
+    if (query.status) {
+      conditions.push(Prisma.sql`status = ${query.status}::"VisitStatus"`);
+    }
+
+    const startedAtRange = buildDateTimeRangeFilter(
+      query.startedFrom,
+      query.startedTo,
+    );
+
+    if (startedAtRange?.gte) {
+      conditions.push(Prisma.sql`"startedAt" >= ${startedAtRange.gte}`);
+    }
+
+    if (startedAtRange?.lte) {
+      conditions.push(Prisma.sql`"startedAt" <= ${startedAtRange.lte}`);
+    }
+
+    // Cast to text in SQL instead of returning a bare `date`: the wire value
+    // for `date` gets reconstructed into a JS Date by driver-level type
+    // parsing, which reintroduces exactly the local-timezone ambiguity this
+    // query exists to avoid. `date::text` is unambiguous — always YYYY-MM-DD,
+    // in any driver.
+    const rows = await this.prisma.$queryRaw<
+      Array<{ day: string; total: bigint; completed: bigint }>
+    >(Prisma.sql`
+      SELECT
+        ((COALESCE("startedAt", "createdAt") AT TIME ZONE 'UTC') AT TIME ZONE ${tenant.timezone})::date::text AS day,
+        COUNT(*)::bigint AS total,
+        COUNT(*) FILTER (WHERE status = 'completed')::bigint AS completed
+      FROM visits
+      WHERE ${Prisma.join(conditions, " AND ")}
+      GROUP BY day
+      ORDER BY day DESC
+    `);
+
+    return {
+      days: rows.map((row): VisitDaySummaryEntry => ({
+        day: row.day,
+        total: Number(row.total),
+        completed: Number(row.completed),
+      })),
+    };
   }
 
   async getVisit(
@@ -829,10 +922,13 @@ const visitInclude = {
   representative: true,
 } satisfies Prisma.VisitInclude;
 
-function buildVisitWhere(
+// Shared by buildVisitWhere (the ORM path listVisits uses) and
+// getVisitDaySummary's raw-SQL conditions above — the representative/tenant
+// scoping this derives must never drift between the two, so it lives once.
+function resolveVisitRepresentativeFilter(
   context: RequestContext,
-  query: ListVisitsQuery,
-): Prisma.VisitWhereInput {
+  query: Pick<ListVisitsQuery, "representativeUserId">,
+): string | null {
   const requestedRepresentativeId = normalizeId(query.representativeUserId);
   const canReadTeam = context.permissions.includes(
     PERMISSIONS.VISITS_READ_TEAM,
@@ -848,6 +944,14 @@ function buildVisitWhere(
     throwMissingVisitPermission();
   }
 
+  return representativeFilter ?? null;
+}
+
+function buildVisitWhere(
+  context: RequestContext,
+  query: ListVisitsQuery,
+): Prisma.VisitWhereInput {
+  const representativeFilter = resolveVisitRepresentativeFilter(context, query);
   const startedAt = buildDateTimeRangeFilter(
     query.startedFrom,
     query.startedTo,

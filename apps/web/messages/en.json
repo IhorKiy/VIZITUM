@@ -1348,6 +1348,7 @@
       "openToday": "Open today",
       "dayToday": "Today, {date}",
       "dayYesterday": "Yesterday, {date}",
+      "dayContinued": "Continued from the previous page",
       "daySummary": "{count, plural, one {# visit} other {# visits}} · {completed} completed",
       "timeRange": "{from} – {to}",
       "timeStarted": "from {from}",
