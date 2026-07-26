@@ -63,6 +63,27 @@ export class VisitsController {
     });
   }
 
+  // Registered ahead of the :visitId route below so "day-summary" is never
+  // swallowed as a visitId.
+  @Get("day-summary")
+  @RequireAnyPermissions(
+    PERMISSIONS.VISITS_READ_OWN,
+    PERMISSIONS.VISITS_READ_TEAM,
+  )
+  getVisitDaySummary(
+    @Req() request: Request,
+    @Query() query: Record<string, string>,
+  ) {
+    return this.visitsService.getVisitDaySummary(getRequestContext(request), {
+      representativeUserId: normalizeQueryString(query.representativeUserId),
+      locationId: normalizeQueryString(query.locationId),
+      routePlanId: normalizeQueryString(query.routePlanId),
+      status: parseVisitStatus(query.status),
+      startedFrom: normalizeQueryString(query.startedFrom),
+      startedTo: normalizeQueryString(query.startedTo),
+    });
+  }
+
   @Get(":visitId")
   @RequireAnyPermissions(
     PERMISSIONS.VISITS_READ_OWN,

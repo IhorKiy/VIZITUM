@@ -30,6 +30,8 @@ import type {
   RegisteredAudioUploadResponse,
   ReportResponse,
   UpdateVisitRequestBody,
+  VisitDaySummaryEntry,
+  VisitDaySummaryResponse,
   VisitNoteResponse,
   VisitResponse,
 } from "./visits.types";
@@ -90,6 +92,36 @@ export class VisitsService {
       pagination,
       total,
     );
+  }
+
+  // Per-day totals for the exact same filter listVisits uses, over the whole
+  // matching set rather than one page — so a day header stays correct even
+  // when that day's visits straddle a page boundary. Reuses buildVisitWhere
+  // rather than re-deriving the representative/tenant scoping, since that
+  // scoping must never drift from the list it is summarising.
+  async getVisitDaySummary(
+    context: RequestContext,
+    query: ListVisitsQuery,
+  ): Promise<VisitDaySummaryResponse> {
+    const where = buildVisitWhere(context, query);
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: context.tenantId },
+      select: { timezone: true },
+    });
+
+    if (!tenant) {
+      throw new BadRequestException({
+        code: "TENANT_INVALID",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    const visits = await this.prisma.visit.findMany({
+      where,
+      select: { startedAt: true, createdAt: true, status: true },
+    });
+
+    return { days: summarizeVisitsByDay(visits, tenant.timezone) };
   }
 
   async getVisit(
@@ -726,6 +758,43 @@ function buildVisitWhere(
     ...(query.status ? { status: query.status } : {}),
     ...(startedAt ? { startedAt } : {}),
   };
+}
+
+// Same en-CA/Intl day-key idiom the field history page groups its own page of
+// visits by, so a day whose visits all land on one page summarises identically
+// whether it comes from this aggregate or from the page-local grouping.
+function summarizeVisitsByDay(
+  visits: Array<{
+    startedAt: Date | null;
+    createdAt: Date;
+    status: VisitStatus;
+  }>,
+  timezone: string,
+): VisitDaySummaryEntry[] {
+  const dayKeyFormat = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: timezone,
+    year: "numeric",
+  });
+  const totals = new Map<string, { total: number; completed: number }>();
+
+  for (const visit of visits) {
+    const day = dayKeyFormat.format(visit.startedAt ?? visit.createdAt);
+    const bucket = totals.get(day) ?? { total: 0, completed: 0 };
+
+    bucket.total += 1;
+
+    if (visit.status === "completed") {
+      bucket.completed += 1;
+    }
+
+    totals.set(day, bucket);
+  }
+
+  return [...totals.entries()]
+    .sort(([left], [right]) => right.localeCompare(left))
+    .map(([day, bucket]) => ({ day, ...bucket }));
 }
 
 function normalizeId(value: unknown): string | null {

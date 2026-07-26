@@ -12,10 +12,12 @@ import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
 import {
   getCurrentSession,
+  listVisitDaySummary,
   listVisits,
   type ApiResult,
   type PaginatedResponse,
   type Visit,
+  type VisitDaySummaryEntry,
   type VisitStatus,
 } from "../../../../lib/api-client";
 import {
@@ -117,6 +119,12 @@ export default async function FieldHistoryPage({
     query.set("status", selectedStatus);
   }
 
+  // Same filter as the list above, minus pagination: the day recap has to
+  // cover every visit in the filtered set, not just the ones on this page.
+  const daySummaryQuery = new URLSearchParams(query);
+  daySummaryQuery.delete("page");
+  daySummaryQuery.delete("pageSize");
+
   // The counters summarise the whole selected period and deliberately ignore
   // the status pill — the pill narrows the list below, while the counters stay
   // the "how is this period going" recap the pills are picked from. Each is its
@@ -139,6 +147,7 @@ export default async function FieldHistoryPage({
     completedResult,
     draftResult,
     inProgressResult,
+    daySummaryResult,
   ] = await Promise.all([
     listVisits(query.toString()),
     // With no status pill the list query already counts exactly the period's
@@ -147,7 +156,11 @@ export default async function FieldHistoryPage({
     listVisits(countQuery("completed")),
     listVisits(countQuery("draft")),
     listVisits(countQuery("in_progress")),
+    listVisitDaySummary(daySummaryQuery.toString()),
   ]);
+  // A failed request falls back to the old page-local tally further down
+  // rather than blocking the whole list on one auxiliary call.
+  const daySummary = daySummaryResult.ok ? daySummaryResult.data.days : null;
 
   if (!visitsResult.ok) {
     return (
@@ -291,6 +304,9 @@ export default async function FieldHistoryPage({
         {visits.length > 0 ? (
           <>
             <HistoryDays
+              daySummary={daySummary}
+              page={page}
+              pageSize={PAGE_SIZE}
               tenantSlug={tenantSlug}
               timeZone={timeZone}
               visits={visits}
@@ -343,10 +359,16 @@ export default async function FieldHistoryPage({
 // a gold rail and a "finish report" call to action, so the loose ends of a day
 // are visible without reaching for the status filter.
 function HistoryDays({
+  daySummary,
+  page,
+  pageSize,
   tenantSlug,
   timeZone,
   visits,
 }: {
+  daySummary: VisitDaySummaryEntry[] | null;
+  page: number;
+  pageSize: number;
   tenantSlug: string;
   timeZone: string;
   visits: Visit[];
@@ -368,13 +390,45 @@ function HistoryDays({
   const todayKey = toDayKey(new Date().toISOString());
   const yesterdayKey = shiftDayKey(todayKey, -1);
   const groups = groupVisitsByDay(visits, toDayKey);
+  // Newest first, same order the list itself is fetched in, so the running
+  // total below lines up with each day's actual position in the full result.
+  const orderedDaySummary = [...(daySummary ?? [])].sort((left, right) =>
+    right.day.localeCompare(left.day),
+  );
+  const daySummaryByDay = new Map(
+    orderedDaySummary.map((entry) => [entry.day, entry]),
+  );
+  // How many visits newer than `dayKey` exist in the whole filtered set —
+  // if that's already more than this page's starting offset, some of them
+  // were shown on an earlier page, so this page's first day continues one
+  // already headed there.
+  const cumulativeBeforeDay = (dayKey: string): number => {
+    let sum = 0;
+
+    for (const entry of orderedDaySummary) {
+      if (entry.day === dayKey) {
+        break;
+      }
+
+      sum += entry.total;
+    }
+
+    return sum;
+  };
 
   return (
     <div className="visit-day-groups">
-      {groups.map((group) => {
-        const completed = group.visits.filter(
-          (visit) => visit.status === "completed",
-        ).length;
+      {groups.map((group, groupIndex) => {
+        const summaryEntry = daySummaryByDay.get(group.key);
+        const completed =
+          summaryEntry?.completed ??
+          group.visits.filter((visit) => visit.status === "completed").length;
+        const count = summaryEntry?.total ?? group.visits.length;
+        const isContinuedFromPreviousPage =
+          groupIndex === 0 &&
+          page > 1 &&
+          daySummary !== null &&
+          cumulativeBeforeDay(group.key) < (page - 1) * pageSize;
         const dayDate = new Date(visitDayTimestamp(group.visits[0]));
         const isToday = group.key === todayKey;
         const isYesterday = group.key === yesterdayKey;
@@ -407,8 +461,11 @@ function HistoryDays({
                     ? t("dayYesterday", { date: dateLabel })
                     : dateLabel}
               </h2>
+              {isContinuedFromPreviousPage ? (
+                <p className="small-label">{t("dayContinued")}</p>
+              ) : null}
               <p className="small-label">
-                {t("daySummary", { completed, count: group.visits.length })}
+                {t("daySummary", { completed, count })}
               </p>
             </div>
             <div className="field-card-list">

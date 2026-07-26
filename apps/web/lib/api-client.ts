@@ -709,6 +709,22 @@ export async function listVisits(
   return apiGet<PaginatedResponse<Visit>>(`/visits?${query}`);
 }
 
+export type VisitDaySummaryEntry = {
+  day: string;
+  total: number;
+  completed: number;
+};
+
+export type VisitDaySummary = {
+  days: VisitDaySummaryEntry[];
+};
+
+export async function listVisitDaySummary(
+  query: string,
+): Promise<ApiResult<VisitDaySummary>> {
+  return apiGet<VisitDaySummary>(`/visits/day-summary?${query}`);
+}
+
 export async function getVisit(visitId: string): Promise<ApiResult<Visit>> {
   return apiGet<Visit>(`/visits/${visitId}`);
 }

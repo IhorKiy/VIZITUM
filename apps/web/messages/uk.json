@@ -1331,6 +1331,7 @@
       "openToday": "Відкрити сьогодні",
       "dayToday": "Сьогодні, {date}",
       "dayYesterday": "Учора, {date}",
+      "dayContinued": "Продовження з попередньої сторінки",
       "daySummary": "{count, plural, one {# візит} few {# візити} many {# візитів} other {# візита}} · {completed} завершено",
       "timeRange": "{from} – {to}",
       "timeStarted": "з {from}",

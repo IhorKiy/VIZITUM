@@ -36,6 +36,19 @@ export type ListVisitsQuery = {
   startedTo?: string;
 };
 
+export type VisitDaySummaryEntry = {
+  // Calendar day in the tenant's timezone, YYYY-MM-DD, keyed on the same
+  // COALESCE(startedAt, createdAt) moment the day-grouped history list uses.
+  day: string;
+  total: number;
+  completed: number;
+};
+
+export type VisitDaySummaryResponse = {
+  // Newest day first, one entry per day that has at least one matching visit.
+  days: VisitDaySummaryEntry[];
+};
+
 export type CreateVisitRequestBody = {
   locationId?: unknown;
   representativeUserId?: unknown;
