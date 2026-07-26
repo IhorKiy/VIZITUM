@@ -141,7 +141,9 @@ export default async function FieldHistoryPage({
     inProgressResult,
   ] = await Promise.all([
     listVisits(query.toString()),
-    listVisits(countQuery()),
+    // With no status pill the list query already counts exactly the period's
+    // rows, so its own total stands in and the request is skipped.
+    selectedStatus ? listVisits(countQuery()) : null,
     listVisits(countQuery("completed")),
     listVisits(countQuery("draft")),
     listVisits(countQuery("in_progress")),
@@ -182,7 +184,7 @@ export default async function FieldHistoryPage({
   const followUpTotal = sumTotals(draftResult, inProgressResult);
   const counters = buildHistoryCounters(
     {
-      period: totalOf(periodResult),
+      period: periodResult ? totalOf(periodResult) : visitsResult.data.total,
       completed: totalOf(completedResult),
       followUp: followUpTotal,
     },
@@ -396,13 +398,15 @@ function HistoryDays({
         return (
           <section className="visit-day" key={group.key}>
             <div className="visit-day-header">
-              <h3>
+              {/* The day is the level above the visit cards, whose titles are
+                  h3s — so it takes h2 and the page's h1 stays the only one. */}
+              <h2>
                 {isToday
                   ? t("dayToday", { date: dateLabel })
                   : isYesterday
                     ? t("dayYesterday", { date: dateLabel })
                     : dateLabel}
-              </h3>
+              </h2>
               <p className="small-label">
                 {t("daySummary", { completed, count: group.visits.length })}
               </p>
@@ -486,12 +490,20 @@ function groupVisitsByDay(
     }
   }
 
-  // The API orders by creation, which is not quite the day a visit was started
-  // on: sorting the buckets keeps the days strictly newest-first and stops one
-  // day from appearing under two headers.
+  // The API orders by creation, which is not quite the moment a visit was
+  // started: sorting both the buckets and their contents keeps days strictly
+  // newest-first (no day under two headers) and keeps a day's own visits in the
+  // order they actually happened, rather than the order they were opened in.
   return [...groups.entries()]
     .sort(([left], [right]) => right.localeCompare(left))
-    .map(([key, dayVisits]) => ({ key, visits: dayVisits }));
+    .map(([key, dayVisits]) => ({
+      key,
+      visits: [...dayVisits].sort(
+        (left, right) =>
+          Date.parse(visitDayTimestamp(right)) -
+          Date.parse(visitDayTimestamp(left)),
+      ),
+    }));
 }
 
 // Day arithmetic on the YYYY-MM-DD key rather than on the timestamp: taking 24h
