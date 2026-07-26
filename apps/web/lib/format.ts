@@ -83,6 +83,21 @@ export function formatDate(
   return format.dateTime(new Date(value), { dateStyle: "medium" });
 }
 
+// Time of day on its own, for lists that already carry the date elsewhere
+// (the field history groups its visits under a day header, so each card only
+// needs the clock part).
+export function formatTime(
+  format: IntlFormatter,
+  value: string | null,
+  emptyLabel = "-",
+): string {
+  if (!value) {
+    return emptyLabel;
+  }
+
+  return format.dateTime(new Date(value), { timeStyle: "short" });
+}
+
 export function formatShortDate(
   format: IntlFormatter,
   value: string | null,

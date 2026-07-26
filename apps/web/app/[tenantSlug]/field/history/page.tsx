@@ -1,5 +1,5 @@
 import { useFormatter, useTranslations } from "next-intl";
-import { getTranslations } from "next-intl/server";
+import { getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { FilterDateRange } from "../../../../components/filter-date-range";
@@ -13,14 +13,21 @@ import { FilterPills } from "../../../../components/filter-pills";
 import {
   getCurrentSession,
   listVisits,
+  type ApiResult,
+  type PaginatedResponse,
   type Visit,
   type VisitStatus,
 } from "../../../../lib/api-client";
-import { formatDateTime, formatEnumLabel } from "../../../../lib/format";
+import {
+  formatEnumLabel,
+  formatTime,
+  statusPillTone,
+} from "../../../../lib/format";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    page?: string;
     startedFrom?: string;
     startedTo?: string;
     status?: string;
@@ -34,15 +41,21 @@ const visitStatuses: VisitStatus[] = [
   "cancelled",
 ];
 
+// Half the API's max: the list renders one card per visit under a day header,
+// so a full 100 would be a very long scroll on the phone this zone is built
+// for. Anything older is one "earlier visits" step away.
+const PAGE_SIZE = 50;
+
 export default async function FieldHistoryPage({
   params,
   searchParams,
 }: FieldHistoryPageProps) {
   const { tenantSlug } = await params;
-  const [t, tField, tCommon] = await Promise.all([
+  const [t, tField, tCommon, timeZone] = await Promise.all([
     getTranslations("field.history"),
     getTranslations("field"),
     getTranslations("common"),
+    getTimeZone(),
   ]);
   const sessionResult = await getCurrentSession();
 
@@ -83,22 +96,58 @@ export default async function FieldHistoryPage({
   const selectedStatus = normalizeVisitStatus(pageState.status);
   const startedFrom = normalizeDateFilter(pageState.startedFrom);
   const startedTo = normalizeDateFilter(pageState.startedTo);
-  const query = new URLSearchParams({ pageSize: "100" });
+  const page = normalizePage(pageState.page);
   const hasFilters = Boolean(selectedStatus || startedFrom || startedTo);
+
+  const periodParams = new URLSearchParams();
+
+  if (startedFrom) {
+    periodParams.set("startedFrom", startedFrom);
+  }
+
+  if (startedTo) {
+    periodParams.set("startedTo", startedTo);
+  }
+
+  const query = new URLSearchParams(periodParams);
+  query.set("page", String(page));
+  query.set("pageSize", String(PAGE_SIZE));
 
   if (selectedStatus) {
     query.set("status", selectedStatus);
   }
 
-  if (startedFrom) {
-    query.set("startedFrom", startedFrom);
-  }
+  // The counters summarise the whole selected period and deliberately ignore
+  // the status pill — the pill narrows the list below, while the counters stay
+  // the "how is this period going" recap the pills are picked from. Each is its
+  // own count query rather than a tally of the loaded page, which only ever
+  // described the first 50 visits.
+  const countQuery = (status?: VisitStatus) => {
+    const params = new URLSearchParams(periodParams);
+    params.set("pageSize", "1");
 
-  if (startedTo) {
-    query.set("startedTo", startedTo);
-  }
+    if (status) {
+      params.set("status", status);
+    }
 
-  const visitsResult = await listVisits(query.toString());
+    return params.toString();
+  };
+
+  const [
+    visitsResult,
+    periodResult,
+    completedResult,
+    draftResult,
+    inProgressResult,
+  ] = await Promise.all([
+    listVisits(query.toString()),
+    // With no status pill the list query already counts exactly the period's
+    // rows, so its own total stands in and the request is skipped.
+    selectedStatus ? listVisits(countQuery()) : null,
+    listVisits(countQuery("completed")),
+    listVisits(countQuery("draft")),
+    listVisits(countQuery("in_progress")),
+  ]);
 
   if (!visitsResult.ok) {
     return (
@@ -131,7 +180,32 @@ export default async function FieldHistoryPage({
   }
 
   const visits = visitsResult.data.items;
-  const counters = buildHistoryCounters(visits, visitsResult.data.total, t);
+  const totalPages = visitsResult.data.totalPages;
+  const followUpTotal = sumTotals(draftResult, inProgressResult);
+  const counters = buildHistoryCounters(
+    {
+      period: periodResult ? totalOf(periodResult) : visitsResult.data.total,
+      completed: totalOf(completedResult),
+      followUp: followUpTotal,
+    },
+    t,
+  );
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams(query);
+    params.delete("pageSize");
+
+    if (targetPage <= 1) {
+      params.delete("page");
+    } else {
+      params.set("page", String(targetPage));
+    }
+
+    const search = params.toString();
+
+    return search
+      ? `/${tenantSlug}/field/history?${search}`
+      : `/${tenantSlug}/field/history`;
+  };
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-history">
@@ -215,13 +289,36 @@ export default async function FieldHistoryPage({
         </FilterForm>
 
         {visits.length > 0 ? (
-          <HistoryTable visits={visits} />
+          <>
+            <HistoryDays
+              tenantSlug={tenantSlug}
+              timeZone={timeZone}
+              visits={visits}
+            />
+            {totalPages > 1 ? (
+              <nav aria-label={t("paginationAria")} className="list-pagination">
+                {page > 1 ? (
+                  <a className="secondary-button" href={pageHref(page - 1)}>
+                    {t("showNewer")}
+                  </a>
+                ) : null}
+                <p className="small-label">
+                  {t("pagePosition", { page, totalPages })}
+                </p>
+                {page < totalPages ? (
+                  <a className="secondary-button" href={pageHref(page + 1)}>
+                    {t("showEarlier")}
+                  </a>
+                ) : null}
+              </nav>
+            ) : null}
+          </>
         ) : (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
             <p>{t("emptyBody")}</p>
             <div className="toolbar">
-              {hasFilters ? (
+              {hasFilters || page > 1 ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/field/history`}
@@ -240,44 +337,219 @@ export default async function FieldHistoryPage({
   );
 }
 
-function HistoryTable({ visits }: { visits: Visit[] }) {
+// The day is the rep's unit of work, so it is the list's unit too: visits are
+// bucketed by the calendar day they happened on *in the tenant's timezone*,
+// newest day first, and each day carries its own recap. Unfinished visits keep
+// a gold rail and a "finish report" call to action, so the loose ends of a day
+// are visible without reaching for the status filter.
+function HistoryDays({
+  tenantSlug,
+  timeZone,
+  visits,
+}: {
+  tenantSlug: string;
+  timeZone: string;
+  visits: Visit[];
+}) {
   const t = useTranslations("field.history");
   const tCommon = useTranslations("common");
   const format = useFormatter();
 
+  // en-CA renders as YYYY-MM-DD, which is both a stable bucket key and sortable
+  // as a plain string — the locale here is an implementation detail, never
+  // shown (the visible day label goes through the next-intl formatter below).
+  const dayKeyFormat = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone,
+    year: "numeric",
+  });
+  const toDayKey = (value: string) => dayKeyFormat.format(new Date(value));
+  const todayKey = toDayKey(new Date().toISOString());
+  const yesterdayKey = shiftDayKey(todayKey, -1);
+  const groups = groupVisitsByDay(visits, toDayKey);
+
   return (
-    <table className="table drilldown-table">
-      <thead>
-        <tr>
-          <th>{t("tableLocation")}</th>
-          <th>{t("tableStatus")}</th>
-          <th>{t("tableType")}</th>
-          <th>{t("tableStarted")}</th>
-          <th>{t("tableCompleted")}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {visits.map((visit) => (
-          <tr key={visit.id}>
-            <td>
-              <strong>{visit.location.name}</strong>
-              <span>
-                {visit.location.addressLine}, {visit.location.city}
-              </span>
-            </td>
-            <td>
-              <span className={`status-pill ${visitStatusTone(visit.status)}`}>
-                {formatEnumLabel(tCommon, visit.status)}
-              </span>
-            </td>
-            <td>{formatEnumLabel(tCommon, visit.visitType)}</td>
-            <td>{formatDateTime(format, visit.startedAt)}</td>
-            <td>{formatDateTime(format, visit.completedAt)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="visit-day-groups">
+      {groups.map((group) => {
+        const completed = group.visits.filter(
+          (visit) => visit.status === "completed",
+        ).length;
+        const dayDate = new Date(visitDayTimestamp(group.visits[0]));
+        const isToday = group.key === todayKey;
+        const isYesterday = group.key === yesterdayKey;
+        const dateLabel = format.dateTime(
+          dayDate,
+          isToday || isYesterday
+            ? { day: "numeric", month: "long" }
+            : {
+                day: "numeric",
+                month: "long",
+                weekday: "long",
+                // Only spell the year out once the history reaches back past
+                // the current one, where the weekday alone stops being enough
+                // to place the day.
+                ...(group.key.slice(0, 4) === todayKey.slice(0, 4)
+                  ? {}
+                  : { year: "numeric" }),
+              },
+        );
+
+        return (
+          <section className="visit-day" key={group.key}>
+            <div className="visit-day-header">
+              {/* The day is the level above the visit cards, whose titles are
+                  h3s — so it takes h2 and the page's h1 stays the only one. */}
+              <h2>
+                {isToday
+                  ? t("dayToday", { date: dateLabel })
+                  : isYesterday
+                    ? t("dayYesterday", { date: dateLabel })
+                    : dateLabel}
+              </h2>
+              <p className="small-label">
+                {t("daySummary", { completed, count: group.visits.length })}
+              </p>
+            </div>
+            <div className="field-card-list">
+              {group.visits.map((visit) => {
+                const unfinished =
+                  visit.status === "draft" || visit.status === "in_progress";
+
+                return (
+                  <a
+                    className={`location-mini-card location-mini-card-link visit-history-card${
+                      unfinished ? " is-unfinished" : ""
+                    }`}
+                    href={`/${tenantSlug}/field/visits/${visit.id}`}
+                    key={visit.id}
+                  >
+                    <header>
+                      <div>
+                        <h3>{visit.location.name}</h3>
+                        <p>
+                          {[visit.location.addressLine, visit.location.city]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      </div>
+                      <span
+                        className={`status-pill ${statusPillTone(visit.status)}`}
+                      >
+                        {formatEnumLabel(tCommon, visit.status)}
+                      </span>
+                    </header>
+                    <p className="visit-meta">
+                      {formatEnumLabel(tCommon, visit.visitType)}
+                      {" · "}
+                      {visitTimeText(t, format, visit)}
+                    </p>
+                    <span className="list-card-open">
+                      {unfinished
+                        ? t("finishReport")
+                        : visit.status === "completed"
+                          ? t("openReport")
+                          : t("openVisit")}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
   );
+}
+
+type VisitDayGroup = {
+  key: string;
+  visits: Visit[];
+};
+
+// A draft the rep never started still belongs somewhere, so the day falls back
+// to when the visit was created.
+function visitDayTimestamp(visit: Visit): string {
+  return visit.startedAt ?? visit.createdAt;
+}
+
+function groupVisitsByDay(
+  visits: Visit[],
+  toDayKey: (value: string) => string,
+): VisitDayGroup[] {
+  const groups = new Map<string, Visit[]>();
+
+  for (const visit of visits) {
+    const key = toDayKey(visitDayTimestamp(visit));
+    const bucket = groups.get(key);
+
+    if (bucket) {
+      bucket.push(visit);
+    } else {
+      groups.set(key, [visit]);
+    }
+  }
+
+  // The API orders by creation, which is not quite the moment a visit was
+  // started: sorting both the buckets and their contents keeps days strictly
+  // newest-first (no day under two headers) and keeps a day's own visits in the
+  // order they actually happened, rather than the order they were opened in.
+  return [...groups.entries()]
+    .sort(([left], [right]) => right.localeCompare(left))
+    .map(([key, dayVisits]) => ({
+      key,
+      visits: [...dayVisits].sort(
+        (left, right) =>
+          Date.parse(visitDayTimestamp(right)) -
+          Date.parse(visitDayTimestamp(left)),
+      ),
+    }));
+}
+
+// Day arithmetic on the YYYY-MM-DD key rather than on the timestamp: taking 24h
+// off "now" lands on the wrong calendar day around a DST change.
+function shiftDayKey(key: string, days: number): string {
+  const [year, month, day] = key.split("-").map(Number);
+
+  return new Date(Date.UTC(year, month - 1, day + days))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function visitTimeText(
+  t: ReturnType<typeof useTranslations<"field.history">>,
+  format: ReturnType<typeof useFormatter>,
+  visit: Visit,
+): string {
+  if (!visit.startedAt) {
+    return t("notStarted");
+  }
+
+  const from = formatTime(format, visit.startedAt);
+
+  return visit.completedAt
+    ? t("timeRange", { from, to: formatTime(format, visit.completedAt) })
+    : t("timeStarted", { from });
+}
+
+function totalOf(result: ApiResult<PaginatedResponse<Visit>>): number | null {
+  return result.ok ? result.data.total : null;
+}
+
+function sumTotals(
+  ...results: ApiResult<PaginatedResponse<Visit>>[]
+): number | null {
+  let total = 0;
+
+  for (const result of results) {
+    if (!result.ok) {
+      return null;
+    }
+
+    total += result.data.total;
+  }
+
+  return total;
 }
 
 type HistoryTranslator = Awaited<
@@ -285,8 +557,11 @@ type HistoryTranslator = Awaited<
 >;
 
 function buildHistoryCounters(
-  visits: Visit[],
-  total: number,
+  totals: {
+    period: number | null;
+    completed: number | null;
+    followUp: number | null;
+  },
   t: HistoryTranslator,
 ): Array<{
   label: string;
@@ -294,31 +569,32 @@ function buildHistoryCounters(
   detail: string;
   tone: "active" | "info" | "warning";
 }> {
-  const completed = visits.filter((visit) => visit.status === "completed");
-  const unfinished = visits.filter(
-    (visit) => visit.status === "draft" || visit.status === "in_progress",
-  );
-
   return [
     {
-      label: t("visibleVisits"),
-      value: String(total),
-      detail: t("loadedOnPage", { count: visits.length }),
+      label: t("totalLabel"),
+      value: counterValue(totals.period),
+      detail: t("totalDetail"),
       tone: "active",
     },
     {
       label: t("completedLabel"),
-      value: String(completed.length),
+      value: counterValue(totals.completed),
       detail: t("completedDetail"),
-      tone: completed.length > 0 ? "active" : "info",
+      tone: totals.completed ? "active" : "info",
     },
     {
       label: t("needsFollowUp"),
-      value: String(unfinished.length),
+      value: counterValue(totals.followUp),
       detail: t("needsFollowUpDetail"),
-      tone: unfinished.length > 0 ? "warning" : "active",
+      tone: totals.followUp ? "warning" : "active",
     },
   ];
+}
+
+// A counter whose own count request failed shows the same dash the formatters
+// use for a missing value rather than a zero that would read as a fact.
+function counterValue(total: number | null): string {
+  return total === null ? "-" : String(total);
 }
 
 function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
@@ -344,14 +620,8 @@ function normalizeDateFilter(value: string | undefined): string | null {
   return normalizedValue;
 }
 
-function visitStatusTone(status: VisitStatus): "active" | "info" | "warning" {
-  if (status === "completed") {
-    return "active";
-  }
+function normalizePage(value: string | undefined): number {
+  const parsed = Number.parseInt(value ?? "", 10);
 
-  if (status === "cancelled") {
-    return "warning";
-  }
-
-  return "info";
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
