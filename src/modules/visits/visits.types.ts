@@ -91,6 +91,31 @@ export type RegisteredAudioUploadResponse = {
   };
 };
 
+export type RegisterProblemPhotoRequestBody = {
+  fileName?: unknown;
+  contentType?: unknown;
+  sizeBytes?: unknown;
+};
+
+// A problem photo is evidence attached to the visit report, not a note in its
+// own right, so registering one creates only the storage object — no
+// `VisitNote` row like the audio path needs for transcription.
+export type RegisteredProblemPhotoResponse = {
+  storageObject: {
+    id: string;
+    bucket: string;
+    objectKey: string;
+    contentType: string;
+    sizeBytes: string | null;
+  };
+  uploadUrl?: {
+    url: string;
+    method: "PUT";
+    expiresAt: string;
+    headers: Record<string, string>;
+  };
+};
+
 export type ReportCreatedTask = {
   id: string;
   title: string;

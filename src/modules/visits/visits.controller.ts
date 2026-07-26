@@ -34,6 +34,7 @@ import type {
   ConfirmReportRequestBody,
   CreateVisitRequestBody,
   RegisterAudioUploadRequestBody,
+  RegisterProblemPhotoRequestBody,
   UpdateVisitRequestBody,
 } from "./visits.types";
 
@@ -126,6 +127,20 @@ export class VisitsController {
     @Body() body: RegisterAudioUploadRequestBody,
   ) {
     return this.visitsService.registerTemporaryAudioUpload(
+      getRequestContext(request),
+      visitId,
+      body,
+    );
+  }
+
+  @Post(":visitId/problem-photos/register")
+  @RequirePermissions(PERMISSIONS.VISITS_UPDATE_OWN)
+  registerProblemPhotoUpload(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: RegisterProblemPhotoRequestBody,
+  ) {
+    return this.visitsService.registerProblemPhotoUpload(
       getRequestContext(request),
       visitId,
       body,

@@ -28,6 +28,8 @@ import type {
   ListVisitsQuery,
   RegisterAudioUploadRequestBody,
   RegisteredAudioUploadResponse,
+  RegisterProblemPhotoRequestBody,
+  RegisteredProblemPhotoResponse,
   ReportResponse,
   UpdateVisitRequestBody,
   VisitNoteResponse,
@@ -44,6 +46,21 @@ const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
   "audio/aac",
   "audio/mpeg",
   "audio/wav",
+]);
+const MAX_PROBLEM_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+// How long a registered-but-unconfirmed problem photo survives before the
+// cleanup worker collects it. Same window the temporary audio uses.
+const UNCONFIRMED_PHOTO_TTL_HOURS = 24;
+const SUPPORTED_PHOTO_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+const PHOTO_CONTENT_TYPE_ALIASES = new Map([
+  ["image/jpg", "image/jpeg"],
+  ["image/pjpeg", "image/jpeg"],
 ]);
 const AUDIO_CONTENT_TYPE_ALIASES = new Map([
   ["audio/m4a", "audio/mp4"],
@@ -290,7 +307,7 @@ export class VisitsService {
       throwMissingVisitPermission();
     }
 
-    const fileName = normalizeAudioFileName(body.fileName);
+    const fileName = normalizeUploadFileName(body.fileName);
     const contentType = normalizeAudioContentType(body.contentType, fileName);
     const sizeBytes = normalizeAudioSizeBytes(body.sizeBytes);
     const checksum = normalizeOptionalString(body.checksum);
@@ -371,6 +388,112 @@ export class VisitsService {
             uploadUrl: {
               url: uploadUrl.url,
               method: "PUT",
+              expiresAt: uploadUrl.expiresAt,
+              headers: uploadUrl.headers,
+            },
+          }
+        : {}),
+    };
+  }
+
+  // Photo evidence for the "problem" exception on the field report. Same
+  // register-then-presigned-PUT shape as the audio upload above (the bytes
+  // never travel through a Server Action) and no `VisitNote` row.
+  //
+  // Registering is not the same as keeping: a rep who re-picks a photo,
+  // collapses the problem panel or abandons the form leaves an object nothing
+  // will ever reference. So a fresh registration starts with an `expiresAt`
+  // like any temporary object and expires the visit's previous unreferenced
+  // photo immediately (at most one in flight per visit, which is also what
+  // bounds how much a single visit can upload). Confirming a report is what
+  // makes the photo permanent — `confirmReport` clears the expiry of the one
+  // object the report actually points at.
+  async registerProblemPhotoUpload(
+    context: RequestContext,
+    visitId: string,
+    body: RegisterProblemPhotoRequestBody,
+  ): Promise<RegisteredProblemPhotoResponse> {
+    const visit = await this.findTenantVisit(context.tenantId, visitId);
+
+    this.assertCanUpdateVisit(context, visit.representativeUserId);
+
+    if (!context.userId) {
+      throwMissingVisitPermission();
+    }
+
+    const fileName = normalizeUploadFileName(body.fileName);
+    const contentType = normalizePhotoContentType(body.contentType, fileName);
+    const sizeBytes = normalizePhotoSizeBytes(body.sizeBytes);
+
+    if (!fileName || !contentType) {
+      throw new BadRequestException({
+        code: "PHOTO_UPLOAD_INVALID",
+        message: "Photo file name and supported content type are required.",
+        fieldErrors: {
+          fileName: fileName ? [] : ["File name is required."],
+          contentType: contentType
+            ? []
+            : ["Supported image content type is required."],
+        },
+      });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(
+      now.getTime() + UNCONFIRMED_PHOTO_TTL_HOURS * 60 * 60 * 1000,
+    );
+    const objectKeyPrefix = buildVisitPhotoPrefix(context.tenantId, visit.id);
+
+    const storageObject = await this.prisma.$transaction(async (tx) => {
+      // Only unclaimed photos still carry an expiry — a photo a confirmed
+      // report already claimed has `expiresAt: null` and must survive a later
+      // registration against the same visit.
+      await tx.storageObject.updateMany({
+        where: {
+          tenantId: context.tenantId,
+          purpose: "visit_attachment",
+          status: "active",
+          expiresAt: { not: null },
+          objectKey: { startsWith: objectKeyPrefix },
+        },
+        data: { status: "expired", expiresAt: now },
+      });
+
+      return tx.storageObject.create({
+        data: {
+          tenantId: context.tenantId,
+          bucket: this.storageService?.getDefaultBucket() ?? "vizitum",
+          objectKey: `${objectKeyPrefix}${randomUUID()}/${fileName}`,
+          purpose: "visit_attachment",
+          contentType,
+          sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
+          status: "active",
+          expiresAt,
+          createdByUserId: context.userId,
+        },
+      });
+    });
+
+    const uploadUrl = this.storageService
+      ? await this.storageService.createPresignedUploadUrl(
+          context,
+          storageObject.id,
+        )
+      : undefined;
+
+    return {
+      storageObject: {
+        id: storageObject.id,
+        bucket: storageObject.bucket,
+        objectKey: storageObject.objectKey,
+        contentType: storageObject.contentType,
+        sizeBytes: storageObject.sizeBytes?.toString() ?? null,
+      },
+      ...(uploadUrl
+        ? {
+            uploadUrl: {
+              url: uploadUrl.url,
+              method: "PUT" as const,
               expiresAt: uploadUrl.expiresAt,
               headers: uploadUrl.headers,
             },
@@ -502,6 +625,27 @@ export class VisitsService {
             reportId: result.id,
             dueDate: task.dueDate,
           })),
+        });
+      }
+
+      // The problem photo was registered with an expiry so an abandoned or
+      // re-picked upload gets collected. Confirming the report is what makes
+      // the one object it actually references permanent — scoped to this
+      // tenant and this visit's own prefix so a payload can't adopt someone
+      // else's object by id.
+      const problemPhotoObjectId = problemPhotoObjectIdOf(confirmedData);
+
+      if (problemPhotoObjectId) {
+        await tx.storageObject.updateMany({
+          where: {
+            id: problemPhotoObjectId,
+            tenantId: context.tenantId,
+            purpose: "visit_attachment",
+            objectKey: {
+              startsWith: buildVisitPhotoPrefix(context.tenantId, visit.id),
+            },
+          },
+          data: { status: "active", expiresAt: null },
         });
       }
 
@@ -778,7 +922,7 @@ function normalizeOptionalString(value: unknown): string | null {
   return normalizedValue || null;
 }
 
-function normalizeAudioFileName(value: unknown): string | null {
+function normalizeUploadFileName(value: unknown): string | null {
   const normalizedValue = normalizeRequiredString(value);
 
   if (!normalizedValue) {
@@ -862,6 +1006,116 @@ function normalizeAudioSizeBytes(value: unknown): number | null {
   }
 
   return parsedValue;
+}
+
+function normalizePhotoContentType(
+  value: unknown,
+  fileName?: string | null,
+): string | null {
+  const normalizedValue = normalizeRequiredString(value)?.toLowerCase();
+  const aliasedValue = normalizedValue
+    ? (PHOTO_CONTENT_TYPE_ALIASES.get(normalizedValue) ?? normalizedValue)
+    : null;
+
+  if (aliasedValue && SUPPORTED_PHOTO_CONTENT_TYPES.has(aliasedValue)) {
+    return aliasedValue;
+  }
+
+  return normalizePhotoContentTypeFromFileName(fileName);
+}
+
+function normalizePhotoContentTypeFromFileName(
+  fileName: string | null | undefined,
+): string | null {
+  const extension = fileName?.split(".").pop()?.toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") {
+    return "image/jpeg";
+  }
+
+  if (extension === "png") {
+    return "image/png";
+  }
+
+  if (extension === "webp") {
+    return "image/webp";
+  }
+
+  if (extension === "heic") {
+    return "image/heic";
+  }
+
+  if (extension === "heif") {
+    return "image/heif";
+  }
+
+  return null;
+}
+
+function normalizePhotoSizeBytes(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+
+  if (
+    !Number.isInteger(parsedValue) ||
+    parsedValue <= 0 ||
+    parsedValue > MAX_PROBLEM_PHOTO_SIZE_BYTES
+  ) {
+    throw new BadRequestException({
+      code: "PHOTO_UPLOAD_SIZE_INVALID",
+      message: "Photo size must be a positive integer up to 10 MB.",
+      fieldErrors: {
+        sizeBytes: ["Photo size must be a positive integer up to 10 MB."],
+      },
+    });
+  }
+
+  return parsedValue;
+}
+
+// Digs `fieldReport.problem.photoObjectId` out of the freeform confirmed
+// payload. Everything below the top level is unvalidated JSON, so each step
+// is checked rather than cast.
+function problemPhotoObjectIdOf(
+  confirmedData: Prisma.InputJsonObject,
+): string | null {
+  const fieldReport = isPlainRecord(confirmedData)
+    ? confirmedData.fieldReport
+    : undefined;
+
+  if (!isPlainRecord(fieldReport)) {
+    return null;
+  }
+
+  const problem = (fieldReport as Record<string, unknown>).problem;
+
+  if (!isPlainRecord(problem)) {
+    return null;
+  }
+
+  const photoObjectId = problem.photoObjectId;
+
+  return typeof photoObjectId === "string" && photoObjectId
+    ? photoObjectId
+    : null;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Every photo for one visit shares this prefix, which is also how a
+// re-registration finds the visit's earlier photos to expire.
+function buildVisitPhotoPrefix(tenantId: string, visitId: string): string {
+  return ["tenants", tenantId, "visits", visitId, "photos", ""].join("/");
 }
 
 function buildTemporaryAudioObjectKey(

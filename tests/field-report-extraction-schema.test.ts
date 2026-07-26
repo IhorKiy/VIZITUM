@@ -13,24 +13,20 @@ describe("field report extraction schema", () => {
     assert.deepEqual(
       [...(FIELD_REPORT_EXTRACTION_SCHEMA.required ?? [])].sort(),
       [
+        "missingProducts",
+        "problemType",
+        "problemNote",
+        "nextActionDueDate",
         "notes",
         "nextAction",
-        "outcome",
-        "productUpdates",
-        "productsPresented",
-        "stockStatus",
-        "tasks",
+        "noOrderReason",
+        "orderPlaced",
         "visitDate",
       ].sort(),
     );
     assert.equal(
-      FIELD_REPORT_EXTRACTION_SCHEMA.properties?.productUpdates?.items
-        ?.additionalProperties,
-      false,
-    );
-    assert.equal(
-      FIELD_REPORT_EXTRACTION_SCHEMA.properties?.tasks?.additionalProperties,
-      false,
+      FIELD_REPORT_EXTRACTION_SCHEMA.properties?.missingProducts?.items?.type,
+      "string",
     );
   });
 
@@ -51,108 +47,69 @@ describe("field report extraction schema", () => {
 
   it("normalizes a fully populated draft", () => {
     const draft = normalizeFieldReportExtraction({
-      outcome: "positive",
+      orderPlaced: false,
+      noOrderReason: "has_stock",
       visitDate: "2026-07-20",
-      productsPresented: ["Vitamin C", "  ", 42, "Zinc"],
-      stockStatus: "low_stock",
       notes: "  Discussed shelf placement.  ",
       nextAction: "Bring samples next week",
-      productUpdates: [
-        {
-          productName: "Vitamin C",
-          productCode: "VTC-100",
-          status: "to_order",
-          stock: 3,
-          order: 10,
-          sale: 2,
-          comment: "Running low",
-        },
-      ],
-      tasks: {
-        dueDate: "2026-07-27",
-        assortment: "Restock vitamin C",
-        merchandising: null,
-        recommendation: "Recommend zinc for immunity",
-        special: null,
-        note: "Ask for the pharmacist by name",
-      },
+      nextActionDueDate: "2026-07-27",
+      missingProducts: ["Vitamin C", "  ", 42, "Zinc"],
+      problemType: "expired",
+      problemNote: "  two cases past date  ",
     });
 
-    assert.equal(draft.outcome, "positive");
+    assert.equal(draft.orderPlaced, false);
+    assert.equal(draft.noOrderReason, "has_stock");
     assert.equal(draft.visitDate, "2026-07-20");
-    assert.deepEqual(draft.productsPresented, ["Vitamin C", "Zinc"]);
-    assert.equal(draft.stockStatus, "low_stock");
     assert.equal(draft.notes, "Discussed shelf placement.");
     assert.equal(draft.nextAction, "Bring samples next week");
-    assert.deepEqual(draft.productUpdates, [
-      {
-        productName: "Vitamin C",
-        productCode: "VTC-100",
-        status: "to_order",
-        stock: 3,
-        order: 10,
-        sale: 2,
-        comment: "Running low",
-      },
-    ]);
-    assert.deepEqual(draft.tasks, {
-      dueDate: "2026-07-27",
-      assortment: "Restock vitamin C",
-      merchandising: null,
-      recommendation: "Recommend zinc for immunity",
-      special: null,
-      note: "Ask for the pharmacist by name",
-    });
+    assert.equal(draft.nextActionDueDate, "2026-07-27");
+    // Blanks and non-strings are dropped rather than carried into the chips.
+    assert.deepEqual(draft.missingProducts, ["Vitamin C", "Zinc"]);
+    assert.equal(draft.problemType, "expired");
+    assert.equal(draft.problemNote, "two cases past date");
   });
 
   it("rejects invented enums, malformed dates and non-integer quantities", () => {
     const draft = normalizeFieldReportExtraction({
-      outcome: "excellent",
+      orderPlaced: "yes",
+      noOrderReason: "no_time",
       visitDate: "20-07-2026",
-      productsPresented: "not an array",
-      stockStatus: "plenty",
       notes: "",
       nextAction: null,
-      productUpdates: [
-        {
-          productName: null,
-          productCode: null,
-          status: "in_stock",
-          stock: 5,
-          order: 0,
-          sale: 0,
-          comment: null,
-        },
-        {
-          productName: "Vitamin C",
-          productCode: null,
-          status: "unknown_status",
-          stock: -3,
-          order: 1.5,
-          sale: "4",
-          comment: null,
-        },
-      ],
-      tasks: "not an object",
+      nextActionDueDate: "next Friday",
+      missingProducts: "not an array",
+      problemType: "flood",
+      problemNote: "   ",
     });
 
-    assert.equal(draft.outcome, null);
+    assert.equal(draft.orderPlaced, null);
+    assert.equal(draft.noOrderReason, null);
     assert.equal(draft.visitDate, null);
-    assert.deepEqual(draft.productsPresented, []);
-    assert.equal(draft.stockStatus, null);
     assert.equal(draft.notes, null);
-    // The first update has neither a name nor a code, so it is dropped
-    // entirely rather than kept as an empty row.
-    assert.equal(draft.productUpdates.length, 1);
-    assert.deepEqual(draft.productUpdates[0], {
-      productName: "Vitamin C",
-      productCode: null,
-      status: null,
-      stock: null,
-      order: null,
-      sale: null,
-      comment: null,
+    assert.deepEqual(draft.missingProducts, []);
+    assert.equal(draft.nextActionDueDate, null);
+    // An unknown problem type must not smuggle a problem into the report.
+    assert.equal(draft.problemType, null);
+    assert.equal(draft.problemNote, null);
+  });
+
+  it("keeps a no-order reason only on a visit that produced no order", () => {
+    // The form has nowhere to put a reason once an order is recorded, so a
+    // model answering both fields at once must not produce a draft it can't
+    // represent.
+    const withOrder = normalizeFieldReportExtraction({
+      orderPlaced: true,
+      noOrderReason: "refused",
     });
-    assert.deepEqual(draft.tasks, emptyFieldReportExtractedData().tasks);
+    assert.equal(withOrder.orderPlaced, true);
+    assert.equal(withOrder.noOrderReason, null);
+
+    const unknownResult = normalizeFieldReportExtraction({
+      orderPlaced: null,
+      noOrderReason: "closed",
+    });
+    assert.equal(unknownResult.orderPlaced, null);
+    assert.equal(unknownResult.noOrderReason, null);
   });
 });

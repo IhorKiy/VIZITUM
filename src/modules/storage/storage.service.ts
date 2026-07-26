@@ -17,6 +17,18 @@ import type {
   StorageObjectResponse,
 } from "./storage.types";
 
+// Storage objects that belong to a single visit and follow the visit's own
+// read/update permissions rather than a settings- or import-scoped rule: the
+// recorded voice note, its transcript, and the report's problem photo. The
+// photo has its own `visit_attachment` purpose rather than the generic
+// `attachment` precisely so a future non-visit attachment cannot inherit
+// these rules by sharing a name.
+const VISIT_ARTIFACT_PURPOSES: string[] = [
+  "temporary_audio",
+  "temporary_transcript",
+  "visit_attachment",
+];
+
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 300;
 const MAX_SIGNED_URL_TTL_SECONDS = 900;
 const CLEANUP_BATCH_SIZE = 100;
@@ -109,10 +121,25 @@ export class StorageService {
   ): Promise<StorageCleanupResult> {
     const expiredObjects = await this.prisma.storageObject.findMany({
       where: {
-        status: "expired",
         deletedAt: null,
         expiresAt: { lte: now },
-        purpose: { in: ["temporary_audio", "temporary_transcript"] },
+        OR: [
+          // Unchanged: transcription marks these `expired` when it is done
+          // with them, and only then are they swept.
+          {
+            status: "expired",
+            purpose: { in: ["temporary_audio", "temporary_transcript"] },
+          },
+          // A problem photo keeps its expiry until a confirmed report claims
+          // it (`VisitsService.confirmReport` clears it). Reaching the expiry
+          // means no report ever referenced it — an abandoned form (still
+          // `active`) or a photo the rep replaced, which registration expires
+          // on the spot (`expired`). Both are collectable.
+          {
+            status: { in: ["active", "expired"] },
+            purpose: "visit_attachment",
+          },
+        ],
       },
       orderBy: { expiresAt: "asc" },
       take: CLEANUP_BATCH_SIZE,
@@ -242,10 +269,11 @@ export class StorageService {
     const canUploadImport =
       storageObject.purpose === "import_file" &&
       context.permissions.includes(PERMISSIONS.IMPORTS_UPLOAD);
+    // `visit_attachment` is the field report's problem photo: same
+    // owner-scoped rule as the voice note it sits beside, since both are
+    // uploaded by the rep while filling in one visit.
     const canUpdateOwnVisitArtifact =
-      ["temporary_audio", "temporary_transcript"].includes(
-        storageObject.purpose,
-      ) &&
+      VISIT_ARTIFACT_PURPOSES.includes(storageObject.purpose) &&
       context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) &&
       (!storageObject.createdByUserId ||
         storageObject.createdByUserId === context.userId);
@@ -270,16 +298,15 @@ export class StorageService {
       storageObject.purpose === "import_file" &&
       context.permissions.includes(PERMISSIONS.IMPORTS_READ);
     const canReadOwnVisitArtifact =
-      ["temporary_audio", "temporary_transcript"].includes(
-        storageObject.purpose,
-      ) &&
+      VISIT_ARTIFACT_PURPOSES.includes(storageObject.purpose) &&
       context.permissions.includes(PERMISSIONS.VISITS_READ_OWN) &&
       (!storageObject.createdByUserId ||
         storageObject.createdByUserId === context.userId);
+    // A manager reviewing the report needs the photo too, exactly as they can
+    // already reach the visit's audio.
     const canReadTeamVisitArtifact =
-      ["temporary_audio", "temporary_transcript"].includes(
-        storageObject.purpose,
-      ) && context.permissions.includes(PERMISSIONS.VISITS_READ_TEAM);
+      VISIT_ARTIFACT_PURPOSES.includes(storageObject.purpose) &&
+      context.permissions.includes(PERMISSIONS.VISITS_READ_TEAM);
     const canReadBrandingLogo =
       storageObject.purpose === "branding_logo" &&
       context.permissions.includes(PERMISSIONS.TENANT_SETTINGS_READ);
