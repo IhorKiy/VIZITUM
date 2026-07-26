@@ -704,7 +704,7 @@ function buildVisitWhere(
     throwMissingVisitPermission();
   }
 
-  const startedAt = buildDateTimeRangeFilter(
+  const startedAtRange = buildDateTimeRangeFilter(
     query.startedFrom,
     query.startedTo,
   );
@@ -723,8 +723,27 @@ function buildVisitWhere(
           },
         }
       : {}),
-    ...(query.status ? { status: query.status } : {}),
-    ...(startedAt ? { startedAt } : {}),
+    ...(query.status && query.status.length > 0
+      ? {
+          status:
+            query.status.length === 1 ? query.status[0] : { in: query.status },
+        }
+      : {}),
+    // A never-started draft (startedAt: null) has no startedAt to fall in the
+    // period, so it would otherwise disappear from a date-filtered list and
+    // the "needs follow-up" counter the moment a period filter is active —
+    // exactly the loose ends this screen exists to surface. Falling back to
+    // createdAt for those rows mirrors the frontend's own
+    // `startedAt ?? createdAt` day-grouping key, so the list, its day
+    // grouping and the counters all agree on the same set of visits.
+    ...(startedAtRange
+      ? {
+          OR: [
+            { startedAt: startedAtRange },
+            { startedAt: null, createdAt: startedAtRange },
+          ],
+        }
+      : {}),
   };
 }
 
@@ -917,10 +936,14 @@ function parseOptionalDateTime(value: unknown): Date | null {
   return date;
 }
 
+// Untyped against a specific Prisma filter interface (rather than
+// `Prisma.DateTimeNullableFilter`) so the same range literal can be reused
+// as-is for both the nullable `startedAt` field and the non-nullable
+// `createdAt` field in buildVisitWhere's fallback OR.
 function buildDateTimeRangeFilter(
   fromValue: unknown,
   toValue: unknown,
-): Prisma.DateTimeNullableFilter | undefined {
+): { gte?: Date; lte?: Date } | undefined {
   const gte = parseDateOnlyBoundary(fromValue, "start");
   const lte = parseDateOnlyBoundary(toValue, "end");
 

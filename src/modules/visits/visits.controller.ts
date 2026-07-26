@@ -57,7 +57,7 @@ export class VisitsController {
       representativeUserId: normalizeQueryString(query.representativeUserId),
       locationId: normalizeQueryString(query.locationId),
       routePlanId: normalizeQueryString(query.routePlanId),
-      status: parseVisitStatus(query.status),
+      status: parseVisitStatusList(query.status),
       startedFrom: normalizeQueryString(query.startedFrom),
       startedTo: normalizeQueryString(query.startedTo),
     });
@@ -241,6 +241,31 @@ function parsePositiveInteger(value: string | undefined): number | undefined {
   return Number.isInteger(parsedValue) && parsedValue > 0
     ? parsedValue
     : undefined;
+}
+
+// Accepts either a single status or a comma-separated list (e.g.
+// `status=draft,in_progress`) so a caller like the field history "needs
+// follow-up" counter can filter on several statuses in one request instead of
+// summing several single-status requests. Unknown tokens are dropped rather
+// than rejected, same as a single unknown value always has been.
+function parseVisitStatusList(
+  value: string | undefined,
+): VisitStatus[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const statuses = new Set<VisitStatus>();
+
+  for (const rawStatus of value.split(",")) {
+    const status = parseVisitStatus(rawStatus.trim());
+
+    if (status) {
+      statuses.add(status);
+    }
+  }
+
+  return statuses.size > 0 ? [...statuses] : undefined;
 }
 
 function parseVisitStatus(value: string | undefined): VisitStatus | undefined {

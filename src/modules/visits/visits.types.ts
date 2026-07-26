@@ -31,7 +31,7 @@ export type ListVisitsQuery = {
   representativeUserId?: string;
   locationId?: string;
   routePlanId?: string;
-  status?: VisitStatus;
+  status?: VisitStatus[];
   startedFrom?: string;
   startedTo?: string;
 };

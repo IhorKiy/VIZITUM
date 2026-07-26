@@ -122,32 +122,28 @@ export default async function FieldHistoryPage({
   // the "how is this period going" recap the pills are picked from. Each is its
   // own count query rather than a tally of the loaded page, which only ever
   // described the first 50 visits.
-  const countQuery = (status?: VisitStatus) => {
+  const countQuery = (status?: VisitStatus | VisitStatus[]) => {
     const params = new URLSearchParams(periodParams);
     params.set("pageSize", "1");
 
     if (status) {
-      params.set("status", status);
+      params.set("status", Array.isArray(status) ? status.join(",") : status);
     }
 
     return params.toString();
   };
 
-  const [
-    visitsResult,
-    periodResult,
-    completedResult,
-    draftResult,
-    inProgressResult,
-  ] = await Promise.all([
-    listVisits(query.toString()),
-    // With no status pill the list query already counts exactly the period's
-    // rows, so its own total stands in and the request is skipped.
-    selectedStatus ? listVisits(countQuery()) : null,
-    listVisits(countQuery("completed")),
-    listVisits(countQuery("draft")),
-    listVisits(countQuery("in_progress")),
-  ]);
+  const [visitsResult, periodResult, completedResult, followUpResult] =
+    await Promise.all([
+      listVisits(query.toString()),
+      // With no status pill the list query already counts exactly the period's
+      // rows, so its own total stands in and the request is skipped.
+      selectedStatus ? listVisits(countQuery()) : null,
+      listVisits(countQuery("completed")),
+      // The API accepts a comma-separated status list, so "needs follow-up"
+      // (draft + in_progress) is one count query instead of two summed ones.
+      listVisits(countQuery(["draft", "in_progress"])),
+    ]);
 
   if (!visitsResult.ok) {
     return (
@@ -181,12 +177,11 @@ export default async function FieldHistoryPage({
 
   const visits = visitsResult.data.items;
   const totalPages = visitsResult.data.totalPages;
-  const followUpTotal = sumTotals(draftResult, inProgressResult);
   const counters = buildHistoryCounters(
     {
       period: periodResult ? totalOf(periodResult) : visitsResult.data.total,
       completed: totalOf(completedResult),
-      followUp: followUpTotal,
+      followUp: totalOf(followUpResult),
     },
     t,
   );
@@ -534,22 +529,6 @@ function visitTimeText(
 
 function totalOf(result: ApiResult<PaginatedResponse<Visit>>): number | null {
   return result.ok ? result.data.total : null;
-}
-
-function sumTotals(
-  ...results: ApiResult<PaginatedResponse<Visit>>[]
-): number | null {
-  let total = 0;
-
-  for (const result of results) {
-    if (!result.ok) {
-      return null;
-    }
-
-    total += result.data.total;
-  }
-
-  return total;
 }
 
 type HistoryTranslator = Awaited<
