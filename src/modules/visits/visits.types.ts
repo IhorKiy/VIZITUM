@@ -36,6 +36,19 @@ export type ListVisitsQuery = {
   startedTo?: string;
 };
 
+export type VisitDaySummaryEntry = {
+  // Calendar day in the tenant's timezone, YYYY-MM-DD, keyed on the same
+  // COALESCE(startedAt, createdAt) moment the day-grouped history list uses.
+  day: string;
+  total: number;
+  completed: number;
+};
+
+export type VisitDaySummaryResponse = {
+  // Newest day first, one entry per day that has at least one matching visit.
+  days: VisitDaySummaryEntry[];
+};
+
 export type CreateVisitRequestBody = {
   locationId?: unknown;
   representativeUserId?: unknown;
@@ -82,6 +95,31 @@ export type RegisteredAudioUploadResponse = {
     sizeBytes: string | null;
     checksum: string | null;
     expiresAt: string;
+  };
+  uploadUrl?: {
+    url: string;
+    method: "PUT";
+    expiresAt: string;
+    headers: Record<string, string>;
+  };
+};
+
+export type RegisterProblemPhotoRequestBody = {
+  fileName?: unknown;
+  contentType?: unknown;
+  sizeBytes?: unknown;
+};
+
+// A problem photo is evidence attached to the visit report, not a note in its
+// own right, so registering one creates only the storage object — no
+// `VisitNote` row like the audio path needs for transcription.
+export type RegisteredProblemPhotoResponse = {
+  storageObject: {
+    id: string;
+    bucket: string;
+    objectKey: string;
+    contentType: string;
+    sizeBytes: string | null;
   };
   uploadUrl?: {
     url: string;

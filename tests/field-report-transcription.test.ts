@@ -256,21 +256,15 @@ describe("field report transcription", () => {
 
         return {
           draft: {
-            outcome: "positive",
+            orderPlaced: true,
+            noOrderReason: null,
             visitDate: "2026-07-20",
-            productsPresented: ["Vitamin C"],
-            stockStatus: "low_stock",
+            missingProducts: ["Vitamin C"],
+            problemType: null,
+            problemNote: null,
             notes: "Presented vitamin C, stock is low.",
             nextAction: null,
-            productUpdates: [],
-            tasks: {
-              dueDate: null,
-              assortment: null,
-              merchandising: null,
-              recommendation: null,
-              special: null,
-              note: null,
-            },
+            nextActionDueDate: null,
           },
         };
       },
@@ -306,8 +300,8 @@ describe("field report transcription", () => {
       },
     ]);
     assert.equal(result.transcript, "Presented vitamin C, stock is low.");
-    assert.equal(result.extractedData.outcome, "positive");
-    assert.deepEqual(result.extractedData.productsPresented, ["Vitamin C"]);
+    assert.equal(result.extractedData.orderPlaced, true);
+    assert.deepEqual(result.extractedData.missingProducts, ["Vitamin C"]);
     assert.deepEqual(
       (capturedInput as { extraContext: { productCatalog: unknown } })
         .extraContext.productCatalog,

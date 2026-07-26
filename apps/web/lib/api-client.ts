@@ -607,34 +607,31 @@ export type Report = {
 // (POST /visits/:visitId/ai/field-report-transcriptions). Every field is
 // nullable/empty when nothing was said or recognized — the form only
 // prefills fields it actually got a value for.
-export type FieldReportProductUpdateDraft = {
-  productName: string | null;
-  productCode: string | null;
-  status: "in_stock" | "out_of_stock" | "to_order" | "not_relevant" | null;
-  stock: number | null;
-  order: number | null;
-  sale: number | null;
-  comment: string | null;
-};
+export type VisitOutcome = "positive" | "neutral" | "negative";
 
-export type FieldReportExtractedTasks = {
-  dueDate: string | null;
-  assortment: string | null;
-  merchandising: string | null;
-  recommendation: string | null;
-  special: string | null;
-  note: string | null;
-};
+// Why a visit produced no order. The rep picks exactly one of these, and it
+// is the single most useful thing a no-order visit can record — see
+// `apps/web/lib/visit-result.ts` for how it maps onto the legacy `outcome`.
+export type NoOrderReason =
+  | "closed"
+  | "no_decision_maker"
+  | "has_stock"
+  | "no_money"
+  | "refused"
+  | "other";
 
 export type FieldReportExtractedData = {
-  outcome: "positive" | "neutral" | "negative" | null;
+  orderPlaced: boolean | null;
+  noOrderReason: NoOrderReason | null;
   visitDate: string | null;
-  productsPresented: string[];
-  stockStatus: "in_stock" | "low_stock" | "out_of_stock" | null;
   notes: string | null;
   nextAction: string | null;
-  productUpdates: FieldReportProductUpdateDraft[];
-  tasks: FieldReportExtractedTasks;
+  nextActionDueDate: string | null;
+  // Names/SKUs the transcript said were absent from the shelf; the form
+  // fuzzy-matches them against the outlet's chips and the catalog.
+  missingProducts: string[];
+  problemType: "return" | "damaged" | "expired" | "conflict" | null;
+  problemNote: string | null;
 };
 
 export type TranscribeFieldReportResult = {
@@ -707,6 +704,22 @@ export async function listVisits(
   query = "pageSize=50",
 ): Promise<ApiResult<PaginatedResponse<Visit>>> {
   return apiGet<PaginatedResponse<Visit>>(`/visits?${query}`);
+}
+
+export type VisitDaySummaryEntry = {
+  day: string;
+  total: number;
+  completed: number;
+};
+
+export type VisitDaySummary = {
+  days: VisitDaySummaryEntry[];
+};
+
+export async function listVisitDaySummary(
+  query: string,
+): Promise<ApiResult<VisitDaySummary>> {
+  return apiGet<VisitDaySummary>(`/visits/day-summary?${query}`);
 }
 
 export async function getVisit(visitId: string): Promise<ApiResult<Visit>> {
@@ -1777,6 +1790,44 @@ export async function registerFieldReportAudioUpload(
   return apiPost<RegisteredAudioUpload>(
     `/visits/${visitId}/notes/audio/register`,
     input,
+  );
+}
+
+export type RegisteredProblemPhoto = {
+  storageObject: {
+    id: string;
+    bucket: string;
+    objectKey: string;
+    contentType: string;
+    sizeBytes: string | null;
+  };
+  uploadUrl?: {
+    url: string;
+    method: "PUT";
+    expiresAt: string;
+    headers: Record<string, string>;
+  };
+};
+
+// Same register-then-PUT dance as the voice note: the image bytes go straight
+// from the browser to storage, so they never hit a Server Action's ~1 MB body
+// limit.
+export async function registerVisitProblemPhoto(
+  visitId: string,
+  input: { fileName: string; contentType: string; sizeBytes: number },
+): Promise<ApiResult<RegisteredProblemPhoto>> {
+  return apiPost<RegisteredProblemPhoto>(
+    `/visits/${visitId}/problem-photos/register`,
+    input,
+  );
+}
+
+export async function createStorageObjectDownloadUrl(
+  storageObjectId: string,
+): Promise<ApiResult<{ url: string; expiresAt: string }>> {
+  return apiPost<{ url: string; expiresAt: string }>(
+    `/storage/objects/${storageObjectId}/download-url`,
+    {},
   );
 }
 

@@ -34,6 +34,7 @@ import type {
   ConfirmReportRequestBody,
   CreateVisitRequestBody,
   RegisterAudioUploadRequestBody,
+  RegisterProblemPhotoRequestBody,
   UpdateVisitRequestBody,
 } from "./visits.types";
 
@@ -54,6 +55,27 @@ export class VisitsController {
     return this.visitsService.listVisits(getRequestContext(request), {
       page: parsePositiveInteger(query.page),
       pageSize: parsePositiveInteger(query.pageSize),
+      representativeUserId: normalizeQueryString(query.representativeUserId),
+      locationId: normalizeQueryString(query.locationId),
+      routePlanId: normalizeQueryString(query.routePlanId),
+      status: parseVisitStatusList(query.status),
+      startedFrom: normalizeQueryString(query.startedFrom),
+      startedTo: normalizeQueryString(query.startedTo),
+    });
+  }
+
+  // Registered ahead of the :visitId route below so "day-summary" is never
+  // swallowed as a visitId.
+  @Get("day-summary")
+  @RequireAnyPermissions(
+    PERMISSIONS.VISITS_READ_OWN,
+    PERMISSIONS.VISITS_READ_TEAM,
+  )
+  getVisitDaySummary(
+    @Req() request: Request,
+    @Query() query: Record<string, string>,
+  ) {
+    return this.visitsService.getVisitDaySummary(getRequestContext(request), {
       representativeUserId: normalizeQueryString(query.representativeUserId),
       locationId: normalizeQueryString(query.locationId),
       routePlanId: normalizeQueryString(query.routePlanId),
@@ -126,6 +148,20 @@ export class VisitsController {
     @Body() body: RegisterAudioUploadRequestBody,
   ) {
     return this.visitsService.registerTemporaryAudioUpload(
+      getRequestContext(request),
+      visitId,
+      body,
+    );
+  }
+
+  @Post(":visitId/problem-photos/register")
+  @RequirePermissions(PERMISSIONS.VISITS_UPDATE_OWN)
+  registerProblemPhotoUpload(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: RegisterProblemPhotoRequestBody,
+  ) {
+    return this.visitsService.registerProblemPhotoUpload(
       getRequestContext(request),
       visitId,
       body,

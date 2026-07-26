@@ -4,7 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { Prisma, VisitStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { VisitStatus } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -28,8 +29,12 @@ import type {
   ListVisitsQuery,
   RegisterAudioUploadRequestBody,
   RegisteredAudioUploadResponse,
+  RegisterProblemPhotoRequestBody,
+  RegisteredProblemPhotoResponse,
   ReportResponse,
   UpdateVisitRequestBody,
+  VisitDaySummaryEntry,
+  VisitDaySummaryResponse,
   VisitNoteResponse,
   VisitResponse,
 } from "./visits.types";
@@ -44,6 +49,21 @@ const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
   "audio/aac",
   "audio/mpeg",
   "audio/wav",
+]);
+const MAX_PROBLEM_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+// How long a registered-but-unconfirmed problem photo survives before the
+// cleanup worker collects it. Same window the temporary audio uses.
+const UNCONFIRMED_PHOTO_TTL_HOURS = 24;
+const SUPPORTED_PHOTO_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+const PHOTO_CONTENT_TYPE_ALIASES = new Map([
+  ["image/jpg", "image/jpeg"],
+  ["image/pjpeg", "image/jpeg"],
 ]);
 const AUDIO_CONTENT_TYPE_ALIASES = new Map([
   ["audio/m4a", "audio/mp4"],
@@ -90,6 +110,108 @@ export class VisitsService {
       pagination,
       total,
     );
+  }
+
+  // Per-day totals for the exact same filter listVisits uses, over the whole
+  // matching set rather than one page — so a day header stays correct even
+  // when that day's visits straddle a page boundary. Aggregated in SQL rather
+  // than fetched row-by-row: this endpoint shares visits.read_team scope with
+  // GET /visits, so with no date filter a row-fetching version would mean
+  // pulling a tenant's entire visit history into memory on every request.
+  async getVisitDaySummary(
+    context: RequestContext,
+    query: ListVisitsQuery,
+  ): Promise<VisitDaySummaryResponse> {
+    const representativeFilter = resolveVisitRepresentativeFilter(
+      context,
+      query,
+    );
+    const tenant = await this.prisma.platformTenant.findUnique({
+      where: { id: context.tenantId },
+      select: { timezone: true },
+    });
+
+    if (!tenant) {
+      throw new BadRequestException({
+        code: "TENANT_INVALID",
+        message: "Tenant could not be resolved.",
+      });
+    }
+
+    const conditions: Prisma.Sql[] = [
+      Prisma.sql`"tenantId" = ${context.tenantId}`,
+    ];
+
+    if (representativeFilter) {
+      conditions.push(
+        Prisma.sql`"representativeUserId" = ${representativeFilter}`,
+      );
+    }
+
+    if (query.locationId) {
+      conditions.push(Prisma.sql`"locationId" = ${query.locationId}`);
+    }
+
+    if (query.routePlanId) {
+      conditions.push(
+        Prisma.sql`"routeItemId" IN (SELECT id FROM route_items WHERE "tenantId" = ${context.tenantId} AND "routePlanId" = ${query.routePlanId})`,
+      );
+    }
+
+    if (query.status && query.status.length > 0) {
+      conditions.push(
+        Prisma.sql`status IN (${Prisma.join(
+          query.status.map((status) => Prisma.sql`${status}::"VisitStatus"`),
+        )})`,
+      );
+    }
+
+    const startedAtRange = buildDateTimeRangeFilter(
+      query.startedFrom,
+      query.startedTo,
+    );
+
+    // Same COALESCE(startedAt, createdAt) fallback as buildVisitWhere's OR
+    // (and the day-bucketing expression below): a never-started visit has no
+    // startedAt to test against the period, so without this it would drop
+    // out of the aggregate the list it recaps still includes.
+    if (startedAtRange?.gte) {
+      conditions.push(
+        Prisma.sql`COALESCE("startedAt", "createdAt") >= ${startedAtRange.gte}`,
+      );
+    }
+
+    if (startedAtRange?.lte) {
+      conditions.push(
+        Prisma.sql`COALESCE("startedAt", "createdAt") <= ${startedAtRange.lte}`,
+      );
+    }
+
+    // Cast to text in SQL instead of returning a bare `date`: the wire value
+    // for `date` gets reconstructed into a JS Date by driver-level type
+    // parsing, which reintroduces exactly the local-timezone ambiguity this
+    // query exists to avoid. `date::text` is unambiguous — always YYYY-MM-DD,
+    // in any driver.
+    const rows = await this.prisma.$queryRaw<
+      Array<{ day: string; total: bigint; completed: bigint }>
+    >(Prisma.sql`
+      SELECT
+        ((COALESCE("startedAt", "createdAt") AT TIME ZONE 'UTC') AT TIME ZONE ${tenant.timezone})::date::text AS day,
+        COUNT(*)::bigint AS total,
+        COUNT(*) FILTER (WHERE status = 'completed')::bigint AS completed
+      FROM visits
+      WHERE ${Prisma.join(conditions, " AND ")}
+      GROUP BY day
+      ORDER BY day DESC
+    `);
+
+    return {
+      days: rows.map((row): VisitDaySummaryEntry => ({
+        day: row.day,
+        total: Number(row.total),
+        completed: Number(row.completed),
+      })),
+    };
   }
 
   async getVisit(
@@ -290,7 +412,7 @@ export class VisitsService {
       throwMissingVisitPermission();
     }
 
-    const fileName = normalizeAudioFileName(body.fileName);
+    const fileName = normalizeUploadFileName(body.fileName);
     const contentType = normalizeAudioContentType(body.contentType, fileName);
     const sizeBytes = normalizeAudioSizeBytes(body.sizeBytes);
     const checksum = normalizeOptionalString(body.checksum);
@@ -371,6 +493,112 @@ export class VisitsService {
             uploadUrl: {
               url: uploadUrl.url,
               method: "PUT",
+              expiresAt: uploadUrl.expiresAt,
+              headers: uploadUrl.headers,
+            },
+          }
+        : {}),
+    };
+  }
+
+  // Photo evidence for the "problem" exception on the field report. Same
+  // register-then-presigned-PUT shape as the audio upload above (the bytes
+  // never travel through a Server Action) and no `VisitNote` row.
+  //
+  // Registering is not the same as keeping: a rep who re-picks a photo,
+  // collapses the problem panel or abandons the form leaves an object nothing
+  // will ever reference. So a fresh registration starts with an `expiresAt`
+  // like any temporary object and expires the visit's previous unreferenced
+  // photo immediately (at most one in flight per visit, which is also what
+  // bounds how much a single visit can upload). Confirming a report is what
+  // makes the photo permanent — `confirmReport` clears the expiry of the one
+  // object the report actually points at.
+  async registerProblemPhotoUpload(
+    context: RequestContext,
+    visitId: string,
+    body: RegisterProblemPhotoRequestBody,
+  ): Promise<RegisteredProblemPhotoResponse> {
+    const visit = await this.findTenantVisit(context.tenantId, visitId);
+
+    this.assertCanUpdateVisit(context, visit.representativeUserId);
+
+    if (!context.userId) {
+      throwMissingVisitPermission();
+    }
+
+    const fileName = normalizeUploadFileName(body.fileName);
+    const contentType = normalizePhotoContentType(body.contentType, fileName);
+    const sizeBytes = normalizePhotoSizeBytes(body.sizeBytes);
+
+    if (!fileName || !contentType) {
+      throw new BadRequestException({
+        code: "PHOTO_UPLOAD_INVALID",
+        message: "Photo file name and supported content type are required.",
+        fieldErrors: {
+          fileName: fileName ? [] : ["File name is required."],
+          contentType: contentType
+            ? []
+            : ["Supported image content type is required."],
+        },
+      });
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(
+      now.getTime() + UNCONFIRMED_PHOTO_TTL_HOURS * 60 * 60 * 1000,
+    );
+    const objectKeyPrefix = buildVisitPhotoPrefix(context.tenantId, visit.id);
+
+    const storageObject = await this.prisma.$transaction(async (tx) => {
+      // Only unclaimed photos still carry an expiry — a photo a confirmed
+      // report already claimed has `expiresAt: null` and must survive a later
+      // registration against the same visit.
+      await tx.storageObject.updateMany({
+        where: {
+          tenantId: context.tenantId,
+          purpose: "visit_attachment",
+          status: "active",
+          expiresAt: { not: null },
+          objectKey: { startsWith: objectKeyPrefix },
+        },
+        data: { status: "expired", expiresAt: now },
+      });
+
+      return tx.storageObject.create({
+        data: {
+          tenantId: context.tenantId,
+          bucket: this.storageService?.getDefaultBucket() ?? "vizitum",
+          objectKey: `${objectKeyPrefix}${randomUUID()}/${fileName}`,
+          purpose: "visit_attachment",
+          contentType,
+          sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
+          status: "active",
+          expiresAt,
+          createdByUserId: context.userId,
+        },
+      });
+    });
+
+    const uploadUrl = this.storageService
+      ? await this.storageService.createPresignedUploadUrl(
+          context,
+          storageObject.id,
+        )
+      : undefined;
+
+    return {
+      storageObject: {
+        id: storageObject.id,
+        bucket: storageObject.bucket,
+        objectKey: storageObject.objectKey,
+        contentType: storageObject.contentType,
+        sizeBytes: storageObject.sizeBytes?.toString() ?? null,
+      },
+      ...(uploadUrl
+        ? {
+            uploadUrl: {
+              url: uploadUrl.url,
+              method: "PUT" as const,
               expiresAt: uploadUrl.expiresAt,
               headers: uploadUrl.headers,
             },
@@ -502,6 +730,27 @@ export class VisitsService {
             reportId: result.id,
             dueDate: task.dueDate,
           })),
+        });
+      }
+
+      // The problem photo was registered with an expiry so an abandoned or
+      // re-picked upload gets collected. Confirming the report is what makes
+      // the one object it actually references permanent — scoped to this
+      // tenant and this visit's own prefix so a payload can't adopt someone
+      // else's object by id.
+      const problemPhotoObjectId = problemPhotoObjectIdOf(confirmedData);
+
+      if (problemPhotoObjectId) {
+        await tx.storageObject.updateMany({
+          where: {
+            id: problemPhotoObjectId,
+            tenantId: context.tenantId,
+            purpose: "visit_attachment",
+            objectKey: {
+              startsWith: buildVisitPhotoPrefix(context.tenantId, visit.id),
+            },
+          },
+          data: { status: "active", expiresAt: null },
         });
       }
 
@@ -685,10 +934,13 @@ const visitInclude = {
   representative: true,
 } satisfies Prisma.VisitInclude;
 
-function buildVisitWhere(
+// Shared by buildVisitWhere (the ORM path listVisits uses) and
+// getVisitDaySummary's raw-SQL conditions above — the representative/tenant
+// scoping this derives must never drift between the two, so it lives once.
+function resolveVisitRepresentativeFilter(
   context: RequestContext,
-  query: ListVisitsQuery,
-): Prisma.VisitWhereInput {
+  query: Pick<ListVisitsQuery, "representativeUserId">,
+): string | null {
   const requestedRepresentativeId = normalizeId(query.representativeUserId);
   const canReadTeam = context.permissions.includes(
     PERMISSIONS.VISITS_READ_TEAM,
@@ -704,6 +956,14 @@ function buildVisitWhere(
     throwMissingVisitPermission();
   }
 
+  return representativeFilter ?? null;
+}
+
+function buildVisitWhere(
+  context: RequestContext,
+  query: ListVisitsQuery,
+): Prisma.VisitWhereInput {
+  const representativeFilter = resolveVisitRepresentativeFilter(context, query);
   const startedAtRange = buildDateTimeRangeFilter(
     query.startedFrom,
     query.startedTo,
@@ -797,7 +1057,7 @@ function normalizeOptionalString(value: unknown): string | null {
   return normalizedValue || null;
 }
 
-function normalizeAudioFileName(value: unknown): string | null {
+function normalizeUploadFileName(value: unknown): string | null {
   const normalizedValue = normalizeRequiredString(value);
 
   if (!normalizedValue) {
@@ -881,6 +1141,116 @@ function normalizeAudioSizeBytes(value: unknown): number | null {
   }
 
   return parsedValue;
+}
+
+function normalizePhotoContentType(
+  value: unknown,
+  fileName?: string | null,
+): string | null {
+  const normalizedValue = normalizeRequiredString(value)?.toLowerCase();
+  const aliasedValue = normalizedValue
+    ? (PHOTO_CONTENT_TYPE_ALIASES.get(normalizedValue) ?? normalizedValue)
+    : null;
+
+  if (aliasedValue && SUPPORTED_PHOTO_CONTENT_TYPES.has(aliasedValue)) {
+    return aliasedValue;
+  }
+
+  return normalizePhotoContentTypeFromFileName(fileName);
+}
+
+function normalizePhotoContentTypeFromFileName(
+  fileName: string | null | undefined,
+): string | null {
+  const extension = fileName?.split(".").pop()?.toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") {
+    return "image/jpeg";
+  }
+
+  if (extension === "png") {
+    return "image/png";
+  }
+
+  if (extension === "webp") {
+    return "image/webp";
+  }
+
+  if (extension === "heic") {
+    return "image/heic";
+  }
+
+  if (extension === "heif") {
+    return "image/heif";
+  }
+
+  return null;
+}
+
+function normalizePhotoSizeBytes(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const parsedValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+
+  if (
+    !Number.isInteger(parsedValue) ||
+    parsedValue <= 0 ||
+    parsedValue > MAX_PROBLEM_PHOTO_SIZE_BYTES
+  ) {
+    throw new BadRequestException({
+      code: "PHOTO_UPLOAD_SIZE_INVALID",
+      message: "Photo size must be a positive integer up to 10 MB.",
+      fieldErrors: {
+        sizeBytes: ["Photo size must be a positive integer up to 10 MB."],
+      },
+    });
+  }
+
+  return parsedValue;
+}
+
+// Digs `fieldReport.problem.photoObjectId` out of the freeform confirmed
+// payload. Everything below the top level is unvalidated JSON, so each step
+// is checked rather than cast.
+function problemPhotoObjectIdOf(
+  confirmedData: Prisma.InputJsonObject,
+): string | null {
+  const fieldReport = isPlainRecord(confirmedData)
+    ? confirmedData.fieldReport
+    : undefined;
+
+  if (!isPlainRecord(fieldReport)) {
+    return null;
+  }
+
+  const problem = (fieldReport as Record<string, unknown>).problem;
+
+  if (!isPlainRecord(problem)) {
+    return null;
+  }
+
+  const photoObjectId = problem.photoObjectId;
+
+  return typeof photoObjectId === "string" && photoObjectId
+    ? photoObjectId
+    : null;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Every photo for one visit shares this prefix, which is also how a
+// re-registration finds the visit's earlier photos to expire.
+function buildVisitPhotoPrefix(tenantId: string, visitId: string): string {
+  return ["tenants", tenantId, "visits", visitId, "photos", ""].join("/");
 }
 
 function buildTemporaryAudioObjectKey(

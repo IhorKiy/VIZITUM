@@ -1,6 +1,6 @@
 import { useFormatter, useTranslations } from "next-intl";
 
-import { formatDateTime } from "../lib/format";
+import { formatDate, formatDateTime } from "../lib/format";
 
 type ConfirmedProductUpdate = {
   productName: string;
@@ -12,14 +12,25 @@ type ConfirmedProductUpdate = {
   comment: string;
 };
 
+type ConfirmedProblem = {
+  type: string | null;
+  note: string;
+  photoObjectId: string | null;
+  photoContentType: string | null;
+};
+
 type ConfirmedFieldReport = {
   visitDate: string | null;
   outcome: string | null;
+  orderPlaced: boolean | null;
+  noOrderReason: string | null;
   stockStatus: string | null;
   presentedProducts: Array<{ id: string; name: string; sku: string | null }>;
   notes: string;
   nextAction: string;
+  nextActionDueDate: string | null;
   productUpdates: ConfirmedProductUpdate[];
+  problem: ConfirmedProblem | null;
 };
 
 type NormalizedConfirmedData = {
@@ -35,9 +46,14 @@ type NormalizedConfirmedData = {
 export function ConfirmedFieldReportSummary({
   confirmedData,
   confirmedAt,
+  problemPhotoUrl,
 }: {
   confirmedData: unknown;
   confirmedAt: string;
+  // Presigned by the page (this component stays sync so it can keep using
+  // useTranslations); null when there is no photo or the link could not be
+  // signed — the problem itself still renders either way.
+  problemPhotoUrl?: string | null;
 }) {
   const t = useTranslations("field.visit");
   const format = useFormatter();
@@ -58,7 +74,62 @@ export function ConfirmedFieldReportSummary({
 
       <div className="report-detail-section">
         <h3>{t("outcomeLabel")}</h3>
-        <p>{formatOutcome(t, data.fieldReport.outcome, empty)}</p>
+        <p>{formatResult(t, data.fieldReport, empty)}</p>
+      </div>
+
+      {data.fieldReport.orderPlaced === false ? (
+        <div className="report-detail-section">
+          <h3>{t("noOrderReasonLabel")}</h3>
+          <p>{formatNoOrderReason(t, data.fieldReport.noOrderReason, empty)}</p>
+        </div>
+      ) : null}
+
+      {data.fieldReport.problem ? (
+        <div className="report-detail-section">
+          <h3>{t("confirmedProblem")}</h3>
+          <p>
+            {[
+              formatProblemType(t, data.fieldReport.problem.type),
+              data.fieldReport.problem.note,
+            ]
+              .filter(Boolean)
+              .join(" · ") || empty}
+          </p>
+          {problemPhotoUrl ? (
+            <a
+              className="report-detail-photo"
+              href={problemPhotoUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {isBrowserRenderableImage(
+                data.fieldReport.problem.photoContentType,
+              ) ? (
+                /* A presigned storage URL on a per-request host: nothing
+                   next/image could optimize or whitelist. */
+                <img alt={t("confirmedProblemPhoto")} src={problemPhotoUrl} />
+              ) : (
+                // HEIC is what an iPhone shoots by default and only Safari
+                // renders it, so everyone else gets a link to open rather
+                // than a broken image.
+                t("confirmedProblemPhotoOpen")
+              )}
+            </a>
+          ) : data.fieldReport.problem.photoObjectId ? (
+            <p>{t("confirmedProblemPhoto")}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="report-detail-section">
+        <h3>{t("confirmedNextAction")}</h3>
+        <p>{data.fieldReport.nextAction || empty}</p>
+        {data.fieldReport.nextAction && data.fieldReport.nextActionDueDate ? (
+          <p>
+            {t("nextActionDueDateLabel")}:{" "}
+            {formatDate(format, data.fieldReport.nextActionDueDate, empty)}
+          </p>
+        ) : null}
       </div>
 
       <div className="report-detail-section">
@@ -66,9 +137,12 @@ export function ConfirmedFieldReportSummary({
         <p>{formatStockStatus(t, data.fieldReport.stockStatus, empty)}</p>
       </div>
 
-      <div className="report-detail-section">
-        <h3>{t("confirmedPresentedProducts")}</h3>
-        {data.fieldReport.presentedProducts.length > 0 ? (
+      {/* Presented products are only ever present on reports confirmed before
+          the shelf check replaced the per-SKU picker, so the section appears
+          only when one actually carries them. */}
+      {data.fieldReport.presentedProducts.length > 0 ? (
+        <div className="report-detail-section">
+          <h3>{t("confirmedPresentedProducts")}</h3>
           <div className="chip-list">
             {data.fieldReport.presentedProducts.map((product) => (
               <span className="chip" key={product.id}>
@@ -78,10 +152,8 @@ export function ConfirmedFieldReportSummary({
               </span>
             ))}
           </div>
-        ) : (
-          <p>{empty}</p>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       <div className="report-detail-section">
         <h3>{t("confirmedProductUpdates")}</h3>
@@ -98,13 +170,23 @@ export function ConfirmedFieldReportSummary({
                     .join(" · ")}
                 </strong>
                 <span>
-                  {formatSkuStatus(t, update.status, empty)}
-                  {" · "}
-                  {t("skuStockLabel")}: {update.stock ?? empty}
-                  {" · "}
-                  {t("skuOrderLabel")}: {update.order ?? empty}
-                  {" · "}
-                  {t("skuSaleLabel")}: {update.sale ?? empty}
+                  {[
+                    formatSkuStatus(t, update.status, empty),
+                    // Quantities only came from the old per-SKU cards; a
+                    // shelf-check row has none, and printing "-" three times
+                    // for every product would bury the status that matters.
+                    update.stock !== null
+                      ? `${t("skuStockLabel")}: ${update.stock}`
+                      : null,
+                    update.order !== null
+                      ? `${t("skuOrderLabel")}: ${update.order}`
+                      : null,
+                    update.sale !== null
+                      ? `${t("skuSaleLabel")}: ${update.sale}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
                 {update.comment ? <p>{update.comment}</p> : null}
               </article>
@@ -119,23 +201,57 @@ export function ConfirmedFieldReportSummary({
         <h3>{t("notesLabel")}</h3>
         <p>{data.fieldReport.notes || empty}</p>
       </div>
-
-      <div className="report-detail-section">
-        <h3>{t("confirmedNextAction")}</h3>
-        <p>{data.fieldReport.nextAction || empty}</p>
-      </div>
     </section>
   );
 }
 
-function formatOutcome(
+// Reports confirmed before the form recorded the order as a fact only carry
+// the derived positive/neutral/negative outcome, so they keep rendering that
+// wording rather than showing an empty result.
+function formatResult(
   t: ReturnType<typeof useTranslations<"field.visit">>,
-  outcome: string | null,
+  fieldReport: ConfirmedFieldReport,
   empty: string,
 ): string {
-  if (outcome === "positive") return t("outcomePositive");
-  if (outcome === "neutral") return t("outcomeNeutral");
-  if (outcome === "negative") return t("outcomeNegative");
+  if (fieldReport.orderPlaced === true) return t("resultOrderPlaced");
+  if (fieldReport.orderPlaced === false) return t("resultNoOrder");
+  if (fieldReport.outcome === "positive") return t("outcomePositive");
+  if (fieldReport.outcome === "neutral") return t("outcomeNeutral");
+  if (fieldReport.outcome === "negative") return t("outcomeNegative");
+  return empty;
+}
+
+// Types every browser can paint. A photo stored as something else (HEIC from
+// an iPhone) is still reachable — as a link, not an <img> that renders broken
+// outside Safari. An unknown/absent type is treated as renderable: it only
+// ever comes from reports written before the type was recorded, which were
+// jpeg/png in practice.
+function isBrowserRenderableImage(contentType: string | null): boolean {
+  return contentType === null || !/^image\/(heic|heif)$/.test(contentType);
+}
+
+function formatProblemType(
+  t: ReturnType<typeof useTranslations<"field.visit">>,
+  type: string | null,
+): string {
+  if (type === "return") return t("problemTypeReturn");
+  if (type === "damaged") return t("problemTypeDamaged");
+  if (type === "expired") return t("problemTypeExpired");
+  if (type === "conflict") return t("problemTypeConflict");
+  return "";
+}
+
+function formatNoOrderReason(
+  t: ReturnType<typeof useTranslations<"field.visit">>,
+  reason: string | null,
+  empty: string,
+): string {
+  if (reason === "closed") return t("noOrderReasonClosed");
+  if (reason === "no_decision_maker") return t("noOrderReasonNoDecisionMaker");
+  if (reason === "has_stock") return t("noOrderReasonHasStock");
+  if (reason === "no_money") return t("noOrderReasonNoMoney");
+  if (reason === "refused") return t("noOrderReasonRefused");
+  if (reason === "other") return t("noOrderReasonOther");
   return empty;
 }
 
@@ -175,6 +291,14 @@ function normalizeConfirmedData(value: unknown): NormalizedConfirmedData {
           : null,
       outcome:
         typeof fieldReport.outcome === "string" ? fieldReport.outcome : null,
+      orderPlaced:
+        typeof fieldReport.orderPlaced === "boolean"
+          ? fieldReport.orderPlaced
+          : null,
+      noOrderReason:
+        typeof fieldReport.noOrderReason === "string"
+          ? fieldReport.noOrderReason
+          : null,
       stockStatus:
         typeof fieldReport.stockStatus === "string"
           ? fieldReport.stockStatus
@@ -187,8 +311,30 @@ function normalizeConfirmedData(value: unknown): NormalizedConfirmedData {
         typeof fieldReport.nextAction === "string"
           ? fieldReport.nextAction
           : "",
+      nextActionDueDate:
+        typeof fieldReport.nextActionDueDate === "string"
+          ? fieldReport.nextActionDueDate
+          : null,
       productUpdates: normalizeProductUpdates(fieldReport.productUpdates),
+      problem: normalizeProblem(fieldReport.problem),
     },
+  };
+}
+
+function normalizeProblem(value: unknown): ConfirmedProblem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  return {
+    type: typeof value.type === "string" ? value.type : null,
+    note: typeof value.note === "string" ? value.note : "",
+    photoObjectId:
+      typeof value.photoObjectId === "string" ? value.photoObjectId : null,
+    photoContentType:
+      typeof value.photoContentType === "string"
+        ? value.photoContentType
+        : null,
   };
 }
 
