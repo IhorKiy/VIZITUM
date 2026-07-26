@@ -18,13 +18,15 @@ import type {
 } from "./storage.types";
 
 // Storage objects that belong to a single visit and follow the visit's own
-// read/update permissions rather than a settings- or import-scoped rule:
-// the recorded voice note, its transcript, and the report's problem photo
-// (`attachment`).
+// read/update permissions rather than a settings- or import-scoped rule: the
+// recorded voice note, its transcript, and the report's problem photo. The
+// photo has its own `visit_attachment` purpose rather than the generic
+// `attachment` precisely so a future non-visit attachment cannot inherit
+// these rules by sharing a name.
 const VISIT_ARTIFACT_PURPOSES: string[] = [
   "temporary_audio",
   "temporary_transcript",
-  "attachment",
+  "visit_attachment",
 ];
 
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 300;
@@ -119,10 +121,25 @@ export class StorageService {
   ): Promise<StorageCleanupResult> {
     const expiredObjects = await this.prisma.storageObject.findMany({
       where: {
-        status: "expired",
         deletedAt: null,
         expiresAt: { lte: now },
-        purpose: { in: ["temporary_audio", "temporary_transcript"] },
+        OR: [
+          // Unchanged: transcription marks these `expired` when it is done
+          // with them, and only then are they swept.
+          {
+            status: "expired",
+            purpose: { in: ["temporary_audio", "temporary_transcript"] },
+          },
+          // A problem photo keeps its expiry until a confirmed report claims
+          // it (`VisitsService.confirmReport` clears it). Reaching the expiry
+          // means no report ever referenced it — an abandoned form (still
+          // `active`) or a photo the rep replaced, which registration expires
+          // on the spot (`expired`). Both are collectable.
+          {
+            status: { in: ["active", "expired"] },
+            purpose: "visit_attachment",
+          },
+        ],
       },
       orderBy: { expiresAt: "asc" },
       take: CLEANUP_BATCH_SIZE,

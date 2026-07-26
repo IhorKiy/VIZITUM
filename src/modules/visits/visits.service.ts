@@ -48,6 +48,9 @@ const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
   "audio/wav",
 ]);
 const MAX_PROBLEM_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+// How long a registered-but-unconfirmed problem photo survives before the
+// cleanup worker collects it. Same window the temporary audio uses.
+const UNCONFIRMED_PHOTO_TTL_HOURS = 24;
 const SUPPORTED_PHOTO_CONTENT_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -304,7 +307,7 @@ export class VisitsService {
       throwMissingVisitPermission();
     }
 
-    const fileName = normalizeAudioFileName(body.fileName);
+    const fileName = normalizeUploadFileName(body.fileName);
     const contentType = normalizeAudioContentType(body.contentType, fileName);
     const sizeBytes = normalizeAudioSizeBytes(body.sizeBytes);
     const checksum = normalizeOptionalString(body.checksum);
@@ -395,9 +398,16 @@ export class VisitsService {
 
   // Photo evidence for the "problem" exception on the field report. Same
   // register-then-presigned-PUT shape as the audio upload above (the bytes
-  // never travel through a Server Action), but the object outlives the visit
-  // — it is the report's attachment, so it gets no `expiresAt` and no
-  // `VisitNote` row.
+  // never travel through a Server Action) and no `VisitNote` row.
+  //
+  // Registering is not the same as keeping: a rep who re-picks a photo,
+  // collapses the problem panel or abandons the form leaves an object nothing
+  // will ever reference. So a fresh registration starts with an `expiresAt`
+  // like any temporary object and expires the visit's previous unreferenced
+  // photo immediately (at most one in flight per visit, which is also what
+  // bounds how much a single visit can upload). Confirming a report is what
+  // makes the photo permanent — `confirmReport` clears the expiry of the one
+  // object the report actually points at.
   async registerProblemPhotoUpload(
     context: RequestContext,
     visitId: string,
@@ -411,7 +421,7 @@ export class VisitsService {
       throwMissingVisitPermission();
     }
 
-    const fileName = normalizeAudioFileName(body.fileName);
+    const fileName = normalizeUploadFileName(body.fileName);
     const contentType = normalizePhotoContentType(body.contentType, fileName);
     const sizeBytes = normalizePhotoSizeBytes(body.sizeBytes);
 
@@ -428,21 +438,36 @@ export class VisitsService {
       });
     }
 
-    const storageObject = await this.prisma.storageObject.create({
-      data: {
-        tenantId: context.tenantId,
-        bucket: this.storageService?.getDefaultBucket() ?? "vizitum",
-        objectKey: buildProblemPhotoObjectKey(
-          context.tenantId,
-          visit.id,
-          fileName,
-        ),
-        purpose: "attachment",
-        contentType,
-        sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
-        status: "active",
-        createdByUserId: context.userId,
-      },
+    const now = new Date();
+    const expiresAt = new Date(
+      now.getTime() + UNCONFIRMED_PHOTO_TTL_HOURS * 60 * 60 * 1000,
+    );
+    const objectKeyPrefix = buildVisitPhotoPrefix(context.tenantId, visit.id);
+
+    const storageObject = await this.prisma.$transaction(async (tx) => {
+      await tx.storageObject.updateMany({
+        where: {
+          tenantId: context.tenantId,
+          purpose: "visit_attachment",
+          status: "active",
+          objectKey: { startsWith: objectKeyPrefix },
+        },
+        data: { status: "expired", expiresAt: now },
+      });
+
+      return tx.storageObject.create({
+        data: {
+          tenantId: context.tenantId,
+          bucket: this.storageService?.getDefaultBucket() ?? "vizitum",
+          objectKey: `${objectKeyPrefix}${randomUUID()}/${fileName}`,
+          purpose: "visit_attachment",
+          contentType,
+          sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
+          status: "active",
+          expiresAt,
+          createdByUserId: context.userId,
+        },
+      });
     });
 
     const uploadUrl = this.storageService
@@ -596,6 +621,27 @@ export class VisitsService {
             reportId: result.id,
             dueDate: task.dueDate,
           })),
+        });
+      }
+
+      // The problem photo was registered with an expiry so an abandoned or
+      // re-picked upload gets collected. Confirming the report is what makes
+      // the one object it actually references permanent — scoped to this
+      // tenant and this visit's own prefix so a payload can't adopt someone
+      // else's object by id.
+      const problemPhotoObjectId = problemPhotoObjectIdOf(confirmedData);
+
+      if (problemPhotoObjectId) {
+        await tx.storageObject.updateMany({
+          where: {
+            id: problemPhotoObjectId,
+            tenantId: context.tenantId,
+            purpose: "visit_attachment",
+            objectKey: {
+              startsWith: buildVisitPhotoPrefix(context.tenantId, visit.id),
+            },
+          },
+          data: { status: "active", expiresAt: null },
         });
       }
 
@@ -872,7 +918,7 @@ function normalizeOptionalString(value: unknown): string | null {
   return normalizedValue || null;
 }
 
-function normalizeAudioFileName(value: unknown): string | null {
+function normalizeUploadFileName(value: unknown): string | null {
   const normalizedValue = normalizeRequiredString(value);
 
   if (!normalizedValue) {
@@ -1031,20 +1077,41 @@ function normalizePhotoSizeBytes(value: unknown): number | null {
   return parsedValue;
 }
 
-function buildProblemPhotoObjectKey(
-  tenantId: string,
-  visitId: string,
-  fileName: string,
-): string {
-  return [
-    "tenants",
-    tenantId,
-    "visits",
-    visitId,
-    "photos",
-    randomUUID(),
-    fileName,
-  ].join("/");
+// Digs `fieldReport.problem.photoObjectId` out of the freeform confirmed
+// payload. Everything below the top level is unvalidated JSON, so each step
+// is checked rather than cast.
+function problemPhotoObjectIdOf(
+  confirmedData: Prisma.InputJsonObject,
+): string | null {
+  const fieldReport = isPlainRecord(confirmedData)
+    ? confirmedData.fieldReport
+    : undefined;
+
+  if (!isPlainRecord(fieldReport)) {
+    return null;
+  }
+
+  const problem = (fieldReport as Record<string, unknown>).problem;
+
+  if (!isPlainRecord(problem)) {
+    return null;
+  }
+
+  const photoObjectId = problem.photoObjectId;
+
+  return typeof photoObjectId === "string" && photoObjectId
+    ? photoObjectId
+    : null;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Every photo for one visit shares this prefix, which is also how a
+// re-registration finds the visit's earlier photos to expire.
+function buildVisitPhotoPrefix(tenantId: string, visitId: string): string {
+  return ["tenants", tenantId, "visits", visitId, "photos", ""].join("/");
 }
 
 function buildTemporaryAudioObjectKey(

@@ -1210,7 +1210,8 @@
       "notesOptional": "optional",
       "notesFilled": "filled in",
       "notesCollapseAria": "Collapse the comment",
-      "sectionProblem": "problem"
+      "sectionProblem": "problem",
+      "confirmedProblemPhotoOpen": "Open the photo"
     },
     "planning": {
       "eyebrow": "Route planning",

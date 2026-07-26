@@ -17,7 +17,7 @@ const createdAt = new Date("2026-07-26T10:00:00.000Z");
 
 function buildPrisma(
   createdStorageObjects: unknown[],
-  overrides: { visit?: unknown } = {},
+  overrides: { visit?: unknown; expiredQueries?: unknown[] } = {},
 ) {
   const {
     visit = {
@@ -47,34 +47,46 @@ function buildPrisma(
     },
   } = overrides;
 
+  const storageObject = {
+    create: async (query: unknown) => {
+      createdStorageObjects.push(query);
+      const data = (query as { data: Record<string, unknown> }).data;
+
+      return {
+        id: "storage-photo-a",
+        bucket: data.bucket,
+        objectKey: data.objectKey,
+        contentType: data.contentType,
+        sizeBytes: data.sizeBytes,
+      };
+    },
+    updateMany: async (query: unknown) => {
+      overrides.expiredQueries?.push(query);
+
+      return { count: 1 };
+    },
+  };
+
   return {
     visit: { findFirst: async () => visit },
-    storageObject: {
-      create: async (query: unknown) => {
-        createdStorageObjects.push(query);
-        const data = (query as { data: Record<string, unknown> }).data;
-
-        return {
-          id: "storage-photo-a",
-          bucket: data.bucket,
-          objectKey: data.objectKey,
-          contentType: data.contentType,
-          sizeBytes: data.sizeBytes,
-        };
-      },
-    },
+    storageObject,
+    $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback({ storageObject }),
   };
 }
 
-// The problem photo is evidence hanging off a confirmed report, not a
-// transcription input, so this path differs from the audio one in three ways
-// these pin: purpose `attachment`, no `expiresAt` (the retention worker only
-// sweeps temporary objects), and no `VisitNote` row.
+// A registered photo is not yet a kept photo: it starts with an expiry so a
+// re-picked, discarded or abandoned upload gets collected, and only
+// `confirmReport` clears that expiry for the object the report references
+// (see visit-problem-photo-lifecycle.test.ts). These pin the register half:
+// the dedicated `visit_attachment` purpose, the expiry, the per-visit sweep
+// of earlier photos, and no `VisitNote` row.
 describe("visit problem photo registration", () => {
-  it("registers an attachment storage object that does not expire", async () => {
+  it("registers a visit_attachment that expires until a report claims it", async () => {
     const createdStorageObjects: unknown[] = [];
+    const expiredQueries: unknown[] = [];
     const service = new VisitsService(
-      buildPrisma(createdStorageObjects) as never,
+      buildPrisma(createdStorageObjects, { expiredQueries }) as never,
     );
 
     const response = await service.registerProblemPhotoUpload(
@@ -89,15 +101,30 @@ describe("visit problem photo registration", () => {
 
     const data = (createdStorageObjects[0] as { data: Record<string, unknown> })
       .data;
-    assert.equal(data.purpose, "attachment");
+    assert.equal(data.purpose, "visit_attachment");
     assert.equal(data.contentType, "image/jpeg");
     assert.equal(data.tenantId, "tenant-a");
     assert.equal(data.createdByUserId, "rep-a");
-    assert.equal(data.expiresAt, undefined);
+    assert.ok(data.expiresAt instanceof Date);
     assert.match(
       String(data.objectKey),
       /^tenants\/tenant-a\/visits\/visit-a\/photos\/.+\/problem\.jpg$/,
     );
+
+    // Registering again for the same visit must not leave the previous photo
+    // behind with nothing referencing it.
+    assert.equal(expiredQueries.length, 1);
+    const sweep = expiredQueries[0] as {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    };
+    assert.equal(sweep.where.tenantId, "tenant-a");
+    assert.equal(sweep.where.purpose, "visit_attachment");
+    assert.equal(sweep.where.status, "active");
+    assert.deepEqual(sweep.where.objectKey, {
+      startsWith: "tenants/tenant-a/visits/visit-a/photos/",
+    });
+    assert.equal(sweep.data.status, "expired");
   });
 
   it("derives the content type from the file name when the browser sends none", async () => {

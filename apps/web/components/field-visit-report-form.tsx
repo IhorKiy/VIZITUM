@@ -16,7 +16,11 @@ import {
   transcribeFieldReportAction,
 } from "../lib/field-report-actions";
 import { INPUT_LIMITS } from "../lib/input-limits";
-import { deriveVisitOutcome, NO_ORDER_REASONS } from "../lib/visit-result";
+import {
+  deriveVisitOutcome,
+  isNoOrderReason,
+  NO_ORDER_REASONS,
+} from "../lib/visit-result";
 import {
   AlertTriangleIcon,
   CameraIcon,
@@ -167,6 +171,7 @@ export function FieldVisitReportForm({
   const [problemPhoto, setProblemPhoto] = useState<{
     objectId: string;
     fileName: string;
+    contentType: string;
   } | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [notes, setNotes] = useState("");
@@ -278,6 +283,10 @@ export function FieldVisitReportForm({
       setProblemPhoto({
         objectId: registerResult.data.storageObject.id,
         fileName: file.name || "problem-photo.jpg",
+        // The backend accepts HEIC (what an iPhone shoots by default), which
+        // only Safari can render — the summary needs the type to decide
+        // between an <img> and a plain link.
+        contentType: registerResult.data.storageObject.contentType,
       });
     } catch {
       setError(t("problemPhotoErrorNotice"));
@@ -313,7 +322,11 @@ export function FieldVisitReportForm({
     }
     if (data.orderPlaced !== null) {
       setOrderPlaced(data.orderPlaced);
-      setNoOrderReason(data.orderPlaced ? null : data.noOrderReason);
+      setNoOrderReason(
+        !data.orderPlaced && isNoOrderReason(data.noOrderReason)
+          ? data.noOrderReason
+          : null,
+      );
       filledSections.push(t("sectionResult"));
     }
 
@@ -539,8 +552,15 @@ export function FieldVisitReportForm({
             type: problemType,
             note: trimmedProblemNote,
             photoObjectId: problemPhoto?.objectId ?? null,
+            photoContentType: problemPhoto?.contentType ?? null,
           }
         : null;
+
+    // The due-date input hides itself when the agreement is cleared, but the
+    // state behind it would otherwise still be written to the report.
+    const nextActionDueDateForReport = trimmedNextAction
+      ? nextActionDueDate || null
+      : null;
 
     // The agreement is the follow-up task: one line the rep already wrote,
     // turned into the row they'll see on the next visit, instead of a second
@@ -550,7 +570,7 @@ export function FieldVisitReportForm({
           {
             title: trimmedNextAction,
             description: "",
-            dueDate: nextActionDueDate || null,
+            dueDate: nextActionDueDateForReport,
             assignee: "representative",
           },
         ]
@@ -582,7 +602,7 @@ export function FieldVisitReportForm({
         stockStatus: missingProducts.length > 0 ? "out_of_stock" : null,
         notes: trimmedNotes,
         nextAction: trimmedNextAction,
-        nextActionDueDate: nextActionDueDate || null,
+        nextActionDueDate: nextActionDueDateForReport,
         productUpdates,
         problem,
       },
@@ -787,7 +807,7 @@ export function FieldVisitReportForm({
           </div>
 
           {shelfOpen ? (
-            <div className="shelf-panel">
+            <div className="shelf-panel" id="shelf-panel">
               <div className="panel-head">
                 <p>{t("shelfTitle")}</p>
                 <button

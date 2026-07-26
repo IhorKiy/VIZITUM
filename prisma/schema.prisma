@@ -206,6 +206,11 @@ enum StorageObjectPurpose {
   export_file
   attachment
   branding_logo
+  // Evidence attached to one visit's report (currently the problem photo).
+  // Distinct from the generic `attachment` on purpose: storage permissions
+  // and cleanup treat it as a visit artifact, and a future non-visit
+  // attachment must not inherit those rules by sharing a name.
+  visit_attachment
 }
 
 model PlatformTenant {

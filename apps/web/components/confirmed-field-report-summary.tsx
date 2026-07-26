@@ -16,6 +16,7 @@ type ConfirmedProblem = {
   type: string | null;
   note: string;
   photoObjectId: string | null;
+  photoContentType: string | null;
 };
 
 type ConfirmedFieldReport = {
@@ -101,9 +102,18 @@ export function ConfirmedFieldReportSummary({
               rel="noreferrer"
               target="_blank"
             >
-              {/* A presigned storage URL on a per-request host: nothing
-                  next/image could optimize or whitelist. */}
-              <img alt={t("confirmedProblemPhoto")} src={problemPhotoUrl} />
+              {isBrowserRenderableImage(
+                data.fieldReport.problem.photoContentType,
+              ) ? (
+                /* A presigned storage URL on a per-request host: nothing
+                   next/image could optimize or whitelist. */
+                <img alt={t("confirmedProblemPhoto")} src={problemPhotoUrl} />
+              ) : (
+                // HEIC is what an iPhone shoots by default and only Safari
+                // renders it, so everyone else gets a link to open rather
+                // than a broken image.
+                t("confirmedProblemPhotoOpen")
+              )}
             </a>
           ) : data.fieldReport.problem.photoObjectId ? (
             <p>{t("confirmedProblemPhoto")}</p>
@@ -211,6 +221,15 @@ function formatResult(
   return empty;
 }
 
+// Types every browser can paint. A photo stored as something else (HEIC from
+// an iPhone) is still reachable — as a link, not an <img> that renders broken
+// outside Safari. An unknown/absent type is treated as renderable: it only
+// ever comes from reports written before the type was recorded, which were
+// jpeg/png in practice.
+function isBrowserRenderableImage(contentType: string | null): boolean {
+  return contentType === null || !/^image\/(heic|heif)$/.test(contentType);
+}
+
 function formatProblemType(
   t: ReturnType<typeof useTranslations<"field.visit">>,
   type: string | null,
@@ -312,6 +331,10 @@ function normalizeProblem(value: unknown): ConfirmedProblem | null {
     note: typeof value.note === "string" ? value.note : "",
     photoObjectId:
       typeof value.photoObjectId === "string" ? value.photoObjectId : null,
+    photoContentType:
+      typeof value.photoContentType === "string"
+        ? value.photoContentType
+        : null,
   };
 }
 

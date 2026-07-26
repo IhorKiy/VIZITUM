@@ -1210,7 +1210,8 @@
       "notesOptional": "за бажанням",
       "notesFilled": "заповнено",
       "notesCollapseAria": "Згорнути коментар",
-      "sectionProblem": "проблема"
+      "sectionProblem": "проблема",
+      "confirmedProblemPhotoOpen": "Відкрити фото"
     },
     "planning": {
       "eyebrow": "Планування маршрутів",
