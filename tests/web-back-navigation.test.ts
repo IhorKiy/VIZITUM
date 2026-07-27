@@ -112,6 +112,44 @@ describe("resolveBackTarget", () => {
     });
   });
 
+  describe("manager location detail", () => {
+    // Opened from two screens in its own zone, so each has to be a returnable
+    // origin — the coverage list keeps its filters, the potential dashboard
+    // sends the manager back to the number that made them open the outlet.
+    const COVERAGE_FALLBACK: BackTarget = {
+      href: "/acme/manager/locations",
+      labelKey: "coverage",
+    };
+
+    it("returns to the coverage list with its filters intact", () => {
+      assert.deepEqual(
+        resolveBackTarget(
+          "acme",
+          "/manager/locations?status=active&sort=coveragePct&dir=asc",
+          COVERAGE_FALLBACK,
+        ),
+        {
+          href: "/acme/manager/locations?status=active&sort=coveragePct&dir=asc",
+          labelKey: "coverage",
+        },
+      );
+    });
+
+    it("returns to the potential dashboard when opened from there", () => {
+      assert.deepEqual(
+        resolveBackTarget("acme", "/manager/potential", COVERAGE_FALLBACK),
+        { href: "/acme/manager/potential", labelKey: "potential" },
+      );
+    });
+
+    it("falls back to the coverage list for a deep link", () => {
+      assert.deepEqual(
+        resolveBackTarget("acme", undefined, COVERAGE_FALLBACK),
+        COVERAGE_FALLBACK,
+      );
+    });
+  });
+
   describe("keeps a back control inside its own zone", () => {
     // The allowlist is global, so without a zone check a crafted origin could
     // make one zone's screen advertise a destination in another — never a

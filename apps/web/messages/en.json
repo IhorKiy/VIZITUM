@@ -21,7 +21,9 @@
       "locations": "Back to locations",
       "location": "Back to location",
       "locationHistory": "Back to visit history",
-      "visits": "Back to visits"
+      "visits": "Back to visits",
+      "coverage": "Back to coverage",
+      "potential": "Back to potential"
     },
     "labels": {
       "draft": "Draft",
@@ -453,7 +455,9 @@
       "filterResultCount": "{count, plural, =0 {No locations found} one {Found <b>#</b> location} other {Found <b>#</b> locations}}",
       "tableTotalPotential": "Total potential",
       "tableCoverage": "Coverage",
-      "tableLinks": "Links"
+      "tableLinks": "Links",
+      "detailNotFoundTitle": "Location not found",
+      "assortment": "Assortment"
     },
     "representatives": {
       "title": "Representatives",

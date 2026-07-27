@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  assertCanManageLocationInsights,
-  canManageLocationInsights,
+  assertCanManageAssortment,
+  assertCanManagePotential,
+  canManageAssortment,
+  canManagePotential,
 } from "../src/modules/location-insights/location-insights-access";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
 
@@ -13,26 +15,59 @@ const baseContext = {
   tenantSlug: "tenant-a",
   userId: "rep-a",
   roleCodes: ["field_representative"],
-  permissions: [PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN],
+  permissions: [PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN],
 };
 
-describe("canManageLocationInsights", () => {
-  it("allows a caller with the manage permission without checking assignments", async () => {
-    const prisma = {}; // no locationAssignment.findFirst — would throw if called
+describe("canManageAssortment", () => {
+  it("allows a caller holding the assortment permission", () => {
     const context = {
       ...baseContext,
-      permissions: [PERMISSIONS.LOCATION_INSIGHTS_MANAGE],
+      roleCodes: ["team_manager"],
+      permissions: [PERMISSIONS.LOCATION_ASSORTMENT_MANAGE],
     };
 
-    const canManage = await canManageLocationInsights(
-      context as never,
-      prisma as never,
-      "location-a",
-    );
-
-    assert.equal(canManage, true);
+    assert.equal(canManageAssortment(context as never), true);
   });
 
+  it("forbids a representative who can only manage the potential", () => {
+    // The whole point of the split: an assignment does not buy write access to
+    // the assortment, so the standard a manager sets cannot be edited from the
+    // field.
+    assert.equal(canManageAssortment(baseContext as never), false);
+  });
+
+  it("forbids a caller with neither permission", () => {
+    const context = { ...baseContext, permissions: [] };
+
+    assert.equal(canManageAssortment(context as never), false);
+  });
+});
+
+describe("assertCanManageAssortment", () => {
+  it("does not throw when the caller can manage", () => {
+    const context = {
+      ...baseContext,
+      permissions: [PERMISSIONS.LOCATION_ASSORTMENT_MANAGE],
+    };
+
+    assert.doesNotThrow(() => assertCanManageAssortment(context as never));
+  });
+
+  it("throws a 403 LOCATION_ASSORTMENT_SCOPE_FORBIDDEN when the caller cannot manage", () => {
+    assert.throws(
+      () => assertCanManageAssortment(baseContext as never),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_ASSORTMENT_SCOPE_FORBIDDEN",
+        );
+        return true;
+      },
+    );
+  });
+});
+
+describe("canManagePotential", () => {
   it("allows manage_own when an active assignment exists", async () => {
     let capturedWhere: unknown;
     const prisma = {
@@ -44,7 +79,7 @@ describe("canManageLocationInsights", () => {
       },
     };
 
-    const canManage = await canManageLocationInsights(
+    const canManage = await canManagePotential(
       baseContext as never,
       prisma as never,
       "location-a",
@@ -59,13 +94,47 @@ describe("canManageLocationInsights", () => {
     });
   });
 
+  it("allows the tenant-wide repair tier without querying assignments", async () => {
+    const prisma = {}; // no locationAssignment.findFirst — would throw if called
+    const context = {
+      ...baseContext,
+      roleCodes: ["tenant_superadmin"],
+      permissions: [PERMISSIONS.LOCATION_POTENTIAL_MANAGE],
+    };
+
+    const canManage = await canManagePotential(
+      context as never,
+      prisma as never,
+      "location-a",
+    );
+
+    assert.equal(canManage, true);
+  });
+
   it("forbids manage_own when no active assignment exists", async () => {
     const prisma = {
       locationAssignment: { findFirst: async () => null },
     };
 
-    const canManage = await canManageLocationInsights(
+    const canManage = await canManagePotential(
       baseContext as never,
+      prisma as never,
+      "location-a",
+    );
+
+    assert.equal(canManage, false);
+  });
+
+  it("forbids a manager holding only the assortment permission", async () => {
+    const prisma = {}; // no locationAssignment.findFirst — would throw if called
+    const context = {
+      ...baseContext,
+      roleCodes: ["team_manager"],
+      permissions: [PERMISSIONS.LOCATION_ASSORTMENT_MANAGE],
+    };
+
+    const canManage = await canManagePotential(
+      context as never,
       prisma as never,
       "location-a",
     );
@@ -77,7 +146,7 @@ describe("canManageLocationInsights", () => {
     const prisma = {};
     const context = { ...baseContext, permissions: [] };
 
-    const canManage = await canManageLocationInsights(
+    const canManage = await canManagePotential(
       context as never,
       prisma as never,
       "location-a",
@@ -90,7 +159,7 @@ describe("canManageLocationInsights", () => {
     const prisma = {}; // no locationAssignment.findFirst — would throw if called
     const context = { ...baseContext, userId: undefined };
 
-    const canManage = await canManageLocationInsights(
+    const canManage = await canManagePotential(
       context as never,
       prisma as never,
       "location-a",
@@ -100,14 +169,14 @@ describe("canManageLocationInsights", () => {
   });
 });
 
-describe("assertCanManageLocationInsights", () => {
+describe("assertCanManagePotential", () => {
   it("resolves without throwing when the caller can manage", async () => {
     const prisma = {
       locationAssignment: { findFirst: async () => ({ id: "assignment-a" }) },
     };
 
     await assert.doesNotReject(
-      assertCanManageLocationInsights(
+      assertCanManagePotential(
         baseContext as never,
         prisma as never,
         "location-a",
@@ -115,13 +184,13 @@ describe("assertCanManageLocationInsights", () => {
     );
   });
 
-  it("throws a 403 LOCATION_INSIGHTS_SCOPE_FORBIDDEN when the caller cannot manage", async () => {
+  it("throws a 403 LOCATION_POTENTIAL_SCOPE_FORBIDDEN when the caller cannot manage", async () => {
     const prisma = {
       locationAssignment: { findFirst: async () => null },
     };
 
     await assert.rejects(
-      assertCanManageLocationInsights(
+      assertCanManagePotential(
         baseContext as never,
         prisma as never,
         "location-a",
@@ -129,7 +198,7 @@ describe("assertCanManageLocationInsights", () => {
       (error: { getResponse?: () => { code?: string } }) => {
         assert.equal(
           error.getResponse?.().code,
-          "LOCATION_INSIGHTS_SCOPE_FORBIDDEN",
+          "LOCATION_POTENTIAL_SCOPE_FORBIDDEN",
         );
         return true;
       },

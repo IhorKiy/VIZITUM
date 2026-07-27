@@ -30,7 +30,9 @@ export type BackLabelKey =
   | "locations"
   | "location"
   | "locationHistory"
-  | "visits";
+  | "visits"
+  | "coverage"
+  | "potential";
 
 export type BackTarget = {
   /** Absolute, tenant-prefixed href for the back control. */
@@ -58,6 +60,8 @@ const RETURNABLE_SCREENS: { pattern: RegExp; labelKey: BackLabelKey }[] = [
     labelKey: "locationHistory",
   },
   { pattern: /^\/manager\/visits$/, labelKey: "visits" },
+  { pattern: /^\/manager\/locations$/, labelKey: "coverage" },
+  { pattern: /^\/manager\/potential$/, labelKey: "potential" },
   { pattern: /^\/admin\/locations$/, labelKey: "locations" },
 ];
 

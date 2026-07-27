@@ -119,11 +119,20 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     // Temporary onboarding section: readiness checklist + pilot review. Shown
     // only while the tenant is on the pilot plan (filtered out via pilotActive
     // in filterNavItemDefs), so it disappears once the tenant graduates.
+    //
+    // Gated on tenant.settings.read (admin roles only), not on the
+    // GET /pilot-review/summary endpoint's own pilot_review.read — that
+    // permission is also held by team_manager, and zone availability is an OR
+    // across every item in a zone, so gating on it here surfaced the entire
+    // "admin" zone (switcher entry, zone chooser on login) to plain managers.
+    // The section is admin work anyway: every checklist row is tenant
+    // configuration only an admin can act on (admin access, roles, locations,
+    // products, initial plan). Same reasoning as manager-potential below.
     path: "/admin/pilot",
     area: "admin-pilot",
     zone: "admin",
     icon: "flag",
-    requiredPermissions: ["pilot_review.read"],
+    requiredPermissions: ["tenant.settings.read"],
   },
   {
     path: "/admin/users",

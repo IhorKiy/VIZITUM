@@ -41,8 +41,8 @@ export class LocationPotentialController {
 
   @Put(":locationId/potential/:productCategoryId")
   @RequireAnyPermissions(
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
   )
   upsertPotential(
     @Req() request: Request,
@@ -60,8 +60,8 @@ export class LocationPotentialController {
 
   @Delete(":locationId/potential/:productCategoryId")
   @RequireAnyPermissions(
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
   )
   deletePotential(
     @Req() request: Request,

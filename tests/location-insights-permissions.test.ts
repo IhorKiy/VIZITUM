@@ -12,11 +12,6 @@ import { LocationInsightsSummaryController } from "../src/modules/location-insig
 import { LocationPotentialController } from "../src/modules/location-insights/location-potential.controller";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
 
-const manageAnyPermissions = [
-  PERMISSIONS.LOCATION_INSIGHTS_MANAGE,
-  PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN,
-];
-
 // Guards against the two-controllers-sharing-the-"locations"-prefix route
 // table ever silently colliding with LocationsController's own routes — this
 // codebase never boots a real Nest app in tests, so nothing else would catch
@@ -38,19 +33,53 @@ describe("location insights permissions", () => {
     }
   });
 
-  it("requires a manage permission on every write endpoint", () => {
+  // The two tables answer to different owners, so their write guards must not
+  // drift back into one shared permission: the assortment is the manager's
+  // tenant-wide standard, the potential is the assigned representative's.
+  it("requires location_assortment.manage on every assortment write", () => {
     const writeHandlers = [
-      LocationPotentialController.prototype.upsertPotential,
-      LocationPotentialController.prototype.deletePotential,
       LocationAssortmentController.prototype.upsertAssortment,
       LocationAssortmentController.prototype.deleteAssortment,
     ];
 
     for (const handler of writeHandlers) {
       assert.deepEqual(
+        Reflect.getMetadata(REQUIRED_PERMISSIONS_METADATA, handler),
+        [PERMISSIONS.LOCATION_ASSORTMENT_MANAGE],
+        `${handler.name} must require location_assortment.manage`,
+      );
+    }
+  });
+
+  it("accepts either potential tier on every potential write", () => {
+    const writeHandlers = [
+      LocationPotentialController.prototype.upsertPotential,
+      LocationPotentialController.prototype.deletePotential,
+    ];
+
+    for (const handler of writeHandlers) {
+      assert.deepEqual(
         Reflect.getMetadata(REQUIRED_ANY_PERMISSIONS_METADATA, handler),
-        manageAnyPermissions,
-        `${handler.name} must require location_insights.manage or location_insights.manage_own`,
+        [
+          PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
+          PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
+        ],
+        `${handler.name} must accept location_potential.manage or .manage_own`,
+      );
+    }
+  });
+
+  it("keeps the assortment writes on a single tenant-wide permission", () => {
+    const writeHandlers = [
+      LocationAssortmentController.prototype.upsertAssortment,
+      LocationAssortmentController.prototype.deleteAssortment,
+    ];
+
+    for (const handler of writeHandlers) {
+      assert.equal(
+        Reflect.getMetadata(REQUIRED_ANY_PERMISSIONS_METADATA, handler),
+        undefined,
+        `${handler.name} must not gain an ownership tier`,
       );
     }
   });

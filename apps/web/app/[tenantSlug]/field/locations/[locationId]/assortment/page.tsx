@@ -3,28 +3,19 @@ import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../../components/app-shell";
 import { BackLink } from "../../../../../../components/back-link";
-import { DismissableNotice } from "../../../../../../components/dismissable-notice";
 import { PackageIcon } from "../../../../../../components/icons";
-import { LocationAssortmentModal } from "../../../../../../components/location-assortment-modal";
 import { LocationAssortmentPanel } from "../../../../../../components/location-assortment-panel";
 import { resolveBackTarget } from "../../../../../../lib/back-navigation";
 import {
   getCurrentSession,
   getLocation,
-  listAllProducts,
   listLocationAssortment,
 } from "../../../../../../lib/api-client";
-import {
-  deleteLocationAssortmentAction,
-  upsertLocationAssortmentAction,
-} from "../../../../../../lib/location-insights-actions";
 
 type LocationAssortmentPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
   searchParams: Promise<{
     from?: string;
-    error?: string;
-    locationInsights?: string;
   }>;
 };
 
@@ -33,36 +24,18 @@ export default async function LocationAssortmentPage({
   searchParams,
 }: LocationAssortmentPageProps) {
   const { tenantSlug, locationId } = await params;
-  const { from, error, locationInsights } = await searchParams;
-  const [t, tBack, tLocationInsights] = await Promise.all([
-    getTranslations("field"),
+  const { from } = await searchParams;
+  const [tBack, tLocationInsights] = await Promise.all([
     getTranslations("common.back"),
     getTranslations("common.locationInsights"),
   ]);
 
-  // Stay on this page after add/edit/delete (basePath = the assortment page),
-  // carrying the opener so the back link still returns to the location card in
-  // the state it was left — same route stop, same screen behind it. Shared
-  // with the location detail screen via lib/location-insights-actions.ts.
-  const basePath = `/${tenantSlug}/field/locations/${locationId}/assortment`;
-  const extraParams: [string, string][] = from ? [["from", from]] : [];
+  // Nothing on this screen writes any more, so the opener is only needed for
+  // the back link — no action redirect has to carry it forward.
   const backTarget = resolveBackTarget(tenantSlug, from, {
     href: `/${tenantSlug}/field/locations/${locationId}`,
     labelKey: "location",
   });
-
-  const upsertAssortmentAction = upsertLocationAssortmentAction.bind(
-    null,
-    basePath,
-    locationId,
-    extraParams,
-  );
-  const deleteAssortmentAction = deleteLocationAssortmentAction.bind(
-    null,
-    basePath,
-    locationId,
-    extraParams,
-  );
 
   const [sessionResult, locationResult] = await Promise.all([
     getCurrentSession(),
@@ -84,15 +57,9 @@ export default async function LocationAssortmentPage({
 
   const locationName = locationResult.data.name;
 
-  const [assortmentResult, productsResult] = await Promise.all([
-    listLocationAssortment(locationId),
-    listAllProducts(),
-  ]);
+  const assortmentResult = await listLocationAssortment(locationId);
 
   const assortmentRows = assortmentResult.ok ? assortmentResult.data.items : [];
-  const canManageAssortment = assortmentResult.ok
-    ? assortmentResult.data.canManage
-    : false;
   const assortmentCoverage = assortmentResult.ok
     ? {
         pct: assortmentResult.data.coveragePct,
@@ -100,39 +67,9 @@ export default async function LocationAssortmentPage({
         inStock: assortmentResult.data.inStockCount,
       }
     : { pct: 0, required: 0, inStock: 0 };
-  const availableProducts = (productsResult.ok ? productsResult.data : [])
-    .filter(
-      (product) => !assortmentRows.some((row) => row.productId === product.id),
-    )
-    .map((product) => ({
-      id: product.id,
-      name: product.name,
-      sku: product.sku,
-    }));
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
-      {error === "locationInsights" ? (
-        <DismissableNotice
-          ariaLabel={tLocationInsights("errorAria")}
-          body={tLocationInsights("errorBody")}
-          clearParams={["error"]}
-          eyebrow={t("flowEyebrow")}
-          title={tLocationInsights("errorTitle")}
-          tone="danger"
-        />
-      ) : null}
-
-      {locationInsights === "updated" || locationInsights === "deleted" ? (
-        <DismissableNotice
-          ariaLabel={tLocationInsights("savedAria")}
-          clearParams={["locationInsights"]}
-          compact
-          title={tLocationInsights("savedTitle")}
-          tone="success"
-        />
-      ) : null}
-
       <div className="location-detail-sections">
         <BackLink
           href={backTarget.href}
@@ -163,24 +100,21 @@ export default async function LocationAssortmentPage({
             <span className="location-feature-icon" aria-hidden="true">
               <PackageIcon size={20} />
             </span>
-            <LocationAssortmentModal
-              action={upsertAssortmentAction}
-              availableProducts={availableProducts}
-              canManage={canManageAssortment}
-              locationName={locationName}
-              mode="add"
-            />
           </div>
+          {/* Read-only by zone, not by permission: the assortment is the
+              standard a manager sets on /manager/locations/:id, and the field
+              screen shows what this outlet must carry. Hardcoded rather than
+              passed from the response's canManage, so a user who also holds
+              team_manager doesn't get an editor while working as a rep — the
+              same reasoning the admin detail screen uses. */}
           <LocationAssortmentPanel
-            availableProducts={availableProducts}
-            canManage={canManageAssortment}
+            availableProducts={[]}
+            canManage={false}
             coveragePct={assortmentCoverage.pct}
-            deleteAction={deleteAssortmentAction}
             inStockCount={assortmentCoverage.inStock}
             locationName={locationName}
             requiredCount={assortmentCoverage.required}
             rows={assortmentRows}
-            upsertAction={upsertAssortmentAction}
             variant="cards"
           />
         </section>
