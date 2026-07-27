@@ -896,7 +896,9 @@ export function FieldVisitReportForm({
                               <span className="combo-option-check">
                                 {selected ? <CheckIcon /> : null}
                               </span>
-                              <span>{product.name}</span>
+                              <span className="combo-option-name">
+                                {product.name}
+                              </span>
                               {product.sku || product.category ? (
                                 <span className="combo-option-meta">
                                   {[product.sku, product.category]

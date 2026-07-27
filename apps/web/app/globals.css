@@ -5716,7 +5716,7 @@ a.metric-card:hover {
   border-color: var(--accent);
 }
 
-.combo-option span:first-of-type {
+.combo-option-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
