@@ -7,7 +7,9 @@ export const filterCountTags = {
 };
 
 type FilterFooterProps = {
-  resultText: ReactNode;
+  // Omitted by screens that already show the match count outside the panel,
+  // where repeating it here would just say the same number twice.
+  resultText?: ReactNode;
   resetHref?: string;
   resetLabel: string;
 };
@@ -21,7 +23,7 @@ export function FilterFooter({
 }: FilterFooterProps) {
   return (
     <div className="filter-footer">
-      <p className="filter-result-count">{resultText}</p>
+      {resultText ? <p className="filter-result-count">{resultText}</p> : null}
       {resetHref ? (
         <a className="secondary-button" href={resetHref}>
           {resetLabel}

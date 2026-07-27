@@ -4,10 +4,7 @@ import { getTimeZone, getTranslations } from "next-intl/server";
 import { AppShell } from "../../../../components/app-shell";
 import { FilterDateRange } from "../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../components/filter-disclosure";
-import {
-  FilterFooter,
-  filterCountTags,
-} from "../../../../components/filter-footer";
+import { FilterFooter } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
 import { ChevronDownIcon } from "../../../../components/icons";
@@ -160,10 +157,15 @@ export default async function FieldHistoryPage({
     // With no status pill the list query already counts exactly the period's
     // rows, so its own total stands in and the request is skipped.
     selectedStatus ? listVisits(countQuery()) : null,
-    listVisits(countQuery("completed")),
-    // "Needs follow-up" is just the in-progress count: "draft" is a real
-    // VisitStatus value but nothing in the product ever leaves a visit there.
-    listVisits(countQuery("in_progress")),
+    // Each count is skipped whenever the recap line below won't reach for it:
+    // the selected status is read off the list's own total, and the line only
+    // ever carries one of the two remaining statuses beside it.
+    selectedStatus === "completed" ? null : listVisits(countQuery("completed")),
+    // The in-progress count: "draft" is a real VisitStatus value but nothing in
+    // the product ever leaves a visit there.
+    !selectedStatus || selectedStatus === "completed"
+      ? listVisits(countQuery("in_progress"))
+      : null,
     listVisitDaySummary(daySummaryQuery.toString()),
   ]);
   // A failed request falls back to the old page-local tally further down
@@ -202,12 +204,16 @@ export default async function FieldHistoryPage({
 
   const visits = visitsResult.data.items;
   const totalPages = visitsResult.data.totalPages;
-  const counters = buildHistoryCounters(
+  // With a status pill on, the list's own total already counts exactly that
+  // status, so the selected count never costs an extra request.
+  const counts = buildHistoryCounts(
     {
       period: periodResult ? totalOf(periodResult) : visitsResult.data.total,
-      completed: totalOf(completedResult),
-      followUp: totalOf(followUpResult),
+      completed: completedResult ? totalOf(completedResult) : null,
+      inProgress: followUpResult ? totalOf(followUpResult) : null,
+      selected: selectedStatus ? visitsResult.data.total : null,
     },
+    selectedStatus,
     t,
   );
   const pageHref = (targetPage: number) => {
@@ -229,38 +235,14 @@ export default async function FieldHistoryPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-history">
+      {/* The rep opens this screen to read the list, so the header is the
+          title and nothing else: the period recap moved down to the list it
+          describes, and "today"/"new visit" are one tap away in the tab bar. */}
       <header className="page-header">
         <div>
-          <p className="eyebrow">{tField("flowEyebrow")}</p>
           <h1>{t("title")}</h1>
-          <p>{t("body")}</p>
-        </div>
-        <div className="toolbar">
-          <a className="secondary-button" href={`/${tenantSlug}/field`}>
-            {t("today")}
-          </a>
-          <a className="primary-button" href={`/${tenantSlug}/field#new-visit`}>
-            {t("newVisit")}
-          </a>
         </div>
       </header>
-
-      <section className="manager-grid" aria-label={t("metricsAria")}>
-        {counters.map((counter) => (
-          <article className="metric-card" key={counter.label}>
-            <header>
-              <p className="metric-label">{counter.label}</p>
-              <span className={`status-pill ${counter.tone}`}>
-                {counter.tone === "active"
-                  ? tCommon("tone.ok")
-                  : tCommon(`tone.${counter.tone}`)}
-              </span>
-            </header>
-            <p className="metric-value">{counter.value}</p>
-            <p className="small-label">{counter.detail}</p>
-          </article>
-        ))}
-      </section>
 
       <section aria-label={t("myVisits")} className="panel drilldown-panel">
         <FilterForm action={`/${tenantSlug}/field/history`}>
@@ -294,19 +276,28 @@ export default async function FieldHistoryPage({
                 toName="startedTo"
                 toValue={startedTo ?? ""}
               />
+              {/* No match count here: the recap line under the panel already
+                  leads with the count for this very selection. */}
               <FilterFooter
                 resetHref={
                   hasFilters ? `/${tenantSlug}/field/history` : undefined
                 }
                 resetLabel={tCommon("reset")}
-                resultText={t.rich("filterResultCount", {
-                  ...filterCountTags,
-                  count: visitsResult.data.total,
-                })}
               />
             </div>
           </FilterDisclosure>
         </FilterForm>
+
+        {/* No aria-label here: ARIA prohibits naming a paragraph, and the line
+            reads as its own label anyway. */}
+        {counts.length > 0 ? (
+          <p className="visit-count-summary">
+            <strong>{counts[0]}</strong>
+            {counts.slice(1).map((part) => (
+              <span key={part}>{part}</span>
+            ))}
+          </p>
+        ) : null}
 
         {visits.length > 0 ? (
           <>
@@ -315,6 +306,10 @@ export default async function FieldHistoryPage({
               origin={historyOrigin}
               page={page}
               pageSize={PAGE_SIZE}
+              // Under a status pill the day recap would only ever describe that
+              // one status — "0% completed" on every day of an in-progress
+              // list — so the share sits it out until the pill is cleared.
+              showCompletedShare={!selectedStatus}
               tenantSlug={tenantSlug}
               timeZone={timeZone}
               visits={visits}
@@ -371,6 +366,7 @@ function HistoryDays({
   origin,
   page,
   pageSize,
+  showCompletedShare,
   tenantSlug,
   timeZone,
   visits,
@@ -379,6 +375,7 @@ function HistoryDays({
   origin: string;
   page: number;
   pageSize: number;
+  showCompletedShare: boolean;
   tenantSlug: string;
   timeZone: string;
   visits: Visit[];
@@ -399,6 +396,10 @@ function HistoryDays({
   const toDayKey = (value: string) => dayKeyFormat.format(new Date(value));
   const todayKey = toDayKey(new Date().toISOString());
   const yesterdayKey = shiftDayKey(todayKey, -1);
+  // Oldest day still inside the current week of work (today plus the six days
+  // behind it) — the window where a weekday name still means something to the
+  // rep reading the list.
+  const weekStartKey = shiftDayKey(todayKey, -6);
   const groups = groupVisitsByDay(visits, toDayKey);
   // Newest first, same order the list itself is fetched in, so the running
   // total below lines up with each day's actual position in the full result.
@@ -445,30 +446,52 @@ function HistoryDays({
           summaryEntry?.completed ??
           group.visits.filter((visit) => visit.status === "completed").length;
         const count = summaryEntry?.total ?? group.visits.length;
+        const cancelled =
+          summaryEntry?.cancelled ??
+          group.visits.filter((visit) => visit.status === "cancelled").length;
         const isContinuedFromPreviousPage =
           groupIndex === 0 &&
           page > 1 &&
           daySummary !== null &&
           cumulativeBeforeDay(group.key) < (page - 1) * pageSize;
+        // The share, not the tally: how a day went is one number, and the day
+        // opens onto its own visits for anyone who wants them counted. The raw
+        // tally stays on the hover title.
+        //
+        // Cancelled visits leave the denominator: they were closed with a
+        // reason, not left undone, so a day of four completed and four
+        // cancelled reads as finished rather than half done. A day that was
+        // cancelled outright has nothing left to take a share of, so it shows
+        // no percentage at all — its cards carry the cancelled pill.
+        const workable = count - cancelled;
+        const completedPercent =
+          workable > 0 ? Math.round((completed / workable) * 100) : null;
         const dayDate = new Date(visitDayTimestamp(group.visits[0]));
         const isToday = group.key === todayKey;
         const isYesterday = group.key === yesterdayKey;
-        const dateLabel = format.dateTime(
-          dayDate,
-          isToday || isYesterday
-            ? { day: "numeric", month: "long" }
-            : {
-                day: "numeric",
-                month: "long",
-                weekday: "long",
-                // Only spell the year out once the history reaches back past
-                // the current one, where the weekday alone stops being enough
-                // to place the day.
-                ...(group.key.slice(0, 4) === todayKey.slice(0, 4)
-                  ? {}
-                  : { year: "numeric" }),
-              },
-        );
+        // The date leads; the weekday is an aid for placing a day the rep still
+        // remembers by name, so it only rides along for the current week and
+        // drops off entirely further back.
+        const isThisWeek = group.key >= weekStartKey;
+        const dateLabel = format.dateTime(dayDate, {
+          day: "numeric",
+          month: "long",
+          // Only spell the year out once the history reaches back past the
+          // current one, where day and month alone stop placing the day.
+          ...(group.key.slice(0, 4) === todayKey.slice(0, 4)
+            ? {}
+            : { year: "numeric" }),
+        });
+        const dayLabel = isToday
+          ? t("dayToday", { date: dateLabel })
+          : isYesterday
+            ? t("dayYesterday", { date: dateLabel })
+            : isThisWeek
+              ? t("dayWithWeekday", {
+                  date: dateLabel,
+                  weekday: format.dateTime(dayDate, { weekday: "long" }),
+                })
+              : dateLabel;
 
         return (
           <details className="visit-day" key={group.key}>
@@ -476,19 +499,26 @@ function HistoryDays({
                 h3s — so it takes h2 and the page's h1 stays the only one. */}
             <summary className="visit-day-header">
               <span className="visit-day-header-text">
-                <h2>
-                  {isToday
-                    ? t("dayToday", { date: dateLabel })
-                    : isYesterday
-                      ? t("dayYesterday", { date: dateLabel })
-                      : dateLabel}
-                </h2>
+                <h2>{dayLabel}</h2>
                 {isContinuedFromPreviousPage ? (
                   <span className="small-label">{t("dayContinued")}</span>
                 ) : null}
-                <span className="small-label">
-                  {t("daySummary", { completed, count })}
-                </span>
+                {showCompletedShare && completedPercent !== null ? (
+                  <span
+                    className="small-label"
+                    title={
+                      cancelled > 0
+                        ? t("daySummaryTitleCancelled", {
+                            cancelled,
+                            completed,
+                            count: workable,
+                          })
+                        : t("daySummaryTitle", { completed, count: workable })
+                    }
+                  >
+                    {t("daySummary", { completedPercent })}
+                  </span>
+                ) : null}
               </span>
               <span aria-hidden="true" className="visit-day-chevron">
                 <ChevronDownIcon />
@@ -611,45 +641,70 @@ type HistoryTranslator = Awaited<
   ReturnType<typeof getTranslations<"field.history">>
 >;
 
-function buildHistoryCounters(
+// The period recap, as one line led by whatever the status pill selected: with
+// no pill it opens on the period's own total, and picking a status promotes
+// that status's count to the front while the rest of the split stays visible
+// behind it. Cancelled is only ever the selected count — the resting line keeps
+// to the two numbers a rep acts on, done and still open.
+//
+// A count whose own request failed drops out of the line rather than showing a
+// zero that would read as a fact.
+function buildHistoryCounts(
   totals: {
     period: number | null;
     completed: number | null;
-    followUp: number | null;
+    inProgress: number | null;
+    selected: number | null;
   },
+  selectedStatus: VisitStatus | null,
   t: HistoryTranslator,
-): Array<{
-  label: string;
-  value: string;
-  detail: string;
-  tone: "active" | "info" | "warning";
-}> {
-  return [
-    {
-      label: t("totalLabel"),
-      value: counterValue(totals.period),
-      detail: t("totalDetail"),
-      tone: "active",
-    },
-    {
-      label: t("completedLabel"),
-      value: counterValue(totals.completed),
-      detail: t("completedDetail"),
-      tone: totals.completed ? "active" : "info",
-    },
-    {
-      label: t("needsFollowUp"),
-      value: counterValue(totals.followUp),
-      detail: t("needsFollowUpDetail"),
-      tone: totals.followUp ? "warning" : "active",
-    },
-  ];
-}
+): string[] {
+  // A period with nothing in it needs no recap: the empty state below already
+  // says so, and a row of zeroes above it just repeats the news.
+  if (totals.period === 0) {
+    return [];
+  }
 
-// A counter whose own count request failed shows the same dash the formatters
-// use for a missing value rather than a zero that would read as a fact.
-function counterValue(total: number | null): string {
-  return total === null ? "-" : String(total);
+  const total =
+    totals.period === null ? null : t("countTotal", { count: totals.period });
+  const completed =
+    totals.completed === null
+      ? null
+      : t("countCompleted", { count: totals.completed });
+  const inProgress =
+    totals.inProgress === null
+      ? null
+      : t("countInProgress", { count: totals.inProgress });
+
+  if (!selectedStatus) {
+    return [
+      totals.period === null
+        ? null
+        : t("countVisits", { count: totals.period }),
+      completed,
+      inProgress,
+    ].filter((part): part is string => part !== null);
+  }
+
+  const count = totals.selected;
+  // "draft" is a real VisitStatus but never offered as a filter, so it has no
+  // count phrasing of its own and simply leaves the line to the split below.
+  const selected =
+    count === null
+      ? null
+      : selectedStatus === "completed"
+        ? t("countCompleted", { count })
+        : selectedStatus === "in_progress"
+          ? t("countInProgress", { count })
+          : selectedStatus === "cancelled"
+            ? t("countCancelled", { count })
+            : null;
+
+  return [
+    selected,
+    selectedStatus === "completed" ? inProgress : completed,
+    total,
+  ].filter((part): part is string => part !== null);
 }
 
 function normalizeVisitStatus(value: string | undefined): VisitStatus | null {

@@ -48,6 +48,10 @@ export type VisitDaySummaryEntry = {
   day: string;
   total: number;
   completed: number;
+  // Cancelled visits are counted out of the day's own completion share by the
+  // history list: they are closed with a reason, not work left undone, so a
+  // day of four completed and four cancelled visits is finished, not half done.
+  cancelled: number;
 };
 
 export type VisitDaySummaryResponse = {
