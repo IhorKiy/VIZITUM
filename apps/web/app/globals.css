@@ -865,15 +865,29 @@ textarea {
   margin-top: 14px;
 }
 
+/* The day header doubles as a <summary>: collapsed by default so the recap
+   line is the only thing visible until the rep taps a day open. */
 .visit-day-header {
-  align-items: baseline;
+  align-items: center;
   border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  list-style: none;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+}
+
+.visit-day-header::-webkit-details-marker {
+  display: none;
+}
+
+.visit-day-header-text {
+  align-items: baseline;
   display: flex;
   flex-wrap: wrap;
   gap: 2px 12px;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  padding-bottom: 6px;
 }
 
 .visit-day-header h2 {
@@ -884,14 +898,16 @@ textarea {
   text-transform: uppercase;
 }
 
-.visit-day-header p {
-  margin: 0;
+.visit-day-chevron {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  flex: none;
+  transition: transform 0.2s ease;
 }
 
-/* The card is one big link, so its footer affordance is a span rather than a
-   nested anchor and carries no margin of its own inside the card's grid gap. */
-.visit-history-card .list-card-open {
-  margin-top: 0;
+.visit-day[open] .visit-day-chevron {
+  transform: rotate(180deg);
 }
 
 /* A gold rail on a visit still to be finished — the same edge-scanning cue
@@ -900,10 +916,6 @@ textarea {
 .visit-history-card.is-unfinished {
   border-color: color-mix(in srgb, var(--gold) 40%, var(--line));
   box-shadow: inset 3px 0 0 var(--gold);
-}
-
-.visit-history-card.is-unfinished .list-card-open {
-  color: var(--gold);
 }
 
 .list-pagination {
