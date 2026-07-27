@@ -55,12 +55,10 @@ type ManagerVisitsPageProps = {
   }>;
 };
 
-const visitStatuses: VisitStatus[] = [
-  "draft",
-  "in_progress",
-  "completed",
-  "cancelled",
-];
+// "draft" is a real VisitStatus enum value but createVisit always writes
+// "in_progress" immediately — nothing in the product ever leaves a visit
+// in "draft", so it's excluded here rather than offered as a dead filter.
+const visitStatuses: VisitStatus[] = ["in_progress", "completed", "cancelled"];
 
 export default async function ManagerVisitsPage({
   params,
@@ -414,9 +412,6 @@ function buildVisitCounters(
   const visits = visitsResult.data.items;
   const completed = visits.filter((visit) => visit.status === "completed");
   const inProgress = visits.filter((visit) => visit.status === "in_progress");
-  const waiting = visits.filter(
-    (visit) => visit.status === "draft" || visit.status === "in_progress",
-  );
 
   return [
     {
@@ -428,7 +423,7 @@ function buildVisitCounters(
     {
       label: t("reportsConfirmed"),
       value: String(completed.length),
-      detail: t("waitingDetail", { count: waiting.length }),
+      detail: t("waitingDetail", { count: inProgress.length }),
       tone: completed.length > 0 ? "active" : "info",
     },
     {
@@ -442,7 +437,6 @@ function buildVisitCounters(
 
 function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
   if (
-    value === "draft" ||
     value === "in_progress" ||
     value === "completed" ||
     value === "cancelled"

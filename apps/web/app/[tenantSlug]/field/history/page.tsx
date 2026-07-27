@@ -10,6 +10,7 @@ import {
 } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
+import { ChevronDownIcon } from "../../../../components/icons";
 import {
   getCurrentSession,
   listVisitDaySummary,
@@ -22,11 +23,7 @@ import {
 } from "../../../../lib/api-client";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { formatCancellationReason } from "../../../../lib/visit-cancellation";
-import {
-  formatEnumLabel,
-  formatTime,
-  statusPillTone,
-} from "../../../../lib/format";
+import { formatEnumLabel, statusPillTone } from "../../../../lib/format";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -38,12 +35,10 @@ type FieldHistoryPageProps = {
   }>;
 };
 
-const visitStatuses: VisitStatus[] = [
-  "draft",
-  "in_progress",
-  "completed",
-  "cancelled",
-];
+// "draft" is a real VisitStatus enum value but createVisit always writes
+// "in_progress" immediately — nothing in the product ever leaves a visit
+// in "draft", so it's excluded here rather than offered as a dead filter.
+const visitStatuses: VisitStatus[] = ["in_progress", "completed", "cancelled"];
 
 // Half the API's max: the list renders one card per visit under a day header,
 // so a full 100 would be a very long scroll on the phone this zone is built
@@ -166,9 +161,9 @@ export default async function FieldHistoryPage({
     // rows, so its own total stands in and the request is skipped.
     selectedStatus ? listVisits(countQuery()) : null,
     listVisits(countQuery("completed")),
-    // The API accepts a comma-separated status list, so "needs follow-up"
-    // (draft + in_progress) is one count query instead of two summed ones.
-    listVisits(countQuery(["draft", "in_progress"])),
+    // "Needs follow-up" is just the in-progress count: "draft" is a real
+    // VisitStatus value but nothing in the product ever leaves a visit there.
+    listVisits(countQuery("in_progress")),
     listVisitDaySummary(daySummaryQuery.toString()),
   ]);
   // A failed request falls back to the old page-local tally further down
@@ -476,28 +471,32 @@ function HistoryDays({
         );
 
         return (
-          <section className="visit-day" key={group.key}>
-            <div className="visit-day-header">
-              {/* The day is the level above the visit cards, whose titles are
-                  h3s — so it takes h2 and the page's h1 stays the only one. */}
-              <h2>
-                {isToday
-                  ? t("dayToday", { date: dateLabel })
-                  : isYesterday
-                    ? t("dayYesterday", { date: dateLabel })
-                    : dateLabel}
-              </h2>
-              {isContinuedFromPreviousPage ? (
-                <p className="small-label">{t("dayContinued")}</p>
-              ) : null}
-              <p className="small-label">
-                {t("daySummary", { completed, count })}
-              </p>
-            </div>
+          <details className="visit-day" key={group.key}>
+            {/* The day is the level above the visit cards, whose titles are
+                h3s — so it takes h2 and the page's h1 stays the only one. */}
+            <summary className="visit-day-header">
+              <span className="visit-day-header-text">
+                <h2>
+                  {isToday
+                    ? t("dayToday", { date: dateLabel })
+                    : isYesterday
+                      ? t("dayYesterday", { date: dateLabel })
+                      : dateLabel}
+                </h2>
+                {isContinuedFromPreviousPage ? (
+                  <span className="small-label">{t("dayContinued")}</span>
+                ) : null}
+                <span className="small-label">
+                  {t("daySummary", { completed, count })}
+                </span>
+              </span>
+              <span aria-hidden="true" className="visit-day-chevron">
+                <ChevronDownIcon />
+              </span>
+            </summary>
             <div className="field-card-list">
               {group.visits.map((visit) => {
-                const unfinished =
-                  visit.status === "draft" || visit.status === "in_progress";
+                const unfinished = visit.status === "in_progress";
 
                 return (
                   <a
@@ -525,11 +524,9 @@ function HistoryDays({
                         {formatEnumLabel(tCommon, visit.status)}
                       </span>
                     </header>
-                    <p className="visit-meta">
-                      {formatEnumLabel(tCommon, visit.visitType)}
-                      {" · "}
-                      {visitTimeText(t, format, visit)}
-                    </p>
+                    {/* Why a visit was cancelled is the one thing the card
+                        can't convey with its status pill alone, so it stays
+                        even on the slimmed-down card. */}
                     {visit.status === "cancelled" &&
                     visit.cancellationReason ? (
                       <p className="visit-meta">
@@ -541,18 +538,11 @@ function HistoryDays({
                         )}
                       </p>
                     ) : null}
-                    <span className="list-card-open">
-                      {unfinished
-                        ? t("finishReport")
-                        : visit.status === "completed"
-                          ? t("openReport")
-                          : t("openVisit")}
-                    </span>
                   </a>
                 );
               })}
             </div>
-          </section>
+          </details>
         );
       })}
     </div>
@@ -613,22 +603,6 @@ function shiftDayKey(key: string, days: number): string {
     .slice(0, 10);
 }
 
-function visitTimeText(
-  t: ReturnType<typeof useTranslations<"field.history">>,
-  format: ReturnType<typeof useFormatter>,
-  visit: Visit,
-): string {
-  if (!visit.startedAt) {
-    return t("notStarted");
-  }
-
-  const from = formatTime(format, visit.startedAt);
-
-  return visit.completedAt
-    ? t("timeRange", { from, to: formatTime(format, visit.completedAt) })
-    : t("timeStarted", { from });
-}
-
 function totalOf(result: ApiResult<PaginatedResponse<Visit>>): number | null {
   return result.ok ? result.data.total : null;
 }
@@ -680,7 +654,6 @@ function counterValue(total: number | null): string {
 
 function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
   if (
-    value === "draft" ||
     value === "in_progress" ||
     value === "completed" ||
     value === "cancelled"
