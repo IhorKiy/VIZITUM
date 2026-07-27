@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -500,6 +501,15 @@ export class AiService {
       throw new BadRequestException({
         code: "AI_VISIT_SCOPE_INVALID",
         message: "AI drafts can only be confirmed for own visits.",
+      });
+    }
+
+    // Confirming flips the visit to `completed` (and the route item to
+    // `visited`), which must never resurrect a cancelled visit.
+    if (job.visit.status === "cancelled") {
+      throw new ConflictException({
+        code: "VISIT_NOT_ACTIVE",
+        message: "A cancelled visit cannot receive a confirmed report.",
       });
     }
 

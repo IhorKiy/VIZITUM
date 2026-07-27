@@ -141,6 +141,13 @@ enum VisitStatus {
   cancelled
 }
 
+enum VisitCancellationReason {
+  location_closed
+  client_unavailable
+  route_changed
+  other
+}
+
 enum VisitNoteInputType {
   text
   audio
@@ -796,18 +803,20 @@ model RouteTemplateItem {
 }
 
 model Visit {
-  id                   String      @id @default(cuid())
+  id                   String                   @id @default(cuid())
   tenantId             String
   locationId           String
   representativeUserId String
   routeItemId          String?
   visitType            String
-  status               VisitStatus @default(draft)
+  status               VisitStatus              @default(draft)
   startedAt            DateTime?
   completedAt          DateTime?
   cancelledAt          DateTime?
-  createdAt            DateTime    @default(now())
-  updatedAt            DateTime    @updatedAt
+  cancellationReason   VisitCancellationReason?
+  cancellationComment  String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
 
   location       Location    @relation(fields: [locationId], references: [id], onDelete: Restrict)
   representative User        @relation("RepresentativeVisits", fields: [representativeUserId], references: [id], onDelete: Restrict)

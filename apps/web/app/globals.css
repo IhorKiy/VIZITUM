@@ -413,6 +413,16 @@ textarea {
   margin: 2px 0 0;
 }
 
+/* The "cancel visit" trigger under the report form: kept visually apart from
+   the form's own submit so abandoning the visit never reads as part of
+   finishing it. */
+.visit-cancel-action {
+  display: flex;
+  justify-content: center;
+  margin: 20px auto 0;
+  max-width: 1180px;
+}
+
 .toolbar {
   align-items: center;
   display: flex;

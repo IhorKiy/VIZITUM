@@ -20,6 +20,10 @@ export type AuthSession = {
 };
 
 export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";
+// Mirrors the backend VisitCancellationReason enum; required by
+// POST /visits/:visitId/cancel — a visit can't be cancelled without one.
+export type VisitCancellationReason =
+  "location_closed" | "client_unavailable" | "route_changed" | "other";
 export type RouteStatus =
   "draft" | "published" | "in_progress" | "completed" | "cancelled";
 export type RouteItemStatus = "planned" | "visited" | "skipped";
@@ -54,6 +58,8 @@ export type Visit = {
   startedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
+  cancellationReason: VisitCancellationReason | null;
+  cancellationComment: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -743,6 +749,16 @@ export async function createVisit(
     representativeUserId,
     visitType,
     ...(routeItemId ? { routeItemId } : {}),
+  });
+}
+
+export async function cancelVisit(
+  visitId: string,
+  input: { reason: VisitCancellationReason; comment?: string },
+): Promise<ApiResult<Visit>> {
+  return apiPost<Visit>(`/visits/${visitId}/cancel`, {
+    reason: input.reason,
+    ...(input.comment ? { comment: input.comment } : {}),
   });
 }
 

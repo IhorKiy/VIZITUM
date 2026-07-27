@@ -15,6 +15,7 @@ import { FilterPills } from "../../../../components/filter-pills";
 import {
   CalendarIcon,
   CheckIcon,
+  CloseIcon,
   MapPinIcon,
   RouteIcon,
   TagIcon,
@@ -30,6 +31,7 @@ import {
   type VisitStatus,
 } from "../../../../lib/api-client";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
+import { formatCancellationReason } from "../../../../lib/visit-cancellation";
 import {
   buildLocationOptions,
   buildRouteOptions,
@@ -373,6 +375,11 @@ function VisitsCards({
             {visit.completedAt ? (
               <CardFact icon={<CheckIcon />} label={t("tableCompleted")}>
                 {formatDateTime(format, visit.completedAt)}
+              </CardFact>
+            ) : null}
+            {visit.status === "cancelled" && visit.cancellationReason ? (
+              <CardFact icon={<CloseIcon />} label={t("tableCancelReason")}>
+                {formatCancellationReason(tCommon, visit.cancellationReason)}
               </CardFact>
             ) : null}
           </dl>

@@ -21,6 +21,7 @@ import {
   type VisitStatus,
 } from "../../../../lib/api-client";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
+import { formatCancellationReason } from "../../../../lib/visit-cancellation";
 import {
   formatEnumLabel,
   formatTime,
@@ -529,6 +530,17 @@ function HistoryDays({
                       {" · "}
                       {visitTimeText(t, format, visit)}
                     </p>
+                    {visit.status === "cancelled" &&
+                    visit.cancellationReason ? (
+                      <p className="visit-meta">
+                        {t("cancelReasonLabel")}
+                        {": "}
+                        {formatCancellationReason(
+                          tCommon,
+                          visit.cancellationReason,
+                        )}
+                      </p>
+                    ) : null}
                     <span className="list-card-open">
                       {unfinished
                         ? t("finishReport")
