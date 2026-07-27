@@ -161,7 +161,7 @@
       "assortmentEmptyTitle": "Асортимент ще не заповнено",
       "assortmentEmptyHint": "Вкажіть товари, які має тримати ця локація",
       "assortmentEmpty": "Відстеження асортименту ще не має позицій.",
-      "assortmentRequired": "Має бути",
+      "assortmentOptional": "Не має бути",
       "assortmentUnchecked": "Ще не перевіряли",
       "assortmentCheckedOn": "Перевірено {date}",
       "assortmentStatusShort": {
@@ -193,7 +193,6 @@
       "planMonth2": "План на 2-й місяць",
       "planMonth3": "План на 3-й місяць",
       "comment": "Коментар",
-      "shouldBeListed": "Має бути в асортименті",
       "selectCategory": "Виберіть категорію товару",
       "addCategory": "Додати",
       "remove": "Видалити",
