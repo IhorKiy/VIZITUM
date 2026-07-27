@@ -22,6 +22,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import { GripIcon, MapPinIcon, TrashIcon } from "../../../../components/icons";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
+import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 
 type StopItem = {
   id: string;
@@ -252,7 +253,12 @@ function RouteStopRow({
 
       <a
         className="route-stop-summary"
-        href={`/${tenantSlug}/field/locations/${stop.location.id}`}
+        href={withBackOrigin(
+          `/${tenantSlug}/field/locations/${stop.location.id}`,
+          // Back into the route being edited, not the routes tab's default
+          // selection — the editor is a tab + selected-route pair.
+          backOrigin("/field/planning", { tab: "routes", route: templateId }),
+        )}
         aria-label={t("viewLocationAria", { name: stop.location.name })}
       >
         <span className="route-stop-body">

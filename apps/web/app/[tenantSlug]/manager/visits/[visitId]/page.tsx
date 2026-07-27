@@ -6,6 +6,7 @@ import {
   type Report,
   type Visit,
 } from "../../../../../lib/api-client";
+import { resolveBackTarget } from "../../../../../lib/back-navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { getFormatter, getTranslations } from "next-intl/server";
 
@@ -24,18 +25,29 @@ type VisitDetailTranslator = Awaited<
 
 type ManagerVisitDetailPageProps = {
   params: Promise<{ tenantSlug: string; visitId: string }>;
+  searchParams: Promise<{ from?: string }>;
 };
 
 export default async function ManagerVisitDetailPage({
   params,
+  searchParams,
 }: ManagerVisitDetailPageProps) {
   const { tenantSlug, visitId } = await params;
-  const [t, tManager, tCommon, format] = await Promise.all([
+  const { from } = await searchParams;
+  const [t, tBack, tManager, tCommon, format] = await Promise.all([
     getTranslations("manager.visitDetail"),
+    getTranslations("common.back"),
     getTranslations("manager"),
     getTranslations("common"),
     getFormatter(),
   ]);
+  // Only the visits list opens this screen, so the destination was never
+  // wrong — but a bare link dropped the rep/period/status filters the manager
+  // had applied. The origin replays them.
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/manager/visits`,
+    labelKey: "visits",
+  });
   const [visitResult, reportResult] = await Promise.all([
     getVisit(visitId),
     getVisitReport(visitId),
@@ -44,10 +56,7 @@ export default async function ManagerVisitDetailPage({
   if (!visitResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
-        <BackLink
-          href={`/${tenantSlug}/manager/visits`}
-          label={t("backToVisits")}
-        />
+        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tManager("eyebrow")}</p>
@@ -71,10 +80,7 @@ export default async function ManagerVisitDetailPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-visits">
-      <BackLink
-        href={`/${tenantSlug}/manager/visits`}
-        label={t("backToVisits")}
-      />
+      <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
       <header className="page-header">
         <div>
           <p className="eyebrow">{tManager("eyebrow")}</p>
@@ -156,10 +162,7 @@ export default async function ManagerVisitDetailPage({
             <div className="empty-state-panel">
               <h2>{t("noReportTitle")}</h2>
               <p>{t("noReportBody", { message: reportResult.message })}</p>
-              <a
-                className="primary-button"
-                href={`/${tenantSlug}/manager/visits`}
-              >
+              <a className="primary-button" href={backTarget.href}>
                 {t("backToVisits")}
               </a>
             </div>

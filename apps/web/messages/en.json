@@ -11,6 +11,18 @@
     "all": "All",
     "notSet": "not set",
     "unknown": "Unknown",
+    "back": {
+      "route": "Back to route",
+      "routes": "Back to routes",
+      "general": "Back to General",
+      "tasks": "Back to tasks",
+      "history": "Back to history",
+      "products": "Back to products",
+      "locations": "Back to locations",
+      "location": "Back to location",
+      "locationHistory": "Back to visit history",
+      "visits": "Back to visits"
+    },
     "labels": {
       "draft": "Draft",
       "in_progress": "In progress",
@@ -686,8 +698,7 @@
       "categoryInUseErrorBody": "{count, plural, one {This category is still used by # location.} other {This category is still used by # locations.}} Remove the category from those locations first, then delete it.",
       "viewDetails": "View potential & assortment",
       "detailEyebrow": "Location details",
-      "detailNotFoundTitle": "Location was not found",
-      "detailBackAria": "Back to locations"
+      "detailNotFoundTitle": "Location was not found"
     },
     "chains": {
       "title": "Chains",
@@ -1000,7 +1011,6 @@
   },
   "field": {
     "flowEyebrow": "Field flow",
-    "backToRoute": "Back to route",
     "home": {
       "signedOutTitle": "Today's visits",
       "signedOutBody": "Live visit data is required in production before field work can continue.",
@@ -1060,8 +1070,6 @@
       "routeVisitedTitle": "Stop marked as visited",
       "demoBody": "Showing sample location details until the Nest API returns an authenticated session. Reason: {reason}",
       "demoLocationName": "Demo location",
-      "backAria": "Back to route",
-      "backToLocationAria": "Back to location",
       "chainNone": "No chain",
       "notesTitle": "Location note",
       "notesEmpty": "No note added yet.",
@@ -1109,7 +1117,6 @@
       "notFoundTitle": "Visit not found",
       "loadErrorTitle": "Could not load this visit",
       "visitErrorAria": "Visit error",
-      "backToLocation": "Back to location",
       "demoBody": "This is a sample visit. The report form requires a live backend session and is disabled here.",
       "reportErrorAria": "Report error",
       "reportErrorEyebrow": "Report not saved",
@@ -1233,7 +1240,6 @@
       "emptyRoutesTitle": "No routes yet",
       "emptyRoutesBody": "Create your first route, then add stops to it.",
       "routeStopsCount": "{count, plural, one {# point} other {# points}}",
-      "routeEditorBack": "Back to routes",
       "editRouteNameAria": "Edit route name",
       "renamedTitle": "Route renamed",
       "deleteRoute": "Delete route",
@@ -1372,7 +1378,6 @@
       "permissionRequiredTitle": "Locations are not available",
       "permissionRequiredBody": "Your account does not have access to the location list.",
       "notConnectedTitle": "Locations are unavailable",
-      "backToGeneral": "Back to General",
       "listAria": "Location list",
       "statusFiltersAria": "Location status filters",
       "search": "Search",
@@ -1394,7 +1399,6 @@
       "permissionRequiredTitle": "Products are not available",
       "permissionRequiredBody": "Your account does not have access to the product catalogue.",
       "notConnectedTitle": "Products are unavailable",
-      "backToGeneral": "Back to General",
       "listAria": "Product list",
       "statusFiltersAria": "Product status filters",
       "search": "Search",

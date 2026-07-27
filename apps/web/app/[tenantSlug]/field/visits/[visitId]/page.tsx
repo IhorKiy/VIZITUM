@@ -13,6 +13,7 @@ import {
   listAllProducts,
   listLocationAssortment,
 } from "../../../../../lib/api-client";
+import { resolveBackTarget } from "../../../../../lib/back-navigation";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
 
 // Enough to cover an outlet's key SKUs without turning the panel back into
@@ -25,6 +26,7 @@ type VisitDetailPageProps = {
     demoName?: string;
     demoAddress?: string;
     demoLocationId?: string;
+    from?: string;
   }>;
 };
 
@@ -33,9 +35,10 @@ export default async function VisitDetailPage({
   searchParams,
 }: VisitDetailPageProps) {
   const { tenantSlug, visitId } = await params;
-  const { demoName, demoAddress } = await searchParams;
-  const [t, tField, tCommon] = await Promise.all([
+  const { demoName, demoAddress, demoLocationId, from } = await searchParams;
+  const [t, tBack, tField, tCommon] = await Promise.all([
     getTranslations("field.visit"),
+    getTranslations("common.back"),
     getTranslations("field"),
     getTranslations("common"),
   ]);
@@ -74,9 +77,23 @@ export default async function VisitDetailPage({
   }
 
   if (isDemoVisit) {
+    const demoBackTarget = resolveBackTarget(
+      tenantSlug,
+      from,
+      demoLocationId
+        ? {
+            href: `/${tenantSlug}/field/locations/${demoLocationId}`,
+            labelKey: "location",
+          }
+        : { href: `/${tenantSlug}/field`, labelKey: "route" },
+    );
+
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
-        <BackLink href={`/${tenantSlug}/field`} label={tField("backToRoute")} />
+        <BackLink
+          href={demoBackTarget.href}
+          label={tBack(demoBackTarget.labelKey)}
+        />
         <header className="page-header">
           <div>
             <p className="eyebrow">{t("eyebrow")}</p>
@@ -100,9 +117,19 @@ export default async function VisitDetailPage({
   }
 
   if (!visitResult.ok) {
+    // No visit means no location to fall back to — today's route is the only
+    // destination this branch can name.
+    const notFoundBackTarget = resolveBackTarget(tenantSlug, from, {
+      href: `/${tenantSlug}/field`,
+      labelKey: "route",
+    });
+
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
-        <BackLink href={`/${tenantSlug}/field`} label={tField("backToRoute")} />
+        <BackLink
+          href={notFoundBackTarget.href}
+          label={tBack(notFoundBackTarget.labelKey)}
+        />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
@@ -124,6 +151,14 @@ export default async function VisitDetailPage({
   }
 
   const visit = visitResult.data;
+  // This report is opened from the location card, from the field history and
+  // from a location's own visit history. Returning to the location card
+  // regardless dropped anyone who came from a history list into a screen they
+  // never passed through, losing their filters with it.
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/field/locations/${visit.locationId}`,
+    labelKey: "location",
+  });
   const isLocked = visit.status === "completed" || visit.status === "cancelled";
   const locationAddress = [visit.location.addressLine, visit.location.city]
     .filter(Boolean)
@@ -173,10 +208,7 @@ export default async function VisitDetailPage({
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       {isLocked ? (
         <>
-          <BackLink
-            href={`/${tenantSlug}/field/locations/${visit.locationId}`}
-            label={t("backToLocation")}
-          />
+          <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
           <header className="page-header">
             <div>
               <p className="eyebrow">{t("eyebrow")}</p>
@@ -188,9 +220,9 @@ export default async function VisitDetailPage({
       ) : (
         <header className="visit-report-header">
           <BackLink
-            href={`/${tenantSlug}/field/locations/${visit.locationId}`}
+            href={backTarget.href}
             inline
-            label={t("backToLocation")}
+            label={tBack(backTarget.labelKey)}
           />
           <div>
             <h1>{visit.location.name}</h1>

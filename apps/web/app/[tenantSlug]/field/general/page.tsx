@@ -19,9 +19,9 @@ type GeneralPageProps = {
 
 export default async function GeneralPage({ params }: GeneralPageProps) {
   const { tenantSlug } = await params;
-  const [t, tField, tCommon] = await Promise.all([
+  const [t, tBack, tCommon] = await Promise.all([
     getTranslations("field.general"),
-    getTranslations("field"),
+    getTranslations("common.back"),
     getTranslations("common"),
   ]);
 
@@ -97,7 +97,7 @@ export default async function GeneralPage({ params }: GeneralPageProps) {
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-general">
-      <BackLink href={`/${tenantSlug}/field`} label={tField("backToRoute")} />
+      <BackLink href={`/${tenantSlug}/field`} label={tBack("route")} />
       <header className="page-header">
         <div>
           <p className="eyebrow">{t("eyebrow")}</p>

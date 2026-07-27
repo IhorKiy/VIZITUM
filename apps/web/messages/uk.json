@@ -11,6 +11,18 @@
     "all": "Усі",
     "notSet": "не вказано",
     "unknown": "Невідомо",
+    "back": {
+      "route": "Назад до маршруту",
+      "routes": "Назад до маршрутів",
+      "general": "Назад до Загального",
+      "tasks": "Назад до завдань",
+      "history": "Назад до історії",
+      "products": "Назад до товарів",
+      "locations": "Назад до точок",
+      "location": "Назад до точки",
+      "locationHistory": "Назад до історії візитів",
+      "visits": "Назад до візитів"
+    },
     "labels": {
       "draft": "Чернетка",
       "in_progress": "У процесі",
@@ -686,8 +698,7 @@
       "categoryInUseErrorBody": "{count, plural, one {Цю категорію ще використовує # точка.} few {Цю категорію ще використовують # точки.} many {Цю категорію ще використовують # точок.} other {Цю категорію ще використовують # точки.}} Спершу приберіть категорію з цих точок, а потім видаліть її.",
       "viewDetails": "Переглянути потенціал і асортимент",
       "detailEyebrow": "Деталі точки",
-      "detailNotFoundTitle": "Точку не знайдено",
-      "detailBackAria": "Назад до точок"
+      "detailNotFoundTitle": "Точку не знайдено"
     },
     "chains": {
       "title": "Мережі",
@@ -1000,7 +1011,6 @@
   },
   "field": {
     "flowEyebrow": "Польова робота",
-    "backToRoute": "До маршруту",
     "home": {
       "signedOutTitle": "Візити на сьогодні",
       "signedOutBody": "Для продовження польової роботи потрібні живі дані візитів.",
@@ -1060,8 +1070,6 @@
       "routeVisitedTitle": "Точку позначено відвіданою",
       "demoBody": "Показуємо приклад точки, доки Nest API не поверне автентифіковану сесію. Причина: {reason}",
       "demoLocationName": "Демо-точка",
-      "backAria": "До маршруту",
-      "backToLocationAria": "Назад до точки",
       "chainNone": "Без мережі",
       "notesTitle": "Нотатка про точку",
       "notesEmpty": "Нотатку ще не додано.",
@@ -1109,7 +1117,6 @@
       "notFoundTitle": "Візит не знайдено",
       "loadErrorTitle": "Не вдалося завантажити цей візит",
       "visitErrorAria": "Помилка візиту",
-      "backToLocation": "До точки",
       "demoBody": "Це приклад візиту. Форма звіту потребує живої сесії з бекендом і тут вимкнена.",
       "reportErrorAria": "Помилка звіту",
       "reportErrorEyebrow": "Звіт не збережено",
@@ -1233,7 +1240,6 @@
       "emptyRoutesTitle": "Ще немає жодного маршруту",
       "emptyRoutesBody": "Створіть свій перший маршрут, а потім додайте до нього точки.",
       "routeStopsCount": "{count, plural, one {# точка} few {# точки} many {# точок} other {# точки}}",
-      "routeEditorBack": "Назад до маршрутів",
       "editRouteNameAria": "Редагувати назву маршруту",
       "renamedTitle": "Маршрут перейменовано",
       "deleteRoute": "Видалити маршрут",
@@ -1372,7 +1378,6 @@
       "permissionRequiredTitle": "Точки недоступні",
       "permissionRequiredBody": "Ваш обліковий запис не має доступу до списку точок.",
       "notConnectedTitle": "Точки недоступні",
-      "backToGeneral": "До Загального",
       "listAria": "Список точок",
       "statusFiltersAria": "Фільтри статусу точок",
       "search": "Пошук",
@@ -1394,7 +1399,6 @@
       "permissionRequiredTitle": "Товари недоступні",
       "permissionRequiredBody": "Ваш обліковий запис не має доступу до каталогу товарів.",
       "notConnectedTitle": "Товари недоступні",
-      "backToGeneral": "До Загального",
       "listAria": "Список товарів",
       "statusFiltersAria": "Фільтри статусу товарів",
       "search": "Пошук",

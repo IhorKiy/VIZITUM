@@ -10,30 +10,39 @@ import {
   listLocationAssortment,
   listLocationPotential,
 } from "../../../../../lib/api-client";
+import { resolveBackTarget } from "../../../../../lib/back-navigation";
 
 type AdminLocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
+  searchParams: Promise<{ from?: string }>;
 };
 
 export default async function AdminLocationDetailPage({
   params,
+  searchParams,
 }: AdminLocationDetailPageProps) {
   const { tenantSlug, locationId } = await params;
-  const [t, tLocationInsights, sessionResult, locationResult] =
+  const { from } = await searchParams;
+  const [t, tBack, tLocationInsights, sessionResult, locationResult] =
     await Promise.all([
       getTranslations("admin.locations"),
+      getTranslations("common.back"),
       getTranslations("common.locationInsights"),
       getCurrentSession(),
       getLocation(locationId),
     ]);
 
+  // Only the locations list opens this screen, so the destination was already
+  // right — the origin is what keeps its open section and filters.
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/admin/locations`,
+    labelKey: "locations",
+  });
+
   if (!locationResult.ok) {
     return (
       <AppShell activeArea="admin-locations" tenantSlug={tenantSlug}>
-        <BackLink
-          href={`/${tenantSlug}/admin/locations`}
-          label={t("detailBackAria")}
-        />
+        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{t("detailEyebrow")}</p>
@@ -82,9 +91,9 @@ export default async function AdminLocationDetailPage({
           above the header card, not inside it. */}
       <div className="location-detail-sections">
         <BackLink
-          href={`/${tenantSlug}/admin/locations`}
+          href={backTarget.href}
           inline
-          label={t("detailBackAria")}
+          label={tBack(backTarget.labelKey)}
         />
         <div className="location-header panel">
           <h1 className="location-header-title">{location.name}</h1>
