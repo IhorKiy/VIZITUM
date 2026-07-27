@@ -19,10 +19,6 @@ import { cancelVisitAction } from "../../../../../lib/cancel-visit-actions";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
 import { formatCancellationReason } from "../../../../../lib/visit-cancellation";
 
-// Enough to cover an outlet's key SKUs without turning the panel back into
-// the shelf audit this screen exists to avoid.
-const SHELF_CHIP_LIMIT = 8;
-
 type VisitDetailPageProps = {
   params: Promise<{ tenantSlug: string; visitId: string }>;
   searchParams: Promise<{
@@ -179,13 +175,16 @@ export default async function VisitDetailPage({
 
   // The shelf-check chips are the products this outlet is supposed to carry,
   // so the rep taps what's missing instead of searching the whole catalog.
+  // The full matrix is passed, not a first-N slice: confirming the check now
+  // marks every unmarked required product as present, so a truncated list
+  // would silently vouch for shelves the rep was never shown. The form
+  // collapses long lists behind a "show all" instead.
   // A failed assortment read is not worth failing the report screen over —
   // the catalog search inside the panel stays as the fallback.
   const shelfProducts =
     assortmentResult?.ok === true
       ? assortmentResult.data.items
           .filter((item) => item.shouldBeListed)
-          .slice(0, SHELF_CHIP_LIMIT)
           .map((item) => item.product)
       : [];
   // The problem photo lives in storage, so the read-only summary needs a

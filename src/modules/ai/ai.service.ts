@@ -16,6 +16,7 @@ import {
   isRecord,
   toReportResponse,
 } from "../visits/report-response.util";
+import { applyShelfCheck, extractShelfCheck } from "../visits/shelf-check";
 import { JsonLogger } from "../../common/json-logger.service";
 import {
   classifyAiDraftQuality,
@@ -590,6 +591,21 @@ export class AiService {
           where: { id: job.visit.routeItemId },
           data: { status: "visited" },
         });
+      }
+
+      // Same contract as the manual confirm flow (visits.service.ts). An AI
+      // extraction draft carries no shelf check, so this is a no-op today —
+      // it exists so the two confirm paths can't drift into disagreeing about
+      // what a confirmed report does to coverage.
+      const shelfCheck = extractShelfCheck(confirmedData, confirmedAt);
+
+      if (shelfCheck) {
+        await applyShelfCheck(
+          tx,
+          context.tenantId,
+          job.visit.locationId,
+          shelfCheck,
+        );
       }
 
       await tx.task.deleteMany({

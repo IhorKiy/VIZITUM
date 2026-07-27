@@ -254,3 +254,118 @@ describe("field-report.v1 confirmation", () => {
     assert.equal(response.createdTaskCount, 0);
   });
 });
+
+// The shelf check is the only writer of assortment shelf state, and it rides
+// this transaction: a stored report whose coverage was left untouched would
+// put the dashboard and the visit it came from in disagreement.
+describe("field-report.v1 shelf check write-back", () => {
+  function buildPrisma(operations: unknown[]) {
+    const report = {
+      id: "report-a",
+      visitId: "visit-a",
+      locationId: "location-a",
+      representativeUserId: "rep-a",
+      templateCode: "distribution",
+      schemaVersion: "field-report.v1",
+      status: "confirmed",
+      confirmedData: {},
+      confirmedByUserId: "rep-a",
+      confirmedAt: createdAt,
+      aiMetadata: { source: "manual_text" },
+      createdAt,
+      updatedAt: createdAt,
+    };
+
+    return {
+      visit: { findFirst: async () => buildVisit() },
+      platformTenant: {
+        findUnique: async () => ({ segmentTemplate: "distribution" }),
+      },
+      task: { findMany: async () => [] },
+      $transaction: async (
+        callback: (transaction: unknown) => Promise<unknown>,
+      ) =>
+        callback({
+          report: {
+            upsert: async () => report,
+          },
+          visit: { update: async () => {} },
+          routeItem: { update: async () => {} },
+          locationAssortment: {
+            findMany: async (query: unknown) => {
+              operations.push({ assortmentFindMany: query });
+
+              return [{ productId: "product-a" }, { productId: "product-b" }];
+            },
+            updateMany: async (query: unknown) => {
+              operations.push({ assortmentUpdateMany: query });
+
+              return { count: 1 };
+            },
+          },
+        }),
+    };
+  }
+
+  it("writes the location's matrix rows when the rep confirmed the check", async () => {
+    const operations: unknown[] = [];
+    const service = new VisitsService(buildPrisma(operations) as never);
+
+    await service.confirmReport(context as never, "visit-a", {
+      confirmedData: {
+        summary: "",
+        tasksToCreate: [],
+        fieldReport: {
+          visitDate: "2026-07-25",
+          shelfChecked: true,
+          productUpdates: [{ productId: "product-b", status: "out_of_stock" }],
+        },
+      },
+      schemaVersion: "field-report.v1",
+    });
+
+    const updates = operations.filter(
+      (
+        operation,
+      ): operation is {
+        assortmentUpdateMany: {
+          where: { productId: { in: string[] } };
+          data: Record<string, unknown>;
+        };
+      } => Object.hasOwn(operation as object, "assortmentUpdateMany"),
+    );
+
+    assert.equal(updates.length, 2);
+    assert.deepEqual(updates[0]?.assortmentUpdateMany.where, {
+      tenantId: "tenant-a",
+      locationId: "location-a",
+      productId: { in: ["product-a"] },
+    });
+    assert.deepEqual(updates[0]?.assortmentUpdateMany.data, {
+      status: "in_stock",
+      lastCheckedAt: new Date("2026-07-25T00:00:00.000Z"),
+    });
+    assert.deepEqual(
+      updates[1]?.assortmentUpdateMany.data.status,
+      "out_of_stock",
+    );
+  });
+
+  it("leaves the matrix alone when the rep never confirmed the check", async () => {
+    const operations: unknown[] = [];
+    const service = new VisitsService(buildPrisma(operations) as never);
+
+    await service.confirmReport(context as never, "visit-a", {
+      confirmedData: {
+        summary: "",
+        tasksToCreate: [],
+        // The shelf panel was never opened, so `productUpdates` is empty for
+        // the same reason it would be if everything were on the shelf.
+        fieldReport: { visitDate: "2026-07-25", productUpdates: [] },
+      },
+      schemaVersion: "field-report.v1",
+    });
+
+    assert.deepEqual(operations, []);
+  });
+});

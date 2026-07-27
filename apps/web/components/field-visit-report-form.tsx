@@ -39,6 +39,10 @@ import {
 
 type ProblemType = "return" | "damaged" | "expired" | "conflict";
 
+// How many matrix chips a collapsed shelf panel shows. The rest are one tap
+// away rather than dropped: confirming the check speaks for all of them.
+const SHELF_CHIP_PREVIEW = 12;
+
 // The chips and the catalog search both feed the same shelf list, and only
 // ever need enough of a product to label and match it.
 type ShelfProduct = {
@@ -52,9 +56,10 @@ type FieldVisitReportFormProps = {
   tenantSlug: string;
   visitId: string;
   products: Product[];
-  // The outlet's key SKUs (assortment rows flagged `shouldBeListed`), shown
-  // as one-tap chips. Empty when the outlet has no assortment set up — the
-  // catalog search inside the panel still covers that case.
+  // The outlet's whole matrix (assortment rows flagged `shouldBeListed`),
+  // shown as one-tap chips — the full list, since confirming the check marks
+  // every unmarked one present. Empty when the outlet has no assortment set
+  // up — the catalog search inside the panel still covers that case.
   shelfProducts: ShelfProduct[];
   voiceHint: string | null;
 };
@@ -164,6 +169,12 @@ export function FieldVisitReportForm({
   // comments, because a full audit is what turns this screen into "all ok".
   const [missingProductIds, setMissingProductIds] = useState<string[]>([]);
   const [shelfOpen, setShelfOpen] = useState(false);
+  const [shelfExpanded, setShelfExpanded] = useState(false);
+  // Whether the rep actually looked. This is what licenses the report to mark
+  // every unmarked required product as present, so it is never inferred from
+  // an empty tap list — "nothing was missing" and "nobody checked" would
+  // otherwise be the same report, and guessing wrong invents coverage.
+  const [shelfChecked, setShelfChecked] = useState(false);
   // Problem is recorded by exception: no problem, no fields and no record.
   const [problemOpen, setProblemOpen] = useState(false);
   const [problemType, setProblemType] = useState<ProblemType | null>(null);
@@ -310,6 +321,9 @@ export function FieldVisitReportForm({
         ? current.filter((id) => id !== productId)
         : [...current, productId],
     );
+    // Marking a gap is itself proof the rep looked at the shelf, so the
+    // confirmation follows the tap instead of asking for it twice.
+    setShelfChecked(true);
   }
 
   function applyExtractedVisitData(data: FieldReportExtractedData): string[] {
@@ -340,6 +354,9 @@ export function FieldVisitReportForm({
         ...current,
         ...[...matchedMissingIds].filter((id) => !current.includes(id)),
       ]);
+      // Deliberately does not confirm the check the way a tap does: naming a
+      // gap out loud is evidence about that SKU, not about every other one in
+      // the matrix. The panel opens so the rep confirms it themselves.
       setShelfOpen(true);
       filledSections.push(t("sectionShelf"));
     }
@@ -600,6 +617,11 @@ export function FieldVisitReportForm({
         // Derived, not asked: an untouched shelf check says nothing about the
         // shelf, so it stays null instead of claiming everything is in stock.
         stockStatus: missingProducts.length > 0 ? "out_of_stock" : null,
+        // What licenses the backend to write this location's assortment rows:
+        // the unmarked required products are confirmed present, the marked
+        // ones absent. Without it the report is stored and coverage is left
+        // alone.
+        shelfChecked,
         notes: trimmedNotes,
         nextAction: trimmedNextAction,
         nextActionDueDate: nextActionDueDateForReport,
@@ -635,8 +657,8 @@ export function FieldVisitReportForm({
     [...shelfProducts, ...products].map((product) => [product.id, product]),
   );
   const missingProductIdSet = new Set(missingProductIds);
-  // The outlet's key SKUs, plus anything picked out of the full catalog — a
-  // product tapped through the search has to stay visible as a chip too.
+  // The outlet's whole matrix, plus anything picked out of the full catalog —
+  // a product tapped through the search has to stay visible as a chip too.
   const shelfChips = [
     ...shelfProducts,
     ...missingProductIds
@@ -644,6 +666,17 @@ export function FieldVisitReportForm({
       .map((id) => productById.get(id))
       .filter((product): product is ShelfProduct => Boolean(product)),
   ];
+  // A long matrix is collapsed rather than truncated: confirming the check
+  // speaks for every required product, so all of them stay one tap away.
+  // Anything already marked missing is kept visible regardless of position.
+  const shelfChipsCollapsed =
+    !shelfExpanded && shelfChips.length > SHELF_CHIP_PREVIEW;
+  const visibleShelfChips = shelfChipsCollapsed
+    ? shelfChips.filter(
+        (product, index) =>
+          index < SHELF_CHIP_PREVIEW || missingProductIdSet.has(product.id),
+      )
+    : shelfChips;
   const showDateInput = dateEditing || visitDate !== todayIsoDate();
 
   return (
@@ -835,7 +868,7 @@ export function FieldVisitReportForm({
                   role="group"
                   aria-label={t("shelfTitle")}
                 >
-                  {shelfChips.map((product) => {
+                  {visibleShelfChips.map((product) => {
                     const missing = missingProductIdSet.has(product.id);
                     return (
                       <button
@@ -850,6 +883,30 @@ export function FieldVisitReportForm({
                     );
                   })}
                 </div>
+              ) : null}
+
+              {shelfChipsCollapsed ? (
+                <button
+                  className="link-button"
+                  onClick={() => setShelfExpanded(true)}
+                  type="button"
+                >
+                  {t("shelfShowAll", { count: shelfChips.length })}
+                </button>
+              ) : null}
+
+              {shelfChips.length > 0 ? (
+                <label className="checkbox-label shelf-checked">
+                  <input
+                    checked={shelfChecked}
+                    onChange={(event) => setShelfChecked(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>
+                    {t("shelfCheckedLabel")}
+                    <span className="form-hint">{t("shelfCheckedHint")}</span>
+                  </span>
+                </label>
               ) : null}
 
               <div className="combo-field" ref={productDropdownRef}>
@@ -926,7 +983,7 @@ export function FieldVisitReportForm({
             <button
               aria-controls="shelf-panel"
               aria-expanded={false}
-              className={`exception-row${missingProductIds.length > 0 ? " filled" : ""}`}
+              className={`exception-row${shelfChecked ? " filled" : ""}`}
               onClick={() => setShelfOpen(true)}
               type="button"
             >
@@ -937,7 +994,9 @@ export function FieldVisitReportForm({
               <span className="opt">
                 {missingProductIds.length > 0
                   ? t("shelfMissingCount", { count: missingProductIds.length })
-                  : t("shelfOptional")}
+                  : shelfChecked
+                    ? t("shelfAllPresent")
+                    : t("shelfOptional")}
               </span>
               <span aria-hidden="true" className="caret">
                 <ChevronDownIcon />

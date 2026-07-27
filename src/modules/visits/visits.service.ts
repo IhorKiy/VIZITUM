@@ -23,6 +23,7 @@ import {
   findReportCreatedTasks,
   toReportResponse,
 } from "./report-response.util";
+import { applyShelfCheck, extractShelfCheck } from "./shelf-check";
 import type {
   AddTextVisitNoteRequestBody,
   CancelVisitRequestBody,
@@ -765,6 +766,20 @@ export class VisitsService {
           where: { id: visit.routeItemId },
           data: { status: "visited" },
         });
+      }
+
+      // The shelf check is the only writer of assortment shelf state, so it
+      // rides the confirm transaction: a report that exists and coverage that
+      // ignores it would be worse than either alone.
+      const shelfCheck = extractShelfCheck(confirmedData, confirmedAt);
+
+      if (shelfCheck) {
+        await applyShelfCheck(
+          tx,
+          context.tenantId,
+          visit.locationId,
+          shelfCheck,
+        );
       }
 
       // Same `confirmedData.tasksToCreate` contract as the AI-draft confirm
