@@ -1,4 +1,8 @@
-import type { TaskStatus, VisitStatus } from "@prisma/client";
+import type {
+  TaskStatus,
+  VisitCancellationReason,
+  VisitStatus,
+} from "@prisma/client";
 
 export type VisitResponse = {
   id: string;
@@ -21,6 +25,8 @@ export type VisitResponse = {
   startedAt: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
+  cancellationReason: VisitCancellationReason | null;
+  cancellationComment: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -57,11 +63,18 @@ export type CreateVisitRequestBody = {
   startedAt?: unknown;
 };
 
+// Cancelling is deliberately NOT part of this body: `status: "cancelled"` is
+// rejected so the only cancel path is POST /visits/:visitId/cancel, which
+// requires a reason (and stamps `cancelledAt` itself).
 export type UpdateVisitRequestBody = {
   status?: unknown;
   startedAt?: unknown;
   completedAt?: unknown;
-  cancelledAt?: unknown;
+};
+
+export type CancelVisitRequestBody = {
+  reason?: unknown;
+  comment?: unknown;
 };
 
 export type VisitNoteResponse = {

@@ -3,6 +3,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
 import { BackLink } from "../../../../../components/back-link";
+import { CancelVisitModal } from "../../../../../components/cancel-visit-modal";
 import { DismissableNotice } from "../../../../../components/dismissable-notice";
 import {
   ActivityIcon,
@@ -30,6 +31,7 @@ import {
   resolveBackTarget,
   withBackOrigin,
 } from "../../../../../lib/back-navigation";
+import { cancelVisitAction } from "../../../../../lib/cancel-visit-actions";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
 import { formatDateTime } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
@@ -50,6 +52,7 @@ type LocationDetailPageProps = {
     route?: string;
     error?: string;
     locationInsights?: string;
+    cancelled?: string;
     demoName?: string;
     demoAddress?: string;
     from?: string;
@@ -68,6 +71,7 @@ export default async function LocationDetailPage({
     route,
     error,
     locationInsights,
+    cancelled,
     demoName,
     demoAddress,
     from,
@@ -183,6 +187,17 @@ export default async function LocationDetailPage({
   }
   if (from) {
     extraParams.push(["from", from]);
+  }
+  // The cancel redirect deliberately drops routePlanId/routeItemId: the
+  // cancelled visit keeps the stop's unique visit slot and the stop itself is
+  // now skipped, so the card must come back in its plain "start an unlinked
+  // visit" state instead of offering to reuse the occupied slot.
+  const cancelExtraParams: [string, string][] = [];
+  if (visited) {
+    cancelExtraParams.push(["visited", visited]);
+  }
+  if (from) {
+    cancelExtraParams.push(["from", from]);
   }
   // The sub-pages get this card as their origin rather than a copy of its
   // params: their back control resolves it the same way every other screen
@@ -389,6 +404,28 @@ export default async function LocationDetailPage({
         />
       ) : null}
 
+      {cancelled === "1" ? (
+        <DismissableNotice
+          ariaLabel={t("location.visitCancelledAria")}
+          body={t("location.visitCancelledBody")}
+          clearParams={["cancelled"]}
+          eyebrow={t("location.visitCancelledEyebrow")}
+          title={t("location.visitCancelledTitle")}
+          tone="success"
+        />
+      ) : null}
+
+      {error === "cancelVisit" ? (
+        <DismissableNotice
+          ariaLabel={t("location.cancelVisitErrorAria")}
+          body={t("location.cancelVisitErrorBody")}
+          clearParams={["error"]}
+          eyebrow={t("location.cancelVisitErrorEyebrow")}
+          title={t("location.cancelVisitErrorTitle")}
+          tone="danger"
+        />
+      ) : null}
+
       {error === "locationInsights" ? (
         <DismissableNotice
           ariaLabel={tLocationInsights("errorAria")}
@@ -531,15 +568,29 @@ export default async function LocationDetailPage({
               <span aria-hidden="true">▶</span> {t("location.startVisitDemo")}
             </a>
           ) : activeVisit ? (
-            <a
-              className="primary-button location-start-visit"
-              href={withBackOrigin(
-                `/${tenantSlug}/field/visits/${activeVisit.id}`,
-                selfOrigin,
-              )}
-            >
-              <span aria-hidden="true">▶</span> {t("location.continueVisit")}
-            </a>
+            <>
+              <a
+                className="primary-button location-start-visit"
+                href={withBackOrigin(
+                  `/${tenantSlug}/field/visits/${activeVisit.id}`,
+                  selfOrigin,
+                )}
+              >
+                <span aria-hidden="true">▶</span> {t("location.continueVisit")}
+              </a>
+              {sessionResult.ok &&
+              sessionResult.data.permissions.includes("visits.cancel_own") ? (
+                <CancelVisitModal
+                  action={cancelVisitAction.bind(
+                    null,
+                    basePath,
+                    activeVisit.id,
+                    cancelExtraParams,
+                  )}
+                  locationName={locationName}
+                />
+              ) : null}
+            </>
           ) : isArchivedLocation ? (
             <p className="empty-state">{t("location.archivedNoVisit")}</p>
           ) : stopAlreadyVisited ? (

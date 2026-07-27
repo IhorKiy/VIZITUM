@@ -7,6 +7,7 @@ import {
   type Visit,
 } from "../../../../../lib/api-client";
 import { resolveBackTarget } from "../../../../../lib/back-navigation";
+import { formatCancellationReason } from "../../../../../lib/visit-cancellation";
 import { useFormatter, useTranslations } from "next-intl";
 import { getFormatter, getTranslations } from "next-intl/server";
 
@@ -151,6 +152,23 @@ export default async function ManagerVisitDetailPage({
                 <th scope="row">{t("rowCompleted")}</th>
                 <td>{formatDateTime(format, visit.completedAt)}</td>
               </tr>
+              {visit.cancellationReason ? (
+                <tr>
+                  <th scope="row">{t("rowCancelReason")}</th>
+                  <td>
+                    {formatCancellationReason(
+                      tCommon,
+                      visit.cancellationReason,
+                    )}
+                  </td>
+                </tr>
+              ) : null}
+              {visit.cancellationComment ? (
+                <tr>
+                  <th scope="row">{t("rowCancelComment")}</th>
+                  <td>{visit.cancellationComment}</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </article>

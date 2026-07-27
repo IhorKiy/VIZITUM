@@ -1,11 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import type { VisitStatus } from "@prisma/client";
+import type { VisitCancellationReason, VisitStatus } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -24,6 +25,7 @@ import {
 } from "./report-response.util";
 import type {
   AddTextVisitNoteRequestBody,
+  CancelVisitRequestBody,
   ConfirmReportRequestBody,
   CreateVisitRequestBody,
   ListVisitsQuery,
@@ -38,6 +40,15 @@ import type {
   VisitNoteResponse,
   VisitResponse,
 } from "./visits.types";
+
+// Mirrors INPUT_LIMITS.comment in apps/web/lib/input-limits.ts.
+export const MAX_VISIT_CANCELLATION_COMMENT_LENGTH = 500;
+const VISIT_CANCELLATION_REASONS: readonly VisitCancellationReason[] = [
+  "location_closed",
+  "client_unavailable",
+  "route_changed",
+  "other",
+];
 
 const TEMPORARY_AUDIO_TTL_HOURS = 24;
 const MAX_TEMPORARY_AUDIO_SIZE_BYTES = 50 * 1024 * 1024;
@@ -317,9 +328,26 @@ export class VisitsService {
 
     this.assertCanUpdateVisit(context, visit.representativeUserId);
 
+    // Cancelled is terminal. Without this, `status: "completed"` would flip a
+    // cancelled visit back while `cancelledAt`/`cancellationReason` stayed
+    // populated (a row shape the data model rules out) and would revive its
+    // skipped route stop as visited.
+    if (visit.status === "cancelled") {
+      throw new ConflictException({
+        code: "VISIT_NOT_ACTIVE",
+        message: "A cancelled visit can no longer be updated.",
+      });
+    }
+
+    if (body.status === "cancelled") {
+      throw new BadRequestException({
+        code: "VISIT_STATUS_INVALID",
+        message: "Use POST /visits/:visitId/cancel to cancel a visit.",
+      });
+    }
+
     const status = normalizeVisitStatus(body.status);
     const completedAt = parseOptionalDateTime(body.completedAt);
-    const cancelledAt = parseOptionalDateTime(body.cancelledAt);
 
     const updatedVisit = await this.prisma.$transaction(async (tx) => {
       const result = await tx.visit.update({
@@ -330,12 +358,8 @@ export class VisitsService {
             ? { startedAt: parseOptionalDateTime(body.startedAt) }
             : {}),
           ...(body.completedAt !== undefined ? { completedAt } : {}),
-          ...(body.cancelledAt !== undefined ? { cancelledAt } : {}),
           ...(status === "completed" && body.completedAt === undefined
             ? { completedAt: new Date() }
-            : {}),
-          ...(status === "cancelled" && body.cancelledAt === undefined
-            ? { cancelledAt: new Date() }
             : {}),
         },
         include: visitInclude,
@@ -348,17 +372,54 @@ export class VisitsService {
         });
       }
 
-      if (result.routeItemId && status === "cancelled") {
+      return result;
+    });
+
+    return toVisitResponse(updatedVisit);
+  }
+
+  async cancelVisit(
+    context: RequestContext,
+    visitId: string,
+    body: CancelVisitRequestBody,
+  ): Promise<VisitResponse> {
+    const visit = await this.findTenantVisit(context.tenantId, visitId);
+
+    this.assertCanCancelVisit(context, visit.representativeUserId);
+
+    if (visit.status === "completed" || visit.status === "cancelled") {
+      throw new ConflictException({
+        code: "VISIT_NOT_CANCELLABLE",
+        message: "Only a draft or in-progress visit can be cancelled.",
+      });
+    }
+
+    const reason = normalizeCancellationReason(body.reason);
+    const comment = normalizeCancellationComment(body.comment);
+
+    const cancelledVisit = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.visit.update({
+        where: { id: visit.id },
+        data: {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+          cancellationComment: comment,
+        },
+        include: visitInclude,
+      });
+
+      if (result.routeItemId) {
         await tx.routeItem.update({
           where: { id: result.routeItemId },
-          data: { status: "skipped" },
+          data: { status: "skipped", skipReason: reason },
         });
       }
 
       return result;
     });
 
-    return toVisitResponse(updatedVisit);
+    return toVisitResponse(cancelledVisit);
   }
 
   async addTextNote(
@@ -620,6 +681,15 @@ export class VisitsService {
 
     this.assertCanUpdateVisit(context, visit.representativeUserId);
 
+    // Confirming flips the visit to `completed` (and the route item to
+    // `visited`), which must never resurrect a cancelled visit.
+    if (visit.status === "cancelled") {
+      throw new ConflictException({
+        code: "VISIT_NOT_ACTIVE",
+        message: "A cancelled visit cannot receive a confirmed report.",
+      });
+    }
+
     if (!context.userId) {
       throwMissingVisitPermission();
     }
@@ -844,6 +914,20 @@ export class VisitsService {
   ): void {
     if (
       context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) &&
+      context.userId === representativeUserId
+    ) {
+      return;
+    }
+
+    throwMissingVisitPermission();
+  }
+
+  private assertCanCancelVisit(
+    context: RequestContext,
+    representativeUserId: string,
+  ): void {
+    if (
+      context.permissions.includes(PERMISSIONS.VISITS_CANCEL_OWN) &&
       context.userId === representativeUserId
     ) {
       return;
@@ -1280,17 +1364,60 @@ function buildTemporaryAudioObjectKey(
   ].join("/");
 }
 
+// `cancelled` is deliberately absent: updateVisit rejects it before calling
+// this, so cancelVisit stays the only path into the cancelled status.
 function normalizeVisitStatus(value: unknown): VisitStatus | null {
-  if (
-    value === "draft" ||
-    value === "in_progress" ||
-    value === "completed" ||
-    value === "cancelled"
-  ) {
+  if (value === "draft" || value === "in_progress" || value === "completed") {
     return value;
   }
 
   return null;
+}
+
+function normalizeCancellationReason(value: unknown): VisitCancellationReason {
+  const reason = VISIT_CANCELLATION_REASONS.find((item) => item === value);
+
+  if (!reason) {
+    const message = `Cancellation reason must be one of: ${VISIT_CANCELLATION_REASONS.join(", ")}.`;
+
+    throw new BadRequestException({
+      code: "CANCELLATION_REASON_INVALID",
+      message,
+      fieldErrors: {
+        reason: [message],
+      },
+    });
+  }
+
+  return reason;
+}
+
+function normalizeCancellationComment(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new BadRequestException({
+      code: "CANCELLATION_COMMENT_INVALID",
+      message: "Cancellation comment must be a string.",
+    });
+  }
+
+  const comment = value.trim();
+
+  if (!comment) {
+    return null;
+  }
+
+  if (comment.length > MAX_VISIT_CANCELLATION_COMMENT_LENGTH) {
+    throw new BadRequestException({
+      code: "CANCELLATION_COMMENT_TOO_LONG",
+      message: `Cancellation comment must be at most ${MAX_VISIT_CANCELLATION_COMMENT_LENGTH} characters.`,
+    });
+  }
+
+  return comment;
 }
 
 function parseOptionalDateTime(value: unknown): Date | null {
@@ -1388,6 +1515,8 @@ function toVisitResponse(visit: VisitWithRelations): VisitResponse {
     startedAt: visit.startedAt?.toISOString() ?? null,
     completedAt: visit.completedAt?.toISOString() ?? null,
     cancelledAt: visit.cancelledAt?.toISOString() ?? null,
+    cancellationReason: visit.cancellationReason,
+    cancellationComment: visit.cancellationComment,
     createdAt: visit.createdAt.toISOString(),
     updatedAt: visit.updatedAt.toISOString(),
   };

@@ -54,7 +54,11 @@
       "in_stock": "In stock",
       "out_of_stock": "Out of stock",
       "to_order": "To order",
-      "not_relevant": "Not relevant"
+      "not_relevant": "Not relevant",
+      "cancelReason_location_closed": "Location closed",
+      "cancelReason_client_unavailable": "Client unavailable",
+      "cancelReason_route_changed": "Route changed",
+      "cancelReason_other": "Other"
     },
     "tone": {
       "ok": "OK",
@@ -352,7 +356,8 @@
       "tableCompleted": "Completed",
       "open": "Open",
       "visitPeriod": "Visit period",
-      "filterResultCount": "{count, plural, =0 {No visits found} one {Found <b>#</b> visit} other {Found <b>#</b> visits}}"
+      "filterResultCount": "{count, plural, =0 {No visits found} one {Found <b>#</b> visit} other {Found <b>#</b> visits}}",
+      "tableCancelReason": "Cancellation reason"
     },
     "tasks": {
       "title": "Tasks",
@@ -545,7 +550,9 @@
       "qualityConfirmed": "Confirmed",
       "qualityReportAvailable": "Confirmed report is available",
       "yes": "Yes",
-      "no": "No"
+      "no": "No",
+      "rowCancelReason": "Cancellation reason",
+      "rowCancelComment": "Cancellation comment"
     },
     "potential": {
       "title": "Potential & assortment",
@@ -1111,7 +1118,15 @@
       "noOpenTasks": "No open tasks for this location.",
       "visitHistory": "Visit history",
       "visitCount": "{count, plural, one {# visit} other {# visits}}",
-      "noPastVisits": "No past visits recorded yet."
+      "noPastVisits": "No past visits recorded yet.",
+      "visitCancelledAria": "Visit status",
+      "visitCancelledEyebrow": "Visit cancelled",
+      "visitCancelledTitle": "The visit was cancelled",
+      "visitCancelledBody": "The route stop was skipped. You can start a new visit at this location.",
+      "cancelVisitErrorAria": "Visit error",
+      "cancelVisitErrorEyebrow": "Visit not cancelled",
+      "cancelVisitErrorTitle": "Cancelling the visit failed",
+      "cancelVisitErrorBody": "Try cancelling the visit again."
     },
     "visit": {
       "eyebrow": "Visit",
@@ -1221,7 +1236,16 @@
       "notesFilled": "filled in",
       "notesCollapseAria": "Collapse the comment",
       "sectionProblem": "problem",
-      "confirmedProblemPhotoOpen": "Open the photo"
+      "confirmedProblemPhotoOpen": "Open the photo",
+      "cancelVisit": "Cancel visit",
+      "cancelModalTitle": "Cancel this visit",
+      "cancelModalReason": "Reason",
+      "cancelModalReasonPlaceholder": "Select a reason",
+      "cancelModalComment": "Comment",
+      "cancelModalCommentPlaceholder": "Optional details",
+      "cancelModalPending": "Cancelling…",
+      "cancelModalSubmit": "Cancel visit",
+      "cancelledReasonLabel": "Reason"
     },
     "planning": {
       "eyebrow": "Route planning",
@@ -1370,7 +1394,8 @@
       "showEarlier": "Earlier visits",
       "showNewer": "Newer visits",
       "visitPeriod": "Visit period",
-      "filterResultCount": "{count, plural, =0 {No visits found} one {Found <b>#</b> visit} other {Found <b>#</b> visits}}"
+      "filterResultCount": "{count, plural, =0 {No visits found} one {Found <b>#</b> visit} other {Found <b>#</b> visits}}",
+      "cancelReasonLabel": "Reason"
     },
     "locations": {
       "title": "Locations",

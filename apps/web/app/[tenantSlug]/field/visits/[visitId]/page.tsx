@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
 import { BackLink } from "../../../../../components/back-link";
+import { CancelVisitModal } from "../../../../../components/cancel-visit-modal";
 import { ConfirmedFieldReportSummary } from "../../../../../components/confirmed-field-report-summary";
 import { FieldVisitReportForm } from "../../../../../components/field-visit-report-form";
 import {
@@ -14,7 +15,9 @@ import {
   listLocationAssortment,
 } from "../../../../../lib/api-client";
 import { resolveBackTarget } from "../../../../../lib/back-navigation";
+import { cancelVisitAction } from "../../../../../lib/cancel-visit-actions";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
+import { formatCancellationReason } from "../../../../../lib/visit-cancellation";
 
 // Enough to cover an outlet's key SKUs without turning the panel back into
 // the shelf audit this screen exists to avoid.
@@ -204,6 +207,21 @@ export default async function VisitDetailPage({
     !reportResult.ok &&
     reportResult.code === "REPORT_NOT_FOUND";
 
+  // Cancelling is the rep's own affordance on their own unfinished visit; the
+  // post-cancel redirect lands on the location card, whose `from` this page
+  // forwards so the card's back control keeps pointing at the original opener.
+  const canCancel =
+    !isLocked &&
+    sessionResult.ok &&
+    sessionResult.data.user.id === visit.representativeUserId &&
+    sessionResult.data.permissions.includes("visits.cancel_own");
+  const cancelAction = cancelVisitAction.bind(
+    null,
+    `/${tenantSlug}/field/locations/${visit.locationId}`,
+    visitId,
+    from ? [["from", from]] : [],
+  );
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       {isLocked ? (
@@ -251,6 +269,16 @@ export default async function VisitDetailPage({
               <p className="eyebrow">{t("cancelledNoReportEyebrow")}</p>
               <h2>{t("cancelledNoReportTitle")}</h2>
               <p>{t("cancelledNoReportBody")}</p>
+              {visit.cancellationReason ? (
+                <p>
+                  {t("cancelledReasonLabel")}
+                  {": "}
+                  {formatCancellationReason(tCommon, visit.cancellationReason)}
+                  {visit.cancellationComment
+                    ? ` — ${visit.cancellationComment}`
+                    : null}
+                </p>
+              ) : null}
             </div>
           </section>
         ) : (
@@ -266,15 +294,25 @@ export default async function VisitDetailPage({
           </section>
         )
       ) : (
-        <FieldVisitReportForm
-          products={productsResult?.ok ? productsResult.data : []}
-          shelfProducts={shelfProducts}
-          tenantSlug={tenantSlug}
-          visitId={visitId}
-          voiceHint={
-            voiceHintResult?.ok ? voiceHintResult.data.voiceHint : null
-          }
-        />
+        <>
+          <FieldVisitReportForm
+            products={productsResult?.ok ? productsResult.data : []}
+            shelfProducts={shelfProducts}
+            tenantSlug={tenantSlug}
+            visitId={visitId}
+            voiceHint={
+              voiceHintResult?.ok ? voiceHintResult.data.voiceHint : null
+            }
+          />
+          {canCancel ? (
+            <div className="visit-cancel-action">
+              <CancelVisitModal
+                action={cancelAction}
+                locationName={visit.location.name}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </AppShell>
   );

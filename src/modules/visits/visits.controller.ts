@@ -31,6 +31,7 @@ import type { RequestContext } from "../tenancy/request-context";
 import { VisitsService } from "./visits.service";
 import type {
   AddTextVisitNoteRequestBody,
+  CancelVisitRequestBody,
   ConfirmReportRequestBody,
   CreateVisitRequestBody,
   RegisterAudioUploadRequestBody,
@@ -120,6 +121,20 @@ export class VisitsController {
     @Body() body: UpdateVisitRequestBody,
   ) {
     return this.visitsService.updateVisit(
+      getRequestContext(request),
+      visitId,
+      body,
+    );
+  }
+
+  @Post(":visitId/cancel")
+  @RequirePermissions(PERMISSIONS.VISITS_CANCEL_OWN)
+  cancelVisit(
+    @Req() request: Request,
+    @Param("visitId") visitId: string,
+    @Body() body: CancelVisitRequestBody,
+  ) {
+    return this.visitsService.cancelVisit(
       getRequestContext(request),
       visitId,
       body,
