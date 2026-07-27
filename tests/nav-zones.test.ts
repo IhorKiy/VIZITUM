@@ -111,33 +111,51 @@ describe("navigation zones", () => {
     ]);
   });
 
-  it("a plain team manager sees field, manager and admin (documented overlap, not a bug)", () => {
-    // Deriving zone availability from each item's existing
-    // requiredPermissions (not a parallel mapping) means team_manager's
-    // visits.read_team/routes.read also satisfy the field-zone "field" and
-    // "field-planning" items, and pilot_review.read (shared with admins —
-    // see the pilot_review.read note in permissions.md) satisfies
-    // admin-pilot. See module-map.md's "Known cross-zone overlap" note.
+  it("a plain team manager never has the admin zone available", () => {
+    // Regression: /admin/pilot used to be gated on pilot_review.read, which
+    // team_manager also holds — and since zone availability ORs across every
+    // item in a zone, that one item handed plain managers the whole admin
+    // zone (switcher entry + a zone chooser on login, often landing them on
+    // /admin/settings). The pilot section is admin configuration work, so it
+    // is gated on tenant.settings.read instead. The field overlap below is
+    // separate and still intentional: routes.read/visits.read_team are real
+    // field-zone permissions a manager holds.
     assert.deepEqual(availableZones(TEAM_MANAGER_PERMISSIONS), [
       "field",
       "manager",
-      "admin",
     ]);
+    // ...and it stays that way regardless of the pilot/products flags, since
+    // no admin-zone item is reachable with a manager-only permission set.
+    for (const productsEnabled of [true, false]) {
+      for (const pilotActive of [true, false]) {
+        assert.ok(
+          !availableZones(
+            TEAM_MANAGER_PERMISSIONS,
+            productsEnabled,
+            pilotActive,
+          ).includes("admin"),
+          `admin zone leaked to team_manager (productsEnabled=${productsEnabled}, pilotActive=${pilotActive})`,
+        );
+      }
+    }
   });
 
-  it("a plain team manager loses the admin zone once the tenant leaves the pilot plan", () => {
-    // admin-pilot is the only admin-zone item a plain team_manager can see,
-    // and it is filtered out when pilotActive is false — the zone must
-    // disappear with it rather than offering an empty admin sidebar.
-    assert.deepEqual(availableZones(TEAM_MANAGER_PERMISSIONS, true, false), [
-      "field",
-      "manager",
-    ]);
-    // Admins keep the admin zone either way: their other permissions still
-    // satisfy admin-zone items after the Pilot section retires.
+  it("admins keep the admin zone once the tenant leaves the pilot plan", () => {
+    // The Pilot section is filtered out when pilotActive is false; admins'
+    // other permissions still satisfy admin-zone items after it retires.
     assert.deepEqual(availableZones(COMPANY_ADMIN_PERMISSIONS, true, false), [
       "admin",
     ]);
+    assert.ok(
+      !buildTenantNav("acme", COMPANY_ADMIN_PERMISSIONS, true, false).some(
+        (item) => item.area === "admin-pilot",
+      ),
+    );
+    assert.ok(
+      buildTenantNav("acme", COMPANY_ADMIN_PERMISSIONS, true, true).some(
+        (item) => item.area === "admin-pilot",
+      ),
+    );
   });
 
   it("the operations zone requires platform.operations.read", () => {
@@ -192,15 +210,15 @@ describe("navigation zones", () => {
 
   it("resolveZoneLanding: multiple zones with a still-valid stored choice -> zone", () => {
     assert.deepEqual(
-      resolveZoneLanding(TEAM_MANAGER_PERMISSIONS, true, "admin"),
-      { kind: "zone", zone: "admin" },
+      resolveZoneLanding(TEAM_MANAGER_PERMISSIONS, true, "manager"),
+      { kind: "zone", zone: "manager" },
     );
   });
 
   it("resolveZoneLanding: multiple zones, no stored choice -> choose", () => {
     assert.deepEqual(resolveZoneLanding(TEAM_MANAGER_PERMISSIONS, true, null), {
       kind: "choose",
-      zones: ["field", "manager", "admin"],
+      zones: ["field", "manager"],
     });
   });
 
