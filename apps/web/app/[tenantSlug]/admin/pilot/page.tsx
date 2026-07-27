@@ -396,8 +396,9 @@ function buildChecklist(
       : []),
     // Real signal: has an initial visit/task plan actually been created
     // (route plans exist), not merely "does the import template ship in code".
-    // Sourced from the pilot-review summary because company admins — the
-    // primary viewers here — hold pilot_review.read but not routes.read.
+    // Sourced from the pilot-review summary because this screen's viewers —
+    // admin roles, per its tenant.settings.read nav gate — hold
+    // pilot_review.read but not routes.read.
     {
       title: t("planTitle"),
       ...(summaryResult.ok
