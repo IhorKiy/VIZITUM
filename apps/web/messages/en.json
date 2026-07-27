@@ -161,7 +161,7 @@
       "assortmentEmptyTitle": "Assortment not filled in yet",
       "assortmentEmptyHint": "List the products this location must carry",
       "assortmentEmpty": "Assortment tracking has no items yet.",
-      "assortmentRequired": "Required",
+      "assortmentOptional": "Not required here",
       "assortmentUnchecked": "Not checked yet",
       "assortmentCheckedOn": "Checked {date}",
       "assortmentStatusShort": {
@@ -193,7 +193,6 @@
       "planMonth2": "Month 2 plan",
       "planMonth3": "Month 3 plan",
       "comment": "Comment",
-      "shouldBeListed": "Should be listed here",
       "selectCategory": "Choose a product category",
       "addCategory": "Add",
       "remove": "Remove",

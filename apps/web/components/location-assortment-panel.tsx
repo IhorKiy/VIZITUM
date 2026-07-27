@@ -152,11 +152,18 @@ export function LocationAssortmentPanel({
                       .join(" · ")}
                   </p>
                 ) : null}
-                {row.shouldBeListed ? (
+                {/* The exception carries the pill, not the rule: almost every
+                    row is in the matrix (the flag defaults to true and the add
+                    modal starts there), so marking those said nothing and left
+                    "not required" indistinguishable from "nobody set it". A
+                    row without the matrix flag is the one the visit report
+                    never asks about and coverage ignores — that is what is
+                    worth a word here. */}
+                {row.shouldBeListed ? null : (
                   <span className="location-insight-pill">
-                    {t("assortmentRequired")}
+                    {t("assortmentOptional")}
                   </span>
-                ) : null}
+                )}
                 {/* Says when the shelf was last looked at, rather than
                     showing a bare date whose meaning has to be guessed. */}
                 <span className="location-insight-pill">
@@ -180,7 +187,9 @@ export function LocationAssortmentPanel({
                   {row.product.name}
                   {row.product.sku ? ` · ${row.product.sku}` : ""}
                 </h3>
-                <p>{row.shouldBeListed ? t("shouldBeListed") : ""}</p>
+                {/* Same rule as the card variant: only the off-matrix row
+                    says anything. */}
+                {row.shouldBeListed ? null : <p>{t("assortmentOptional")}</p>}
               </div>
               {/* The tone is not decoration: `.status-pill` paints white text
                   and leaves the background to the modifier, so a bare pill is
