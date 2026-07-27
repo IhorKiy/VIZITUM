@@ -16,6 +16,7 @@ import {
 } from "../../../../components/edit-task-modal";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
+import { FilterTogglePills } from "../../../../components/filter-toggle-pills";
 import {
   CalendarIcon,
   FlagIcon,
@@ -44,6 +45,7 @@ type FieldTasksPageProps = {
   searchParams: Promise<{
     create?: string;
     error?: string;
+    overdue?: string;
     priority?: string;
     status?: string;
     task?: string;
@@ -236,18 +238,34 @@ export default async function FieldTasksPage({
   // from in_progress must not silently apply here.
   const selectedPriorityOnly =
     selectedStatus === "in_progress" && pageState.priority === "1";
+  // Same reasoning for overdue, with a second one on top: a done task is never
+  // overdue (isTaskOverdue below), so the filter would empty the done list
+  // outright rather than narrow it.
+  const selectedOverdueOnly =
+    selectedStatus === "in_progress" && pageState.overdue === "1";
   // pageSize=100 is the API's max. A location card links here with a
   // #task-<id> anchor (see the location detail page); if a rep ever holds more
   // than 100 open tasks the target could fall outside this page and the anchor
   // would land nowhere — not paginated for now, as that volume is unrealistic
   // for a single field rep.
   const query = new URLSearchParams({ pageSize: "100" });
-  const hasFilters = selectedStatus !== "in_progress" || selectedPriorityOnly;
+  const hasFilters =
+    selectedStatus !== "in_progress" ||
+    selectedPriorityOnly ||
+    selectedOverdueOnly;
 
   query.set("status", selectedStatus);
 
   if (selectedPriorityOnly) {
     query.set("isPriority", "true");
+  }
+
+  // The API has no "overdue" flag, only a due-date range, and its dueTo bound
+  // is inclusive — so "due before today" is expressed as "due up to and
+  // including yesterday", in the tenant timezone the day was resolved in.
+  // Tasks with no due date drop out, which is what overdue means for them.
+  if (selectedOverdueOnly) {
+    query.set("dueTo", previousIsoDate(todayIsoDate));
   }
 
   const [tasksResult, locationsResult] = await Promise.all([
@@ -364,15 +382,23 @@ export default async function FieldTasksPage({
                 value={selectedStatus}
               />
               {selectedStatus === "in_progress" ? (
-                <label className="checkbox-label checkbox-label--priority">
-                  <input
-                    defaultChecked={selectedPriorityOnly}
-                    name="priority"
-                    type="checkbox"
-                    value="1"
-                  />
-                  {t("priorityOnly")}
-                </label>
+                <FilterTogglePills
+                  ariaLabel={t("refineFiltersAria")}
+                  options={[
+                    {
+                      checked: selectedPriorityOnly,
+                      label: t("priorityFilter"),
+                      name: "priority",
+                      tone: "priority",
+                    },
+                    {
+                      checked: selectedOverdueOnly,
+                      label: t("overdueFilter"),
+                      name: "overdue",
+                      tone: "overdue",
+                    },
+                  ]}
+                />
               ) : null}
             </div>
             <p className="filter-result-count">
@@ -613,6 +639,17 @@ function isTaskOverdue(task: Task, todayIsoDate: string): boolean {
   }
 
   return task.dueDate.slice(0, 10) < todayIsoDate;
+}
+
+// The day before a "YYYY-MM-DD" date, computed in UTC so the arithmetic never
+// crosses a DST boundary in the server's local zone: the input already carries
+// the tenant's day, and only the calendar step is being taken here.
+function previousIsoDate(isoDate: string): string {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+
+  date.setUTCDate(date.getUTCDate() - 1);
+
+  return date.toISOString().slice(0, 10);
 }
 
 function normalizeTaskStatus(

@@ -742,12 +742,6 @@ textarea {
   width: 16px;
 }
 
-/* Matches .priority-tag's gold, so the "priority only" filter checkbox reads
-   as the same signal as the badge it's filtering for. */
-.checkbox-label--priority input[type="checkbox"] {
-  accent-color: var(--gold);
-}
-
 /* Style every text-like control uniformly. Enumerating input types let
    `type="text"` (and any future type) silently fall back to the native look;
    excluding only checkbox/radio keeps every field visually identical. */
@@ -3142,6 +3136,21 @@ textarea {
 .filter-pills label:has(input:focus-visible) {
   outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
+}
+
+/* Toggle pills (FilterTogglePills) that filter for a badge carry that badge's
+   colour when active — gold for priority, red for overdue, matching
+   .priority-tag and .overdue-tag. Two purposes at once: the filter names the
+   signal it selects, and an on/off toggle never looks like one more choice in
+   the accent-coloured single-choice row beside it. */
+.filter-pills label.filter-pill--priority:has(input:checked) {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.filter-pills label.filter-pill--overdue:has(input:checked) {
+  background: var(--danger);
+  border-color: var(--danger);
 }
 
 .drilldown-table td strong,
