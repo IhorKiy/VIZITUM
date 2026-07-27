@@ -328,6 +328,17 @@ export class VisitsService {
 
     this.assertCanUpdateVisit(context, visit.representativeUserId);
 
+    // Cancelled is terminal. Without this, `status: "completed"` would flip a
+    // cancelled visit back while `cancelledAt`/`cancellationReason` stayed
+    // populated (a row shape the data model rules out) and would revive its
+    // skipped route stop as visited.
+    if (visit.status === "cancelled") {
+      throw new ConflictException({
+        code: "VISIT_NOT_ACTIVE",
+        message: "A cancelled visit can no longer be updated.",
+      });
+    }
+
     if (body.status === "cancelled") {
       throw new BadRequestException({
         code: "VISIT_STATUS_INVALID",
@@ -1367,11 +1378,13 @@ function normalizeCancellationReason(value: unknown): VisitCancellationReason {
   const reason = VISIT_CANCELLATION_REASONS.find((item) => item === value);
 
   if (!reason) {
+    const message = `Cancellation reason must be one of: ${VISIT_CANCELLATION_REASONS.join(", ")}.`;
+
     throw new BadRequestException({
       code: "CANCELLATION_REASON_INVALID",
-      message: "A cancellation reason is required.",
+      message,
       fieldErrors: {
-        reason: ["A cancellation reason is required."],
+        reason: [message],
       },
     });
   }

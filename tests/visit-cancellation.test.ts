@@ -7,6 +7,7 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 
+import { AiService } from "../src/modules/ai/ai.service";
 import { VisitsService } from "../src/modules/visits/visits.service";
 
 const context = {
@@ -231,6 +232,34 @@ describe("visit cancellation", () => {
     assert.equal(operations.length, 0);
   });
 
+  // The reverse direction is the one that would corrupt a row rather than just
+  // duplicate the cancel path: completing a cancelled visit would leave
+  // cancelledAt/cancellationReason set on a "completed" visit and revive its
+  // skipped route stop.
+  it("refuses any update to a cancelled visit", async () => {
+    for (const body of [
+      { status: "completed" },
+      { status: "in_progress" },
+      { startedAt: "2026-07-21T09:00:00.000Z" },
+    ]) {
+      const { prisma, operations } = buildPrisma(
+        buildVisit({
+          status: "cancelled",
+          cancelledAt: createdAt,
+          cancellationReason: "location_closed",
+          routeItemId: "route-item-a",
+        }),
+      );
+      const service = new VisitsService(prisma as never);
+
+      await assert.rejects(
+        service.updateVisit(context as never, "visit-a", body),
+        ConflictException,
+      );
+      assert.equal(operations.length, 0);
+    }
+  });
+
   it("still completes a visit through updateVisit", async () => {
     const { prisma, operations } = buildPrisma(
       buildVisit({ routeItemId: "route-item-a" }),
@@ -266,6 +295,54 @@ describe("visit cancellation", () => {
         } as never,
         "visit-a",
         { confirmedData: { summary: "ghost" } },
+      ),
+      ConflictException,
+    );
+    assert.equal(operations.length, 0);
+  });
+
+  // Mirror of the above for the AI path: both confirmation entry points flip
+  // the visit to completed, so a guard on only one of them still leaves a way
+  // to resurrect a cancelled visit.
+  it("refuses to confirm an AI draft on a cancelled visit", async () => {
+    const operations: unknown[] = [];
+    const prisma = {
+      aiJob: {
+        findFirst: async () => ({
+          id: "extraction-job-a",
+          tenantId: "tenant-a",
+          visitId: "visit-a",
+          type: "extraction",
+          status: "succeeded",
+          temporaryDraft: { summary: "ghost" },
+          visit: buildVisit({
+            status: "cancelled",
+            cancelledAt: createdAt,
+            cancellationReason: "location_closed",
+          }),
+        }),
+      },
+      platformTenant: {
+        findUnique: async () => ({ segmentTemplate: "distribution" }),
+      },
+      $transaction: async () => {
+        operations.push("transaction");
+      },
+    };
+    const service = new AiService(prisma as never, {} as never, {} as never);
+
+    await assert.rejects(
+      service.confirmAiDraft(
+        {
+          ...context,
+          permissions: [
+            "visits.update_own",
+            "reports.confirm_own",
+            "ai.use_reporting",
+          ],
+        } as never,
+        "visit-a",
+        "extraction-job-a",
       ),
       ConflictException,
     );
