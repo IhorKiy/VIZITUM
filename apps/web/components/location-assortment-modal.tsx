@@ -12,8 +12,6 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import type { LocationAssortment } from "../lib/api-client";
-import { ASSORTMENT_STATUSES } from "../lib/assortment-status";
-import { formatEnumLabel } from "../lib/format";
 import { INPUT_LIMITS } from "../lib/input-limits";
 import { PencilIcon, PlusIcon, SearchIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
@@ -35,14 +33,18 @@ function productLabel(name: string, sku: string | null): string {
   return sku ? `${name} · ${sku}` : name;
 }
 
-// Add-to-matrix / edit dialog for one assortment row. Adding uses a searchable,
-// keyboard-operable product picker (a location can list hundreds of SKUs, so a
-// plain <select> is unworkable); editing locks the product (it is the upsert
-// key) and pre-fills. The matrix flag is an interactive two-option switch
-// (required / not required) backed by `matrixRequired`; when required, a hidden
-// shouldBeListed field is submitted. The <dialog> is portaled to the
-// document body so it is never a DOM descendant of a <summary> (clicks inside a
-// top-layer dialog would otherwise bubble through and toggle the section).
+// Add-to-matrix / edit dialog for one assortment row. The manager answers one
+// question here — should this outlet carry this product — so the form is a
+// product plus the matrix flag and nothing else: shelf state (in stock or not,
+// when it was last checked) is written by visit reports, and a manager sitting
+// in an office cannot know it. Adding uses a searchable, keyboard-operable
+// product picker (a location can list hundreds of SKUs, so a plain <select> is
+// unworkable); editing locks the product (it is the upsert key). The matrix
+// flag is an interactive two-option switch (required / not required) backed by
+// `matrixRequired`; when required, a hidden shouldBeListed field is submitted.
+// The <dialog> is portaled to the document body so it is never a DOM
+// descendant of a <summary> (clicks inside a top-layer dialog would otherwise
+// bubble through and toggle the section).
 export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
   const { action, canManage, locationName, mode } = props;
   const t = useTranslations("common.locationInsights");
@@ -52,7 +54,6 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
   const titleId = useId();
   const listId = useId();
 
-  const row = props.mode === "edit" ? props.row : null;
   const products = props.mode === "add" ? props.availableProducts : [];
   const initialMatrixRequired =
     props.mode === "add" ? true : Boolean(props.row.shouldBeListed);
@@ -101,7 +102,6 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
     mode === "add"
       ? t("assortmentModal.title")
       : t("assortmentModal.editTitle");
-  const defaultStatus = row?.status ?? "in_stock";
 
   function resetForm() {
     formRef.current?.reset();
@@ -314,17 +314,6 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
           </div>
         )}
 
-        <label>
-          {t("assortmentModal.status")}
-          <select defaultValue={defaultStatus} name="status">
-            {ASSORTMENT_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {formatEnumLabel(tCommon, status)}
-              </option>
-            ))}
-          </select>
-        </label>
-
         <div className="modal-static-field">
           <span className="modal-static-label">
             {t("assortmentModal.matrix")}
@@ -360,58 +349,7 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
           <input name="shouldBeListed" type="hidden" value="true" />
         ) : null}
 
-        <div className="modal-month-row">
-          <label>
-            {t("assortmentModal.stock")}
-            <input
-              defaultValue={row?.lastStock ?? undefined}
-              min={0}
-              name="lastStock"
-              placeholder={t("assortmentModal.stockPlaceholder")}
-              type="number"
-            />
-          </label>
-          <label>
-            {t("assortmentModal.order")}
-            <input
-              defaultValue={row?.lastOrder ?? undefined}
-              min={0}
-              name="lastOrder"
-              placeholder={t("assortmentModal.orderPlaceholder")}
-              type="number"
-            />
-          </label>
-          <label>
-            {t("assortmentModal.sale")}
-            <input
-              defaultValue={row?.lastSale ?? undefined}
-              min={0}
-              name="lastSale"
-              placeholder={t("assortmentModal.salePlaceholder")}
-              type="number"
-            />
-          </label>
-        </div>
-
-        <label>
-          {t("assortmentModal.checkedDate")}
-          <input
-            defaultValue={row?.lastCheckedAt?.slice(0, 10) ?? undefined}
-            name="lastCheckedAt"
-            type="date"
-          />
-        </label>
-
-        <label>
-          {t("assortmentModal.comment")}
-          <textarea
-            defaultValue={row?.comment ?? undefined}
-            maxLength={INPUT_LIMITS.comment}
-            name="comment"
-            placeholder={t("assortmentModal.commentPlaceholder")}
-            rows={3}
-          />
-        </label>
+        <p className="form-hint">{t("assortmentModal.shelfStateHint")}</p>
 
         <PendingSubmitButton
           className="primary-button location-potential-submit"

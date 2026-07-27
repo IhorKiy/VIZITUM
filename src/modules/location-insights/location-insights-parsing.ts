@@ -4,20 +4,12 @@
 // module rather than sharing them across feature boundaries.
 
 import { BadRequestException } from "@nestjs/common";
-import type { AssortmentStatus } from "@prisma/client";
 
 // Postgres int4 max. An unchecked overflow would reach Prisma and surface as
 // an unhandled 500 instead of a clean 400.
 const MAX_INT32 = 2147483647;
 
 export const MAX_COMMENT_LENGTH = 500;
-
-const ASSORTMENT_STATUS_VALUES: AssortmentStatus[] = [
-  "in_stock",
-  "out_of_stock",
-  "to_order",
-  "not_relevant",
-];
 
 function invalidValue(field: string, message: string): never {
   throw new BadRequestException({
@@ -112,27 +104,6 @@ export function normalizeOptionalBoolean(
   }
 
   return value;
-}
-
-export function normalizeAssortmentStatus(
-  value: unknown,
-  defaultValue: AssortmentStatus,
-): AssortmentStatus {
-  if (value === undefined || value === null) {
-    return defaultValue;
-  }
-
-  if (
-    typeof value !== "string" ||
-    !ASSORTMENT_STATUS_VALUES.includes(value as AssortmentStatus)
-  ) {
-    invalidValue(
-      "status",
-      `Must be one of ${ASSORTMENT_STATUS_VALUES.join(", ")}.`,
-    );
-  }
-
-  return value as AssortmentStatus;
 }
 
 // Shared by the assortment list envelope and the tenant-wide summary so the

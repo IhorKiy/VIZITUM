@@ -5964,6 +5964,40 @@ a.metric-card:hover {
   margin: 0;
 }
 
+/* "Show all N products" — a plain text affordance, so expanding a long matrix
+   never competes with the chips it reveals. */
+.link-button {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  justify-self: start;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* The confirmation that licenses the report to mark unmarked products as in
+   stock, so it sits apart from the chips with its consequence spelled out
+   underneath rather than as a bare label. */
+.shelf-checked {
+  align-items: start;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  padding-top: 10px;
+}
+
+.shelf-checked input[type="checkbox"] {
+  margin-top: 2px;
+}
+
+.shelf-checked .form-hint {
+  display: block;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
 /* Problem is the one danger-toned section on the form, so it says so in the
    panel's own surface rather than only in the chips. */
 .problem-panel {

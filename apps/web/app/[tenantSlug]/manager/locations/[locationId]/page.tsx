@@ -123,8 +123,9 @@ export default async function ManagerLocationDetailPage({
         pct: assortmentResult.data.coveragePct,
         required: assortmentResult.data.requiredCount,
         inStock: assortmentResult.data.inStockCount,
+        checked: assortmentResult.data.checkedCount,
       }
-    : { pct: 0, required: 0, inStock: 0 };
+    : { pct: 0, required: 0, inStock: 0, checked: 0 };
   const availableProducts = (productsResult.ok ? productsResult.data : [])
     .filter(
       (product) => !assortmentRows.some((row) => row.productId === product.id),
@@ -220,8 +221,8 @@ export default async function ManagerLocationDetailPage({
                 />
               </div>
               <LocationAssortmentPanel
-                availableProducts={availableProducts}
                 canManage={canManageAssortment}
+                checkedCount={assortmentCoverage.checked}
                 coveragePct={assortmentCoverage.pct}
                 deleteAction={deleteAssortment}
                 inStockCount={assortmentCoverage.inStock}

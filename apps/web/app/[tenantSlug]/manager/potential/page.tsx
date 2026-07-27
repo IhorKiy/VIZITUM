@@ -2,6 +2,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { withBackOrigin } from "../../../../lib/back-navigation";
+import { formatDate } from "../../../../lib/format";
 import {
   getCurrentSession,
   getLocationInsightsSummary,
@@ -128,15 +129,68 @@ export default async function ManagerPotentialPage({
           <header>
             <p className="metric-label">{t("overallCoverage")}</p>
           </header>
-          <p className="metric-value">{summary.overallCoveragePct}%</p>
-          <p className="small-label">
-            {t("coverageDetail", {
-              inStock: summary.inStockCount,
-              required: summary.requiredCount,
-            })}
+          {/* The headline number is the loudest thing on this page, so it
+              only appears once something has been checked. Until then "0%"
+              would announce a tenant-wide crisis on the strength of no
+              information at all — the state every tenant starts in. */}
+          <p className="metric-value">
+            {summary.checkedCount > 0 ? `${summary.overallCoveragePct}%` : "—"}
           </p>
+          {summary.checkedCount > 0 ? (
+            <p className="small-label">
+              {t("coverageDetail", {
+                inStock: summary.inStockCount,
+                required: summary.requiredCount,
+              })}
+            </p>
+          ) : null}
+          {/* How much of that percentage rests on an actual shelf check. */}
+          {summary.requiredCount > summary.checkedCount ? (
+            <p className="small-label">
+              {t("coverageUncheckedDetail", {
+                count: summary.requiredCount - summary.checkedCount,
+              })}
+            </p>
+          ) : null}
         </article>
       </section>
+
+      {/* Deliberately its own section rather than a row in the low-coverage
+          list: these locations don't need their assortment fixed, they need
+          somebody to walk in. */}
+      {summary.neverChecked.length > 0 ? (
+        <section aria-label={t("neverChecked")} className="panel">
+          <h2>{t("neverChecked")}</h2>
+          <p className="form-hint">{t("neverCheckedHint")}</p>
+          <ul className="list-cards">
+            {summary.neverChecked.map((entry) => (
+              <li className="list-card" key={entry.locationId}>
+                <div className="list-card-top">
+                  <h3 className="list-card-title">{entry.name}</h3>
+                  {/* `neutral` rather than a bare pill: the base class paints
+                      white text and leaves the background to the tone. */}
+                  <span className="status-pill neutral">
+                    {tLocationInsights("assortmentUnchecked")}
+                  </span>
+                </div>
+                <p className="form-hint">
+                  {t("locationPotentialAmount", {
+                    amount: format.number(entry.totalPotential),
+                  })}
+                </p>
+                <div className="list-card-links">
+                  <a
+                    className="list-card-open"
+                    href={highPotentialLocationHref(entry.locationId)}
+                  >
+                    {tLocationInsights("assortmentTitle")}
+                  </a>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section aria-label={t("highPotentialLowCoverage")} className="panel">
         <h2>{t("highPotentialLowCoverage")}</h2>
@@ -154,6 +208,13 @@ export default async function ManagerPotentialPage({
                   {t("locationPotentialAmount", {
                     amount: format.number(entry.totalPotential),
                   })}
+                  {/* Says how old this percentage is, so a number from a
+                      months-old visit isn't read as today's shelf. */}
+                  {entry.lastCheckedAt
+                    ? ` · ${tLocationInsights("assortmentCheckedOn", {
+                        date: formatDate(format, entry.lastCheckedAt),
+                      })}`
+                    : ""}
                 </p>
                 <div className="list-card-links">
                   <a

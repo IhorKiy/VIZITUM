@@ -82,8 +82,9 @@ export default async function AdminLocationDetailPage({
         pct: assortmentResult.data.coveragePct,
         required: assortmentResult.data.requiredCount,
         inStock: assortmentResult.data.inStockCount,
+        checked: assortmentResult.data.checkedCount,
       }
-    : { pct: 0, required: 0, inStock: 0 };
+    : { pct: 0, required: 0, inStock: 0, checked: 0 };
 
   return (
     <AppShell activeArea="admin-locations" tenantSlug={tenantSlug}>
@@ -175,8 +176,8 @@ export default async function AdminLocationDetailPage({
                 </span>
               </summary>
               <LocationAssortmentPanel
-                availableProducts={[]}
                 canManage={false}
+                checkedCount={assortmentCoverage.checked}
                 coveragePct={assortmentCoverage.pct}
                 inStockCount={assortmentCoverage.inStock}
                 requiredCount={assortmentCoverage.required}

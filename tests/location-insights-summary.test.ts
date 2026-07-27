@@ -110,7 +110,8 @@ function buildScenarioPrisma() {
         if (args.by[0] === "productId") {
           assert.deepEqual(args.where, {
             tenantId: "tenant-a",
-            status: { in: ["out_of_stock", "to_order"] },
+            shouldBeListed: true,
+            status: "out_of_stock",
             location: { deletedAt: null },
             product: { deletedAt: null },
           });
@@ -137,6 +138,29 @@ function buildScenarioPrisma() {
             { locationId: "loc-2", _count: { _all: 4 } },
           ];
         }
+        // The confirmed-rows pass: counts what a visit has actually checked
+        // and carries the freshest check date for the same locations.
+        if (args.where.status !== undefined) {
+          assert.deepEqual(args.where, {
+            tenantId: "tenant-a",
+            shouldBeListed: true,
+            status: { not: null },
+            location: { deletedAt: null },
+            product: { deletedAt: null },
+          });
+          return [
+            {
+              locationId: "loc-1",
+              _count: { _all: 10 },
+              _max: { lastCheckedAt: new Date("2026-07-20T00:00:00.000Z") },
+            },
+            {
+              locationId: "loc-2",
+              _count: { _all: 4 },
+              _max: { lastCheckedAt: new Date("2026-07-22T00:00:00.000Z") },
+            },
+          ];
+        }
         assert.deepEqual(args.where, {
           tenantId: "tenant-a",
           shouldBeListed: true,
@@ -158,6 +182,16 @@ function buildScenarioPrisma() {
             product: { deletedAt: null },
           });
           return 7;
+        }
+        if (args.where.status !== undefined) {
+          assert.deepEqual(args.where, {
+            tenantId: "tenant-a",
+            shouldBeListed: true,
+            status: { not: null },
+            location: { deletedAt: null },
+            product: { deletedAt: null },
+          });
+          return 14;
         }
         assert.deepEqual(args.where, {
           tenantId: "tenant-a",
@@ -210,7 +244,9 @@ describe("LocationInsightsSummaryService", () => {
     assert.equal(response.overallCoveragePct, 50);
 
     assert.equal(response.locations.length, 3);
-    const byId = new Map(response.locations.map((entry) => [entry.locationId, entry]));
+    const byId = new Map(
+      response.locations.map((entry) => [entry.locationId, entry]),
+    );
     assert.deepEqual(byId.get("loc-1"), {
       locationId: "loc-1",
       name: "Store A",
@@ -218,6 +254,8 @@ describe("LocationInsightsSummaryService", () => {
       coveragePct: 30,
       requiredCount: 10,
       inStockCount: 3,
+      checkedCount: 10,
+      lastCheckedAt: "2026-07-20",
     });
     assert.deepEqual(byId.get("loc-2"), {
       locationId: "loc-2",
@@ -226,6 +264,8 @@ describe("LocationInsightsSummaryService", () => {
       coveragePct: 100,
       requiredCount: 4,
       inStockCount: 4,
+      checkedCount: 4,
+      lastCheckedAt: "2026-07-22",
     });
     // loc-3 has no potential or assortment rows at all — it still appears, at
     // 0 potential and 0% coverage, rather than being silently dropped.
@@ -236,17 +276,34 @@ describe("LocationInsightsSummaryService", () => {
       coveragePct: 0,
       requiredCount: 0,
       inStockCount: 0,
+      checkedCount: 0,
+      lastCheckedAt: null,
     });
 
-    // Only loc-1 has both potential > 0 and coverage < 70 — loc-2 has 100%
-    // coverage and loc-3 has 0 potential, so neither qualifies.
+    assert.equal(response.checkedCount, 14);
+
+    // Only loc-1 has potential > 0, a checked shelf and coverage < 70 — loc-2
+    // has 100% coverage and loc-3 has 0 potential, so neither qualifies.
     assert.deepEqual(response.highPotentialLowCoverage, [byId.get("loc-1")]);
+    // Every location with a matrix here has been checked, so nothing is
+    // waiting for a first visit.
+    assert.deepEqual(response.neverChecked, []);
 
     // product-c (soft-deleted) is correctly absent — see the product.findMany
     // mock above.
     assert.deepEqual(response.topProblemProducts, [
-      { productId: "product-a", name: "Widget A", sku: "SKU-A", problemCount: 5 },
-      { productId: "product-b", name: "Widget B", sku: "SKU-B", problemCount: 3 },
+      {
+        productId: "product-a",
+        name: "Widget A",
+        sku: "SKU-A",
+        problemCount: 5,
+      },
+      {
+        productId: "product-b",
+        name: "Widget B",
+        sku: "SKU-B",
+        problemCount: 3,
+      },
     ]);
     assert.equal(capturedTakes.topProblemProducts, 5);
     assert.deepEqual(capturedOrderBys.topProblemProducts, {
@@ -314,10 +371,145 @@ describe("LocationInsightsSummaryService", () => {
         coveragePct: 0,
         requiredCount: 0,
         inStockCount: 0,
+        checkedCount: 0,
+        lastCheckedAt: null,
       },
     ]);
     assert.deepEqual(response.highPotentialLowCoverage, []);
+    assert.deepEqual(response.neverChecked, []);
     assert.deepEqual(response.topProblemProducts, []);
     assert.deepEqual(response.potentialByCategory, []);
+  });
+
+  // The distinction step 3 exists for: a matrix nobody has visited and a
+  // matrix found empty both compute to 0%, and only one of them is a coverage
+  // problem. Sending a manager to fix the assortment of a location no rep has
+  // walked into wastes the one action the dashboard is there to prompt.
+  it("separates a never-checked location from an under-covered one", async () => {
+    const prisma = {
+      location: {
+        findMany: async () => [
+          { id: "loc-unchecked", name: "Never Visited" },
+          { id: "loc-empty", name: "Empty Shelf" },
+        ],
+      },
+      locationPotential: {
+        groupBy: async () => [
+          { locationId: "loc-unchecked", _sum: { potentialAmount: 900 } },
+          { locationId: "loc-empty", _sum: { potentialAmount: 500 } },
+        ],
+        aggregate: async () => ({
+          _sum: {
+            potentialAmount: 1400,
+            planMonth1: null,
+            planMonth2: null,
+            planMonth3: null,
+          },
+        }),
+      },
+      locationAssortment: {
+        groupBy: async (args: {
+          by: string[];
+          where: Record<string, unknown>;
+        }) => {
+          if (args.by[0] === "productId") {
+            return [];
+          }
+          if (args.where.status === "in_stock") {
+            return [];
+          }
+          if (args.where.status !== undefined) {
+            // Only the empty-shelf location has been confirmed by a visit.
+            return [
+              {
+                locationId: "loc-empty",
+                _count: { _all: 5 },
+                _max: { lastCheckedAt: new Date("2026-07-26T00:00:00.000Z") },
+              },
+            ];
+          }
+          return [
+            { locationId: "loc-unchecked", _count: { _all: 5 } },
+            { locationId: "loc-empty", _count: { _all: 5 } },
+          ];
+        },
+        count: async (args: { where: Record<string, unknown> }) =>
+          args.where.status === "in_stock" ? 0 : 10,
+      },
+      product: { findMany: async () => [] },
+      productCategory: { findMany: async () => [] },
+    };
+    const service = new LocationInsightsSummaryService(prisma as never);
+
+    const response = await service.getSummary(context as never);
+
+    const byId = new Map(
+      response.locations.map((entry) => [entry.locationId, entry]),
+    );
+    // Both read 0% — the counts are what tell them apart.
+    assert.equal(byId.get("loc-unchecked")?.coveragePct, 0);
+    assert.equal(byId.get("loc-empty")?.coveragePct, 0);
+    assert.equal(byId.get("loc-unchecked")?.checkedCount, 0);
+    assert.equal(byId.get("loc-empty")?.checkedCount, 5);
+    assert.equal(byId.get("loc-unchecked")?.lastCheckedAt, null);
+    assert.equal(byId.get("loc-empty")?.lastCheckedAt, "2026-07-26");
+
+    assert.deepEqual(
+      response.highPotentialLowCoverage.map((entry) => entry.locationId),
+      ["loc-empty"],
+    );
+    assert.deepEqual(
+      response.neverChecked.map((entry) => entry.locationId),
+      ["loc-unchecked"],
+    );
+  });
+
+  // The potential is rep-authored and many tenants never fill it. Gating the
+  // waiting-for-a-check list on it would hide the very outlets nobody has
+  // visited — in a tenant with no potential recorded at all, every one of
+  // them — so only a matrix and the absence of a check qualify a location.
+  it("lists an unchecked location that has no recorded potential", async () => {
+    const prisma = {
+      location: {
+        findMany: async () => [{ id: "loc-a", name: "No Potential Yet" }],
+      },
+      locationPotential: {
+        groupBy: async () => [],
+        aggregate: async () => ({
+          _sum: {
+            potentialAmount: null,
+            planMonth1: null,
+            planMonth2: null,
+            planMonth3: null,
+          },
+        }),
+      },
+      locationAssortment: {
+        groupBy: async (args: {
+          by: string[];
+          where: Record<string, unknown>;
+        }) => {
+          if (args.by[0] === "productId" || args.where.status !== undefined) {
+            return [];
+          }
+          return [{ locationId: "loc-a", _count: { _all: 4 } }];
+        },
+        count: async (args: { where: Record<string, unknown> }) =>
+          args.where.status === undefined ? 4 : 0,
+      },
+      product: { findMany: async () => [] },
+      productCategory: { findMany: async () => [] },
+    };
+    const service = new LocationInsightsSummaryService(prisma as never);
+
+    const response = await service.getSummary(context as never);
+
+    assert.equal(response.locations[0]?.totalPotential, 0);
+    assert.deepEqual(
+      response.neverChecked.map((entry) => entry.locationId),
+      ["loc-a"],
+    );
+    // Still absent from the low-coverage list — its 0% is unknown, not bad.
+    assert.deepEqual(response.highPotentialLowCoverage, []);
   });
 });

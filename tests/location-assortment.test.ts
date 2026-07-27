@@ -46,11 +46,7 @@ function buildAssortmentRow(overrides: Record<string, unknown> = {}) {
     productId: "product-a",
     shouldBeListed: true,
     status: "in_stock",
-    lastStock: 10,
-    lastOrder: 5,
-    lastSale: 3,
     lastCheckedAt: new Date("2026-07-01T00:00:00.000Z"),
-    comment: "Checked during visit.",
     createdAt: new Date("2026-07-01T00:00:00.000Z"),
     updatedAt: new Date("2026-07-01T00:00:00.000Z"),
     product,
@@ -214,12 +210,104 @@ describe("LocationAssortmentService coverage math", () => {
     assert.equal(response.coveragePct, 50);
   });
 
+  // The whole point of a null status: a matrix the manager has just typed in
+  // must not read as covered before anyone has checked a shelf.
+  it("counts a never-confirmed row as required but not in stock", async () => {
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssortment: {
+        findMany: async () => [
+          buildAssortmentRow({
+            productId: "product-a",
+            shouldBeListed: true,
+            status: null,
+            lastCheckedAt: null,
+          }),
+          buildAssortmentRow({
+            productId: "product-b",
+            shouldBeListed: true,
+            status: "in_stock",
+          }),
+        ],
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    const response = await service.listAssortment(
+      managerContext as never,
+      "location-a",
+    );
+
+    assert.equal(response.items[0]?.status, null);
+    assert.equal(response.requiredCount, 2);
+    assert.equal(response.inStockCount, 1);
+    assert.equal(response.coveragePct, 50);
+    assert.equal(response.checkedCount, 1);
+  });
+
+  // 0% because nobody has visited and 0% because the shelf was bare are the
+  // same percentage and opposite problems; `checkedCount` is what lets a
+  // caller tell them apart instead of reporting an unearned verdict.
+  it("reports zero checked rows for a matrix no visit has confirmed", async () => {
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssortment: {
+        findMany: async () => [
+          buildAssortmentRow({
+            productId: "product-a",
+            status: null,
+            lastCheckedAt: null,
+          }),
+          buildAssortmentRow({
+            productId: "product-b",
+            status: null,
+            lastCheckedAt: null,
+          }),
+        ],
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    const response = await service.listAssortment(
+      managerContext as never,
+      "location-a",
+    );
+
+    assert.equal(response.requiredCount, 2);
+    assert.equal(response.checkedCount, 0);
+    assert.equal(response.coveragePct, 0);
+  });
+
+  it("counts an out-of-stock row as checked, not as missing information", async () => {
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssortment: {
+        findMany: async () => [
+          buildAssortmentRow({
+            productId: "product-a",
+            status: "out_of_stock",
+          }),
+        ],
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    const response = await service.listAssortment(
+      managerContext as never,
+      "location-a",
+    );
+
+    assert.equal(response.checkedCount, 1);
+    assert.equal(response.inStockCount, 0);
+    assert.equal(response.coveragePct, 0);
+  });
+
   it("returns 0 coverage when there are no required rows", async () => {
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
       locationAssortment: {
         findMany: async () => [
-          buildAssortmentRow({ shouldBeListed: false, status: "not_relevant" }),
+          buildAssortmentRow({ shouldBeListed: false, status: null }),
         ],
       },
     };
@@ -316,7 +404,77 @@ describe("LocationAssortmentService write scope", () => {
   });
 });
 
-describe("LocationAssortmentService upsert idempotency", () => {
+describe("LocationAssortmentService upsert scope", () => {
+  // The manager owns the matrix; the shelf state belongs to the last visit
+  // that checked it. If an edit here wrote the full row, re-saving the matrix
+  // flag would silently reset a rep's observation and inflate coverage.
+  it("writes only the matrix flag, leaving field-owned shelf state untouched", async () => {
+    let capturedUpdate: Record<string, unknown> | null = null;
+    let capturedCreate: Record<string, unknown> | null = null;
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      product: { findFirst: async () => product },
+      locationAssortment: {
+        upsert: async (args: {
+          create: Record<string, unknown>;
+          update: Record<string, unknown>;
+        }) => {
+          capturedUpdate = args.update;
+          capturedCreate = args.create;
+          return buildAssortmentRow();
+        },
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    await service.upsertAssortment(
+      managerContext as never,
+      "location-a",
+      "product-a",
+      { shouldBeListed: false },
+    );
+
+    assert.deepEqual(capturedUpdate, { shouldBeListed: false });
+    // A brand-new row carries no status: nobody has looked at the shelf yet.
+    assert.deepEqual(capturedCreate, {
+      tenantId: "tenant-a",
+      locationId: "location-a",
+      productId: "product-a",
+      shouldBeListed: false,
+    });
+  });
+
+  // A body that still carries the removed observation fields (an old client,
+  // or a hand-rolled request) must not smuggle them into the write.
+  it("ignores shelf-state fields supplied in the request body", async () => {
+    let capturedUpdate: Record<string, unknown> | null = null;
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      product: { findFirst: async () => product },
+      locationAssortment: {
+        upsert: async (args: { update: Record<string, unknown> }) => {
+          capturedUpdate = args.update;
+          return buildAssortmentRow();
+        },
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    await service.upsertAssortment(
+      managerContext as never,
+      "location-a",
+      "product-a",
+      {
+        shouldBeListed: true,
+        status: "in_stock",
+        lastCheckedAt: "2026-07-20",
+        lastStock: 12,
+      } as never,
+    );
+
+    assert.deepEqual(capturedUpdate, { shouldBeListed: true });
+  });
+
   it("upserts on the (tenant, location, product) compound key with identical create/update data", async () => {
     type UpsertArgs = {
       where: unknown;
@@ -340,11 +498,7 @@ describe("LocationAssortmentService upsert idempotency", () => {
       managerContext as never,
       "location-a",
       "product-a",
-      {
-        shouldBeListed: true,
-        status: "to_order",
-        lastStock: 0,
-      },
+      { shouldBeListed: true },
     );
 
     assert.ok(capturedArgs);
@@ -393,7 +547,9 @@ describe("LocationAssortmentService validation", () => {
     product: { findFirst: async () => product },
   };
 
-  it("rejects a negative lastStock", async () => {
+  // shouldBeListed is the only value this endpoint still accepts, so it is the
+  // only one left to validate.
+  it("rejects a non-boolean shouldBeListed", async () => {
     const service = new LocationAssortmentService(prisma as never);
 
     await assert.rejects(
@@ -402,7 +558,7 @@ describe("LocationAssortmentService validation", () => {
         "location-a",
         "product-a",
         {
-          lastStock: -1,
+          shouldBeListed: "yes",
         },
       ),
       (error: { getResponse?: () => { code?: string } }) => {
@@ -415,48 +571,26 @@ describe("LocationAssortmentService validation", () => {
     );
   });
 
-  it("rejects an unknown status value", async () => {
-    const service = new LocationAssortmentService(prisma as never);
-
-    await assert.rejects(
-      service.upsertAssortment(
-        managerContext as never,
-        "location-a",
-        "product-a",
-        {
-          status: "on_backorder",
+  it("defaults an omitted shouldBeListed to required", async () => {
+    let capturedUpdate: Record<string, unknown> | null = null;
+    const service = new LocationAssortmentService({
+      ...prisma,
+      locationAssortment: {
+        upsert: async (args: { update: Record<string, unknown> }) => {
+          capturedUpdate = args.update;
+          return buildAssortmentRow();
         },
-      ),
-      (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(
-          error.getResponse?.().code,
-          "LOCATION_INSIGHTS_VALUE_INVALID",
-        );
-        return true;
       },
-    );
-  });
+    } as never);
 
-  it("rejects a malformed lastCheckedAt date", async () => {
-    const service = new LocationAssortmentService(prisma as never);
-
-    await assert.rejects(
-      service.upsertAssortment(
-        managerContext as never,
-        "location-a",
-        "product-a",
-        {
-          lastCheckedAt: "not-a-date",
-        },
-      ),
-      (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(
-          error.getResponse?.().code,
-          "LOCATION_INSIGHTS_VALUE_INVALID",
-        );
-        return true;
-      },
+    await service.upsertAssortment(
+      managerContext as never,
+      "location-a",
+      "product-a",
+      {},
     );
+
+    assert.deepEqual(capturedUpdate, { shouldBeListed: true });
   });
 });
 

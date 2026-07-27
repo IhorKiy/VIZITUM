@@ -65,8 +65,9 @@ export default async function LocationAssortmentPage({
         pct: assortmentResult.data.coveragePct,
         required: assortmentResult.data.requiredCount,
         inStock: assortmentResult.data.inStockCount,
+        checked: assortmentResult.data.checkedCount,
       }
-    : { pct: 0, required: 0, inStock: 0 };
+    : { pct: 0, required: 0, inStock: 0, checked: 0 };
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
@@ -108,8 +109,8 @@ export default async function LocationAssortmentPage({
               team_manager doesn't get an editor while working as a rep — the
               same reasoning the admin detail screen uses. */}
           <LocationAssortmentPanel
-            availableProducts={[]}
             canManage={false}
+            checkedCount={assortmentCoverage.checked}
             coveragePct={assortmentCoverage.pct}
             inStockCount={assortmentCoverage.inStock}
             locationName={locationName}

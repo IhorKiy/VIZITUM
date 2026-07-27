@@ -30,9 +30,11 @@ export class LocationInsightsSummaryService {
       potentialByLocation,
       requiredByLocation,
       inStockByLocation,
+      checkedByLocation,
       totals,
       requiredCount,
       inStockCount,
+      checkedCount,
       topProblemProductGroups,
       potentialByCategoryGroups,
     ] = await Promise.all([
@@ -66,6 +68,21 @@ export class LocationInsightsSummaryService {
         },
         _count: { _all: true },
       }),
+      // Confirmed rows and the freshest confirmation, in one pass: the count
+      // separates "nobody has visited" from "the shelf was empty", the date
+      // says how old the number next to it is.
+      this.prisma.locationAssortment.groupBy({
+        by: ["locationId"],
+        where: {
+          tenantId,
+          shouldBeListed: true,
+          status: { not: null },
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        },
+        _count: { _all: true },
+        _max: { lastCheckedAt: true },
+      }),
       this.prisma.locationPotential.aggregate({
         where: { tenantId, location: { deletedAt: null } },
         _sum: {
@@ -92,11 +109,24 @@ export class LocationInsightsSummaryService {
           product: { deletedAt: null },
         },
       }),
+      this.prisma.locationAssortment.count({
+        where: {
+          tenantId,
+          shouldBeListed: true,
+          status: { not: null },
+          location: { deletedAt: null },
+          product: { deletedAt: null },
+        },
+      }),
+      // Matches the coverage queries above on `shouldBeListed`: a product
+      // missing from a shelf it was never required to be on is not a problem,
+      // and counting it here contradicted every other number on the dashboard.
       this.prisma.locationAssortment.groupBy({
         by: ["productId"],
         where: {
           tenantId,
-          status: { in: ["out_of_stock", "to_order"] },
+          shouldBeListed: true,
+          status: "out_of_stock",
           location: { deletedAt: null },
           product: { deletedAt: null },
         },
@@ -130,11 +160,18 @@ export class LocationInsightsSummaryService {
     const inStockByLocationId = new Map(
       inStockByLocation.map((row) => [row.locationId, row._count._all]),
     );
+    const checkedByLocationId = new Map(
+      checkedByLocation.map((row) => [
+        row.locationId,
+        { count: row._count._all, lastCheckedAt: row._max.lastCheckedAt },
+      ]),
+    );
 
     const locationSummaries: LocationInsightsLocationSummary[] = locations.map(
       (location) => {
         const required = requiredByLocationId.get(location.id) ?? 0;
         const inStock = inStockByLocationId.get(location.id) ?? 0;
+        const checked = checkedByLocationId.get(location.id);
 
         return {
           locationId: location.id,
@@ -143,15 +180,36 @@ export class LocationInsightsSummaryService {
           coveragePct: computeCoveragePct(required, inStock),
           requiredCount: required,
           inStockCount: inStock,
+          checkedCount: checked?.count ?? 0,
+          lastCheckedAt: checked?.lastCheckedAt
+            ? checked.lastCheckedAt.toISOString().slice(0, 10)
+            : null,
         };
       },
     );
 
+    // A location with a matrix nobody has checked reports 0% for want of a
+    // visit, not for want of stock. Sending a manager to fix its assortment
+    // would be acting on a number that means nothing yet, so it is filtered
+    // out here and surfaced as its own list below.
     const highPotentialLowCoverage = locationSummaries
       .filter(
         (summary) =>
           summary.totalPotential > 0 &&
+          summary.checkedCount > 0 &&
           summary.coveragePct < HIGH_POTENTIAL_LOW_COVERAGE_THRESHOLD,
+      )
+      .sort((a, b) => b.totalPotential - a.totalPotential)
+      .slice(0, TOP_N);
+
+    // Deliberately not gated on `totalPotential` the way the low-coverage list
+    // is: the potential is rep-authored and plenty of tenants never fill it,
+    // so requiring it would hide exactly the outlets nobody has visited —
+    // including, in a tenant with no potential recorded at all, every single
+    // one of them. Sorting by potential still floats the valuable ones first.
+    const neverChecked = locationSummaries
+      .filter(
+        (summary) => summary.requiredCount > 0 && summary.checkedCount === 0,
       )
       .sort((a, b) => b.totalPotential - a.totalPotential)
       .slice(0, TOP_N);
@@ -169,8 +227,10 @@ export class LocationInsightsSummaryService {
       overallCoveragePct: computeCoveragePct(requiredCount, inStockCount),
       requiredCount,
       inStockCount,
+      checkedCount,
       locations: locationSummaries,
       highPotentialLowCoverage,
+      neverChecked,
       topProblemProducts,
       potentialByCategory,
     };

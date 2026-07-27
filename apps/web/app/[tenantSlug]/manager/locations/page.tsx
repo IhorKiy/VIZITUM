@@ -500,7 +500,18 @@ function LocationsTable({
                 {productsEnabled ? (
                   <>
                     <td>{format.number(insights?.totalPotential ?? 0)}</td>
-                    <td>{insights?.coveragePct ?? 0}%</td>
+                    {/* A location no visit has checked has no coverage to
+                        report — showing 0% would rank it alongside outlets
+                        whose shelves were actually found empty. One with no
+                        matrix at all is a third case: it is waiting on a
+                        manager, not on a visit. */}
+                    <td>
+                      {!insights || insights.requiredCount === 0
+                        ? tCommon("notSet")
+                        : insights.checkedCount > 0
+                          ? `${insights.coveragePct}%`
+                          : t("coverageUnchecked")}
+                    </td>
                   </>
                 ) : null}
                 <td>

@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 
-import { isAssortmentStatus } from "./assortment-status";
 import {
   deleteLocationAssortment,
   deleteLocationPotential,
@@ -97,11 +96,6 @@ export async function upsertLocationAssortmentAction(
   formData: FormData,
 ): Promise<void> {
   const productId = getFormString(formData, "productId").trim();
-  const statusValue = getFormString(formData, "status");
-  // A malformed/tampered status falls back to the backend's own default
-  // (in_stock) rather than casting it on trust — the <select> options never
-  // actually produce anything outside ASSORTMENT_STATUSES.
-  const status = isAssortmentStatus(statusValue) ? statusValue : undefined;
 
   if (!productId) {
     redirect(
@@ -109,14 +103,10 @@ export async function upsertLocationAssortmentAction(
     );
   }
 
+  // The matrix flag is all a manager writes: the shelf state on this row is
+  // owned by whichever visit last checked it.
   const result = await upsertLocationAssortment(locationId, productId, {
     shouldBeListed: getFormBoolean(formData, "shouldBeListed"),
-    status,
-    lastStock: getFormOptionalNumber(formData, "lastStock"),
-    lastOrder: getFormOptionalNumber(formData, "lastOrder"),
-    lastSale: getFormOptionalNumber(formData, "lastSale"),
-    lastCheckedAt: getFormOptionalString(formData, "lastCheckedAt"),
-    comment: getFormOptionalString(formData, "comment"),
   });
 
   redirect(
