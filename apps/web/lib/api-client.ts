@@ -192,6 +192,9 @@ export type LocationAssortmentList = {
   coveragePct: number;
   requiredCount: number;
   inStockCount: number;
+  // Required rows a visit has confirmed. Zero means the coverage number is
+  // unearned, not bad.
+  checkedCount: number;
 };
 
 export type LocationInsightsLocationSummary = {
@@ -201,6 +204,8 @@ export type LocationInsightsLocationSummary = {
   coveragePct: number;
   requiredCount: number;
   inStockCount: number;
+  checkedCount: number;
+  lastCheckedAt: string | null;
 };
 
 export type LocationInsightsProblemProduct = {
@@ -227,8 +232,10 @@ export type LocationInsightsSummary = {
   overallCoveragePct: number;
   requiredCount: number;
   inStockCount: number;
+  checkedCount: number;
   locations: LocationInsightsLocationSummary[];
   highPotentialLowCoverage: LocationInsightsLocationSummary[];
+  neverChecked: LocationInsightsLocationSummary[];
   topProblemProducts: LocationInsightsProblemProduct[];
   potentialByCategory: LocationInsightsCategoryPotential[];
 };

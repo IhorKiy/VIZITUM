@@ -20,6 +20,7 @@ type LocationAssortmentPanelProps = {
   coveragePct: number;
   requiredCount: number;
   inStockCount: number;
+  checkedCount: number;
   // Only read when canManage is true — read-only callers (the admin location
   // detail screen) omit them.
   upsertAction?: (formData: FormData) => Promise<void>;
@@ -44,6 +45,7 @@ export function LocationAssortmentPanel({
   coveragePct,
   requiredCount,
   inStockCount,
+  checkedCount,
   upsertAction,
   deleteAction,
   variant = "inline",
@@ -62,14 +64,25 @@ export function LocationAssortmentPanel({
 
   return (
     <div className="field-card-list">
+      {/* A percentage nobody has earned yet would read as a verdict on the
+          shelf, so an unchecked matrix says so instead of showing 0%. */}
       {requiredCount > 0 ? (
-        <p className="form-hint">
-          {t("coverageSummary", {
-            pct: coveragePct,
-            inStock: inStockCount,
-            required: requiredCount,
-          })}
-        </p>
+        checkedCount === 0 ? (
+          <p className="form-hint">{t("coverageUnchecked")}</p>
+        ) : (
+          <p className="form-hint">
+            {t("coverageSummary", {
+              pct: coveragePct,
+              inStock: inStockCount,
+              required: requiredCount,
+            })}
+            {checkedCount < requiredCount
+              ? ` · ${t("coverageUncheckedCount", {
+                  count: requiredCount - checkedCount,
+                })}`
+              : ""}
+          </p>
+        )
       ) : null}
 
       {rows.length === 0 ? (
@@ -169,7 +182,16 @@ export function LocationAssortmentPanel({
                 </h3>
                 <p>{row.shouldBeListed ? t("shouldBeListed") : ""}</p>
               </div>
-              <span className="status-pill">{statusLabel(row.status)}</span>
+              {/* The tone is not decoration: `.status-pill` paints white text
+                  and leaves the background to the modifier, so a bare pill is
+                  invisible on this card. */}
+              <span
+                className={`status-pill ${
+                  row.status ? STATUS_TONE[row.status] : UNCHECKED_TONE
+                }`}
+              >
+                {statusLabel(row.status)}
+              </span>
             </header>
           </article>
         ),

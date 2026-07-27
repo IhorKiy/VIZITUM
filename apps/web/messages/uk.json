@@ -183,6 +183,8 @@
         "submit": "Додати"
       },
       "coverageSummary": "{pct}% в наявності ({inStock} з {required} обов'язкових товарів)",
+      "coverageUnchecked": "Полицю ще жоден візит не перевіряв — покриття невідоме.",
+      "coverageUncheckedCount": "{count, plural, one {# ще не перевіряли} few {# ще не перевіряли} many {# ще не перевіряли} other {# ще не перевіряли}}",
       "category": "Категорія товару",
       "product": "Товар",
       "potentialAmount": "Сума потенціалу",
@@ -438,6 +440,7 @@
       "filterResultCount": "{count, plural, =0 {Точок не знайдено} one {Знайдено <b>#</b> точку} few {Знайдено <b>#</b> точки} many {Знайдено <b>#</b> точок} other {Знайдено <b>#</b> точки}}",
       "tableTotalPotential": "Загальний потенціал",
       "tableCoverage": "Покриття",
+      "coverageUnchecked": "не перевіряли",
       "tableLinks": "Посилання",
       "detailNotFoundTitle": "Точку не знайдено",
       "assortment": "Асортимент"
@@ -544,6 +547,9 @@
       "planTotals": "План: {m1} / {m2} / {m3}",
       "overallCoverage": "Загальне покриття",
       "coverageDetail": "{inStock} з {required} обов'язкових товарів в наявності",
+      "coverageUncheckedDetail": "{count, plural, one {# товар ще не перевіряли на полиці} few {# товари ще не перевіряли на полиці} many {# товарів ще не перевіряли на полиці} other {# товару ще не перевіряли на полиці}}",
+      "neverChecked": "Чекають на першу перевірку",
+      "neverCheckedHint": "Для цих точок задано асортимент, але жоден візит ще не підтвердив полицю — покриття тут невідоме, а не низьке.",
       "highPotentialLowCoverage": "Високий потенціал, низьке покриття",
       "highPotentialLowCoverageEmpty": "Наразі немає точок з високим потенціалом і низьким покриттям одночасно.",
       "locationPotentialAmount": "Потенціал: {amount}",

@@ -62,6 +62,10 @@ export type ListLocationAssortmentResponse = {
   coveragePct: number;
   requiredCount: number;
   inStockCount: number;
+  // Required rows a visit has actually confirmed. Without it `coveragePct: 0`
+  // reads the same whether nobody has visited yet or the shelf was empty, and
+  // those two call for opposite actions.
+  checkedCount: number;
 };
 
 // The manager authors the matrix and nothing else: shelf state (status,
@@ -77,6 +81,11 @@ export type LocationInsightsLocationSummary = {
   coveragePct: number;
   requiredCount: number;
   inStockCount: number;
+  checkedCount: number;
+  // Most recent shelf check across this location's required rows, or null if
+  // no visit has confirmed one yet. Reported as a date so the manager can see
+  // how old the coverage number is; no staleness threshold is applied here.
+  lastCheckedAt: string | null;
 };
 
 export type LocationInsightsProblemProduct = {
@@ -103,8 +112,14 @@ export type LocationInsightsSummaryResponse = {
   overallCoveragePct: number;
   requiredCount: number;
   inStockCount: number;
+  checkedCount: number;
   locations: LocationInsightsLocationSummary[];
   highPotentialLowCoverage: LocationInsightsLocationSummary[];
+  // High-potential locations no visit has ever checked. Kept apart from
+  // `highPotentialLowCoverage` on purpose: an unchecked location is a visit
+  // problem, and listing it as under-covered would send a manager to fix an
+  // assortment that nobody has looked at yet.
+  neverChecked: LocationInsightsLocationSummary[];
   topProblemProducts: LocationInsightsProblemProduct[];
   potentialByCategory: LocationInsightsCategoryPotential[];
 };

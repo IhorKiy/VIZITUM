@@ -78,6 +78,13 @@ export class LocationAssortmentService {
     const inStockCount = requiredRows.filter(
       (row) => row.status === "in_stock",
     ).length;
+    // A null status is "no visit has confirmed this yet", which is why it is
+    // counted separately rather than folded into the out-of-stock remainder:
+    // 0% because nobody has been here and 0% because the shelf was bare are
+    // different problems with different fixes.
+    const checkedCount = requiredRows.filter(
+      (row) => row.status !== null,
+    ).length;
 
     return {
       items: rows.map(toLocationAssortmentResponse),
@@ -85,6 +92,7 @@ export class LocationAssortmentService {
       coveragePct: computeCoveragePct(requiredCount, inStockCount),
       requiredCount,
       inStockCount,
+      checkedCount,
     };
   }
 

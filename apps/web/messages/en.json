@@ -183,6 +183,8 @@
         "submit": "Add"
       },
       "coverageSummary": "{pct}% in stock ({inStock} of {required} required products)",
+      "coverageUnchecked": "No visit has checked this shelf yet — coverage is unknown.",
+      "coverageUncheckedCount": "{count, plural, one {# not checked yet} other {# not checked yet}}",
       "category": "Product category",
       "product": "Product",
       "potentialAmount": "Potential amount",
@@ -438,6 +440,7 @@
       "filterResultCount": "{count, plural, =0 {No locations found} one {Found <b>#</b> location} other {Found <b>#</b> locations}}",
       "tableTotalPotential": "Total potential",
       "tableCoverage": "Coverage",
+      "coverageUnchecked": "not checked",
       "tableLinks": "Links",
       "detailNotFoundTitle": "Location not found",
       "assortment": "Assortment"
@@ -544,6 +547,9 @@
       "planTotals": "Plan: {m1} / {m2} / {m3}",
       "overallCoverage": "Overall coverage",
       "coverageDetail": "{inStock} of {required} required products in stock",
+      "coverageUncheckedDetail": "{count, plural, one {# product not checked on a shelf yet} other {# products not checked on a shelf yet}}",
+      "neverChecked": "Waiting for a first check",
+      "neverCheckedHint": "These locations have an assortment set up, but no visit has confirmed a shelf yet — their coverage is unknown rather than low.",
       "highPotentialLowCoverage": "High potential, low coverage",
       "highPotentialLowCoverageEmpty": "No locations are both high-potential and under-covered right now.",
       "locationPotentialAmount": "Potential: {amount}",

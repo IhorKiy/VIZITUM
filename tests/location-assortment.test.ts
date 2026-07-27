@@ -242,6 +242,64 @@ describe("LocationAssortmentService coverage math", () => {
     assert.equal(response.requiredCount, 2);
     assert.equal(response.inStockCount, 1);
     assert.equal(response.coveragePct, 50);
+    assert.equal(response.checkedCount, 1);
+  });
+
+  // 0% because nobody has visited and 0% because the shelf was bare are the
+  // same percentage and opposite problems; `checkedCount` is what lets a
+  // caller tell them apart instead of reporting an unearned verdict.
+  it("reports zero checked rows for a matrix no visit has confirmed", async () => {
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssortment: {
+        findMany: async () => [
+          buildAssortmentRow({
+            productId: "product-a",
+            status: null,
+            lastCheckedAt: null,
+          }),
+          buildAssortmentRow({
+            productId: "product-b",
+            status: null,
+            lastCheckedAt: null,
+          }),
+        ],
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    const response = await service.listAssortment(
+      managerContext as never,
+      "location-a",
+    );
+
+    assert.equal(response.requiredCount, 2);
+    assert.equal(response.checkedCount, 0);
+    assert.equal(response.coveragePct, 0);
+  });
+
+  it("counts an out-of-stock row as checked, not as missing information", async () => {
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssortment: {
+        findMany: async () => [
+          buildAssortmentRow({
+            productId: "product-a",
+            status: "out_of_stock",
+          }),
+        ],
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    const response = await service.listAssortment(
+      managerContext as never,
+      "location-a",
+    );
+
+    assert.equal(response.checkedCount, 1);
+    assert.equal(response.inStockCount, 0);
+    assert.equal(response.coveragePct, 0);
   });
 
   it("returns 0 coverage when there are no required rows", async () => {
