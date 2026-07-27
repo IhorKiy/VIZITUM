@@ -7,6 +7,7 @@ import { DismissableNotice } from "../../../../../../components/dismissable-noti
 import { PackageIcon } from "../../../../../../components/icons";
 import { LocationAssortmentModal } from "../../../../../../components/location-assortment-modal";
 import { LocationAssortmentPanel } from "../../../../../../components/location-assortment-panel";
+import { resolveBackTarget } from "../../../../../../lib/back-navigation";
 import {
   getCurrentSession,
   getLocation,
@@ -21,8 +22,7 @@ import {
 type LocationAssortmentPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
   searchParams: Promise<{
-    routePlanId?: string;
-    routeItemId?: string;
+    from?: string;
     error?: string;
     locationInsights?: string;
   }>;
@@ -33,29 +33,23 @@ export default async function LocationAssortmentPage({
   searchParams,
 }: LocationAssortmentPageProps) {
   const { tenantSlug, locationId } = await params;
-  const { routePlanId, routeItemId, error, locationInsights } =
-    await searchParams;
-  const [t, tLocationInsights] = await Promise.all([
+  const { from, error, locationInsights } = await searchParams;
+  const [t, tBack, tLocationInsights] = await Promise.all([
     getTranslations("field"),
+    getTranslations("common.back"),
     getTranslations("common.locationInsights"),
   ]);
 
   // Stay on this page after add/edit/delete (basePath = the assortment page),
-  // carrying any route-stop context so the back link returns to the location
-  // card with its route still selected. Shared with the location detail screen
-  // via lib/location-insights-actions.ts.
+  // carrying the opener so the back link still returns to the location card in
+  // the state it was left — same route stop, same screen behind it. Shared
+  // with the location detail screen via lib/location-insights-actions.ts.
   const basePath = `/${tenantSlug}/field/locations/${locationId}/assortment`;
-  const extraParams: [string, string][] = [];
-  if (routePlanId) {
-    extraParams.push(["routePlanId", routePlanId]);
-  }
-  if (routeItemId) {
-    extraParams.push(["routeItemId", routeItemId]);
-  }
-  const backQuery = new URLSearchParams(extraParams).toString();
-  const backHref = `/${tenantSlug}/field/locations/${locationId}${
-    backQuery ? `?${backQuery}` : ""
-  }`;
+  const extraParams: [string, string][] = from ? [["from", from]] : [];
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/field/locations/${locationId}`,
+    labelKey: "location",
+  });
 
   const upsertAssortmentAction = upsertLocationAssortmentAction.bind(
     null,
@@ -85,7 +79,7 @@ export default async function LocationAssortmentPage({
   // location — send the rep back to the location card rather than showing an
   // empty, unusable page.
   if (!sessionResult.data.productsEnabled || locationResult.data.archived) {
-    redirect(backHref);
+    redirect(backTarget.href);
   }
 
   const locationName = locationResult.data.name;
@@ -141,9 +135,9 @@ export default async function LocationAssortmentPage({
 
       <div className="location-detail-sections">
         <BackLink
-          href={backHref}
+          href={backTarget.href}
           inline
-          label={t("location.backToLocationAria")}
+          label={tBack(backTarget.labelKey)}
         />
         <div className="panel location-header">
           <div className="location-header-summary">

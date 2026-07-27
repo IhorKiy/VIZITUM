@@ -20,6 +20,7 @@ import {
   type VisitDaySummaryEntry,
   type VisitStatus,
 } from "../../../../lib/api-client";
+import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import {
   formatEnumLabel,
   formatTime,
@@ -100,6 +101,15 @@ export default async function FieldHistoryPage({
   const startedTo = normalizeDateFilter(pageState.startedTo);
   const page = normalizePage(pageState.page);
   const hasFilters = Boolean(selectedStatus || startedFrom || startedTo);
+  // A visit report opens from here, from the location card and from a
+  // location's own history; it returns to whichever one it was opened from,
+  // with this list's period/status/page still applied.
+  const historyOrigin = backOrigin("/field/history", {
+    page: page > 1 ? page : undefined,
+    startedFrom,
+    startedTo,
+    status: selectedStatus,
+  });
 
   const periodParams = new URLSearchParams();
 
@@ -306,6 +316,7 @@ export default async function FieldHistoryPage({
           <>
             <HistoryDays
               daySummary={daySummary}
+              origin={historyOrigin}
               page={page}
               pageSize={PAGE_SIZE}
               tenantSlug={tenantSlug}
@@ -361,6 +372,7 @@ export default async function FieldHistoryPage({
 // are visible without reaching for the status filter.
 function HistoryDays({
   daySummary,
+  origin,
   page,
   pageSize,
   tenantSlug,
@@ -368,6 +380,7 @@ function HistoryDays({
   visits,
 }: {
   daySummary: VisitDaySummaryEntry[] | null;
+  origin: string;
   page: number;
   pageSize: number;
   tenantSlug: string;
@@ -490,7 +503,10 @@ function HistoryDays({
                     className={`location-mini-card location-mini-card-link visit-history-card${
                       unfinished ? " is-unfinished" : ""
                     }`}
-                    href={`/${tenantSlug}/field/visits/${visit.id}`}
+                    href={withBackOrigin(
+                      `/${tenantSlug}/field/visits/${visit.id}`,
+                      origin,
+                    )}
                     key={visit.id}
                   >
                     <header>

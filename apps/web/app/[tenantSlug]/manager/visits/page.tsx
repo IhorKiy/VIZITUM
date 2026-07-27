@@ -29,6 +29,7 @@ import {
   type Visit,
   type VisitStatus,
 } from "../../../../lib/api-client";
+import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import {
   buildLocationOptions,
   buildRouteOptions,
@@ -79,6 +80,16 @@ export default async function ManagerVisitsPage({
   const selectedRoutePlanId = normalizeFilterValue(pageState.routePlanId);
   const startedFrom = normalizeDateFilter(pageState.startedFrom);
   const startedTo = normalizeDateFilter(pageState.startedTo);
+  // A visit opened from this list returns to it with the same filters still
+  // applied, rather than to a bare, unfiltered list.
+  const origin = backOrigin("/manager/visits", {
+    locationId: selectedLocationId,
+    representativeUserId: selectedRepresentativeId,
+    routePlanId: selectedRoutePlanId,
+    startedFrom,
+    startedTo,
+    status: selectedStatus,
+  });
   const query = new URLSearchParams({ pageSize: "100" });
   const hasFilters = Boolean(
     selectedStatus ||
@@ -274,7 +285,11 @@ export default async function ManagerVisitsPage({
         </FilterForm>
 
         {visits.length > 0 ? (
-          <VisitsCards tenantSlug={tenantSlug} visits={visits} />
+          <VisitsCards
+            origin={origin}
+            tenantSlug={tenantSlug}
+            visits={visits}
+          />
         ) : (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
@@ -318,9 +333,11 @@ function buildRepresentativeOptions(
 }
 
 function VisitsCards({
+  origin,
   tenantSlug,
   visits,
 }: {
+  origin: string;
   tenantSlug: string;
   visits: Visit[];
 }) {
@@ -361,7 +378,10 @@ function VisitsCards({
           </dl>
           <a
             className="list-card-open"
-            href={`/${tenantSlug}/manager/visits/${visit.id}`}
+            href={withBackOrigin(
+              `/${tenantSlug}/manager/visits/${visit.id}`,
+              origin,
+            )}
           >
             {t("open")}
           </a>

@@ -61,8 +61,9 @@ export default async function PlanningPage({
 }: PlanningPageProps) {
   const { tenantSlug } = await params;
   const { tab, route, template, month, date, planning } = await searchParams;
-  const [t, tCommon, format] = await Promise.all([
+  const [t, tBack, tCommon, format] = await Promise.all([
     getTranslations("field.planning"),
+    getTranslations("common.back"),
     getTranslations("common"),
     getFormatter(),
   ]);
@@ -399,6 +400,7 @@ export default async function PlanningPage({
           reorderTemplateStopsAction={reorderTemplateStopsAction}
           routeTemplates={routeTemplates}
           t={t}
+          tBack={tBack}
           tCommon={tCommon}
           tenantSlug={tenantSlug}
           templateStatus={template}
@@ -431,6 +433,9 @@ export default async function PlanningPage({
 type PlanningTranslator = Awaited<
   ReturnType<typeof getTranslations<"field.planning">>
 >;
+type BackTranslator = Awaited<
+  ReturnType<typeof getTranslations<"common.back">>
+>;
 type ServerAction = (formData: FormData) => Promise<void>;
 type ReorderAction = (templateId: string, itemIds: string[]) => Promise<void>;
 
@@ -446,6 +451,7 @@ function RoutesTabView({
   reorderTemplateStopsAction,
   routeTemplates,
   t,
+  tBack,
   tCommon,
   tenantSlug,
   templateStatus,
@@ -461,6 +467,7 @@ function RoutesTabView({
   reorderTemplateStopsAction: ReorderAction;
   routeTemplates: RouteTemplate[];
   t: PlanningTranslator;
+  tBack: BackTranslator;
   tCommon: CommonTranslator;
   tenantSlug: string;
   templateStatus: string | undefined;
@@ -515,10 +522,7 @@ function RoutesTabView({
       <>
         {statusNotice}
 
-        <BackLink
-          href={routesTabHref(tenantSlug)}
-          label={t("routeEditorBack")}
-        />
+        <BackLink href={routesTabHref(tenantSlug)} label={tBack("routes")} />
 
         <div className="route-name-card">
           <div className="route-name-summary">

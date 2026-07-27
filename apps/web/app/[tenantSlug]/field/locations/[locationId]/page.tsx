@@ -25,6 +25,11 @@ import {
   updateRouteItem,
   type Task,
 } from "../../../../../lib/api-client";
+import {
+  backOrigin,
+  resolveBackTarget,
+  withBackOrigin,
+} from "../../../../../lib/back-navigation";
 import { isDemoFallbackEnabled } from "../../../../../lib/demo-mode";
 import { formatDateTime } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
@@ -47,6 +52,7 @@ type LocationDetailPageProps = {
     locationInsights?: string;
     demoName?: string;
     demoAddress?: string;
+    from?: string;
   }>;
 };
 
@@ -64,14 +70,34 @@ export default async function LocationDetailPage({
     locationInsights,
     demoName,
     demoAddress,
+    from,
   } = await searchParams;
   const stopAlreadyVisited = visited === "1";
-  const [t, tCommon, tLocationInsights, format] = await Promise.all([
+  const [t, tBack, tCommon, tLocationInsights, format] = await Promise.all([
     getTranslations("field"),
+    getTranslations("common.back"),
     getTranslations("common"),
     getTranslations("common.locationInsights"),
     getFormatter(),
   ]);
+
+  // This card opens from today's route, the locations list and the route
+  // editor, so where "back" goes is whatever the opener said — today's route
+  // only as the deep-link fallback.
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/field`,
+    labelKey: "route",
+  });
+  // The card's own identity: the route-stop context it was opened on plus the
+  // screen it was opened from. Every redirect back to this card replays it, so
+  // adding a note or marking a stop visited doesn't quietly reset the back
+  // control to today's route.
+  const selfPath = `/field/locations/${locationId}`;
+  const selfState = { routePlanId, routeItemId, visited, from };
+  // What this card hands to the screens it opens (visit report, potential,
+  // assortment, visit history) so their back control returns here, on the same
+  // route stop and still carrying where *this* card was opened from.
+  const selfOrigin = backOrigin(selfPath, selfState);
 
   async function startVisitAction(formData: FormData) {
     "use server";
@@ -81,9 +107,7 @@ export default async function LocationDetailPage({
 
     if (!actionSessionResult.ok) {
       redirect(
-        `/${tenantSlug}/field/locations/${locationId}?error=visit${
-          routePlanId ? `&routePlanId=${routePlanId}` : ""
-        }${routeItemId ? `&routeItemId=${routeItemId}` : ""}`,
+        `/${tenantSlug}${backOrigin(selfPath, { ...selfState, error: "visit" })}`,
       );
     }
 
@@ -96,13 +120,16 @@ export default async function LocationDetailPage({
 
     if (!result.ok) {
       redirect(
-        `/${tenantSlug}/field/locations/${locationId}?error=visit${
-          routePlanId ? `&routePlanId=${routePlanId}` : ""
-        }${routeItemId ? `&routeItemId=${routeItemId}` : ""}`,
+        `/${tenantSlug}${backOrigin(selfPath, { ...selfState, error: "visit" })}`,
       );
     }
 
-    redirect(`/${tenantSlug}/field/visits/${result.data.id}`);
+    redirect(
+      withBackOrigin(
+        `/${tenantSlug}/field/visits/${result.data.id}`,
+        selfOrigin,
+      ),
+    );
   }
 
   async function markVisitedAction(formData: FormData) {
@@ -112,7 +139,9 @@ export default async function LocationDetailPage({
     const formRouteItemId = getFormString(formData, "routeItemId").trim();
 
     if (!formRoutePlanId || !formRouteItemId) {
-      redirect(`/${tenantSlug}/field/locations/${locationId}?error=route`);
+      redirect(
+        `/${tenantSlug}${backOrigin(selfPath, { ...selfState, error: "route" })}`,
+      );
     }
 
     const result = await updateRouteItem(formRoutePlanId, formRouteItemId, {
@@ -120,18 +149,27 @@ export default async function LocationDetailPage({
     });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/field/locations/${locationId}?error=route`);
+      redirect(
+        `/${tenantSlug}${backOrigin(selfPath, { ...selfState, error: "route" })}`,
+      );
     }
 
     redirect(
-      `/${tenantSlug}/field/locations/${locationId}?route=visited&routePlanId=${formRoutePlanId}&routeItemId=${formRouteItemId}&visited=1`,
+      `/${tenantSlug}${backOrigin(selfPath, {
+        from,
+        route: "visited",
+        routePlanId: formRoutePlanId,
+        routeItemId: formRouteItemId,
+        visited: "1",
+      })}`,
     );
   }
 
   // Potential/assortment now live on their own routes; the note and contacts
   // actions still redirect back to this card. routePlanId/routeItemId ride
-  // along so a route-stop context survives the redirect (and the links to the
-  // sub-pages), matching how the admin detail screen omits them.
+  // along so a route-stop context survives the redirect, matching how the
+  // admin detail screen omits them; `from` rides along for the same reason,
+  // so the back control still points at the opener afterwards.
   const basePath = `/${tenantSlug}/field/locations/${locationId}`;
   const extraParams: [string, string][] = [];
   if (routePlanId) {
@@ -140,8 +178,16 @@ export default async function LocationDetailPage({
   if (routeItemId) {
     extraParams.push(["routeItemId", routeItemId]);
   }
-  const insightsQuery = new URLSearchParams(extraParams).toString();
-  const insightsSuffix = insightsQuery ? `?${insightsQuery}` : "";
+  if (visited) {
+    extraParams.push(["visited", visited]);
+  }
+  if (from) {
+    extraParams.push(["from", from]);
+  }
+  // The sub-pages get this card as their origin rather than a copy of its
+  // params: their back control resolves it the same way every other screen
+  // does, so the whole chain unwinds one screen at a time.
+  const insightsSuffix = `?from=${encodeURIComponent(selfOrigin)}`;
   const upsertNotesAction = upsertLocationNotesAction.bind(
     null,
     basePath,
@@ -196,7 +242,7 @@ export default async function LocationDetailPage({
   if (!isDemoLocation && !locationResult.ok) {
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
-        <BackLink href={`/${tenantSlug}/field`} label={t("backToRoute")} />
+        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{t("flowEyebrow")}</p>
@@ -379,9 +425,9 @@ export default async function LocationDetailPage({
 
       <div className="location-detail-sections">
         <BackLink
-          href={`/${tenantSlug}/field`}
+          href={backTarget.href}
           inline
-          label={t("location.backAria")}
+          label={tBack(backTarget.labelKey)}
         />
         <div className="panel location-header">
           <div className="location-header-summary">
@@ -477,14 +523,20 @@ export default async function LocationDetailPage({
           {isDemoLocation ? (
             <a
               className="primary-button location-start-visit"
-              href={`/${tenantSlug}/field/visits/demo-visit-${locationId}?demoLocationId=${encodeURIComponent(locationId)}&demoName=${encodeURIComponent(locationName)}&demoAddress=${encodeURIComponent(locationAddress)}`}
+              href={withBackOrigin(
+                `/${tenantSlug}/field/visits/demo-visit-${locationId}?demoLocationId=${encodeURIComponent(locationId)}&demoName=${encodeURIComponent(locationName)}&demoAddress=${encodeURIComponent(locationAddress)}`,
+                selfOrigin,
+              )}
             >
               <span aria-hidden="true">▶</span> {t("location.startVisitDemo")}
             </a>
           ) : activeVisit ? (
             <a
               className="primary-button location-start-visit"
-              href={`/${tenantSlug}/field/visits/${activeVisit.id}`}
+              href={withBackOrigin(
+                `/${tenantSlug}/field/visits/${activeVisit.id}`,
+                selfOrigin,
+              )}
             >
               <span aria-hidden="true">▶</span> {t("location.continueVisit")}
             </a>

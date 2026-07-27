@@ -19,6 +19,7 @@ import {
   listAllLocations,
   type LocationStatus,
 } from "../../../../lib/api-client";
+import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { buildLocationFieldOptions } from "../../../../lib/filter-options";
 import {
   formatEnumLabel,
@@ -44,9 +45,10 @@ export default async function FieldLocationsPage({
   searchParams,
 }: FieldLocationsPageProps) {
   const { tenantSlug } = await params;
-  const [locale, t, tField, tCommon] = await Promise.all([
+  const [locale, t, tBack, tField, tCommon] = await Promise.all([
     getLocale(),
     getTranslations("field.locations"),
+    getTranslations("common.back"),
     getTranslations("field"),
     getTranslations("common"),
   ]);
@@ -115,7 +117,7 @@ export default async function FieldLocationsPage({
       <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
         <BackLink
           href={`/${tenantSlug}/field/general`}
-          label={t("backToGeneral")}
+          label={tBack("general")}
         />
         <header className="page-header">
           <div>
@@ -142,12 +144,20 @@ export default async function FieldLocationsPage({
   const locationCategoriesEnabled =
     sessionResult.data.locationCategoriesEnabled;
   const cityOptions = buildLocationFieldOptions(allLocations, "city", locale);
+  // The location card is also reachable from today's route and the route
+  // editor, so it can't guess where to return — this list hands it the filter
+  // state the rep leaves behind.
+  const origin = backOrigin("/field/locations", {
+    city: selectedCity,
+    search,
+    status: selectedStatus,
+  });
 
   return (
     <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
       <BackLink
         href={`/${tenantSlug}/field/general`}
-        label={t("backToGeneral")}
+        label={tBack("general")}
       />
       <header className="page-header">
         <div>
@@ -238,7 +248,10 @@ export default async function FieldLocationsPage({
                 </p>
                 <a
                   className="list-card-open"
-                  href={`/${tenantSlug}/field/locations/${location.id}`}
+                  href={withBackOrigin(
+                    `/${tenantSlug}/field/locations/${location.id}`,
+                    origin,
+                  )}
                 >
                   {t("viewLocation")}
                 </a>

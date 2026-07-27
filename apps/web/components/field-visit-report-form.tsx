@@ -616,6 +616,13 @@ export function FieldVisitReportForm({
       return;
     }
 
+    // Deliberately today's route, not the screen the report was opened from.
+    // Confirming ends the visit, so the next thing the rep needs is the next
+    // stop — that's a workflow step forward, not the back control's job of
+    // undoing a drill-down (the BackLink above still returns to the opener).
+    // `/field` is also the only screen that renders the "report confirmed"
+    // notice this redirect carries; routing to the opener instead would mean
+    // teaching the history and location screens to show it too.
     router.push(`/${tenantSlug}/field?report=confirmed`);
   }
 

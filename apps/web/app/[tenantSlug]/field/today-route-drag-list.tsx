@@ -26,6 +26,7 @@ import {
   MapPinIcon,
   TrashIcon,
 } from "../../../components/icons";
+import { withBackOrigin } from "../../../lib/back-navigation";
 
 type TodayStop = {
   id: string;
@@ -315,11 +316,14 @@ function TodayRouteStopRow({
     zIndex: isDragging ? 50 : undefined,
   };
 
-  const href = `/${tenantSlug}/field/locations/${stop.locationId}?routePlanId=${stop.routePlanId}&routeItemId=${stop.id}${stop.visited ? "&visited=1" : ""}${
-    isDemoMode
-      ? `&demoName=${encodeURIComponent(stop.name)}&demoAddress=${encodeURIComponent(stop.address)}`
-      : ""
-  }`;
+  const href = withBackOrigin(
+    `/${tenantSlug}/field/locations/${stop.locationId}?routePlanId=${stop.routePlanId}&routeItemId=${stop.id}${stop.visited ? "&visited=1" : ""}${
+      isDemoMode
+        ? `&demoName=${encodeURIComponent(stop.name)}&demoAddress=${encodeURIComponent(stop.address)}`
+        : ""
+    }`,
+    "/field",
+  );
 
   // Swipe is a mobile-only convenience wired to real server actions, so it
   // stays off in the offline demo (where there is no plan to mutate). A
