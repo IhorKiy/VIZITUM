@@ -4,15 +4,18 @@ import { describe, it } from "node:test";
 import { LocationPotentialService } from "../src/modules/location-insights/location-potential.service";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
 
-const adminContext = {
+// The potential is owned by the representative assigned to the outlet, so the
+// parsing/validation cases below run as one — no tenant-wide role can write
+// this table any more.
+const assignedRepContext = {
   requestId: "request-a",
   tenantId: "tenant-a",
   tenantSlug: "tenant-a",
-  userId: "admin-a",
-  roleCodes: ["company_admin"],
+  userId: "rep-a",
+  roleCodes: ["field_representative"],
   permissions: [
     PERMISSIONS.LOCATION_INSIGHTS_READ,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
   ],
 };
 
@@ -24,7 +27,7 @@ const repContext = {
   roleCodes: ["field_representative"],
   permissions: [
     PERMISSIONS.LOCATION_INSIGHTS_READ,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
   ],
 };
 
@@ -62,7 +65,7 @@ describe("LocationPotentialService tenant isolation", () => {
     const service = new LocationPotentialService(prisma as never);
 
     await assert.rejects(
-      service.listPotential(adminContext as never, "location-a"),
+      service.listPotential(assignedRepContext as never, "location-a"),
       (error: { getResponse?: () => { code?: string } }) => {
         assert.equal(error.getResponse?.().code, "LOCATION_NOT_FOUND");
         return true;
@@ -79,6 +82,7 @@ describe("LocationPotentialService tenant isolation", () => {
     let capturedWhere: unknown;
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssignment: { findFirst: async () => ({ id: "assignment-a" }) },
       locationPotential: {
         findMany: async (query: { where: unknown }) => {
           capturedWhere = query.where;
@@ -89,7 +93,7 @@ describe("LocationPotentialService tenant isolation", () => {
     const service = new LocationPotentialService(prisma as never);
 
     const response = await service.listPotential(
-      adminContext as never,
+      assignedRepContext as never,
       "location-a",
     );
 
@@ -112,16 +116,13 @@ describe("LocationPotentialService ownership enforcement", () => {
     const service = new LocationPotentialService(prisma as never);
 
     await assert.rejects(
-      service.upsertPotential(
-        repContext as never,
-        "location-a",
-        "category-a",
-        { potentialAmount: 500 },
-      ),
+      service.upsertPotential(repContext as never, "location-a", "category-a", {
+        potentialAmount: 500,
+      }),
       (error: { getResponse?: () => { code?: string } }) => {
         assert.equal(
           error.getResponse?.().code,
-          "LOCATION_INSIGHTS_SCOPE_FORBIDDEN",
+          "LOCATION_POTENTIAL_SCOPE_FORBIDDEN",
         );
         return true;
       },
@@ -160,6 +161,7 @@ describe("LocationPotentialService upsert idempotency", () => {
     let capturedArgs: UpsertArgs | null = null;
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssignment: { findFirst: async () => ({ id: "assignment-a" }) },
       productCategory: { findFirst: async () => category },
       locationPotential: {
         upsert: async (args: UpsertArgs) => {
@@ -170,14 +172,19 @@ describe("LocationPotentialService upsert idempotency", () => {
     };
     const service = new LocationPotentialService(prisma as never);
 
-    await service.upsertPotential(adminContext as never, "location-a", "category-a", {
-      potentialAmount: 1000,
-      planMonth1: 100,
-      planMonth2: 200,
-      planMonth3: 300,
-      comment: "Strong seasonal demand.",
-      potentialDate: "2026-07-01",
-    });
+    await service.upsertPotential(
+      assignedRepContext as never,
+      "location-a",
+      "category-a",
+      {
+        potentialAmount: 1000,
+        planMonth1: 100,
+        planMonth2: 200,
+        planMonth3: 300,
+        comment: "Strong seasonal demand.",
+        potentialDate: "2026-07-01",
+      },
+    );
 
     assert.ok(capturedArgs);
     const args = capturedArgs as UpsertArgs;
@@ -200,12 +207,18 @@ describe("LocationPotentialService upsert idempotency", () => {
   it("rejects a category that does not belong to the tenant", async () => {
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssignment: { findFirst: async () => ({ id: "assignment-a" }) },
       productCategory: { findFirst: async () => null },
     };
     const service = new LocationPotentialService(prisma as never);
 
     await assert.rejects(
-      service.upsertPotential(adminContext as never, "location-a", "category-x", {}),
+      service.upsertPotential(
+        assignedRepContext as never,
+        "location-a",
+        "category-x",
+        {},
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
         assert.equal(error.getResponse?.().code, "PRODUCT_CATEGORY_INVALID");
         return true;
@@ -217,6 +230,7 @@ describe("LocationPotentialService upsert idempotency", () => {
 describe("LocationPotentialService validation", () => {
   const prisma = {
     location: { findFirst: async () => ({ id: "location-a" }) },
+    locationAssignment: { findFirst: async () => ({ id: "assignment-a" }) },
     productCategory: { findFirst: async () => category },
   };
 
@@ -224,11 +238,19 @@ describe("LocationPotentialService validation", () => {
     const service = new LocationPotentialService(prisma as never);
 
     await assert.rejects(
-      service.upsertPotential(adminContext as never, "location-a", "category-a", {
-        potentialAmount: -5,
-      }),
+      service.upsertPotential(
+        assignedRepContext as never,
+        "location-a",
+        "category-a",
+        {
+          potentialAmount: -5,
+        },
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(error.getResponse?.().code, "LOCATION_INSIGHTS_VALUE_INVALID");
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_INSIGHTS_VALUE_INVALID",
+        );
         return true;
       },
     );
@@ -238,9 +260,14 @@ describe("LocationPotentialService validation", () => {
     const service = new LocationPotentialService(prisma as never);
 
     await assert.rejects(
-      service.upsertPotential(adminContext as never, "location-a", "category-a", {
-        potentialAmount: 9999999999,
-      }),
+      service.upsertPotential(
+        assignedRepContext as never,
+        "location-a",
+        "category-a",
+        {
+          potentialAmount: 9999999999,
+        },
+      ),
     );
   });
 
@@ -248,11 +275,19 @@ describe("LocationPotentialService validation", () => {
     const service = new LocationPotentialService(prisma as never);
 
     await assert.rejects(
-      service.upsertPotential(adminContext as never, "location-a", "category-a", {
-        comment: "x".repeat(501),
-      }),
+      service.upsertPotential(
+        assignedRepContext as never,
+        "location-a",
+        "category-a",
+        {
+          comment: "x".repeat(501),
+        },
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(error.getResponse?.().code, "LOCATION_INSIGHTS_VALUE_INVALID");
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_INSIGHTS_VALUE_INVALID",
+        );
         return true;
       },
     );
@@ -262,11 +297,19 @@ describe("LocationPotentialService validation", () => {
     const service = new LocationPotentialService(prisma as never);
 
     await assert.rejects(
-      service.upsertPotential(adminContext as never, "location-a", "category-a", {
-        potentialDate: "2026-02-31",
-      }),
+      service.upsertPotential(
+        assignedRepContext as never,
+        "location-a",
+        "category-a",
+        {
+          potentialDate: "2026-02-31",
+        },
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(error.getResponse?.().code, "LOCATION_INSIGHTS_VALUE_INVALID");
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_INSIGHTS_VALUE_INVALID",
+        );
         return true;
       },
     );
@@ -277,14 +320,22 @@ describe("LocationPotentialService delete", () => {
   it("404s deleting a row that does not exist", async () => {
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssignment: { findFirst: async () => ({ id: "assignment-a" }) },
       locationPotential: { findFirst: async () => null },
     };
     const service = new LocationPotentialService(prisma as never);
 
     await assert.rejects(
-      service.deletePotential(adminContext as never, "location-a", "category-a"),
+      service.deletePotential(
+        assignedRepContext as never,
+        "location-a",
+        "category-a",
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(error.getResponse?.().code, "LOCATION_POTENTIAL_NOT_FOUND");
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_POTENTIAL_NOT_FOUND",
+        );
         return true;
       },
     );
@@ -294,6 +345,7 @@ describe("LocationPotentialService delete", () => {
     let deletedId: string | undefined;
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssignment: { findFirst: async () => ({ id: "assignment-a" }) },
       locationPotential: {
         findFirst: async () => ({ id: "potential-a" }),
         delete: async (query: { where: { id: string } }) => {
@@ -305,7 +357,7 @@ describe("LocationPotentialService delete", () => {
     const service = new LocationPotentialService(prisma as never);
 
     const response = await service.deletePotential(
-      adminContext as never,
+      assignedRepContext as never,
       "location-a",
       "category-a",
     );

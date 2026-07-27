@@ -448,7 +448,10 @@
       "filterResultCount": "{count, plural, =0 {No locations found} one {Found <b>#</b> location} other {Found <b>#</b> locations}}",
       "tableTotalPotential": "Total potential",
       "tableCoverage": "Coverage",
-      "tableLinks": "Links"
+      "tableLinks": "Links",
+      "detailBackAria": "Back to coverage",
+      "detailNotFoundTitle": "Location not found",
+      "assortment": "Assortment"
     },
     "representatives": {
       "title": "Representatives",

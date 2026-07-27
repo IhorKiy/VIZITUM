@@ -140,11 +140,10 @@ export default async function AdminLocationDetailPage({
                   </span>
                 </span>
               </summary>
-              {/* Deliberately read-only regardless of the session's
-                location_insights.manage permission: potential/assortment are
-                maintained by field reps on their detail screen, and the admin
-                surface only reviews them. The backend permission stays as an
-                API-level escape hatch for corrections. */}
+              {/* Read-only, and no admin role holds a write permission for
+                either table any more: the manager authors the assortment on
+                /manager/locations/:id, the assigned rep authors the potential
+                in the field zone, and the admin surface only reviews both. */}
               <LocationPotentialPanel
                 availableCategories={[]}
                 canManage={false}

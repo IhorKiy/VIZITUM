@@ -3,7 +3,7 @@ import type { RoleCode } from "@prisma/client";
 import { PERMISSIONS, type PermissionCode } from "./permissions";
 
 export const ROLE_PERMISSION_MATRIX_VERSION =
-  "2026-07-23-location-notes-contacts-v1";
+  "2026-07-27-assortment-manager-owned-v1";
 
 export type PlatformRoleCode = "platform_owner";
 export type TenantRoleCode = RoleCode;
@@ -19,8 +19,11 @@ const COMPANY_ADMIN_PERMISSIONS = [
   PERMISSIONS.LOCATIONS_READ,
   PERMISSIONS.LOCATIONS_MANAGE,
   PERMISSIONS.LOCATIONS_ASSIGN,
+  // Read-only on purpose: the admin zone reports on potential and assortment,
+  // it does not author them (the manager owns the assortment, the assigned
+  // representative owns the potential). tenant_superadmin adds
+  // LOCATION_ASSORTMENT_MANAGE below purely as a service-level fallback.
   PERMISSIONS.LOCATION_INSIGHTS_READ,
-  PERMISSIONS.LOCATION_INSIGHTS_MANAGE,
   PERMISSIONS.LOCATION_NOTES_MANAGE,
   PERMISSIONS.CONTACTS_READ,
   PERMISSIONS.CONTACTS_MANAGE,
@@ -50,6 +53,10 @@ export const ROLE_PERMISSION_MATRIX = {
     ...COMPANY_ADMIN_PERMISSIONS,
     PERMISSIONS.ADMINS_INVITE,
     PERMISSIONS.ADMINS_MANAGE,
+    // Service-level fallback only, with no screen behind it: a fresh tenant has
+    // no team_manager yet, and someone has to be able to repair assortment data
+    // when the manager who owns it cannot.
+    PERMISSIONS.LOCATION_ASSORTMENT_MANAGE,
   ],
 
   company_admin: COMPANY_ADMIN_PERMISSIONS,
@@ -57,6 +64,9 @@ export const ROLE_PERMISSION_MATRIX = {
   team_manager: [
     PERMISSIONS.LOCATIONS_READ,
     PERMISSIONS.LOCATION_INSIGHTS_READ,
+    // The manager owns the assortment standard for every outlet in the tenant,
+    // the same tenant-wide reach routes.manage_team already grants.
+    PERMISSIONS.LOCATION_ASSORTMENT_MANAGE,
     PERMISSIONS.CONTACTS_READ,
     PERMISSIONS.PRODUCTS_READ,
     PERMISSIONS.ROUTES_READ,
@@ -73,7 +83,10 @@ export const ROLE_PERMISSION_MATRIX = {
   field_representative: [
     PERMISSIONS.LOCATIONS_READ,
     PERMISSIONS.LOCATION_INSIGHTS_READ,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN,
+    // Potential only: the representative estimates what an assigned outlet can
+    // buy, but the assortment it must carry is the manager's call, so the
+    // shelf-check chips in the visit report stay a read of someone else's rule.
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
     PERMISSIONS.LOCATION_NOTES_MANAGE_OWN,
     PERMISSIONS.CONTACTS_READ,
     PERMISSIONS.CONTACTS_MANAGE_OWN,

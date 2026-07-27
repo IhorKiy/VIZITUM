@@ -5,7 +5,9 @@ import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 
 // Shared by LocationPotentialService, LocationAssortmentService and
-// LocationInsightsSummaryService: :locationId is the primary resource in
+// LocationInsightsSummaryService (the one thing the two still share, now that
+// their write rules are deliberately separate): :locationId is the primary
+// resource in
 // these URLs, so a missing/wrong-tenant id is 404 LOCATION_NOT_FOUND, the
 // same convention locations.controller.ts uses for its own primary resource
 // (not route-access.ts's 400 LOCATION_INVALID, which validates a nested
@@ -28,22 +30,36 @@ export async function findTenantLocationOrThrow(
   }
 }
 
-// Shared by LocationPotentialService and LocationAssortmentService so a
-// field representative's write access to a location can never drift into two
-// different checks. The non-throwing form also answers the frontend's "hide
-// edit affordances I can't use" question via each list envelope's `canManage`.
-export async function canManageLocationInsights(
+// The assortment is a tenant-wide standard, so its write check is the plain
+// permission — there is no ownership tier and therefore nothing to query, which
+// is why this pair is synchronous while the potential's is not. It still feeds
+// the `canManage` each list envelope returns, so the frontend can hide edit
+// affordances the caller can't use.
+export function canManageAssortment(context: RequestContext): boolean {
+  return context.permissions.includes(PERMISSIONS.LOCATION_ASSORTMENT_MANAGE);
+}
+
+export function assertCanManageAssortment(context: RequestContext): void {
+  if (!canManageAssortment(context)) {
+    throw new ForbiddenException({
+      code: "LOCATION_ASSORTMENT_SCOPE_FORBIDDEN",
+      message: "You cannot manage the assortment for this location.",
+    });
+  }
+}
+
+// The potential is owned by the representative who works the outlet, so the
+// write check is an ownership one: an active LocationAssignment, queried per
+// request rather than read off a column, since potential rows carry no
+// representative of their own.
+export async function canManagePotential(
   context: RequestContext,
   prisma: PrismaService,
   locationId: string,
 ): Promise<boolean> {
-  if (context.permissions.includes(PERMISSIONS.LOCATION_INSIGHTS_MANAGE)) {
-    return true;
-  }
-
   if (
     !context.userId ||
-    !context.permissions.includes(PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN)
+    !context.permissions.includes(PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN)
   ) {
     return false;
   }
@@ -61,21 +77,17 @@ export async function canManageLocationInsights(
   return assignment !== null;
 }
 
-export async function assertCanManageLocationInsights(
+export async function assertCanManagePotential(
   context: RequestContext,
   prisma: PrismaService,
   locationId: string,
 ): Promise<void> {
-  const canManage = await canManageLocationInsights(
-    context,
-    prisma,
-    locationId,
-  );
+  const canManage = await canManagePotential(context, prisma, locationId);
 
   if (!canManage) {
     throw new ForbiddenException({
-      code: "LOCATION_INSIGHTS_SCOPE_FORBIDDEN",
-      message: "You cannot manage potential or assortment for this location.",
+      code: "LOCATION_POTENTIAL_SCOPE_FORBIDDEN",
+      message: "You cannot manage the potential for this location.",
     });
   }
 }

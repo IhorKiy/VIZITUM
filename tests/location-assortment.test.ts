@@ -4,18 +4,21 @@ import { describe, it } from "node:test";
 import { LocationAssortmentService } from "../src/modules/location-insights/location-assortment.service";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
 
-const adminContext = {
+const managerContext = {
   requestId: "request-a",
   tenantId: "tenant-a",
   tenantSlug: "tenant-a",
-  userId: "admin-a",
-  roleCodes: ["company_admin"],
+  userId: "manager-a",
+  roleCodes: ["team_manager"],
   permissions: [
     PERMISSIONS.LOCATION_INSIGHTS_READ,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE,
+    PERMISSIONS.LOCATION_ASSORTMENT_MANAGE,
   ],
 };
 
+// A representative reads the assortment (the shelf-check chips in the visit
+// report are exactly this list) but never writes it — the potential is the one
+// insights table they own.
 const repContext = {
   requestId: "request-a",
   tenantId: "tenant-a",
@@ -24,7 +27,7 @@ const repContext = {
   roleCodes: ["field_representative"],
   permissions: [
     PERMISSIONS.LOCATION_INSIGHTS_READ,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
   ],
 };
 
@@ -61,7 +64,7 @@ describe("LocationAssortmentService tenant isolation", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     await assert.rejects(
-      service.listAssortment(adminContext as never, "location-a"),
+      service.listAssortment(managerContext as never, "location-a"),
       (error: { getResponse?: () => { code?: string } }) => {
         assert.equal(error.getResponse?.().code, "LOCATION_NOT_FOUND");
         return true;
@@ -83,7 +86,7 @@ describe("LocationAssortmentService tenant isolation", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     const response = await service.listAssortment(
-      adminContext as never,
+      managerContext as never,
       "location-a",
     );
 
@@ -110,7 +113,11 @@ describe("LocationAssortmentService soft-deleted product exclusion", () => {
           productId: "product-deleted",
           shouldBeListed: true,
           status: "out_of_stock",
-          product: { ...product, id: "product-deleted", name: "Discontinued Widget" },
+          product: {
+            ...product,
+            id: "product-deleted",
+            name: "Discontinued Widget",
+          },
         }),
         productDeleted: true,
       },
@@ -118,7 +125,9 @@ describe("LocationAssortmentService soft-deleted product exclusion", () => {
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
       locationAssortment: {
-        findMany: async (query: { where: { product?: { deletedAt: null } } }) => {
+        findMany: async (query: {
+          where: { product?: { deletedAt: null } };
+        }) => {
           const excludesSoftDeleted = query.where.product?.deletedAt === null;
 
           return entries
@@ -130,7 +139,7 @@ describe("LocationAssortmentService soft-deleted product exclusion", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     const response = await service.listAssortment(
-      adminContext as never,
+      managerContext as never,
       "location-a",
     );
 
@@ -158,7 +167,7 @@ describe("LocationAssortmentService response shape", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     const response = await service.listAssortment(
-      adminContext as never,
+      managerContext as never,
       "location-a",
     );
 
@@ -175,16 +184,28 @@ describe("LocationAssortmentService coverage math", () => {
       location: { findFirst: async () => ({ id: "location-a" }) },
       locationAssortment: {
         findMany: async () => [
-          buildAssortmentRow({ productId: "product-a", shouldBeListed: true, status: "in_stock" }),
-          buildAssortmentRow({ productId: "product-b", shouldBeListed: true, status: "out_of_stock" }),
-          buildAssortmentRow({ productId: "product-c", shouldBeListed: false, status: "in_stock" }),
+          buildAssortmentRow({
+            productId: "product-a",
+            shouldBeListed: true,
+            status: "in_stock",
+          }),
+          buildAssortmentRow({
+            productId: "product-b",
+            shouldBeListed: true,
+            status: "out_of_stock",
+          }),
+          buildAssortmentRow({
+            productId: "product-c",
+            shouldBeListed: false,
+            status: "in_stock",
+          }),
         ],
       },
     };
     const service = new LocationAssortmentService(prisma as never);
 
     const response = await service.listAssortment(
-      adminContext as never,
+      managerContext as never,
       "location-a",
     );
 
@@ -205,7 +226,7 @@ describe("LocationAssortmentService coverage math", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     const response = await service.listAssortment(
-      adminContext as never,
+      managerContext as never,
       "location-a",
     );
 
@@ -214,11 +235,15 @@ describe("LocationAssortmentService coverage math", () => {
   });
 });
 
-describe("LocationAssortmentService ownership enforcement", () => {
-  it("forbids an unassigned field representative from upserting", async () => {
+describe("LocationAssortmentService write scope", () => {
+  it("forbids a field representative from upserting even where they are assigned", async () => {
     const prisma = {
       location: { findFirst: async () => ({ id: "location-a" }) },
-      locationAssignment: { findFirst: async () => null },
+      // An active assignment is deliberately present: it buys potential
+      // access, never assortment access.
+      locationAssignment: {
+        findFirst: async () => ({ id: "assignment-a" }),
+      },
     };
     const service = new LocationAssortmentService(prisma as never);
 
@@ -229,11 +254,65 @@ describe("LocationAssortmentService ownership enforcement", () => {
       (error: { getResponse?: () => { code?: string } }) => {
         assert.equal(
           error.getResponse?.().code,
-          "LOCATION_INSIGHTS_SCOPE_FORBIDDEN",
+          "LOCATION_ASSORTMENT_SCOPE_FORBIDDEN",
         );
         return true;
       },
     );
+  });
+
+  it("forbids a field representative from deleting a row", async () => {
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssignment: {
+        findFirst: async () => ({ id: "assignment-a" }),
+      },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    await assert.rejects(
+      service.deleteAssortment(repContext as never, "location-a", "product-a"),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_ASSORTMENT_SCOPE_FORBIDDEN",
+        );
+        return true;
+      },
+    );
+  });
+
+  it("reports canManage false to a representative reading the list", async () => {
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssortment: { findMany: async () => [buildAssortmentRow()] },
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    const response = await service.listAssortment(
+      repContext as never,
+      "location-a",
+    );
+
+    assert.equal(response.canManage, false);
+    assert.equal(response.items.length, 1);
+  });
+
+  it("reports canManage true to a manager without querying assignments", async () => {
+    const prisma = {
+      location: { findFirst: async () => ({ id: "location-a" }) },
+      locationAssortment: { findMany: async () => [buildAssortmentRow()] },
+      // No locationAssignment stub: a tenant-wide standard must not depend on
+      // one, and this would throw if the check regained an ownership query.
+    };
+    const service = new LocationAssortmentService(prisma as never);
+
+    const response = await service.listAssortment(
+      managerContext as never,
+      "location-a",
+    );
+
+    assert.equal(response.canManage, true);
   });
 });
 
@@ -257,11 +336,16 @@ describe("LocationAssortmentService upsert idempotency", () => {
     };
     const service = new LocationAssortmentService(prisma as never);
 
-    await service.upsertAssortment(adminContext as never, "location-a", "product-a", {
-      shouldBeListed: true,
-      status: "to_order",
-      lastStock: 0,
-    });
+    await service.upsertAssortment(
+      managerContext as never,
+      "location-a",
+      "product-a",
+      {
+        shouldBeListed: true,
+        status: "to_order",
+        lastStock: 0,
+      },
+    );
 
     assert.ok(capturedArgs);
     const args = capturedArgs as UpsertArgs;
@@ -289,7 +373,12 @@ describe("LocationAssortmentService upsert idempotency", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     await assert.rejects(
-      service.upsertAssortment(adminContext as never, "location-a", "product-x", {}),
+      service.upsertAssortment(
+        managerContext as never,
+        "location-a",
+        "product-x",
+        {},
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
         assert.equal(error.getResponse?.().code, "PRODUCT_REFERENCE_INVALID");
         return true;
@@ -308,11 +397,19 @@ describe("LocationAssortmentService validation", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     await assert.rejects(
-      service.upsertAssortment(adminContext as never, "location-a", "product-a", {
-        lastStock: -1,
-      }),
+      service.upsertAssortment(
+        managerContext as never,
+        "location-a",
+        "product-a",
+        {
+          lastStock: -1,
+        },
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(error.getResponse?.().code, "LOCATION_INSIGHTS_VALUE_INVALID");
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_INSIGHTS_VALUE_INVALID",
+        );
         return true;
       },
     );
@@ -322,11 +419,19 @@ describe("LocationAssortmentService validation", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     await assert.rejects(
-      service.upsertAssortment(adminContext as never, "location-a", "product-a", {
-        status: "on_backorder",
-      }),
+      service.upsertAssortment(
+        managerContext as never,
+        "location-a",
+        "product-a",
+        {
+          status: "on_backorder",
+        },
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(error.getResponse?.().code, "LOCATION_INSIGHTS_VALUE_INVALID");
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_INSIGHTS_VALUE_INVALID",
+        );
         return true;
       },
     );
@@ -336,11 +441,19 @@ describe("LocationAssortmentService validation", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     await assert.rejects(
-      service.upsertAssortment(adminContext as never, "location-a", "product-a", {
-        lastCheckedAt: "not-a-date",
-      }),
+      service.upsertAssortment(
+        managerContext as never,
+        "location-a",
+        "product-a",
+        {
+          lastCheckedAt: "not-a-date",
+        },
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(error.getResponse?.().code, "LOCATION_INSIGHTS_VALUE_INVALID");
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_INSIGHTS_VALUE_INVALID",
+        );
         return true;
       },
     );
@@ -356,9 +469,16 @@ describe("LocationAssortmentService delete", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     await assert.rejects(
-      service.deleteAssortment(adminContext as never, "location-a", "product-a"),
+      service.deleteAssortment(
+        managerContext as never,
+        "location-a",
+        "product-a",
+      ),
       (error: { getResponse?: () => { code?: string } }) => {
-        assert.equal(error.getResponse?.().code, "LOCATION_ASSORTMENT_NOT_FOUND");
+        assert.equal(
+          error.getResponse?.().code,
+          "LOCATION_ASSORTMENT_NOT_FOUND",
+        );
         return true;
       },
     );
@@ -379,7 +499,7 @@ describe("LocationAssortmentService delete", () => {
     const service = new LocationAssortmentService(prisma as never);
 
     const response = await service.deleteAssortment(
-      adminContext as never,
+      managerContext as never,
       "location-a",
       "product-a",
     );

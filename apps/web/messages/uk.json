@@ -448,7 +448,10 @@
       "filterResultCount": "{count, plural, =0 {Точок не знайдено} one {Знайдено <b>#</b> точку} few {Знайдено <b>#</b> точки} many {Знайдено <b>#</b> точок} other {Знайдено <b>#</b> точки}}",
       "tableTotalPotential": "Загальний потенціал",
       "tableCoverage": "Покриття",
-      "tableLinks": "Посилання"
+      "tableLinks": "Посилання",
+      "detailBackAria": "Назад до покриття",
+      "detailNotFoundTitle": "Точку не знайдено",
+      "assortment": "Асортимент"
     },
     "representatives": {
       "title": "Представники",

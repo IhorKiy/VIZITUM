@@ -17,9 +17,13 @@ export const PERMISSIONS = {
   LOCATIONS_MANAGE: "locations.manage",
   LOCATIONS_ASSIGN: "locations.assign",
 
+  // Reads stay one permission across potential and assortment; writes are two,
+  // because the two tables answer to different owners: the assortment is the
+  // standard a manager sets for an outlet, the potential is the estimate the
+  // representative who works that outlet keeps up to date.
   LOCATION_INSIGHTS_READ: "location_insights.read",
-  LOCATION_INSIGHTS_MANAGE: "location_insights.manage",
-  LOCATION_INSIGHTS_MANAGE_OWN: "location_insights.manage_own",
+  LOCATION_ASSORTMENT_MANAGE: "location_assortment.manage",
+  LOCATION_POTENTIAL_MANAGE_OWN: "location_potential.manage_own",
 
   LOCATION_NOTES_MANAGE: "location_notes.manage",
   LOCATION_NOTES_MANAGE_OWN: "location_notes.manage_own",

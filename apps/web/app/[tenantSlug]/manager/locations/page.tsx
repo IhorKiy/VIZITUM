@@ -495,6 +495,19 @@ function LocationsTable({
                   >
                     {t("tasks")}
                   </a>
+                  {/* Only worth offering where the assortment exists at all —
+                      a products-disabled tenant has no matrix to edit. */}
+                  {productsEnabled ? (
+                    <>
+                      {" "}
+                      <a
+                        className="list-card-open"
+                        href={`/${tenantSlug}/manager/locations/${location.id}`}
+                      >
+                        {t("assortment")}
+                      </a>
+                    </>
+                  ) : null}
                 </td>
               </tr>
             );
