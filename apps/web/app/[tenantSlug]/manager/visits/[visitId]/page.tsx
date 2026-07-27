@@ -163,7 +163,7 @@ export default async function ManagerVisitDetailPage({
               <h2>{t("noReportTitle")}</h2>
               <p>{t("noReportBody", { message: reportResult.message })}</p>
               <a className="primary-button" href={backTarget.href}>
-                {t("backToVisits")}
+                {tBack(backTarget.labelKey)}
               </a>
             </div>
           )}

@@ -63,12 +63,18 @@ const RETURNABLE_SCREENS: { pattern: RegExp; labelKey: BackLabelKey }[] = [
 
 /**
  * Bounds the chain of nested `from` params (locations list → location card →
- * visit history → visit report each carry the previous one). Every extra level
- * is URL-encoded into the one below it, so length grows fast enough that this
- * caps depth at a handful of screens — more than any real journey — while
- * keeping a hand-crafted URL from ballooning.
+ * visit history → visit report each carry the previous one) so a hand-crafted
+ * URL can't balloon.
+ *
+ * Sized for the realistic worst case rather than the ASCII one: a filter value
+ * is percent-encoded once per level, and Cyrillic — the primary locale here —
+ * costs 6 characters per letter at the first level, then ~10 at the second as
+ * each `%` becomes `%25`. A 100-character search term (`INPUT_LIMITS.search`)
+ * carried three levels deep therefore dwarfs the path segments around it, and
+ * a tighter cap would silently flatten that journey to the fallback. Well
+ * inside the ~2000-character URL length every target browser handles.
  */
-const MAX_FROM_LENGTH = 512;
+const MAX_FROM_LENGTH = 2048;
 
 const CONTROL_CHARACTER_MAX = 0x1f;
 
@@ -121,10 +127,25 @@ function parseFrom(from: string | undefined): ParsedFrom | null {
   };
 }
 
+/** First path segment (`/field/history` → `field`) — the role area a screen belongs to. */
+function zoneSegmentOf(path: string): string | null {
+  return path.split("?")[0].split("/")[1] || null;
+}
+
 /**
  * Resolve where a back control should point. `fallback` is the hierarchical
  * parent — used whenever the screen was opened without an origin (a deep link,
  * a bookmark) or with one that isn't a real screen.
+ *
+ * The origin must also sit in the same zone as the fallback, which is the zone
+ * the resolving screen itself lives in. Without that check the allowlist is
+ * global: a crafted `?from=/field/tasks` on the manager visit report would
+ * render "Back to tasks" pointing into the field zone. That was never a
+ * privilege hole — same tenant, same app, and the target screen still enforces
+ * its own permissions — but it let a link advertise a destination its screen
+ * has no relationship to. No real journey crosses zones today (each of these
+ * screens is opened only from its own area), so the zone is taken from the
+ * fallback rather than being declared at every call site, where it could drift.
  */
 export function resolveBackTarget(
   tenantSlug: string,
@@ -135,6 +156,16 @@ export function resolveBackTarget(
 
   if (!parsed) {
     return fallback;
+  }
+
+  const tenantPrefix = `/${tenantSlug}`;
+
+  if (fallback.href.startsWith(`${tenantPrefix}/`)) {
+    const fallbackPath = fallback.href.slice(tenantPrefix.length);
+
+    if (zoneSegmentOf(fallbackPath) !== zoneSegmentOf(parsed.pathAndQuery)) {
+      return fallback;
+    }
   }
 
   return {

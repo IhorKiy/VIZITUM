@@ -92,7 +92,7 @@ describe("resolveBackTarget", () => {
       ["already tenant-prefixed", "/acme/field/history"],
       ["another tenant", "/other-tenant/field/history"],
       ["empty", ""],
-      ["too long", `/field/history?q=${"x".repeat(600)}`],
+      ["too long", `/field/history?q=${"x".repeat(2100)}`],
     ];
 
     for (const [name, value] of rejected) {
@@ -110,6 +110,80 @@ describe("resolveBackTarget", () => {
         LOCATION_FALLBACK,
       );
     });
+  });
+
+  describe("keeps a back control inside its own zone", () => {
+    // The allowlist is global, so without a zone check a crafted origin could
+    // make one zone's screen advertise a destination in another — never a
+    // privilege hole (the target still enforces its own permissions), but a
+    // link pointing somewhere its screen has no relationship to. The zone is
+    // taken from the fallback, which is always a screen in the current zone.
+    const MANAGER_FALLBACK: BackTarget = {
+      href: "/acme/manager/visits",
+      labelKey: "visits",
+    };
+
+    it("rejects a field origin on a manager screen", () => {
+      assert.deepEqual(
+        resolveBackTarget("acme", "/field/tasks", MANAGER_FALLBACK),
+        MANAGER_FALLBACK,
+      );
+    });
+
+    it("rejects a field origin on an admin screen", () => {
+      const adminFallback: BackTarget = {
+        href: "/acme/admin/locations",
+        labelKey: "locations",
+      };
+
+      assert.deepEqual(
+        resolveBackTarget("acme", "/field/locations", adminFallback),
+        adminFallback,
+      );
+    });
+
+    it("rejects an admin origin on a field screen", () => {
+      assert.deepEqual(
+        resolveBackTarget("acme", "/admin/locations", LOCATION_FALLBACK),
+        LOCATION_FALLBACK,
+      );
+    });
+
+    it("still accepts an origin from the fallback's own zone", () => {
+      assert.equal(
+        resolveBackTarget(
+          "acme",
+          "/manager/visits?status=completed",
+          MANAGER_FALLBACK,
+        ).href,
+        "/acme/manager/visits?status=completed",
+      );
+    });
+  });
+
+  it("carries a deep chain of Cyrillic filters without flattening to the fallback", () => {
+    // Percent-encoding compounds per level — Cyrillic costs 6 characters per
+    // letter at the first level and ~10 at the second — so a full-length
+    // search term three levels down is what the length cap has to clear.
+    const search = "п".repeat(100);
+    const listOrigin = backOrigin("/field/locations", { search });
+    const cardOrigin = backOrigin("/field/locations/loc-1", {
+      from: listOrigin,
+    });
+    const historyOrigin = backOrigin("/field/locations/loc-1/history", {
+      from: cardOrigin,
+    });
+
+    const fromReport = resolveBackTarget("acme", historyOrigin, {
+      href: "/acme/field",
+      labelKey: "route",
+    });
+
+    assert.equal(fromReport.labelKey, "locationHistory");
+    assert.ok(
+      fromReport.href.startsWith("/acme/field/locations/loc-1/history?from="),
+      `expected the visit history, got ${fromReport.href}`,
+    );
   });
 
   it("drops a fragment rather than carrying it into the href", () => {

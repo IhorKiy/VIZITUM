@@ -491,7 +491,6 @@
     "visitDetail": {
       "title": "Visit report",
       "signedOutBody": "Live visit data is required before report review can continue.",
-      "backToVisits": "Back to visits",
       "visitStatusAria": "Visit status",
       "notAvailableTitle": "Visit is not available",
       "body": "Review confirmed report detail for {location} and the field representative who completed the visit.",
