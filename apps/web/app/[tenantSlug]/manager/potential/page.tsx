@@ -129,16 +129,22 @@ export default async function ManagerPotentialPage({
           <header>
             <p className="metric-label">{t("overallCoverage")}</p>
           </header>
-          <p className="metric-value">{summary.overallCoveragePct}%</p>
-          <p className="small-label">
-            {t("coverageDetail", {
-              inStock: summary.inStockCount,
-              required: summary.requiredCount,
-            })}
+          {/* The headline number is the loudest thing on this page, so it
+              only appears once something has been checked. Until then "0%"
+              would announce a tenant-wide crisis on the strength of no
+              information at all — the state every tenant starts in. */}
+          <p className="metric-value">
+            {summary.checkedCount > 0 ? `${summary.overallCoveragePct}%` : "—"}
           </p>
-          {/* How much of that percentage rests on an actual shelf check.
-              Without it the headline reads as a verdict on every required
-              product, including the ones no visit has reached. */}
+          {summary.checkedCount > 0 ? (
+            <p className="small-label">
+              {t("coverageDetail", {
+                inStock: summary.inStockCount,
+                required: summary.requiredCount,
+              })}
+            </p>
+          ) : null}
+          {/* How much of that percentage rests on an actual shelf check. */}
           {summary.requiredCount > summary.checkedCount ? (
             <p className="small-label">
               {t("coverageUncheckedDetail", {

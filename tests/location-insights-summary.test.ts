@@ -463,4 +463,53 @@ describe("LocationInsightsSummaryService", () => {
       ["loc-unchecked"],
     );
   });
+
+  // The potential is rep-authored and many tenants never fill it. Gating the
+  // waiting-for-a-check list on it would hide the very outlets nobody has
+  // visited — in a tenant with no potential recorded at all, every one of
+  // them — so only a matrix and the absence of a check qualify a location.
+  it("lists an unchecked location that has no recorded potential", async () => {
+    const prisma = {
+      location: {
+        findMany: async () => [{ id: "loc-a", name: "No Potential Yet" }],
+      },
+      locationPotential: {
+        groupBy: async () => [],
+        aggregate: async () => ({
+          _sum: {
+            potentialAmount: null,
+            planMonth1: null,
+            planMonth2: null,
+            planMonth3: null,
+          },
+        }),
+      },
+      locationAssortment: {
+        groupBy: async (args: {
+          by: string[];
+          where: Record<string, unknown>;
+        }) => {
+          if (args.by[0] === "productId" || args.where.status !== undefined) {
+            return [];
+          }
+          return [{ locationId: "loc-a", _count: { _all: 4 } }];
+        },
+        count: async (args: { where: Record<string, unknown> }) =>
+          args.where.status === undefined ? 4 : 0,
+      },
+      product: { findMany: async () => [] },
+      productCategory: { findMany: async () => [] },
+    };
+    const service = new LocationInsightsSummaryService(prisma as never);
+
+    const response = await service.getSummary(context as never);
+
+    assert.equal(response.locations[0]?.totalPotential, 0);
+    assert.deepEqual(
+      response.neverChecked.map((entry) => entry.locationId),
+      ["loc-a"],
+    );
+    // Still absent from the low-coverage list — its 0% is unknown, not bad.
+    assert.deepEqual(response.highPotentialLowCoverage, []);
+  });
 });

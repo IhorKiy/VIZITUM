@@ -340,6 +340,12 @@ describe("field-report.v1 shelf check write-back", () => {
       tenantId: "tenant-a",
       locationId: "location-a",
       productId: { in: ["product-a"] },
+      // Guards against an out-of-order confirmation reinstating an older
+      // shelf — see tests/shelf-check-writeback.test.ts.
+      OR: [
+        { lastCheckedAt: null },
+        { lastCheckedAt: { lte: new Date("2026-07-25T00:00:00.000Z") } },
+      ],
     });
     assert.deepEqual(updates[0]?.assortmentUpdateMany.data, {
       status: "in_stock",

@@ -202,12 +202,14 @@ export class LocationInsightsSummaryService {
       .sort((a, b) => b.totalPotential - a.totalPotential)
       .slice(0, TOP_N);
 
+    // Deliberately not gated on `totalPotential` the way the low-coverage list
+    // is: the potential is rep-authored and plenty of tenants never fill it,
+    // so requiring it would hide exactly the outlets nobody has visited —
+    // including, in a tenant with no potential recorded at all, every single
+    // one of them. Sorting by potential still floats the valuable ones first.
     const neverChecked = locationSummaries
       .filter(
-        (summary) =>
-          summary.totalPotential > 0 &&
-          summary.requiredCount > 0 &&
-          summary.checkedCount === 0,
+        (summary) => summary.requiredCount > 0 && summary.checkedCount === 0,
       )
       .sort((a, b) => b.totalPotential - a.totalPotential)
       .slice(0, TOP_N);

@@ -175,6 +175,8 @@ export function FieldVisitReportForm({
   // an empty tap list — "nothing was missing" and "nobody checked" would
   // otherwise be the same report, and guessing wrong invents coverage.
   const [shelfChecked, setShelfChecked] = useState(false);
+  // Once the rep answers the checkbox directly, chip taps stop overriding it.
+  const [shelfCheckedTouched, setShelfCheckedTouched] = useState(false);
   // Problem is recorded by exception: no problem, no fields and no record.
   const [problemOpen, setProblemOpen] = useState(false);
   const [problemType, setProblemType] = useState<ProblemType | null>(null);
@@ -316,14 +318,21 @@ export function FieldVisitReportForm({
   }
 
   function toggleMissingProduct(productId: string) {
-    setMissingProductIds((current) =>
-      current.includes(productId)
-        ? current.filter((id) => id !== productId)
-        : [...current, productId],
-    );
+    const next = missingProductIds.includes(productId)
+      ? missingProductIds.filter((id) => id !== productId)
+      : [...missingProductIds, productId];
+
+    setMissingProductIds(next);
+
     // Marking a gap is itself proof the rep looked at the shelf, so the
-    // confirmation follows the tap instead of asking for it twice.
-    setShelfChecked(true);
+    // confirmation follows the taps instead of asking for it twice — and
+    // undoing the last mark takes that proof back with it, so a mis-tap the
+    // rep immediately corrects cannot leave "I checked the shelf" standing
+    // and mark the whole matrix in stock. Once the rep works the checkbox
+    // themselves the answer is theirs and taps stop moving it.
+    if (!shelfCheckedTouched) {
+      setShelfChecked(next.length > 0);
+    }
   }
 
   function applyExtractedVisitData(data: FieldReportExtractedData): string[] {
@@ -899,7 +908,10 @@ export function FieldVisitReportForm({
                 <label className="checkbox-label shelf-checked">
                   <input
                     checked={shelfChecked}
-                    onChange={(event) => setShelfChecked(event.target.checked)}
+                    onChange={(event) => {
+                      setShelfChecked(event.target.checked);
+                      setShelfCheckedTouched(true);
+                    }}
                     type="checkbox"
                   />
                   <span>

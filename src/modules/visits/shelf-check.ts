@@ -102,7 +102,24 @@ export async function applyShelfCheck(
     }
 
     await tx.locationAssortment.updateMany({
-      where: { tenantId, locationId, productId: { in: productIds } },
+      where: {
+        tenantId,
+        locationId,
+        productId: { in: productIds },
+        // Never let an older observation overwrite a newer one. Reports are
+        // confirmed whenever the rep gets to them, not in visit order: a
+        // Monday visit confirmed after Wednesday's would otherwise reinstate
+        // Monday's shelf and walk `lastCheckedAt` backwards. This also blunts
+        // a back-dated `visitDate` from the form, which is client-supplied
+        // and never checked against the visit's own dates.
+        // `lte` rather than `lt` so re-confirming the same day's report still
+        // applies — a same-day correction is the newest word on that shelf,
+        // and a date column cannot resolve finer than that anyway.
+        OR: [
+          { lastCheckedAt: null },
+          { lastCheckedAt: { lte: shelfCheck.checkedAt } },
+        ],
+      },
       data: { status, lastCheckedAt: shelfCheck.checkedAt },
     });
   }

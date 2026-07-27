@@ -21,7 +21,11 @@ function buildFieldReport(overrides: Record<string, unknown> = {}) {
 }
 
 function buildTx(requiredProductIds: string[]) {
-  const updates: { productIds: string[]; data: Record<string, unknown> }[] = [];
+  const updates: {
+    productIds: string[];
+    data: Record<string, unknown>;
+    where: Record<string, unknown>;
+  }[] = [];
   const queries: unknown[] = [];
 
   return {
@@ -35,12 +39,13 @@ function buildTx(requiredProductIds: string[]) {
           return requiredProductIds.map((productId) => ({ productId }));
         },
         updateMany: async (query: {
-          where: { productId: { in: string[] } };
+          where: { productId: { in: string[] } } & Record<string, unknown>;
           data: Record<string, unknown>;
         }) => {
           updates.push({
             productIds: query.where.productId.in,
             data: query.data,
+            where: query.where,
           });
 
           return { count: query.where.productId.in.length };
@@ -146,19 +151,15 @@ describe("applyShelfCheck", () => {
     });
 
     assert.equal(updates.length, 2);
-    assert.deepEqual(updates[0], {
-      productIds: ["product-a", "product-c"],
-      data: {
-        status: "in_stock",
-        lastCheckedAt: new Date("2026-07-25T00:00:00.000Z"),
-      },
+    assert.deepEqual(updates[0]?.productIds, ["product-a", "product-c"]);
+    assert.deepEqual(updates[0]?.data, {
+      status: "in_stock",
+      lastCheckedAt: new Date("2026-07-25T00:00:00.000Z"),
     });
-    assert.deepEqual(updates[1], {
-      productIds: ["product-b"],
-      data: {
-        status: "out_of_stock",
-        lastCheckedAt: new Date("2026-07-25T00:00:00.000Z"),
-      },
+    assert.deepEqual(updates[1]?.productIds, ["product-b"]);
+    assert.deepEqual(updates[1]?.data, {
+      status: "out_of_stock",
+      lastCheckedAt: new Date("2026-07-25T00:00:00.000Z"),
     });
   });
 
@@ -182,6 +183,25 @@ describe("applyShelfCheck", () => {
     assert.equal(updates.length, 1);
     assert.deepEqual(updates[0]?.productIds, ["product-a"]);
     assert.equal(updates[0]?.data.status, "in_stock");
+  });
+
+  // Reports are confirmed whenever the rep gets to them, not in visit order,
+  // and `visitDate` is client-supplied — so a stale confirmation must not be
+  // able to reinstate an older shelf or walk `lastCheckedAt` backwards.
+  it("refuses to overwrite a row already checked more recently", async () => {
+    const { tx, updates } = buildTx(["product-a", "product-b"]);
+
+    await applyShelfCheck(tx as never, "tenant-a", "location-a", {
+      missingProductIds: ["product-b"],
+      checkedAt: new Date("2026-07-20T00:00:00.000Z"),
+    });
+
+    for (const update of updates) {
+      assert.deepEqual(update.where.OR, [
+        { lastCheckedAt: null },
+        { lastCheckedAt: { lte: new Date("2026-07-20T00:00:00.000Z") } },
+      ]);
+    }
   });
 
   it("writes nothing when the location has no required rows", async () => {

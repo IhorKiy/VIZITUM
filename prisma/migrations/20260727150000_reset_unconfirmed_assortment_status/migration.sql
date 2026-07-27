@@ -1,0 +1,25 @@
+-- Clears every assortment shelf state that predates the shelf-check
+-- write-back, so coverage starts from what is actually known.
+--
+-- The earlier migration in this release deliberately preserved these values
+-- to avoid zeroing every tenant's dashboard overnight. That reasoning no
+-- longer holds now that "required, not yet confirmed" is a state the screens
+-- can render: a reset reads as "not checked yet", not as 0%.
+--
+-- What is being cleared is not a measurement. Nothing could have confirmed a
+-- shelf before this release — the write-back is new — so every stored status
+-- is a manager's guess at best, and usually not even that: the old modal's
+-- status select defaulted to `in_stock`, so any row added without touching
+-- that dropdown became "in stock" on its own. `lastCheckedAt` goes with it,
+-- since the same form let a manager type a check date no visit ever backed;
+-- leaving it would render as "checked on <date>" next to an unknown status.
+--
+-- Unconditional on purpose: a migration runs once, so "every row" is exactly
+-- "every row that existed before the write-back shipped". Rows written by a
+-- visit from here on are never touched by this.
+--
+-- Not reversible, and does not need to be: no history table, report or
+-- aggregate reads these columns retrospectively — reports carry their own
+-- `confirmedData`, and every coverage figure is recomputed live.
+UPDATE "location_assortment"
+SET "status" = NULL, "lastCheckedAt" = NULL;
