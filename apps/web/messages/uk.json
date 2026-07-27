@@ -21,7 +21,9 @@
       "locations": "Назад до точок",
       "location": "Назад до точки",
       "locationHistory": "Назад до історії візитів",
-      "visits": "Назад до візитів"
+      "visits": "Назад до візитів",
+      "coverage": "Назад до покриття",
+      "potential": "Назад до потенціалу"
     },
     "labels": {
       "draft": "Чернетка",
@@ -449,7 +451,6 @@
       "tableTotalPotential": "Загальний потенціал",
       "tableCoverage": "Покриття",
       "tableLinks": "Посилання",
-      "detailBackAria": "Назад до покриття",
       "detailNotFoundTitle": "Точку не знайдено",
       "assortment": "Асортимент"
     },

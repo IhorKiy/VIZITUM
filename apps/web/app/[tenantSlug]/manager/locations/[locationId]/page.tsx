@@ -14,6 +14,7 @@ import {
   listLocationAssortment,
   listLocationPotential,
 } from "../../../../../lib/api-client";
+import { resolveBackTarget } from "../../../../../lib/back-navigation";
 import {
   deleteLocationAssortmentAction,
   upsertLocationAssortmentAction,
@@ -22,6 +23,7 @@ import {
 type ManagerLocationDetailPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
   searchParams: Promise<{
+    from?: string;
     error?: string;
     locationInsights?: string;
   }>;
@@ -32,22 +34,28 @@ export default async function ManagerLocationDetailPage({
   searchParams,
 }: ManagerLocationDetailPageProps) {
   const { tenantSlug, locationId } = await params;
-  const { error, locationInsights } = await searchParams;
-  const [t, tManager, tLocationInsights, sessionResult, locationResult] =
+  const { from, error, locationInsights } = await searchParams;
+  const [t, tBack, tManager, tLocationInsights, sessionResult, locationResult] =
     await Promise.all([
       getTranslations("manager.locations"),
+      getTranslations("common.back"),
       getTranslations("manager"),
       getTranslations("common.locationInsights"),
       getCurrentSession(),
       getLocation(locationId),
     ]);
 
-  const listHref = `/${tenantSlug}/manager/locations`;
+  // Opened from the coverage list and from the potential dashboard's
+  // low-coverage rows, so the back control has to name whichever one it was.
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/manager/locations`,
+    labelKey: "coverage",
+  });
 
   if (!locationResult.ok) {
     return (
       <AppShell activeArea="manager-locations" tenantSlug={tenantSlug}>
-        <BackLink href={listHref} label={t("detailBackAria")} />
+        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tManager("eyebrow")}</p>
@@ -63,11 +71,11 @@ export default async function ManagerLocationDetailPage({
     ? sessionResult.data.productsEnabled
     : false;
 
-  // This screen exists to edit the assortment, so the redirects the four
-  // insights actions perform come back here. No route-stop context to carry:
-  // that pair is a field-zone concern, so the extra params stay empty.
+  // This screen exists to edit the assortment, so the redirects the two
+  // assortment actions perform come back here — carrying the opener so a save
+  // doesn't quietly reset the back link.
   const basePath = `/${tenantSlug}/manager/locations/${locationId}`;
-  const extraParams: [string, string][] = [];
+  const extraParams: [string, string][] = from ? [["from", from]] : [];
   const upsertAssortment = upsertLocationAssortmentAction.bind(
     null,
     basePath,
@@ -143,7 +151,11 @@ export default async function ManagerLocationDetailPage({
       ) : null}
 
       <div className="location-detail-sections">
-        <BackLink href={listHref} inline label={t("detailBackAria")} />
+        <BackLink
+          href={backTarget.href}
+          inline
+          label={tBack(backTarget.labelKey)}
+        />
         <div className="location-header panel">
           <h1 className="location-header-title">{location.name}</h1>
           <p className="location-header-address">

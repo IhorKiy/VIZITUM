@@ -1,6 +1,7 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { withBackOrigin } from "../../../../lib/back-navigation";
 import {
   getCurrentSession,
   getLocationInsightsSummary,
@@ -93,7 +94,10 @@ export default async function ManagerPotentialPage({
   // leads straight to the assortment that explains the number — no more
   // bouncing into admin chrome (or, without the admin zone, to a bare list).
   const highPotentialLocationHref = (locationId: string) =>
-    `/${tenantSlug}/manager/locations/${locationId}`;
+    withBackOrigin(
+      `/${tenantSlug}/manager/locations/${locationId}`,
+      "/manager/potential",
+    );
 
   return (
     <AppShell activeArea="manager-potential" tenantSlug={tenantSlug}>

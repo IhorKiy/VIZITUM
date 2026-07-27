@@ -25,6 +25,7 @@ import {
   type Task,
   type Visit,
 } from "../../../../lib/api-client";
+import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { buildLocationFieldOptions } from "../../../../lib/filter-options";
 import {
   formatDateTime,
@@ -136,6 +137,15 @@ export default async function ManagerLocationsPage({
   const sortKey = normalizeSortKey(pageState.sort);
   const sortDir = pageState.dir === "asc" ? "asc" : "desc";
   const productsEnabled = sessionResult.data.productsEnabled;
+  // A location opened from here returns to this list with the same filters and
+  // sort, not to a reset page.
+  const listOrigin = backOrigin("/manager/locations", {
+    city: selectedCity,
+    search,
+    status: selectedStatus,
+    sort: sortKey ?? undefined,
+    dir: sortKey ? sortDir : undefined,
+  });
 
   const [
     locationsResult,
@@ -311,6 +321,7 @@ export default async function ManagerLocationsPage({
           <LocationsTable
             activityByLocation={activityByLocation}
             insightsByLocation={insightsByLocation}
+            listOrigin={listOrigin}
             locationCategoriesEnabled={locationCategoriesEnabled}
             locations={sortedLocations}
             productsEnabled={productsEnabled}
@@ -384,6 +395,7 @@ function SortableColumnHeader({
 function LocationsTable({
   activityByLocation,
   insightsByLocation,
+  listOrigin,
   locationCategoriesEnabled,
   locations,
   productsEnabled,
@@ -394,6 +406,7 @@ function LocationsTable({
 }: {
   activityByLocation: Map<string, LocationActivity>;
   insightsByLocation: Map<string, LocationInsightsLocationSummary>;
+  listOrigin: string;
   locationCategoriesEnabled: boolean;
   locations: Location[];
   productsEnabled: boolean;
@@ -455,7 +468,15 @@ function LocationsTable({
                   <span className={`status-pill ${statusTone(displayStatus)}`}>
                     {formatEnumLabel(tCommon, displayStatus)}
                   </span>{" "}
-                  <strong>{location.name}</strong>
+                  <a
+                    className="list-card-open"
+                    href={withBackOrigin(
+                      `/${tenantSlug}/manager/locations/${location.id}`,
+                      listOrigin,
+                    )}
+                  >
+                    <strong>{location.name}</strong>
+                  </a>
                   <br />
                   {location.addressLine}, {location.city}
                 </td>
@@ -502,7 +523,10 @@ function LocationsTable({
                       {" "}
                       <a
                         className="list-card-open"
-                        href={`/${tenantSlug}/manager/locations/${location.id}`}
+                        href={withBackOrigin(
+                          `/${tenantSlug}/manager/locations/${location.id}`,
+                          listOrigin,
+                        )}
                       >
                         {t("assortment")}
                       </a>
