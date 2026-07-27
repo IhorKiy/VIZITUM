@@ -53,10 +53,13 @@ export const ROLE_PERMISSION_MATRIX = {
     ...COMPANY_ADMIN_PERMISSIONS,
     PERMISSIONS.ADMINS_INVITE,
     PERMISSIONS.ADMINS_MANAGE,
-    // Service-level fallback only, with no screen behind it: a fresh tenant has
-    // no team_manager yet, and someone has to be able to repair assortment data
-    // when the manager who owns it cannot.
+    // Service-level fallback only, with no screen behind either one: a fresh
+    // tenant has no team_manager yet, and a potential row outlives the
+    // assignment that created it — unassign the rep and nobody else could fix
+    // or delete their rows. Both tables need the same repair path or the
+    // asymmetry is just an oversight waiting to strand data.
     PERMISSIONS.LOCATION_ASSORTMENT_MANAGE,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
   ],
 
   company_admin: COMPANY_ADMIN_PERMISSIONS,

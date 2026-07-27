@@ -57,6 +57,13 @@ export async function canManagePotential(
   prisma: PrismaService,
   locationId: string,
 ): Promise<boolean> {
+  // The tenant-wide tier exists only as a repair path (tenant_superadmin, no
+  // screen): potential rows outlive the assignment that created them, so
+  // without it an unassigned rep's rows would be unfixable by anyone.
+  if (context.permissions.includes(PERMISSIONS.LOCATION_POTENTIAL_MANAGE)) {
+    return true;
+  }
+
   if (
     !context.userId ||
     !context.permissions.includes(PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN)

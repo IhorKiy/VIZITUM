@@ -35,15 +35,23 @@ export default async function ManagerLocationDetailPage({
 }: ManagerLocationDetailPageProps) {
   const { tenantSlug, locationId } = await params;
   const { from, error, locationInsights } = await searchParams;
-  const [t, tBack, tManager, tLocationInsights, sessionResult, locationResult] =
-    await Promise.all([
-      getTranslations("manager.locations"),
-      getTranslations("common.back"),
-      getTranslations("manager"),
-      getTranslations("common.locationInsights"),
-      getCurrentSession(),
-      getLocation(locationId),
-    ]);
+  const [
+    t,
+    tBack,
+    tManager,
+    tPotential,
+    tLocationInsights,
+    sessionResult,
+    locationResult,
+  ] = await Promise.all([
+    getTranslations("manager.locations"),
+    getTranslations("common.back"),
+    getTranslations("manager"),
+    getTranslations("manager.potential"),
+    getTranslations("common.locationInsights"),
+    getCurrentSession(),
+    getLocation(locationId),
+  ]);
 
   // Opened from the coverage list and from the potential dashboard's
   // low-coverage rows, so the back control has to name whichever one it was.
@@ -162,6 +170,23 @@ export default async function ManagerLocationDetailPage({
             {location.addressLine}, {location.city}
           </p>
         </div>
+
+        {/* Without this the screen is just a name and an address: the panels
+            are the whole page, and the coverage list links here by name for
+            every location regardless of the flag. Reuses the notice the
+            manager potential dashboard already shows for the same reason. */}
+        {!productsEnabled ? (
+          <section
+            aria-label={tPotential("disabledAria")}
+            className="notice-panel"
+          >
+            <div>
+              <p className="eyebrow">{tManager("eyebrow")}</p>
+              <h2>{tPotential("disabledTitle")}</h2>
+              <p>{tPotential("disabledBody")}</p>
+            </div>
+          </section>
+        ) : null}
 
         {productsEnabled && location.archived ? (
           <section

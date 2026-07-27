@@ -23,6 +23,7 @@ export const PERMISSIONS = {
   // representative who works that outlet keeps up to date.
   LOCATION_INSIGHTS_READ: "location_insights.read",
   LOCATION_ASSORTMENT_MANAGE: "location_assortment.manage",
+  LOCATION_POTENTIAL_MANAGE: "location_potential.manage",
   LOCATION_POTENTIAL_MANAGE_OWN: "location_potential.manage_own",
 
   LOCATION_NOTES_MANAGE: "location_notes.manage",

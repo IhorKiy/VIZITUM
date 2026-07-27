@@ -94,6 +94,23 @@ describe("canManagePotential", () => {
     });
   });
 
+  it("allows the tenant-wide repair tier without querying assignments", async () => {
+    const prisma = {}; // no locationAssignment.findFirst — would throw if called
+    const context = {
+      ...baseContext,
+      roleCodes: ["tenant_superadmin"],
+      permissions: [PERMISSIONS.LOCATION_POTENTIAL_MANAGE],
+    };
+
+    const canManage = await canManagePotential(
+      context as never,
+      prisma as never,
+      "location-a",
+    );
+
+    assert.equal(canManage, true);
+  });
+
   it("forbids manage_own when no active assignment exists", async () => {
     const prisma = {
       locationAssignment: { findFirst: async () => null },

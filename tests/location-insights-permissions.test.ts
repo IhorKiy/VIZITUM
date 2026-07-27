@@ -51,7 +51,7 @@ describe("location insights permissions", () => {
     }
   });
 
-  it("requires location_potential.manage_own on every potential write", () => {
+  it("accepts either potential tier on every potential write", () => {
     const writeHandlers = [
       LocationPotentialController.prototype.upsertPotential,
       LocationPotentialController.prototype.deletePotential,
@@ -59,17 +59,18 @@ describe("location insights permissions", () => {
 
     for (const handler of writeHandlers) {
       assert.deepEqual(
-        Reflect.getMetadata(REQUIRED_PERMISSIONS_METADATA, handler),
-        [PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN],
-        `${handler.name} must require location_potential.manage_own`,
+        Reflect.getMetadata(REQUIRED_ANY_PERMISSIONS_METADATA, handler),
+        [
+          PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
+          PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
+        ],
+        `${handler.name} must accept location_potential.manage or .manage_own`,
       );
     }
   });
 
-  it("leaves no write endpoint on the old any-of permission pair", () => {
+  it("keeps the assortment writes on a single tenant-wide permission", () => {
     const writeHandlers = [
-      LocationPotentialController.prototype.upsertPotential,
-      LocationPotentialController.prototype.deletePotential,
       LocationAssortmentController.prototype.upsertAssortment,
       LocationAssortmentController.prototype.deleteAssortment,
     ];
@@ -78,7 +79,7 @@ describe("location insights permissions", () => {
       assert.equal(
         Reflect.getMetadata(REQUIRED_ANY_PERMISSIONS_METADATA, handler),
         undefined,
-        `${handler.name} must not fall back to an any-of permission list`,
+        `${handler.name} must not gain an ownership tier`,
       );
     }
   });

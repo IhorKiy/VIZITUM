@@ -11,7 +11,10 @@ import {
 import type { Request } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
-import { RequirePermissions } from "../auth/permissions.decorator";
+import {
+  RequireAnyPermissions,
+  RequirePermissions,
+} from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { LocationPotentialService } from "./location-potential.service";
@@ -37,7 +40,10 @@ export class LocationPotentialController {
   }
 
   @Put(":locationId/potential/:productCategoryId")
-  @RequirePermissions(PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN)
+  @RequireAnyPermissions(
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
+  )
   upsertPotential(
     @Req() request: Request,
     @Param("locationId") locationId: string,
@@ -53,7 +59,10 @@ export class LocationPotentialController {
   }
 
   @Delete(":locationId/potential/:productCategoryId")
-  @RequirePermissions(PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN)
+  @RequireAnyPermissions(
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
+    PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
+  )
   deletePotential(
     @Req() request: Request,
     @Param("locationId") locationId: string,
