@@ -53,6 +53,7 @@ import {
   normalizeFilterValue,
   statusTone,
 } from "../../../../lib/format";
+import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { getFormString } from "../../../../lib/form";
 import { buildEntityGroups } from "../../../../lib/grouping";
 import { INPUT_LIMITS } from "../../../../lib/input-limits";
@@ -117,6 +118,16 @@ export default async function AdminLocationsPage({
   const chainStatus = normalizeChainStatus(pageState.chainStatus);
   const chainSearch = normalizeFilterValue(pageState.chainSearch);
   const chainHasFilters = Boolean(chainStatus || chainSearch);
+
+  // A location detail opened from here returns to this list with the same
+  // section open and the same filters applied, not to a reset page.
+  const listOrigin = backOrigin("/admin/locations", {
+    open: pageState.open === "chains" ? "chains" : undefined,
+    locChain,
+    locSearch,
+    locStatus,
+    locView: locGroupByChain ? "chain" : undefined,
+  });
 
   const locQuery = new URLSearchParams({ pageSize: "100" });
   if (locStatus) {
@@ -716,6 +727,7 @@ export default async function AdminLocationsPage({
 
             {locationsResult.ok ? (
               <LocationsSection
+                origin={listOrigin}
                 allChains={chainsResult.ok ? chainsResult.data.items : []}
                 archiveLocationAction={archiveLocationAction}
                 carryParams={chainCarryParams}
@@ -797,6 +809,7 @@ export default async function AdminLocationsPage({
 }
 
 function LocationsSection({
+  origin,
   allChains,
   archiveLocationAction,
   carryParams,
@@ -821,6 +834,7 @@ function LocationsSection({
   allChains: Chain[];
   archiveLocationAction: (formData: FormData) => Promise<void>;
   carryParams: Record<string, string>;
+  origin: string;
   categories: LocationCategory[];
   chains: Chain[];
   createLocationAction: (formData: FormData) => Promise<void>;
@@ -982,6 +996,7 @@ function LocationsSection({
                         chains={chains}
                         location={location}
                         locationCategoriesEnabled={locationCategoriesEnabled}
+                        origin={origin}
                         phoneCountry={phoneCountry}
                         representatives={representatives}
                         restoreLocationAction={restoreLocationAction}
@@ -1003,6 +1018,7 @@ function LocationsSection({
                   chains={chains}
                   location={location}
                   locationCategoriesEnabled={locationCategoriesEnabled}
+                  origin={origin}
                   phoneCountry={phoneCountry}
                   representatives={representatives}
                   restoreLocationAction={restoreLocationAction}
@@ -1167,6 +1183,7 @@ function LocationRow({
   chains,
   location,
   locationCategoriesEnabled,
+  origin,
   phoneCountry,
   representatives,
   restoreLocationAction,
@@ -1178,6 +1195,7 @@ function LocationRow({
   chains: Chain[];
   location: Location;
   locationCategoriesEnabled: boolean;
+  origin: string;
   phoneCountry: string | null;
   representatives: TenantUser[];
   restoreLocationAction: (formData: FormData) => Promise<void>;
@@ -1245,7 +1263,10 @@ function LocationRow({
       <div className="admin-user-body">
         <a
           className="secondary-button"
-          href={`/${tenantSlug}/admin/locations/${location.id}`}
+          href={withBackOrigin(
+            `/${tenantSlug}/admin/locations/${location.id}`,
+            origin,
+          )}
         >
           {t("viewDetails")}
         </a>

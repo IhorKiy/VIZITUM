@@ -11,6 +11,11 @@ import {
   type Visit,
 } from "../../../../../../lib/api-client";
 import {
+  backOrigin,
+  resolveBackTarget,
+  withBackOrigin,
+} from "../../../../../../lib/back-navigation";
+import {
   formatDateTime,
   formatEnumLabel,
   statusPillTone,
@@ -19,8 +24,7 @@ import {
 type LocationHistoryPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
   searchParams: Promise<{
-    routePlanId?: string;
-    routeItemId?: string;
+    from?: string;
   }>;
 };
 
@@ -29,24 +33,24 @@ export default async function LocationHistoryPage({
   searchParams,
 }: LocationHistoryPageProps) {
   const { tenantSlug, locationId } = await params;
-  const { routePlanId, routeItemId } = await searchParams;
-  const [t, tCommon, format] = await Promise.all([
+  const { from } = await searchParams;
+  const [t, tBack, tCommon, format] = await Promise.all([
     getTranslations("field"),
+    getTranslations("common.back"),
     getTranslations("common"),
     getFormatter(),
   ]);
 
-  const backParams: [string, string][] = [];
-  if (routePlanId) {
-    backParams.push(["routePlanId", routePlanId]);
-  }
-  if (routeItemId) {
-    backParams.push(["routeItemId", routeItemId]);
-  }
-  const backQuery = new URLSearchParams(backParams).toString();
-  const backHref = `/${tenantSlug}/field/locations/${locationId}${
-    backQuery ? `?${backQuery}` : ""
-  }`;
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/field/locations/${locationId}`,
+    labelKey: "location",
+  });
+  // A visit report opened from here returns *here*, not to the location card
+  // one level up — and this page in turn still knows its own opener.
+  const selfOrigin = backOrigin(
+    `/field/locations/${locationId}/history`,
+    from ? { from } : {},
+  );
 
   const [sessionResult, locationResult] = await Promise.all([
     getCurrentSession(),
@@ -85,9 +89,9 @@ export default async function LocationHistoryPage({
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       <div className="location-detail-sections">
         <BackLink
-          href={backHref}
+          href={backTarget.href}
           inline
-          label={t("location.backToLocationAria")}
+          label={tBack(backTarget.labelKey)}
         />
         <div className="panel location-header">
           <div className="location-header-summary">
@@ -117,7 +121,10 @@ export default async function LocationHistoryPage({
               {visitHistory.map((item: Visit) => (
                 <a
                   className="location-mini-card location-history-row"
-                  href={`/${tenantSlug}/field/visits/${item.id}`}
+                  href={withBackOrigin(
+                    `/${tenantSlug}/field/visits/${item.id}`,
+                    selfOrigin,
+                  )}
                   key={item.id}
                 >
                   <header>

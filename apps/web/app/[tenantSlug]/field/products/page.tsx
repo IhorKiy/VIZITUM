@@ -43,8 +43,9 @@ export default async function FieldProductsPage({
   searchParams,
 }: FieldProductsPageProps) {
   const { tenantSlug } = await params;
-  const [t, tField, tCommon] = await Promise.all([
+  const [t, tBack, tField, tCommon] = await Promise.all([
     getTranslations("field.products"),
+    getTranslations("common.back"),
     getTranslations("field"),
     getTranslations("common"),
   ]);
@@ -112,7 +113,7 @@ export default async function FieldProductsPage({
       <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
         <BackLink
           href={`/${tenantSlug}/field/general`}
-          label={t("backToGeneral")}
+          label={tBack("general")}
         />
         <header className="page-header">
           <div>
@@ -151,7 +152,7 @@ export default async function FieldProductsPage({
     <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
       <BackLink
         href={`/${tenantSlug}/field/general`}
-        label={t("backToGeneral")}
+        label={tBack("general")}
       />
       <header className="page-header">
         <div>

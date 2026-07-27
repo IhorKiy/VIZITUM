@@ -18,8 +18,9 @@ import {
 
 // Shared by the field and admin location detail screens' potential/
 // assortment panels — the only two places these four actions differ is the
-// zone-specific base path and (field only) the routePlanId/routeItemId pair
-// that needs to survive the redirect back to a route stop. A Server Action
+// zone-specific base path and (field only) the `from` origin that needs to
+// survive the redirect, so the back control still points at the screen the
+// rep actually came from once the panel has saved. A Server Action
 // can only close over serializable data and other Server Actions, not a
 // plain helper function, so each page passes its own basePath/locationId/
 // extraParams into these via Function.prototype.bind rather than these

@@ -55,16 +55,16 @@ export default async function FieldTasksPage({
   searchParams,
 }: FieldTasksPageProps) {
   const { tenantSlug } = await params;
-  const [locale, timeZone, t, tField, tCreateTask, tCommon] = await Promise.all(
-    [
+  const [locale, timeZone, t, tBack, tField, tCreateTask, tCommon] =
+    await Promise.all([
       getLocale(),
       getTimeZone(),
       getTranslations("field.tasks"),
+      getTranslations("common.back"),
       getTranslations("field"),
       getTranslations("field.createTask"),
       getTranslations("common"),
-    ],
-  );
+    ]);
   // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
   // against today's date in the tenant timezone, not the server's local
   // midnight (mirrors manager/tasks/page.tsx).
@@ -258,7 +258,7 @@ export default async function FieldTasksPage({
   if (!tasksResult.ok) {
     return (
       <AppShell activeArea="field-tasks" tenantSlug={tenantSlug}>
-        <BackLink href={`/${tenantSlug}/field`} label={tField("backToRoute")} />
+        <BackLink href={`/${tenantSlug}/field`} label={tBack("route")} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
