@@ -3138,11 +3138,12 @@ textarea {
   outline-offset: 2px;
 }
 
-/* Toggle pills (FilterTogglePills) that filter for a badge carry that badge's
-   colour when active — gold for priority, red for overdue, matching
-   .priority-tag and .overdue-tag. Two purposes at once: the filter names the
-   signal it selects, and an on/off toggle never looks like one more choice in
-   the accent-coloured single-choice row beside it. */
+/* An active toggle pill (FilterTogglePills) takes the colour family of the
+   signal it filters for — the gold of .priority-tag, the danger red of
+   .overdue-tag. Solid rather than those badges' tinted fill, which an active
+   pill needs to read as on at all; only the hue is shared. Two purposes at
+   once: the filter names the signal it selects, and an on/off toggle never
+   looks like one more choice in the accent-coloured row beside it. */
 .filter-pills label.filter-pill--priority:has(input:checked) {
   background: var(--gold);
   border-color: var(--gold);

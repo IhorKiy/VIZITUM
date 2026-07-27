@@ -1,7 +1,7 @@
 type FilterTogglePillsOption = {
-  // Ties the pill to the signal it filters for: "priority" wears the gold of
-  // .priority-tag, "overdue" the red of .overdue-tag. Plain pills read in the
-  // accent, like the status pills next to them.
+  // Ties the pill to the signal it filters for: "priority" takes the gold
+  // family of .priority-tag, "overdue" the danger red of .overdue-tag. Plain
+  // pills read in the accent, like the status pills next to them.
   tone?: "priority" | "overdue";
   checked: boolean;
   label: string;
