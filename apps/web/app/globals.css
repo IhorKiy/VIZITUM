@@ -942,6 +942,14 @@ textarea {
   margin-right: 8px;
 }
 
+/* The separator is decoration, so it stays out of the accessibility tree where
+   the alt-text syntax is supported — older engines keep the plain dot above. */
+@supports (content: "a" / "") {
+  .visit-count-summary span::before {
+    content: "·" / "";
+  }
+}
+
 .list-pagination {
   align-items: center;
   display: flex;

@@ -157,10 +157,15 @@ export default async function FieldHistoryPage({
     // With no status pill the list query already counts exactly the period's
     // rows, so its own total stands in and the request is skipped.
     selectedStatus ? listVisits(countQuery()) : null,
-    listVisits(countQuery("completed")),
-    // "Needs follow-up" is just the in-progress count: "draft" is a real
-    // VisitStatus value but nothing in the product ever leaves a visit there.
-    listVisits(countQuery("in_progress")),
+    // Each count is skipped whenever the recap line below won't reach for it:
+    // the selected status is read off the list's own total, and the line only
+    // ever carries one of the two remaining statuses beside it.
+    selectedStatus === "completed" ? null : listVisits(countQuery("completed")),
+    // The in-progress count: "draft" is a real VisitStatus value but nothing in
+    // the product ever leaves a visit there.
+    !selectedStatus || selectedStatus === "completed"
+      ? listVisits(countQuery("in_progress"))
+      : null,
     listVisitDaySummary(daySummaryQuery.toString()),
   ]);
   // A failed request falls back to the old page-local tally further down
@@ -204,8 +209,8 @@ export default async function FieldHistoryPage({
   const counts = buildHistoryCounts(
     {
       period: periodResult ? totalOf(periodResult) : visitsResult.data.total,
-      completed: totalOf(completedResult),
-      inProgress: totalOf(followUpResult),
+      completed: completedResult ? totalOf(completedResult) : null,
+      inProgress: followUpResult ? totalOf(followUpResult) : null,
       selected: selectedStatus ? visitsResult.data.total : null,
     },
     selectedStatus,
@@ -283,8 +288,10 @@ export default async function FieldHistoryPage({
           </FilterDisclosure>
         </FilterForm>
 
+        {/* No aria-label here: ARIA prohibits naming a paragraph, and the line
+            reads as its own label anyway. */}
         {counts.length > 0 ? (
-          <p aria-label={t("metricsAria")} className="visit-count-summary">
+          <p className="visit-count-summary">
             <strong>{counts[0]}</strong>
             {counts.slice(1).map((part) => (
               <span key={part}>{part}</span>
@@ -439,6 +446,9 @@ function HistoryDays({
           summaryEntry?.completed ??
           group.visits.filter((visit) => visit.status === "completed").length;
         const count = summaryEntry?.total ?? group.visits.length;
+        const cancelled =
+          summaryEntry?.cancelled ??
+          group.visits.filter((visit) => visit.status === "cancelled").length;
         const isContinuedFromPreviousPage =
           groupIndex === 0 &&
           page > 1 &&
@@ -446,10 +456,16 @@ function HistoryDays({
           cumulativeBeforeDay(group.key) < (page - 1) * pageSize;
         // The share, not the tally: how a day went is one number, and the day
         // opens onto its own visits for anyone who wants them counted. The raw
-        // tally stays on the hover title. A day only exists here because it has
-        // visits, so the zero guard is just belt and braces.
+        // tally stays on the hover title.
+        //
+        // Cancelled visits leave the denominator: they were closed with a
+        // reason, not left undone, so a day of four completed and four
+        // cancelled reads as finished rather than half done. A day that was
+        // cancelled outright has nothing left to take a share of, so it shows
+        // no percentage at all — its cards carry the cancelled pill.
+        const workable = count - cancelled;
         const completedPercent =
-          count > 0 ? Math.round((completed / count) * 100) : 0;
+          workable > 0 ? Math.round((completed / workable) * 100) : null;
         const dayDate = new Date(visitDayTimestamp(group.visits[0]));
         const isToday = group.key === todayKey;
         const isYesterday = group.key === yesterdayKey;
@@ -487,10 +503,18 @@ function HistoryDays({
                 {isContinuedFromPreviousPage ? (
                   <span className="small-label">{t("dayContinued")}</span>
                 ) : null}
-                {showCompletedShare ? (
+                {showCompletedShare && completedPercent !== null ? (
                   <span
                     className="small-label"
-                    title={t("daySummaryTitle", { completed, count })}
+                    title={
+                      cancelled > 0
+                        ? t("daySummaryTitleCancelled", {
+                            cancelled,
+                            completed,
+                            count: workable,
+                          })
+                        : t("daySummaryTitle", { completed, count: workable })
+                    }
                   >
                     {t("daySummary", { completedPercent })}
                   </span>

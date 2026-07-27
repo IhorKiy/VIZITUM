@@ -204,12 +204,18 @@ export class VisitsService {
     // query exists to avoid. `date::text` is unambiguous — always YYYY-MM-DD,
     // in any driver.
     const rows = await this.prisma.$queryRaw<
-      Array<{ day: string; total: bigint; completed: bigint }>
+      Array<{
+        day: string;
+        total: bigint;
+        completed: bigint;
+        cancelled: bigint;
+      }>
     >(Prisma.sql`
       SELECT
         ((COALESCE("startedAt", "createdAt") AT TIME ZONE 'UTC') AT TIME ZONE ${tenant.timezone})::date::text AS day,
         COUNT(*)::bigint AS total,
-        COUNT(*) FILTER (WHERE status = 'completed')::bigint AS completed
+        COUNT(*) FILTER (WHERE status = 'completed')::bigint AS completed,
+        COUNT(*) FILTER (WHERE status = 'cancelled')::bigint AS cancelled
       FROM visits
       WHERE ${Prisma.join(conditions, " AND ")}
       GROUP BY day
@@ -221,6 +227,7 @@ export class VisitsService {
         day: row.day,
         total: Number(row.total),
         completed: Number(row.completed),
+        cancelled: Number(row.cancelled),
       })),
     };
   }

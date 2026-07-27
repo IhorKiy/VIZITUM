@@ -716,6 +716,7 @@ export type VisitDaySummaryEntry = {
   day: string;
   total: number;
   completed: number;
+  cancelled: number;
 };
 
 export type VisitDaySummary = {

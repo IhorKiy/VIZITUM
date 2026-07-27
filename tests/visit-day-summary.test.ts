@@ -21,7 +21,12 @@ function createContext(
   } as RequestContext;
 }
 
-type FakeSummaryRow = { day: string; total: bigint; completed: bigint };
+type FakeSummaryRow = {
+  day: string;
+  total: bigint;
+  completed: bigint;
+  cancelled: bigint;
+};
 
 function createFakePrisma(options: {
   timezone?: string | null;
@@ -54,17 +59,20 @@ describe("visit day summary", () => {
     const { prisma } = createFakePrisma({
       timezone: "Europe/Kyiv",
       rows: [
-        { day: "2026-07-02", total: 2n, completed: 2n },
-        { day: "2026-07-01", total: 2n, completed: 0n },
+        { day: "2026-07-02", total: 2n, completed: 2n, cancelled: 0n },
+        { day: "2026-07-01", total: 3n, completed: 0n, cancelled: 1n },
       ],
     });
     const service = new VisitsService(prisma as never);
 
     const summary = await service.getVisitDaySummary(createContext(), {});
 
+    // `cancelled` rides along with `total`/`completed` so the history list can
+    // take a day's completion share over the visits that were actually
+    // workable, rather than counting a cancelled visit as one left undone.
     assert.deepEqual(summary.days, [
-      { day: "2026-07-02", total: 2, completed: 2 },
-      { day: "2026-07-01", total: 2, completed: 0 },
+      { day: "2026-07-02", total: 2, completed: 2, cancelled: 0 },
+      { day: "2026-07-01", total: 3, completed: 0, cancelled: 1 },
     ]);
   });
 
