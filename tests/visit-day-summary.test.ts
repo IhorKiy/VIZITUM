@@ -42,12 +42,13 @@ function createFakePrisma(options: {
   return { prisma, queryRawCalls };
 }
 
-// The COALESCE(startedAt, createdAt)/timezone-bucketing itself now runs as
-// SQL inside getVisitDaySummary (see the comment there on why), so — unlike
-// the query-construction and response-mapping behavior below — it isn't
-// exercised by this mocked-Prisma suite; it was verified by hand against the
-// real local Postgres (see the PR description) since this repo's tests never
-// hit a live database.
+// The COALESCE(startedAt, createdAt)/timezone-bucketing itself, the same
+// COALESCE fallback on the started-date range filter, and the multi-status
+// IN-list all run as SQL inside getVisitDaySummary (see the comments there),
+// so — unlike the query-construction and response-mapping behavior below —
+// none of it is exercised by this mocked-Prisma suite; it was verified by
+// hand against the real local Postgres since this repo's tests never hit a
+// live database.
 describe("visit day summary", () => {
   it("maps aggregated rows (bigint totals, YYYY-MM-DD day text) into the response shape", async () => {
     const { prisma } = createFakePrisma({
@@ -114,7 +115,7 @@ describe("visit day summary", () => {
     await service.getVisitDaySummary(
       createContext({ permissions: [PERMISSIONS.VISITS_READ_TEAM] }),
       {
-        status: "completed",
+        status: ["completed"],
         startedFrom: "2026-07-01",
         startedTo: "2026-07-02",
       },
@@ -127,6 +128,27 @@ describe("visit day summary", () => {
       "completed",
       new Date("2026-07-01T00:00:00.000Z"),
       new Date("2026-07-02T23:59:59.999Z"),
+    ]);
+  });
+
+  it("binds every value of a multi-status filter into the IN-list", async () => {
+    const { prisma, queryRawCalls } = createFakePrisma({
+      timezone: "Europe/Kyiv",
+      rows: [],
+    });
+    const service = new VisitsService(prisma as never);
+
+    await service.getVisitDaySummary(
+      createContext({ permissions: [PERMISSIONS.VISITS_READ_TEAM] }),
+      { status: ["draft", "in_progress"] },
+    );
+
+    assert.equal(queryRawCalls.length, 1);
+    assert.deepEqual(queryRawCalls[0].values, [
+      "Europe/Kyiv",
+      "tenant-a",
+      "draft",
+      "in_progress",
     ]);
   });
 

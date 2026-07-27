@@ -158,8 +158,12 @@ export class VisitsService {
       );
     }
 
-    if (query.status) {
-      conditions.push(Prisma.sql`status = ${query.status}::"VisitStatus"`);
+    if (query.status && query.status.length > 0) {
+      conditions.push(
+        Prisma.sql`status IN (${Prisma.join(
+          query.status.map((status) => Prisma.sql`${status}::"VisitStatus"`),
+        )})`,
+      );
     }
 
     const startedAtRange = buildDateTimeRangeFilter(
@@ -167,12 +171,20 @@ export class VisitsService {
       query.startedTo,
     );
 
+    // Same COALESCE(startedAt, createdAt) fallback as buildVisitWhere's OR
+    // (and the day-bucketing expression below): a never-started visit has no
+    // startedAt to test against the period, so without this it would drop
+    // out of the aggregate the list it recaps still includes.
     if (startedAtRange?.gte) {
-      conditions.push(Prisma.sql`"startedAt" >= ${startedAtRange.gte}`);
+      conditions.push(
+        Prisma.sql`COALESCE("startedAt", "createdAt") >= ${startedAtRange.gte}`,
+      );
     }
 
     if (startedAtRange?.lte) {
-      conditions.push(Prisma.sql`"startedAt" <= ${startedAtRange.lte}`);
+      conditions.push(
+        Prisma.sql`COALESCE("startedAt", "createdAt") <= ${startedAtRange.lte}`,
+      );
     }
 
     // Cast to text in SQL instead of returning a bare `date`: the wire value
@@ -952,7 +964,7 @@ function buildVisitWhere(
   query: ListVisitsQuery,
 ): Prisma.VisitWhereInput {
   const representativeFilter = resolveVisitRepresentativeFilter(context, query);
-  const startedAt = buildDateTimeRangeFilter(
+  const startedAtRange = buildDateTimeRangeFilter(
     query.startedFrom,
     query.startedTo,
   );
@@ -971,8 +983,38 @@ function buildVisitWhere(
           },
         }
       : {}),
-    ...(query.status ? { status: query.status } : {}),
-    ...(startedAt ? { startedAt } : {}),
+    ...(query.status && query.status.length > 0
+      ? {
+          status:
+            query.status.length === 1 ? query.status[0] : { in: query.status },
+        }
+      : {}),
+    // A never-started draft (startedAt: null) has no startedAt to fall in the
+    // period, so without this fallback it would silently disappear from any
+    // date-filtered caller of this shared query — the field history list and
+    // its "needs follow-up" counter, the day-summary aggregate, and the
+    // manager visit list all build their WHERE clause through
+    // buildVisitWhere, not just field history. Falling back to createdAt
+    // mirrors the field history frontend's own `startedAt ?? createdAt`
+    // day-grouping key, so every consumer of this endpoint agrees on the
+    // same set of visits.
+    //
+    // Wrapped in AND rather than spread as a bare top-level `OR`: a future
+    // filter that also needs its own OR condition would silently overwrite
+    // this one otherwise, since object-spread keeps only the last value
+    // written to a given key.
+    ...(startedAtRange
+      ? {
+          AND: [
+            {
+              OR: [
+                { startedAt: startedAtRange },
+                { startedAt: null, createdAt: startedAtRange },
+              ],
+            },
+          ],
+        }
+      : {}),
   };
 }
 
@@ -1275,10 +1317,14 @@ function parseOptionalDateTime(value: unknown): Date | null {
   return date;
 }
 
+// Untyped against a specific Prisma filter interface (rather than
+// `Prisma.DateTimeNullableFilter`) so the same range literal can be reused
+// as-is for both the nullable `startedAt` field and the non-nullable
+// `createdAt` field in buildVisitWhere's fallback OR.
 function buildDateTimeRangeFilter(
   fromValue: unknown,
   toValue: unknown,
-): Prisma.DateTimeNullableFilter | undefined {
+): { gte?: Date; lte?: Date } | undefined {
   const gte = parseDateOnlyBoundary(fromValue, "start");
   const lte = parseDateOnlyBoundary(toValue, "end");
 

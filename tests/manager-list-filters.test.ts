@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { TasksService } from "../src/modules/tasks/tasks.service";
+import { VisitsController } from "../src/modules/visits/visits.controller";
 import { VisitsService } from "../src/modules/visits/visits.service";
 
 const managerContext = {
@@ -33,7 +34,7 @@ describe("manager list filters", () => {
       routePlanId: "route-a",
       startedFrom: "2026-07-01",
       startedTo: "2026-07-03",
-      status: "completed",
+      status: ["completed"],
     });
 
     assert.deepEqual(capturedWhere, {
@@ -44,10 +45,95 @@ describe("manager list filters", () => {
         routePlanId: "route-a",
       },
       status: "completed",
-      startedAt: {
-        gte: new Date("2026-07-01T00:00:00.000Z"),
-        lte: new Date("2026-07-03T23:59:59.999Z"),
+      AND: [
+        {
+          OR: [
+            {
+              startedAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z"),
+                lte: new Date("2026-07-03T23:59:59.999Z"),
+              },
+            },
+            {
+              startedAt: null,
+              createdAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z"),
+                lte: new Date("2026-07-03T23:59:59.999Z"),
+              },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("filters visits by a comma-separated list of statuses using an IN clause", async () => {
+    let capturedWhere: unknown;
+    const prisma = {
+      visit: {
+        findMany: async (query: { where: unknown }) => {
+          capturedWhere = query.where;
+          return [];
+        },
+        count: async () => 0,
       },
+    };
+    const service = new VisitsService(prisma as never);
+
+    await service.listVisits(managerContext as never, {
+      status: ["draft", "in_progress"],
+    });
+
+    assert.deepEqual(capturedWhere, {
+      tenantId: "tenant-a",
+      status: { in: ["draft", "in_progress"] },
+    });
+  });
+
+  it("falls back to createdAt for the started date range when startedAt is null", async () => {
+    let capturedWhere: unknown;
+    const prisma = {
+      visit: {
+        findMany: async (query: { where: unknown }) => {
+          capturedWhere = query.where;
+          return [];
+        },
+        count: async () => 0,
+      },
+    };
+    const service = new VisitsService(prisma as never);
+
+    await service.listVisits(managerContext as never, {
+      startedFrom: "2026-07-01",
+      startedTo: "2026-07-03",
+    });
+
+    // A never-started draft has no startedAt to test against the period, so
+    // it must still match via createdAt or it would silently drop out of a
+    // date-filtered history list and its "needs follow-up" counter. The OR
+    // lives inside an AND array rather than as a bare top-level key so a
+    // future filter's own OR condition can't silently overwrite this one.
+    assert.deepEqual(capturedWhere, {
+      tenantId: "tenant-a",
+      AND: [
+        {
+          OR: [
+            {
+              startedAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z"),
+                lte: new Date("2026-07-03T23:59:59.999Z"),
+              },
+            },
+            {
+              startedAt: null,
+              createdAt: {
+                gte: new Date("2026-07-01T00:00:00.000Z"),
+                lte: new Date("2026-07-03T23:59:59.999Z"),
+              },
+            },
+          ],
+        },
+      ],
     });
   });
 
@@ -153,5 +239,67 @@ describe("manager list filters", () => {
       addressLine: "Khreshchatyk 1",
       city: "Kyiv",
     });
+  });
+});
+
+describe("visits status query parsing", () => {
+  it("parses a comma-separated status list, trimming, deduping and dropping unknown values", async () => {
+    let capturedQuery: { status?: string[] } | undefined;
+    const visitsService = {
+      listVisits: async (_context: unknown, query: { status?: string[] }) => {
+        capturedQuery = query;
+        return {};
+      },
+    };
+    const controller = new VisitsController(
+      visitsService as never,
+      {} as never,
+    );
+
+    await controller.listVisits({ context: managerContext } as never, {
+      status: "draft, in_progress,bogus,draft",
+    });
+
+    assert.deepEqual(capturedQuery?.status, ["draft", "in_progress"]);
+  });
+
+  it("keeps a single status value working the same as before", async () => {
+    let capturedQuery: { status?: string[] } | undefined;
+    const visitsService = {
+      listVisits: async (_context: unknown, query: { status?: string[] }) => {
+        capturedQuery = query;
+        return {};
+      },
+    };
+    const controller = new VisitsController(
+      visitsService as never,
+      {} as never,
+    );
+
+    await controller.listVisits({ context: managerContext } as never, {
+      status: "completed",
+    });
+
+    assert.deepEqual(capturedQuery?.status, ["completed"]);
+  });
+
+  it("treats an all-unknown status list as no filter", async () => {
+    let capturedQuery: { status?: string[] } | undefined;
+    const visitsService = {
+      listVisits: async (_context: unknown, query: { status?: string[] }) => {
+        capturedQuery = query;
+        return {};
+      },
+    };
+    const controller = new VisitsController(
+      visitsService as never,
+      {} as never,
+    );
+
+    await controller.listVisits({ context: managerContext } as never, {
+      status: "bogus",
+    });
+
+    assert.equal(capturedQuery?.status, undefined);
   });
 });

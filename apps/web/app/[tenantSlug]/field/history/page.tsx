@@ -130,12 +130,14 @@ export default async function FieldHistoryPage({
   // the "how is this period going" recap the pills are picked from. Each is its
   // own count query rather than a tally of the loaded page, which only ever
   // described the first 50 visits.
-  const countQuery = (status?: VisitStatus) => {
+  const countQuery = (status?: VisitStatus | VisitStatus[]) => {
     const params = new URLSearchParams(periodParams);
     params.set("pageSize", "1");
 
-    if (status) {
-      params.set("status", status);
+    // `status` alone would treat an empty array as truthy and send a bare
+    // `status=`, so the array branch checks its own length instead.
+    if (status && (!Array.isArray(status) || status.length > 0)) {
+      params.set("status", Array.isArray(status) ? status.join(",") : status);
     }
 
     return params.toString();
@@ -145,8 +147,7 @@ export default async function FieldHistoryPage({
     visitsResult,
     periodResult,
     completedResult,
-    draftResult,
-    inProgressResult,
+    followUpResult,
     daySummaryResult,
   ] = await Promise.all([
     listVisits(query.toString()),
@@ -154,8 +155,9 @@ export default async function FieldHistoryPage({
     // rows, so its own total stands in and the request is skipped.
     selectedStatus ? listVisits(countQuery()) : null,
     listVisits(countQuery("completed")),
-    listVisits(countQuery("draft")),
-    listVisits(countQuery("in_progress")),
+    // The API accepts a comma-separated status list, so "needs follow-up"
+    // (draft + in_progress) is one count query instead of two summed ones.
+    listVisits(countQuery(["draft", "in_progress"])),
     listVisitDaySummary(daySummaryQuery.toString()),
   ]);
   // A failed request falls back to the old page-local tally further down
@@ -194,12 +196,11 @@ export default async function FieldHistoryPage({
 
   const visits = visitsResult.data.items;
   const totalPages = visitsResult.data.totalPages;
-  const followUpTotal = sumTotals(draftResult, inProgressResult);
   const counters = buildHistoryCounters(
     {
       period: periodResult ? totalOf(periodResult) : visitsResult.data.total,
       completed: totalOf(completedResult),
-      followUp: followUpTotal,
+      followUp: totalOf(followUpResult),
     },
     t,
   );
@@ -602,22 +603,6 @@ function visitTimeText(
 
 function totalOf(result: ApiResult<PaginatedResponse<Visit>>): number | null {
   return result.ok ? result.data.total : null;
-}
-
-function sumTotals(
-  ...results: ApiResult<PaginatedResponse<Visit>>[]
-): number | null {
-  let total = 0;
-
-  for (const result of results) {
-    if (!result.ok) {
-      return null;
-    }
-
-    total += result.data.total;
-  }
-
-  return total;
 }
 
 type HistoryTranslator = Awaited<
