@@ -110,7 +110,8 @@ function buildScenarioPrisma() {
         if (args.by[0] === "productId") {
           assert.deepEqual(args.where, {
             tenantId: "tenant-a",
-            status: { in: ["out_of_stock", "to_order"] },
+            shouldBeListed: true,
+            status: "out_of_stock",
             location: { deletedAt: null },
             product: { deletedAt: null },
           });

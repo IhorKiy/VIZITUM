@@ -116,8 +116,6 @@ enum ProductStatus {
 enum AssortmentStatus {
   in_stock
   out_of_stock
-  to_order
-  not_relevant
 }
 
 enum RouteStatus {
@@ -676,24 +674,25 @@ model LocationPotential {
   @@map("location_potentials")
 }
 
-// One row per (location, product): whether the product should be listed
-// there and its last-known stock/order/sale status. Coverage is computed
-// purely from these rows (should_be_listed + status) — Product.category is
-// free text, never joined for this purpose. Hard rows, no soft delete.
+// One row per (location, product) with two distinct owners. The manager owns
+// `shouldBeListed` — the matrix: what this outlet is supposed to carry. The
+// field owns `status` and `lastCheckedAt` — what was actually on the shelf,
+// observed during a visit. A null status means "in the matrix, never yet
+// confirmed on the shelf", which is why the column has no default: a matrix a
+// manager just typed in must not read as fully covered before anyone has
+// walked into the store. Coverage is computed purely from these rows
+// (shouldBeListed + status) — Product.category is free text, never joined for
+// this purpose. Hard rows, no soft delete.
 model LocationAssortment {
-  id             String           @id @default(cuid())
+  id             String            @id @default(cuid())
   tenantId       String
   locationId     String
   productId      String
-  shouldBeListed Boolean          @default(true)
-  status         AssortmentStatus @default(in_stock)
-  lastStock      Int?
-  lastOrder      Int?
-  lastSale       Int?
-  lastCheckedAt  DateTime?        @db.Date
-  comment        String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  shouldBeListed Boolean           @default(true)
+  status         AssortmentStatus?
+  lastCheckedAt  DateTime?         @db.Date
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)

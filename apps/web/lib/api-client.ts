@@ -165,8 +165,7 @@ export type LocationPotentialList = {
   canManage: boolean;
 };
 
-export type AssortmentStatus =
-  "in_stock" | "out_of_stock" | "to_order" | "not_relevant";
+export type AssortmentStatus = "in_stock" | "out_of_stock";
 
 export type LocationAssortment = {
   id: string;
@@ -180,12 +179,9 @@ export type LocationAssortment = {
     status: ProductStatus;
   };
   shouldBeListed: boolean;
-  status: AssortmentStatus;
-  lastStock: number | null;
-  lastOrder: number | null;
-  lastSale: number | null;
+  // Null until a visit confirms the product on the shelf.
+  status: AssortmentStatus | null;
   lastCheckedAt: string | null;
-  comment: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -869,15 +865,7 @@ export async function listLocationAssortment(
 export async function upsertLocationAssortment(
   locationId: string,
   productId: string,
-  input: {
-    shouldBeListed?: boolean;
-    status?: AssortmentStatus;
-    lastStock?: number | null;
-    lastOrder?: number | null;
-    lastSale?: number | null;
-    lastCheckedAt?: string | null;
-    comment?: string | null;
-  },
+  input: { shouldBeListed?: boolean },
 ): Promise<ApiResult<LocationAssortment>> {
   return apiPut<LocationAssortment>(
     `/locations/${locationId}/assortment/${productId}`,

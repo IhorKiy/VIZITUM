@@ -48,12 +48,10 @@ export type LocationAssortmentResponse = {
   productId: string;
   product: LocationAssortmentProductSummary;
   shouldBeListed: boolean;
-  status: AssortmentStatus;
-  lastStock: number | null;
-  lastOrder: number | null;
-  lastSale: number | null;
+  // Null until a visit confirms the product on the shelf; the manager who
+  // authored the row never sets it.
+  status: AssortmentStatus | null;
   lastCheckedAt: string | null;
-  comment: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -66,14 +64,10 @@ export type ListLocationAssortmentResponse = {
   inStockCount: number;
 };
 
+// The manager authors the matrix and nothing else: shelf state (status,
+// lastCheckedAt) is written by visit reports, never through this endpoint.
 export type UpsertLocationAssortmentRequestBody = {
   shouldBeListed?: unknown;
-  status?: unknown;
-  lastStock?: unknown;
-  lastOrder?: unknown;
-  lastSale?: unknown;
-  lastCheckedAt?: unknown;
-  comment?: unknown;
 };
 
 export type LocationInsightsLocationSummary = {

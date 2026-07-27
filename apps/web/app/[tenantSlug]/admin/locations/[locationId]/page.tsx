@@ -175,7 +175,6 @@ export default async function AdminLocationDetailPage({
                 </span>
               </summary>
               <LocationAssortmentPanel
-                availableProducts={[]}
                 canManage={false}
                 coveragePct={assortmentCoverage.pct}
                 inStockCount={assortmentCoverage.inStock}

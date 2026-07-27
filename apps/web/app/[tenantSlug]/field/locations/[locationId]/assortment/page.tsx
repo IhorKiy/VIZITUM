@@ -108,7 +108,6 @@ export default async function LocationAssortmentPage({
               team_manager doesn't get an editor while working as a rep — the
               same reasoning the admin detail screen uses. */}
           <LocationAssortmentPanel
-            availableProducts={[]}
             canManage={false}
             coveragePct={assortmentCoverage.pct}
             inStockCount={assortmentCoverage.inStock}

@@ -92,11 +92,15 @@ export class LocationInsightsSummaryService {
           product: { deletedAt: null },
         },
       }),
+      // Matches the coverage queries above on `shouldBeListed`: a product
+      // missing from a shelf it was never required to be on is not a problem,
+      // and counting it here contradicted every other number on the dashboard.
       this.prisma.locationAssortment.groupBy({
         by: ["productId"],
         where: {
           tenantId,
-          status: { in: ["out_of_stock", "to_order"] },
+          shouldBeListed: true,
+          status: "out_of_stock",
           location: { deletedAt: null },
           product: { deletedAt: null },
         },

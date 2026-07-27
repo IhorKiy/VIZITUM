@@ -14,11 +14,7 @@ import {
 } from "./location-insights-access";
 import {
   computeCoveragePct,
-  normalizeAssortmentStatus,
   normalizeOptionalBoolean,
-  normalizeOptionalComment,
-  normalizeOptionalDateOnly,
-  normalizeOptionalNonNegativeInteger,
 } from "./location-insights-parsing";
 import type {
   ListLocationAssortmentResponse,
@@ -31,12 +27,8 @@ type LocationAssortmentRow = {
   locationId: string;
   productId: string;
   shouldBeListed: boolean;
-  status: AssortmentStatus;
-  lastStock: number | null;
-  lastOrder: number | null;
-  lastSale: number | null;
+  status: AssortmentStatus | null;
   lastCheckedAt: Date | null;
-  comment: string | null;
   createdAt: Date;
   updatedAt: Date;
   product: {
@@ -50,12 +42,6 @@ type LocationAssortmentRow = {
 
 type LocationAssortmentData = {
   shouldBeListed: boolean;
-  status: AssortmentStatus;
-  lastStock: number | null;
-  lastOrder: number | null;
-  lastSale: number | null;
-  lastCheckedAt: Date | null;
-  comment: string | null;
 };
 
 const ASSORTMENT_INCLUDE = {
@@ -114,6 +100,11 @@ export class LocationAssortmentService {
 
     const data = parseUpsertAssortmentBody(body);
 
+    // `update` carries only the matrix flag on purpose. A manager re-saving a
+    // row must not touch `status`/`lastCheckedAt` — those belong to the last
+    // visit that checked the shelf, and spreading a full row here would reset
+    // them to their defaults on every edit. A created row starts with no
+    // status at all: nobody has looked at the shelf yet.
     const row = await this.prisma.locationAssortment.upsert({
       where: {
         tenantId_locationId_productId: {
@@ -196,21 +187,12 @@ function parseUpsertAssortmentBody(
       "shouldBeListed",
       true,
     ),
-    status: normalizeAssortmentStatus(body.status, "in_stock"),
-    lastStock: normalizeOptionalNonNegativeInteger(body.lastStock, "lastStock"),
-    lastOrder: normalizeOptionalNonNegativeInteger(body.lastOrder, "lastOrder"),
-    lastSale: normalizeOptionalNonNegativeInteger(body.lastSale, "lastSale"),
-    lastCheckedAt: normalizeOptionalDateOnly(
-      body.lastCheckedAt,
-      "lastCheckedAt",
-    ),
-    comment: normalizeOptionalComment(body.comment),
   };
 }
 
 // Nests the joined product under `product` rather than spreading it flat —
 // Product.status (active/inactive/archived) and this row's own `status`
-// (in_stock/out_of_stock/to_order/not_relevant) would otherwise collide.
+// (in_stock/out_of_stock/null) would otherwise collide.
 function toLocationAssortmentResponse(
   row: LocationAssortmentRow,
 ): LocationAssortmentResponse {
@@ -227,13 +209,9 @@ function toLocationAssortmentResponse(
     },
     shouldBeListed: row.shouldBeListed,
     status: row.status,
-    lastStock: row.lastStock,
-    lastOrder: row.lastOrder,
-    lastSale: row.lastSale,
     lastCheckedAt: row.lastCheckedAt
       ? row.lastCheckedAt.toISOString().slice(0, 10)
       : null,
-    comment: row.comment,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

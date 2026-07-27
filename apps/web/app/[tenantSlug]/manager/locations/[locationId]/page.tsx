@@ -220,7 +220,6 @@ export default async function ManagerLocationDetailPage({
                 />
               </div>
               <LocationAssortmentPanel
-                availableProducts={availableProducts}
                 canManage={canManageAssortment}
                 coveragePct={assortmentCoverage.pct}
                 deleteAction={deleteAssortment}
