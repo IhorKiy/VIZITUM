@@ -918,6 +918,30 @@ textarea {
   box-shadow: inset 3px 0 0 var(--gold);
 }
 
+/* The history period's recap, where the metric cards used to be: one line
+   between the filters and the days it describes. The count the status pill
+   selected leads in the ink colour, the rest of the split trails behind it. */
+.visit-count-summary {
+  align-items: baseline;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.visit-count-summary strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.visit-count-summary span::before {
+  content: "·";
+  margin-right: 8px;
+}
+
 .list-pagination {
   align-items: center;
   display: flex;
@@ -3098,6 +3122,11 @@ textarea {
   color: var(--muted);
   font-size: 13px;
   margin: 0;
+}
+
+/* Reset keeps to the right even when the row carries no count text beside it. */
+.filter-footer .secondary-button {
+  margin-left: auto;
 }
 
 .filter-result-count b {
