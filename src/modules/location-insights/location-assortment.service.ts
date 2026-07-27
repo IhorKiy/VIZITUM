@@ -8,8 +8,8 @@ import type { AssortmentStatus, ProductStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
-  assertCanManageLocationInsights,
-  canManageLocationInsights,
+  assertCanManageAssortment,
+  canManageAssortment,
   findTenantLocationOrThrow,
 } from "./location-insights-access";
 import {
@@ -74,18 +74,16 @@ export class LocationAssortmentService {
   ): Promise<ListLocationAssortmentResponse> {
     await findTenantLocationOrThrow(this.prisma, context.tenantId, locationId);
 
-    const [rows, canManage] = await Promise.all([
-      this.prisma.locationAssortment.findMany({
-        where: {
-          tenantId: context.tenantId,
-          locationId,
-          product: { deletedAt: null },
-        },
-        include: ASSORTMENT_INCLUDE,
-        orderBy: { createdAt: "asc" },
-      }),
-      canManageLocationInsights(context, this.prisma, locationId),
-    ]);
+    const canManage = canManageAssortment(context);
+    const rows = await this.prisma.locationAssortment.findMany({
+      where: {
+        tenantId: context.tenantId,
+        locationId,
+        product: { deletedAt: null },
+      },
+      include: ASSORTMENT_INCLUDE,
+      orderBy: { createdAt: "asc" },
+    });
 
     // Coverage is computed from this location's own rows, not a separate
     // query — the list is already the full, unpaginated set for one location.
@@ -111,7 +109,7 @@ export class LocationAssortmentService {
     body: UpsertLocationAssortmentRequestBody,
   ): Promise<LocationAssortmentResponse> {
     await findTenantLocationOrThrow(this.prisma, context.tenantId, locationId);
-    await assertCanManageLocationInsights(context, this.prisma, locationId);
+    assertCanManageAssortment(context);
     await this.findTenantProduct(context.tenantId, productId);
 
     const data = parseUpsertAssortmentBody(body);
@@ -143,7 +141,7 @@ export class LocationAssortmentService {
     productId: string,
   ): Promise<{ deleted: true }> {
     await findTenantLocationOrThrow(this.prisma, context.tenantId, locationId);
-    await assertCanManageLocationInsights(context, this.prisma, locationId);
+    assertCanManageAssortment(context);
 
     const existing = await this.prisma.locationAssortment.findFirst({
       where: { tenantId: context.tenantId, locationId, productId },

@@ -11,10 +11,7 @@ import {
 import type { Request } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
-import {
-  RequireAnyPermissions,
-  RequirePermissions,
-} from "../auth/permissions.decorator";
+import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import { LocationAssortmentService } from "./location-assortment.service";
@@ -40,10 +37,7 @@ export class LocationAssortmentController {
   }
 
   @Put(":locationId/assortment/:productId")
-  @RequireAnyPermissions(
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN,
-  )
+  @RequirePermissions(PERMISSIONS.LOCATION_ASSORTMENT_MANAGE)
   upsertAssortment(
     @Req() request: Request,
     @Param("locationId") locationId: string,
@@ -59,10 +53,7 @@ export class LocationAssortmentController {
   }
 
   @Delete(":locationId/assortment/:productId")
-  @RequireAnyPermissions(
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE,
-    PERMISSIONS.LOCATION_INSIGHTS_MANAGE_OWN,
-  )
+  @RequirePermissions(PERMISSIONS.LOCATION_ASSORTMENT_MANAGE)
   deleteAssortment(
     @Req() request: Request,
     @Param("locationId") locationId: string,

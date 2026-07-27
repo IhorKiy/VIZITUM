@@ -1,11 +1,11 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
+import { withBackOrigin } from "../../../../lib/back-navigation";
 import {
   getCurrentSession,
   getLocationInsightsSummary,
 } from "../../../../lib/api-client";
-import { availableZones } from "../../../../lib/navigation";
 
 type ManagerPotentialPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -90,21 +90,14 @@ export default async function ManagerPotentialPage({
   }
 
   const summary = summaryResult.data;
-  // A team_manager without the admin zone (locations.manage etc.) can still
-  // load /admin/locations/:id — reads are permitted and the panels render
-  // read-only — but landing there in admin chrome for a zone their session
-  // can't switch into is a nav inconsistency. Only send them there when the
-  // admin zone is actually available; otherwise the manager coverage list is
-  // the useful equivalent.
-  const hasAdminZone = availableZones(
-    sessionResult.data.permissions,
-    sessionResult.data.productsEnabled,
-    sessionResult.data.pilotActive,
-  ).includes("admin");
+  // The manager zone has its own location screen now, so a low-coverage row
+  // leads straight to the assortment that explains the number — no more
+  // bouncing into admin chrome (or, without the admin zone, to a bare list).
   const highPotentialLocationHref = (locationId: string) =>
-    hasAdminZone
-      ? `/${tenantSlug}/admin/locations/${locationId}`
-      : `/${tenantSlug}/manager/locations`;
+    withBackOrigin(
+      `/${tenantSlug}/manager/locations/${locationId}`,
+      "/manager/potential",
+    );
 
   return (
     <AppShell activeArea="manager-potential" tenantSlug={tenantSlug}>

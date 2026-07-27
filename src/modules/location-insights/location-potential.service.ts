@@ -7,8 +7,8 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
-  assertCanManageLocationInsights,
-  canManageLocationInsights,
+  assertCanManagePotential,
+  canManagePotential,
   findTenantLocationOrThrow,
 } from "./location-insights-access";
 import {
@@ -66,7 +66,7 @@ export class LocationPotentialService {
         include: POTENTIAL_INCLUDE,
         orderBy: { createdAt: "asc" },
       }),
-      canManageLocationInsights(context, this.prisma, locationId),
+      canManagePotential(context, this.prisma, locationId),
     ]);
 
     return {
@@ -82,7 +82,7 @@ export class LocationPotentialService {
     body: UpsertLocationPotentialRequestBody,
   ): Promise<LocationPotentialResponse> {
     await findTenantLocationOrThrow(this.prisma, context.tenantId, locationId);
-    await assertCanManageLocationInsights(context, this.prisma, locationId);
+    await assertCanManagePotential(context, this.prisma, locationId);
     await this.findTenantProductCategory(context.tenantId, productCategoryId);
 
     const data = parseUpsertPotentialBody(body);
@@ -114,7 +114,7 @@ export class LocationPotentialService {
     productCategoryId: string,
   ): Promise<{ deleted: true }> {
     await findTenantLocationOrThrow(this.prisma, context.tenantId, locationId);
-    await assertCanManageLocationInsights(context, this.prisma, locationId);
+    await assertCanManagePotential(context, this.prisma, locationId);
 
     const existing = await this.prisma.locationPotential.findFirst({
       where: { tenantId: context.tenantId, locationId, productCategoryId },
