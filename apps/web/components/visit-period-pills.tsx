@@ -53,9 +53,13 @@ export function VisitPeriodPills({
   };
 
   return (
+    // role="group" is what makes the aria-label count: a plain div takes no
+    // accessible name, so without it the row of period links would announce
+    // as four loose links with nothing saying what they select.
     <div
       aria-label={t("pillsAria")}
       className="filter-pills filter-pills--links"
+      role="group"
     >
       {VISIT_PERIOD_PRESETS.map((preset) => (
         <a
