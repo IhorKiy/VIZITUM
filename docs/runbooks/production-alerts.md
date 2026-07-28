@@ -81,6 +81,8 @@ Cleanup worker failures:
 message="worker_task_failed"
 ```
 
+Read `errorMessage` before treating this as a storage or credentials problem. A Prisma error naming the schema itself — an unknown column, or `invalid input value for enum` on a value that exists in `prisma/schema.prisma` — means the database is behind the deployed code, not that the worker is broken. The worker is only the messenger: it runs on a schedule against the same database the API uses, so it is usually the first path to touch a migration that never applied. Fix it by applying the pending migrations (`prisma migrate status`, then `npm run prisma:migrate:deploy` — see `docs/runbooks/production-deployment.md`), not by touching the worker. Such a run fails before it deletes anything, so the only accumulated damage is an expired-object backlog that the next successful run collects.
+
 Cleanup worker success summary:
 
 ```text

@@ -6,12 +6,16 @@ This runbook defines the minimum production deployment setup for the Team Pilot.
 
 Deploy these services from the same repository and release SHA.
 
-| Service | Type | Build Command | Start Command | Required Health/Alert |
-| --- | --- | --- | --- | --- |
-| Web | Next.js frontend | `npm ci && npm run web:build` | `npm run web:start` | Frontend Sentry project and route smoke check |
-| API | Web service | `npm ci && npm run prisma:generate && npm run build` | `npm start` | `GET /api/health/readiness` |
-| Cleanup worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
-| Purge worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | `npm run worker:purge:prod` | Non-zero exit alert and `worker_purge_completed` log |
+| Service        | Type                        | Build Command                                        | Pre-Deploy Command              | Start Command                 | Required Health/Alert                                  |
+| -------------- | --------------------------- | ---------------------------------------------------- | ------------------------------- | ----------------------------- | ------------------------------------------------------ |
+| Web            | Next.js frontend            | `npm ci && npm run web:build`                        | —                               | `npm run web:start`           | Frontend Sentry project and route smoke check          |
+| API            | Web service                 | `npm ci && npm run prisma:generate && npm run build` | `npm run prisma:migrate:deploy` | `npm start`                   | `GET /api/health/readiness`                            |
+| Cleanup worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | —                               | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
+| Purge worker   | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | —                               | `npm run worker:purge:prod`   | Non-zero exit alert and `worker_purge_completed` log   |
+
+Migrations belong to the API service's pre-deploy command and nowhere else: it is the one service that deploys first and exactly once per release, so the schema is already current when the web app and the workers start on the same SHA. Do not add `migrate deploy` to a build command (builds run per service and can run without deploying) or to a worker (cron services run on their own schedule, so a migration could land hours after the code that needs it — or race a second worker run).
+
+A pre-deploy command that fails aborts the deploy and leaves the previous release serving, which is the desired outcome: a release whose migrations did not apply must not reach production. The reverse — code that ships ahead of its migration — is the failure this column exists to prevent, and it does not surface as a failed deploy. It surfaces later, as a runtime error on whichever path first touches the new schema, typically a cron worker emailing `worker_task_failed` every run.
 
 The cleanup worker is intentionally a one-shot task. Schedule it at least hourly for the pilot unless provider limits or storage policy require a shorter interval.
 
@@ -23,27 +27,27 @@ There is no longer a provision worker: platform tenants are created directly wit
 
 Configure these variables for API and worker services unless marked otherwise.
 
-| Variable | API | Worker | Web | Notes |
-| --- | --- | --- | --- | --- |
-| `DATABASE_URL` | yes | yes | no | Managed PostgreSQL connection string |
-| `REDIS_URL` | yes | yes | no | Required when queue workers are enabled |
-| `SESSION_SECRET` | yes | no | no | Must be long and random |
-| `SESSION_COOKIE_NAME` | yes | no | no | Defaults can match `.env.example` |
-| `OPENAI_API_KEY` | yes | yes | no | Required for AI jobs |
-| `S3_ENDPOINT` | yes | yes | no | R2/S3-compatible endpoint |
-| `S3_REGION` | yes | yes | no | Use `auto` for Cloudflare R2 |
-| `S3_BUCKET` | yes | yes | no | Production bucket |
-| `S3_ACCESS_KEY_ID` | yes | yes | no | Secret |
-| `S3_SECRET_ACCESS_KEY` | yes | yes | no | Secret |
-| `S3_FORCE_PATH_STYLE` | yes | yes | no | Usually `true` for R2 |
-| `APP_BASE_URL` | yes | no | yes | Public web origin |
-| `API_BASE_URL` | yes | no | yes | Public API origin; frontend uses `/api` base where configured |
-| `ENABLE_DEMO_FALLBACK` | no | no | optional | Leave unset or `false` in production so API/auth failures do not show demo data |
-| `PLATFORM_OPERATIONS_TOKEN_SHA256` | yes | no | no | Preferred hash for machine access to `/api/operations/summary` |
-| `PLATFORM_OPERATIONS_TOKEN` | optional | no | no | Plaintext fallback for staging only when hash-based setup is not available |
-| `SENTRY_DSN` | yes | yes | yes | Separate projects or environment tags are preferred |
-| `SENTRY_ENVIRONMENT` | yes | yes | yes | `production` |
-| `SENTRY_RELEASE` | yes | yes | yes | Git SHA or release version |
+| Variable                           | API      | Worker | Web      | Notes                                                                           |
+| ---------------------------------- | -------- | ------ | -------- | ------------------------------------------------------------------------------- |
+| `DATABASE_URL`                     | yes      | yes    | no       | Managed PostgreSQL connection string                                            |
+| `REDIS_URL`                        | yes      | yes    | no       | Required when queue workers are enabled                                         |
+| `SESSION_SECRET`                   | yes      | no     | no       | Must be long and random                                                         |
+| `SESSION_COOKIE_NAME`              | yes      | no     | no       | Defaults can match `.env.example`                                               |
+| `OPENAI_API_KEY`                   | yes      | yes    | no       | Required for AI jobs                                                            |
+| `S3_ENDPOINT`                      | yes      | yes    | no       | R2/S3-compatible endpoint                                                       |
+| `S3_REGION`                        | yes      | yes    | no       | Use `auto` for Cloudflare R2                                                    |
+| `S3_BUCKET`                        | yes      | yes    | no       | Production bucket                                                               |
+| `S3_ACCESS_KEY_ID`                 | yes      | yes    | no       | Secret                                                                          |
+| `S3_SECRET_ACCESS_KEY`             | yes      | yes    | no       | Secret                                                                          |
+| `S3_FORCE_PATH_STYLE`              | yes      | yes    | no       | Usually `true` for R2                                                           |
+| `APP_BASE_URL`                     | yes      | no     | yes      | Public web origin                                                               |
+| `API_BASE_URL`                     | yes      | no     | yes      | Public API origin; frontend uses `/api` base where configured                   |
+| `ENABLE_DEMO_FALLBACK`             | no       | no     | optional | Leave unset or `false` in production so API/auth failures do not show demo data |
+| `PLATFORM_OPERATIONS_TOKEN_SHA256` | yes      | no     | no       | Preferred hash for machine access to `/api/operations/summary`                  |
+| `PLATFORM_OPERATIONS_TOKEN`        | optional | no     | no       | Plaintext fallback for staging only when hash-based setup is not available      |
+| `SENTRY_DSN`                       | yes      | yes    | yes      | Separate projects or environment tags are preferred                             |
+| `SENTRY_ENVIRONMENT`               | yes      | yes    | yes      | `production`                                                                    |
+| `SENTRY_RELEASE`                   | yes      | yes    | yes      | Git SHA or release version                                                      |
 
 Do not place raw audio, transcripts, notes or report free text in environment variables, logs or deploy metadata.
 
@@ -64,12 +68,18 @@ npm run web:build
 
 If the release includes database changes, apply Prisma migrations through the approved deploy process only after a backup/snapshot exists.
 
+Confirm what production is actually running before promoting — the answer decides whether step 2's snapshot is a formality or the thing that saves you:
+
+```sh
+DATABASE_URL="<production-url>" npx prisma migrate status
+```
+
 ## Deploy Steps
 
 1. Confirm the release SHA and changelog.
 2. Confirm managed PostgreSQL backups are enabled.
 3. Confirm production alert rules are enabled or the pilot owner has accepted the temporary gap.
-4. Deploy API with the release SHA.
+4. Deploy API with the release SHA. Its pre-deploy command applies pending migrations; confirm they applied before the new instance took traffic, and stop here if the deploy aborted.
 5. Verify `GET /api/health/readiness` returns ready.
 6. Deploy web with the same release SHA.
 7. Trigger or wait for one cleanup worker run.
