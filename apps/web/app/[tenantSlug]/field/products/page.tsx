@@ -56,7 +56,7 @@ export default async function FieldProductsPage({
     !sessionResult.data.permissions.includes("products.read")
   ) {
     return (
-      <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
+      <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
@@ -110,11 +110,8 @@ export default async function FieldProductsPage({
 
   if (!productsResult.ok) {
     return (
-      <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
-        <BackLink
-          href={`/${tenantSlug}/field/general`}
-          label={tBack("general")}
-        />
+      <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
+        <BackLink href={`/${tenantSlug}/field`} label={tBack("route")} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
@@ -149,11 +146,8 @@ export default async function FieldProductsPage({
       : categories;
 
   return (
-    <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
-      <BackLink
-        href={`/${tenantSlug}/field/general`}
-        label={tBack("general")}
-      />
+    <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
+      <BackLink href={`/${tenantSlug}/field`} label={tBack("route")} />
       <header className="page-header">
         <div>
           <p className="eyebrow">{tField("flowEyebrow")}</p>

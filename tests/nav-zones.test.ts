@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   availableZones,
+  buildFieldMenuLinks,
   buildTenantNav,
   resolveDefaultZone,
   resolveZoneLanding,
@@ -155,6 +156,38 @@ describe("navigation zones", () => {
       buildTenantNav("acme", COMPANY_ADMIN_PERMISSIONS, true, true).some(
         (item) => item.area === "admin-pilot",
       ),
+    );
+  });
+
+  it("the field menu's screens belong to the field zone without owning a nav item", () => {
+    // The representative's catalogue and help screens are opened from the menu
+    // (components/field-menu.tsx), so they take an activeArea the bottom nav
+    // never renders. The AppShell still has to place them in a zone.
+    assert.equal(zoneForArea("field-menu"), "field");
+    assert.ok(
+      !buildTenantNav("acme", undefined).some(
+        (item) => item.area === "field-menu",
+      ),
+    );
+  });
+
+  it("the field menu never widens the field zone with its own screens' permissions", () => {
+    // Regression guard for the reason these are not nav items: a nav item's
+    // permissions make its whole zone available (availability ORs across the
+    // zone), so listing Locations/Products here on locations.read/products.read
+    // would hand the field zone to every admin who holds them.
+    assert.deepEqual(availableZones(COMPANY_ADMIN_PERMISSIONS), ["admin"]);
+    assert.ok(!availableZones(["locations.read", "products.read"]).length);
+  });
+
+  it("the field menu drops the catalogue when the tenant has products disabled", () => {
+    assert.deepEqual(
+      buildFieldMenuLinks("acme", true).map((link) => link.href),
+      ["/acme/field/locations", "/acme/field/products", "/acme/field/help"],
+    );
+    assert.deepEqual(
+      buildFieldMenuLinks("acme", false).map((link) => link.href),
+      ["/acme/field/locations", "/acme/field/help"],
     );
   });
 

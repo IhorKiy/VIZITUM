@@ -2247,8 +2247,12 @@ async function apiDelete<TData>(path: string): Promise<ApiResult<TData>> {
 // namespaces them the same way, see src/modules/auth/csrf.ts) so that
 // authenticating into one domain can't invalidate the other's still-valid
 // session. Pick the cookie that matches which domain `path` targets.
-const TENANT_CSRF_COOKIE_NAME = "vizitum_csrf";
+export const TENANT_CSRF_COOKIE_NAME = "vizitum_csrf";
 export const PLATFORM_CSRF_COOKIE_NAME = "vizitum_platform_csrf";
+// Mirrors SESSION_COOKIE_NAME in src/modules/auth/auth.constants.ts, exported
+// for the same reason as its platform twin below: signing out must clear the
+// cookie itself, not just trust the API's response to have done it.
+export const TENANT_SESSION_COOKIE_NAME = "vizitum_session";
 // Exported alongside the CSRF cookie name so callers that must clear the
 // platform session directly (logout — which can't trust a CSRF-rejected or
 // network-failed response to have cleared anything) don't have to duplicate

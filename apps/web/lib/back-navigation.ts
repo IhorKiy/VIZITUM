@@ -23,7 +23,6 @@
 export type BackLabelKey =
   | "route"
   | "routes"
-  | "general"
   | "tasks"
   | "history"
   | "products"
@@ -49,7 +48,6 @@ export type BackTarget = {
 const RETURNABLE_SCREENS: { pattern: RegExp; labelKey: BackLabelKey }[] = [
   { pattern: /^\/field$/, labelKey: "route" },
   { pattern: /^\/field\/planning$/, labelKey: "routes" },
-  { pattern: /^\/field\/general$/, labelKey: "general" },
   { pattern: /^\/field\/tasks$/, labelKey: "tasks" },
   { pattern: /^\/field\/history$/, labelKey: "history" },
   { pattern: /^\/field\/products$/, labelKey: "products" },
