@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import type { LocationContact } from "../lib/api-client";
+import type { LocationKeeper } from "../lib/location-keeper";
 import { UserIcon } from "./icons";
 import { LocationContactFormModal } from "./location-contact-form-modal";
 import { LocationContactsPanel } from "./location-contacts-panel";
@@ -21,6 +22,9 @@ type LocationContactsModalProps = {
   // Only read when canManage is true.
   upsertAction?: (formData: FormData) => Promise<void>;
   deleteAction?: (formData: FormData) => Promise<void>;
+  // Passed through to the panel's empty state: this dialog covers the header
+  // pill that would otherwise carry the same fact.
+  keeper?: LocationKeeper;
 };
 
 // The contacts manager, opened from an icon button in the location header.
@@ -38,6 +42,7 @@ export function LocationContactsModal({
   phoneCountry,
   upsertAction,
   deleteAction,
+  keeper,
 }: LocationContactsModalProps) {
   const t = useTranslations("field.location");
   const tCommon = useTranslations("common");
@@ -78,6 +83,7 @@ export function LocationContactsModal({
         <LocationContactsPanel
           canManage={canManage}
           deleteAction={deleteAction}
+          keeper={keeper}
           locationName={locationName}
           phoneCountry={phoneCountry}
           rows={rows}

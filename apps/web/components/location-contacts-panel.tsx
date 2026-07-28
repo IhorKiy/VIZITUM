@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 
 import type { LocationContact } from "../lib/api-client";
+import type { LocationKeeper } from "../lib/location-keeper";
 import { formatPhoneForDisplay, phoneHref } from "../lib/phone";
 import { MailIcon, PhoneIcon, TrashIcon, UserIcon } from "./icons";
 import { LocationContactFormModal } from "./location-contact-form-modal";
@@ -14,6 +15,8 @@ type LocationContactsPanelProps = {
   deleteAction?: (formData: FormData) => Promise<void>;
   locationName: string;
   phoneCountry: string | null;
+  // Same use as on the potential panel: wording for a reader who cannot write.
+  keeper?: LocationKeeper;
 };
 
 // Body of the contacts manager modal. A location holds at most two contacts,
@@ -28,6 +31,7 @@ export function LocationContactsPanel({
   deleteAction,
   locationName,
   phoneCountry,
+  keeper,
 }: LocationContactsPanelProps) {
   const t = useTranslations("field.location");
 
@@ -47,7 +51,9 @@ export function LocationContactsPanel({
           <p>
             {canManage
               ? t("contactsEmptyHint")
-              : t("contactsEmptyReadOnlyHint")}
+              : keeper?.kind === "unassigned"
+                ? t("contactsEmptyUnassignedHint")
+                : t("contactsEmptyReadOnlyHint")}
           </p>
         </div>
       ) : null}

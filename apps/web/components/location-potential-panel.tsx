@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { LocationPotential } from "../lib/api-client";
 import { formatDate } from "../lib/format";
 import { INPUT_LIMITS } from "../lib/input-limits";
+import type { LocationKeeper } from "../lib/location-keeper";
 import { BanknoteIcon, TrashIcon } from "./icons";
 import { LocationPotentialModal } from "./location-potential-modal";
 import { PendingSubmitButton } from "./pending-submit-button";
@@ -22,6 +23,10 @@ type LocationPotentialPanelProps = {
   // the edit modal's subtitle and is only read in "cards" mode.
   variant?: "inline" | "cards";
   locationName?: string;
+  // Who keeps this location's record, when the caller knows. Only read to
+  // word the "cards" empty state for a reader who cannot write; the header
+  // pill on the same screen states the same fact.
+  keeper?: LocationKeeper;
 };
 
 // Shared by the field location detail screen and the admin location detail
@@ -38,6 +43,7 @@ export function LocationPotentialPanel({
   deleteAction,
   variant = "inline",
   locationName = "",
+  keeper,
 }: LocationPotentialPanelProps) {
   const t = useTranslations("common.locationInsights");
   const tCommon = useTranslations("common");
@@ -59,11 +65,15 @@ export function LocationPotentialPanel({
             <h2>{t("potentialEmptyTitle")}</h2>
             {/* The title states a fact either way; only the hint may invite,
                 and a reader without an assignment here has no "+" to answer
-                it with. */}
+                it with. On a location nobody keeps there is also no assigned
+                representative to point at, so that case names the manager who
+                closes the gap instead of a person who does not exist. */}
             <p>
               {canManage
                 ? t("potentialEmptyHint")
-                : t("potentialEmptyReadOnlyHint")}
+                : keeper?.kind === "unassigned"
+                  ? t("potentialEmptyUnassignedHint")
+                  : t("potentialEmptyReadOnlyHint")}
             </p>
           </div>
         ) : (

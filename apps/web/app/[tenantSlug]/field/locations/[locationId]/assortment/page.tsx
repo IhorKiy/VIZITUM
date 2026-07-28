@@ -4,7 +4,6 @@ import { getTranslations } from "next-intl/server";
 import { AppShell } from "../../../../../../components/app-shell";
 import { BackLink } from "../../../../../../components/back-link";
 import { PackageIcon } from "../../../../../../components/icons";
-import { LocationAssignmentPill } from "../../../../../../components/location-assignment-pill";
 import { LocationAssortmentPanel } from "../../../../../../components/location-assortment-panel";
 import { resolveBackTarget } from "../../../../../../lib/back-navigation";
 import {
@@ -57,8 +56,6 @@ export default async function LocationAssortmentPage({
   }
 
   const locationName = locationResult.data.name;
-  const locationAssignments = locationResult.data.assignments;
-  const currentUserId = sessionResult.data.user.id;
 
   const assortmentResult = await listLocationAssortment(locationId);
 
@@ -95,10 +92,6 @@ export default async function LocationAssortmentPage({
                   count: assortmentRows.length,
                 })}
               </p>
-              <LocationAssignmentPill
-                assignments={locationAssignments}
-                currentUserId={currentUserId}
-              />
             </div>
           </div>
         </div>
