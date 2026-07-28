@@ -73,6 +73,7 @@
       "field-history": "History",
       "field-tasks": "Tasks",
       "taskBadgeAria": "In progress: {count}",
+      "announcementBadgeAria": "Unread announcements: {count}",
       "admin-users": "Users",
       "admin-locations": "Locations / Chains",
       "admin-products": "Products",
@@ -85,7 +86,8 @@
       "manager-locations": "Coverage",
       "manager-representatives": "Reps",
       "operations": "Ops",
-      "manager-potential": "Potential"
+      "manager-potential": "Potential",
+      "manager-announcements": "Announcements"
     },
     "zone": {
       "names": {
@@ -587,6 +589,62 @@
       "disabledTitle": "Product tracking is off",
       "disabledBody": "Ask a company admin to turn on product tracking for this tenant to use potential and assortment tracking.",
       "notConnectedTitle": "Could not load the summary"
+    },
+    "announcements": {
+      "title": "Announcements",
+      "subtitle": "Notices every representative sees for as long as they are in force.",
+      "signedOutBody": "Sign in to publish announcements for your team.",
+      "notConnectedTitle": "Announcements are unavailable",
+      "statusAria": "Announcement status",
+      "listAria": "Published announcements",
+      "stateFiltersAria": "Filter announcements by state",
+      "createdEyebrow": "Published",
+      "createdTitle": "Announcement published",
+      "createdBody": "Representatives will see it for the whole period you set.",
+      "updatedEyebrow": "Saved",
+      "updatedTitle": "Announcement updated",
+      "archivedEyebrow": "Withdrawn",
+      "archivedTitle": "Announcement withdrawn",
+      "archivedBody": "It no longer appears for representatives. The read record is kept.",
+      "errorAria": "Announcement error",
+      "errorEyebrow": "Failed",
+      "errorTitle": "The announcement could not be saved",
+      "errorBody": "Try again, or reload the page if the problem persists.",
+      "state": {
+        "active": "In force",
+        "scheduled": "Scheduled",
+        "finished": "Finished",
+        "archived": "Withdrawn"
+      },
+      "window": "{from} - {to}",
+      "readOf": "Read by {read} of {total}",
+      "factWindow": "Validity period",
+      "factReads": "Reads",
+      "factAuthor": "Author",
+      "edit": "Edit",
+      "editAria": "Edit announcement: {title}",
+      "archive": "Withdraw",
+      "archiveAria": "Withdraw announcement: {title}",
+      "archiving": "Withdrawing...",
+      "archivePrompt": "Withdraw this announcement from every representative?",
+      "emptyTitle": "No announcements yet",
+      "emptyBody": "Publish one to tell the whole field team something that holds for a period - a promotion, a price change, a rule for the month.",
+      "emptyFilteredBody": "Nothing matches this filter.",
+      "showAll": "Show all"
+    },
+    "announcementModal": {
+      "createTitle": "New announcement",
+      "editTitle": "Edit announcement",
+      "formTitle": "Title",
+      "formTitlePlaceholder": "-15% on the X line",
+      "formBody": "Message",
+      "formBodyPlaceholder": "What the team needs to know, and what to do with it during visits.",
+      "formStartsAt": "Shown from",
+      "formEndsAt": "Shown until",
+      "formWindowHint": "Both dates are included: representatives see the announcement on the last day too.",
+      "publish": "Publish",
+      "saving": "Saving...",
+      "errorBody": "Check the title, the message and the dates - the end cannot precede the start."
     }
   },
   "admin": {
@@ -1074,6 +1132,17 @@
       "dragAwayAnnouncement": "{name} is no longer over the list.",
       "dragDroppedAnnouncement": "{name} was dropped.",
       "dragCancelledAnnouncement": "Dragging was cancelled. {name} was returned to its original position."
+    },
+    "announcements": {
+      "sectionAria": "Announcements from your manager",
+      "heading": "Announcements",
+      "newBadge": "New",
+      "markRead": "Got it",
+      "marking": "Saving...",
+      "endsOn": "In force until {date}",
+      "readCount": "Already read ({count})",
+      "markFailedTitle": "Could not mark it read",
+      "markFailedBody": "The announcement is still here. Try again."
     },
     "location": {
       "signedOutTitle": "Location",

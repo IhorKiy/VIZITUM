@@ -2,8 +2,7 @@ import type { RoleCode } from "@prisma/client";
 
 import { PERMISSIONS, type PermissionCode } from "./permissions";
 
-export const ROLE_PERMISSION_MATRIX_VERSION =
-  "2026-07-27-assortment-manager-owned-v1";
+export const ROLE_PERMISSION_MATRIX_VERSION = "2026-07-28-announcements-v1";
 
 export type PlatformRoleCode = "platform_owner";
 export type TenantRoleCode = RoleCode;
@@ -60,6 +59,10 @@ export const ROLE_PERMISSION_MATRIX = {
     // asymmetry is just an oversight waiting to strand data.
     PERMISSIONS.LOCATION_ASSORTMENT_MANAGE,
     PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
+    // Same kind of fallback, for the same reason: a live announcement outlives
+    // the manager who published it, and a tenant between managers must still
+    // be able to withdraw one that is wrong.
+    PERMISSIONS.ANNOUNCEMENTS_MANAGE,
   ],
 
   company_admin: COMPANY_ADMIN_PERMISSIONS,
@@ -79,6 +82,11 @@ export const ROLE_PERMISSION_MATRIX = {
     PERMISSIONS.TASKS_READ_TEAM,
     PERMISSIONS.TASKS_CREATE,
     PERMISSIONS.TASKS_UPDATE_TEAM,
+    // The manager both publishes the notice board and reads it back: the read
+    // permission is what lets the manager screen show a live announcement the
+    // same way the field sees it.
+    PERMISSIONS.ANNOUNCEMENTS_READ,
+    PERMISSIONS.ANNOUNCEMENTS_MANAGE,
     PERMISSIONS.DASHBOARD_MANAGER_READ,
     PERMISSIONS.PILOT_REVIEW_READ,
   ],
@@ -105,6 +113,9 @@ export const ROLE_PERMISSION_MATRIX = {
     PERMISSIONS.TASKS_READ_OWN,
     PERMISSIONS.TASKS_CREATE,
     PERMISSIONS.TASKS_UPDATE_OWN,
+    // Read-only on the notice board, and deliberately so: what is in force this
+    // month is the manager's statement, not something the field edits.
+    PERMISSIONS.ANNOUNCEMENTS_READ,
     PERMISSIONS.AI_USE_REPORTING,
   ],
 } as const satisfies Record<AppRoleCode, readonly PermissionCode[]>;

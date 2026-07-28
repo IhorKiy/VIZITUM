@@ -28,6 +28,10 @@ export type RouteStatus =
   "draft" | "published" | "in_progress" | "completed" | "cancelled";
 export type RouteItemStatus = "planned" | "visited" | "skipped";
 export type TaskStatus = "in_progress" | "done";
+// Derived server-side from the validity window against the tenant's own
+// calendar day — never sent on a write.
+export type AnnouncementState =
+  "scheduled" | "active" | "finished" | "archived";
 export type TenantRoleCode =
   | "tenant_superadmin"
   | "company_admin"
@@ -328,6 +332,40 @@ export type TaskStatusHistoryEntry = {
   oldStatus: TaskStatus | null;
   newStatus: TaskStatus;
   createdAt: string;
+};
+
+export type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  // Date-only, inclusive at both ends, in the tenant's timezone.
+  startsAt: string;
+  endsAt: string;
+  state: AnnouncementState;
+  archivedAt: string | null;
+  createdByUserId: string | null;
+  createdBy: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// The manager's board carries the read tally; the field's does not.
+export type AnnouncementWithReadStats = Announcement & {
+  readCount: number;
+  recipientCount: number;
+};
+
+export type ActiveAnnouncement = Announcement & {
+  isRead: boolean;
+};
+
+export type ActiveAnnouncementsResponse = {
+  items: ActiveAnnouncement[];
+  unreadCount: number;
 };
 
 export type Task = {
@@ -1380,6 +1418,53 @@ export async function listTasks(
   query = "pageSize=50",
 ): Promise<ApiResult<PaginatedResponse<Task>>> {
   return apiGet<PaginatedResponse<Task>>(`/tasks?${query}`);
+}
+
+export async function listAnnouncements(
+  query = "pageSize=50",
+): Promise<ApiResult<PaginatedResponse<AnnouncementWithReadStats>>> {
+  return apiGet<PaginatedResponse<AnnouncementWithReadStats>>(
+    `/announcements?${query}`,
+  );
+}
+
+export async function listActiveAnnouncements(): Promise<
+  ApiResult<ActiveAnnouncementsResponse>
+> {
+  return apiGet<ActiveAnnouncementsResponse>("/announcements/active");
+}
+
+export async function createAnnouncement(input: {
+  title: string;
+  body: string;
+  startsAt: string;
+  endsAt: string;
+}): Promise<ApiResult<Announcement>> {
+  return apiPost<Announcement>("/announcements", input);
+}
+
+export async function updateAnnouncement(
+  announcementId: string,
+  input: {
+    title?: string;
+    body?: string;
+    startsAt?: string;
+    endsAt?: string;
+  },
+): Promise<ApiResult<Announcement>> {
+  return apiPatch<Announcement>(`/announcements/${announcementId}`, input);
+}
+
+export async function archiveAnnouncement(
+  announcementId: string,
+): Promise<ApiResult<Announcement>> {
+  return apiPost<Announcement>(`/announcements/${announcementId}/archive`, {});
+}
+
+export async function markAnnouncementRead(
+  announcementId: string,
+): Promise<ApiResult<{ read: true }>> {
+  return apiPost<{ read: true }>(`/announcements/${announcementId}/read`, {});
 }
 
 export async function getAdminSettings(): Promise<ApiResult<TenantSettings>> {

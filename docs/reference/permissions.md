@@ -1,6 +1,6 @@
 # Roles & Permissions
 
-Reference for the implemented access model. Source of truth: `src/modules/roles/permissions.ts`, `src/modules/roles/role-permission.matrix.ts` (matrix version `2026-07-23-location-notes-contacts-v1`), `src/modules/auth/permission.guard.ts`. Update this document in the same change as any permission or matrix change.
+Reference for the implemented access model. Source of truth: `src/modules/roles/permissions.ts`, `src/modules/roles/role-permission.matrix.ts` (matrix version `2026-07-28-announcements-v1`), `src/modules/auth/permission.guard.ts`. Update this document in the same change as any permission or matrix change.
 
 ## How enforcement works
 
@@ -69,6 +69,8 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 | `tasks.create` | | | | x | x |
 | `tasks.update_own` | | | | | x |
 | `tasks.update_team` | | | | x | |
+| `announcements.read` | | | | x | x |
+| `announcements.manage` | | x | | x | |
 | `imports.read` | | x | x | | |
 | `imports.upload` | | x | x | | |
 | `imports.confirm` | | x | x | | |
@@ -85,6 +87,8 @@ Reference for the implemented access model. Source of truth: `src/modules/roles/
 - `location_notes.manage`/`.manage_own` and `contacts.manage`/`.manage_own` follow the same two-tier shape `location_potential.manage_own` uses above (a tenant-wide tier plus an assignment-scoped one), via two dedicated helper pairs in `src/modules/locations/locations-write-access.ts` (`canManageLocationNotes`/`assertCanManageLocationNotes` and `canManageContacts`/`assertCanManageContacts`, kept separate from `location-insights-access.ts` rather than sharing it, so the three features' ownership rules can each change independently). `PATCH /locations/:locationId/notes` and the three contact-mutation endpoints (`POST`/`PATCH`/`DELETE /locations/:locationId/contacts...`) require either tier at the guard level (`@RequireAnyPermissions`); the `_manage_own` tier additionally requires an active `LocationAssignment` for that location, 403 `LOCATION_NOTES_SCOPE_FORBIDDEN`/`CONTACTS_SCOPE_FORBIDDEN` otherwise. Reads stay tenant-wide (`locations.read` covers the `notes` field on `GET /locations/:locationId`; `contacts.read` is unchanged) — only writes are ownership-scoped. `GET /locations/:locationId` exposes computed `canManageNotes`/`canManageContacts` booleans (populated only on that single-location read) so the field-zone UI can hide edit affordances a caller can't use.
 - `tenant.settings.manage` also covers tenant branding: the color-scheme field on `PATCH /admin/settings` and the logo endpoints `/admin/settings/logo/*`; inside `StorageService`, `branding_logo` objects require it to write and `tenant.settings.read` to read (the login page reads branding via the public unguarded `GET /tenants/:slug/branding` instead).
 - `admins.invite`/`admins.manage` are role-target-scoped inside `UsersService` rather than guard-level: the guard only requires the baseline `users.invite`/`users.manage`/`roles.assign` (or `admins.manage` directly for `DELETE /admin/users/:userId`), and the service checks the finer-grained permission only when the request targets (or would grant) `company_admin`, and unconditionally blocks any request targeting a `tenant_superadmin` user regardless of the actor's permissions.
+
+- `announcements.read` vs `announcements.manage`: the tenant notice board is the one surface where a representative reads something a manager wrote, so the split is between publishing and receiving rather than between scopes. There is no `_own` tier — an announcement has no owner beyond the tenant, and every representative sees the same board — and no ownership helper: both permissions are plain tenant-wide `@RequirePermissions` checks on `AnnouncementsController`. `announcements.read` gates `GET /announcements/active` and `POST /announcements/:id/read`; everything else needs `announcements.manage`. `team_manager` holds both (the manager reads the board back the way the field sees it); `field_representative` holds only the read, which is what keeps "what is in force this month" a statement the field follows rather than one it can edit. `tenant_superadmin` holds `announcements.manage` as the same no-screen repair path it has for `location_assortment.manage`/`location_potential.manage`: a live announcement outlives the manager who published it, and a tenant between managers must still be able to withdraw one that is wrong. `company_admin` deliberately holds neither — the admin zone configures the tenant, it does not talk to the field. The manager nav item is gated on `dashboard.manager.read` rather than `announcements.manage` for the usual zone-availability reason (see [module-map.md](module-map.md)): gating it on the manage permission would hand a superadmin the entire manager zone.
 
 ## Known gaps (as implemented)
 

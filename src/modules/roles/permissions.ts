@@ -56,6 +56,13 @@ export const PERMISSIONS = {
   TASKS_UPDATE_OWN: "tasks.update_own",
   TASKS_UPDATE_TEAM: "tasks.update_team",
 
+  // One notice board, two sides: representatives read what is currently in
+  // force, the manager who set the standard writes it. There is no own-scope
+  // tier because an announcement has no owner beyond the tenant — everyone
+  // in the field sees the same board.
+  ANNOUNCEMENTS_READ: "announcements.read",
+  ANNOUNCEMENTS_MANAGE: "announcements.manage",
+
   IMPORTS_READ: "imports.read",
   IMPORTS_UPLOAD: "imports.upload",
   IMPORTS_CONFIRM: "imports.confirm",

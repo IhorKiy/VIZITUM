@@ -349,28 +349,30 @@ model User {
   updatedAt            DateTime   @updatedAt
   deletedAt            DateTime?
 
-  roles                      UserRole[]           @relation("UserRoles")
-  assignedRoles              UserRole[]           @relation("AssignedUserRoles")
-  createdInvites             Invite[]             @relation("CreatedInvites")
-  acceptedInvites            Invite[]             @relation("AcceptedInvites")
+  roles                      UserRole[]                @relation("UserRoles")
+  assignedRoles              UserRole[]                @relation("AssignedUserRoles")
+  createdInvites             Invite[]                  @relation("CreatedInvites")
+  acceptedInvites            Invite[]                  @relation("AcceptedInvites")
   sessions                   Session[]
-  updatedSettings            TenantSetting[]      @relation("UpdatedTenantSettings")
-  createdLocationAssignments LocationAssignment[] @relation("CreatedLocationAssignments")
-  assignedLocations          LocationAssignment[] @relation("RepresentativeLocationAssignments")
-  routePlans                 RoutePlan[]          @relation("RepresentativeRoutePlans")
-  createdRoutePlans          RoutePlan[]          @relation("CreatedRoutePlans")
-  routeTemplates             RouteTemplate[]      @relation("RepresentativeRouteTemplates")
-  visits                     Visit[]              @relation("RepresentativeVisits")
-  visitNotes                 VisitNote[]          @relation("CreatedVisitNotes")
-  confirmedReports           Report[]             @relation("ConfirmedReports")
-  reports                    Report[]             @relation("RepresentativeReports")
-  assignedTasks              Task[]               @relation("AssignedTasks")
-  createdTasks               Task[]               @relation("CreatedTasks")
-  changedTaskStatusHistory   TaskStatusHistory[]  @relation("ChangedTaskStatusHistory")
-  uploadedImports            ImportJob[]          @relation("UploadedImports")
-  confirmedImports           ImportJob[]          @relation("ConfirmedImports")
-  createdStorageObjects      StorageObject[]      @relation("CreatedStorageObjects")
-  auditEvents                AuditEvent[]         @relation("ActorAuditEvents")
+  updatedSettings            TenantSetting[]           @relation("UpdatedTenantSettings")
+  createdLocationAssignments LocationAssignment[]      @relation("CreatedLocationAssignments")
+  assignedLocations          LocationAssignment[]      @relation("RepresentativeLocationAssignments")
+  routePlans                 RoutePlan[]               @relation("RepresentativeRoutePlans")
+  createdRoutePlans          RoutePlan[]               @relation("CreatedRoutePlans")
+  routeTemplates             RouteTemplate[]           @relation("RepresentativeRouteTemplates")
+  visits                     Visit[]                   @relation("RepresentativeVisits")
+  visitNotes                 VisitNote[]               @relation("CreatedVisitNotes")
+  confirmedReports           Report[]                  @relation("ConfirmedReports")
+  reports                    Report[]                  @relation("RepresentativeReports")
+  assignedTasks              Task[]                    @relation("AssignedTasks")
+  createdTasks               Task[]                    @relation("CreatedTasks")
+  changedTaskStatusHistory   TaskStatusHistory[]       @relation("ChangedTaskStatusHistory")
+  uploadedImports            ImportJob[]               @relation("UploadedImports")
+  confirmedImports           ImportJob[]               @relation("ConfirmedImports")
+  createdStorageObjects      StorageObject[]           @relation("CreatedStorageObjects")
+  auditEvents                AuditEvent[]              @relation("ActorAuditEvents")
+  createdAnnouncements       Announcement[]            @relation("CreatedAnnouncements")
+  announcementReads          AnnouncementReadReceipt[] @relation("AnnouncementReads")
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
@@ -957,6 +959,55 @@ model TaskStatusHistory {
   @@index([tenantId, taskId, createdAt])
   @@index([tenantId, changedByUserId, createdAt])
   @@map("task_status_history")
+}
+
+// A manager-authored notice shown to every field representative in the tenant
+// for as long as its date window is open — a promotion, a price change, a rule
+// for the month. There is no recipient table: the audience is "every
+// representative", so targeting one would only be a list to keep in sync with
+// the roster. `startsAt`/`endsAt` are date-only and inclusive, interpreted in
+// the tenant's timezone, which is what makes "until the 31st" mean the whole
+// 31st for a rep in the field. Withdrawing early sets `archivedAt` rather than
+// deleting: the read receipts below are the record that the team was told, and
+// a hard delete would take that with it.
+model Announcement {
+  id              String    @id @default(cuid())
+  tenantId        String
+  title           String
+  body            String
+  startsAt        DateTime  @db.Date
+  endsAt          DateTime  @db.Date
+  createdByUserId String?
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  createdBy    User?                     @relation("CreatedAnnouncements", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  readReceipts AnnouncementReadReceipt[]
+
+  @@index([tenantId, archivedAt, endsAt])
+  @@index([tenantId, createdAt])
+  @@map("announcements")
+}
+
+// One row the first time a representative marks an announcement read; the
+// unique constraint is what makes the mark-read endpoint idempotent (a second
+// tap keeps the original `readAt` rather than resetting it). Hard rows with no
+// soft delete, like LocationAssignment — a receipt withdrawn is a receipt that
+// never happened, and the announcement's own Cascade takes them when it goes.
+model AnnouncementReadReceipt {
+  id             String   @id @default(cuid())
+  tenantId       String
+  announcementId String
+  userId         String
+  readAt         DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation("AnnouncementReads", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, announcementId, userId])
+  @@index([tenantId, userId])
+  @@map("announcement_read_receipts")
 }
 
 model ImportJob {
