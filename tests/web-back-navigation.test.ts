@@ -138,9 +138,15 @@ describe("resolveBackTarget", () => {
       resolveBackTarget("acme", "/field/tasks", menuFallback),
       { href: "/acme/field/tasks", labelKey: "tasks" },
     );
+    // Both halves of the old planning screen carry the menu, and each names
+    // itself: "routes" is the routes themselves, "planning" the calendar.
+    assert.deepEqual(resolveBackTarget("acme", "/field/routes", menuFallback), {
+      href: "/acme/field/routes",
+      labelKey: "routes",
+    });
     assert.deepEqual(
       resolveBackTarget("acme", "/field/planning", menuFallback),
-      { href: "/acme/field/planning", labelKey: "routes" },
+      { href: "/acme/field/planning", labelKey: "planning" },
     );
     // `/field` is "Home" in the bottom nav, and the label table has to agree:
     // the screen leads with today's route, but a control that says "back to
