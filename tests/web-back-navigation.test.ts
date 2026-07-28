@@ -54,6 +54,25 @@ describe("resolveBackTarget", () => {
     );
   });
 
+  it("tells the routes screen apart from the planning calendar", () => {
+    // They were one tabbed screen and now are two nav entries; a back control
+    // that says "routes" but lands on the calendar (or the reverse) is exactly
+    // what the label table exists to prevent.
+    const fromRouteEditor = resolveBackTarget(
+      "acme",
+      backOrigin("/field/routes", { route: "tpl-1" }),
+      LOCATION_FALLBACK,
+    );
+
+    assert.equal(fromRouteEditor.labelKey, "routes");
+    assert.equal(fromRouteEditor.href, "/acme/field/routes?route=tpl-1");
+
+    assert.equal(
+      resolveBackTarget("acme", "/field/planning", LOCATION_FALLBACK).labelKey,
+      "planning",
+    );
+  });
+
   it("unwinds one screen at a time through a nested origin chain", () => {
     // Locations list → location card → visit report: the report returns to
     // the card, and the card still knows the list it came from.
