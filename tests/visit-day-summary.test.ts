@@ -104,13 +104,18 @@ describe("visit day summary", () => {
     // row-per-visit fetch — see the "unbounded team-scope read" note on
     // getVisitDaySummary.
     assert.equal(queryRawCalls.length, 1);
-    // [timezone, tenantId, representativeUserId] — the SELECT's day
-    // expression binds the timezone before the WHERE clause's own values.
-    assert.deepEqual(queryRawCalls[0].values, [
+    // [timezone, tenantId, representativeUserId, periodFloor] — the SELECT's
+    // day expression binds the timezone before the WHERE clause's own values,
+    // and the floor is always there: a request with no period still groups
+    // over a bounded window rather than the tenant's whole history.
+    const values = queryRawCalls[0].values;
+    assert.deepEqual(values.slice(0, 3), [
       "Europe/Kyiv",
       "tenant-a",
       "rep-a",
     ]);
+    assert.equal(values.length, 4);
+    assert.ok(values[3] instanceof Date);
   });
 
   it("applies the status and started-date filters with no representative condition for a team-scope caller", async () => {
@@ -152,12 +157,16 @@ describe("visit day summary", () => {
     );
 
     assert.equal(queryRawCalls.length, 1);
-    assert.deepEqual(queryRawCalls[0].values, [
+    const values = queryRawCalls[0].values;
+    assert.deepEqual(values.slice(0, 4), [
       "Europe/Kyiv",
       "tenant-a",
       "draft",
       "in_progress",
     ]);
+    // The clamped period floor closes the WHERE clause.
+    assert.equal(values.length, 5);
+    assert.ok(values[4] instanceof Date);
   });
 
   it("rejects when the tenant cannot be resolved", async () => {

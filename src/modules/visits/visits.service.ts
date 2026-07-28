@@ -11,7 +11,6 @@ import { randomUUID } from "node:crypto";
 
 import {
   createPaginatedResponse,
-  type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
 import { PrismaService } from "../prisma/prisma.service";
@@ -38,8 +37,11 @@ import type {
   UpdateVisitRequestBody,
   VisitDaySummaryEntry,
   VisitDaySummaryResponse,
+  VisitListResponse,
   VisitNoteResponse,
+  VisitPeriodResponse,
   VisitResponse,
+  VisitStatusTotals,
 } from "./visits.types";
 
 // Mirrors INPUT_LIMITS.comment in apps/web/lib/input-limits.ts.
@@ -103,10 +105,24 @@ export class VisitsService {
   async listVisits(
     context: RequestContext,
     query: ListVisitsQuery,
-  ): Promise<PaginatedResponse<VisitResponse>> {
+  ): Promise<VisitListResponse> {
     const pagination = resolvePagination(query);
-    const where = buildVisitWhere(context, query);
-    const [visits, total] = await Promise.all([
+    // Resolved once and handed to both WHERE builders: computing it twice
+    // would take `now` twice, and a request that straddles a millisecond
+    // would count its totals over a hair-different window than its list.
+    const period = resolveVisitPeriodRange(query.startedFrom, query.startedTo);
+    const where = buildVisitWhere(context, query, period);
+    // The same period and filters minus the status one: the recap this feeds
+    // is what the status pills are picked *from*, so a pill narrows the list
+    // below it without narrowing the split above it. One grouped aggregate
+    // here replaced the three extra count requests the field history screen
+    // used to fire per render.
+    const statusTotalsWhere = buildVisitWhere(
+      context,
+      { ...query, status: undefined },
+      period,
+    );
+    const [visits, total, statusGroups] = await Promise.all([
       this.prisma.visit.findMany({
         where,
         include: visitInclude,
@@ -115,13 +131,22 @@ export class VisitsService {
         take: pagination.take,
       }),
       this.prisma.visit.count({ where }),
+      this.prisma.visit.groupBy({
+        by: ["status"],
+        where: statusTotalsWhere,
+        _count: { _all: true },
+      }),
     ]);
 
-    return createPaginatedResponse(
-      visits.map(toVisitResponse),
-      pagination,
-      total,
-    );
+    return {
+      ...createPaginatedResponse(
+        visits.map(toVisitResponse),
+        pagination,
+        total,
+      ),
+      period: toVisitPeriodResponse(period),
+      statusTotals: toVisitStatusTotals(statusGroups),
+    };
   }
 
   // Per-day totals for the exact same filter listVisits uses, over the whole
@@ -178,7 +203,10 @@ export class VisitsService {
       );
     }
 
-    const startedAtRange = buildDateTimeRangeFilter(
+    // Always bounded below, even when the caller sent no period at all: this
+    // GROUP BY is the one query in the module that would otherwise sweep a
+    // tenant's whole visit history on a bare request.
+    const startedAtRange = resolveVisitPeriodRange(
       query.startedFrom,
       query.startedTo,
     );
@@ -187,13 +215,11 @@ export class VisitsService {
     // (and the day-bucketing expression below): a never-started visit has no
     // startedAt to test against the period, so without this it would drop
     // out of the aggregate the list it recaps still includes.
-    if (startedAtRange?.gte) {
-      conditions.push(
-        Prisma.sql`COALESCE("startedAt", "createdAt") >= ${startedAtRange.gte}`,
-      );
-    }
+    conditions.push(
+      Prisma.sql`COALESCE("startedAt", "createdAt") >= ${startedAtRange.gte}`,
+    );
 
-    if (startedAtRange?.lte) {
+    if (startedAtRange.lte) {
       conditions.push(
         Prisma.sql`COALESCE("startedAt", "createdAt") <= ${startedAtRange.lte}`,
       );
@@ -230,6 +256,7 @@ export class VisitsService {
         completed: Number(row.completed),
         cancelled: Number(row.cancelled),
       })),
+      period: toVisitPeriodResponse(startedAtRange),
     };
   }
 
@@ -1068,12 +1095,14 @@ function resolveVisitRepresentativeFilter(
 function buildVisitWhere(
   context: RequestContext,
   query: ListVisitsQuery,
-): Prisma.VisitWhereInput {
-  const representativeFilter = resolveVisitRepresentativeFilter(context, query);
-  const startedAtRange = buildDateTimeRangeFilter(
+  // Passed in rather than derived here so a caller that builds two WHEREs for
+  // one request (the list and its status totals) pins both to one window.
+  startedAtRange: VisitPeriodRange = resolveVisitPeriodRange(
     query.startedFrom,
     query.startedTo,
-  );
+  ),
+): Prisma.VisitWhereInput {
+  const representativeFilter = resolveVisitRepresentativeFilter(context, query);
 
   return {
     tenantId: context.tenantId,
@@ -1109,18 +1138,75 @@ function buildVisitWhere(
     // filter that also needs its own OR condition would silently overwrite
     // this one otherwise, since object-spread keeps only the last value
     // written to a given key.
-    ...(startedAtRange
-      ? {
-          AND: [
-            {
-              OR: [
-                { startedAt: startedAtRange },
-                { startedAt: null, createdAt: startedAtRange },
-              ],
-            },
-          ],
-        }
-      : {}),
+    AND: [
+      {
+        OR: [
+          { startedAt: startedAtRange },
+          { startedAt: null, createdAt: startedAtRange },
+        ],
+      },
+    ],
+  };
+}
+
+// The deepest any visit query is allowed to reach. Without a floor, a caller
+// that sends no period at all makes the list count and the day-summary GROUP
+// BY sweep a tenant's entire visit history — and the frontend is not the place
+// to enforce that, since an old client, a saved link or a script can all skip
+// it. Clamped rather than rejected: a request for "everything" still answers,
+// it just answers for the last year, so no existing caller breaks.
+export const VISIT_PERIOD_MAX_MONTHS = 12;
+
+// Always bounded below, so every consumer can name the window it is showing.
+export type VisitPeriodRange = { gte: Date; lte?: Date };
+
+// The requested period, floored to VISIT_PERIOD_MAX_MONTHS back from its own
+// upper bound (or from now, when the caller named no end).
+export function resolveVisitPeriodRange(
+  fromValue: unknown,
+  toValue: unknown,
+  now: Date = new Date(),
+): VisitPeriodRange {
+  const range = buildDateTimeRangeFilter(fromValue, toValue);
+  const windowEnd = range?.lte ?? now;
+  const earliest = subtractMonths(windowEnd, VISIT_PERIOD_MAX_MONTHS);
+  const gte =
+    range?.gte && range.gte.getTime() > earliest.getTime()
+      ? range.gte
+      : earliest;
+
+  return { gte, ...(range?.lte ? { lte: range.lte } : {}) };
+}
+
+function subtractMonths(value: Date, months: number): Date {
+  const shifted = new Date(value.getTime());
+
+  shifted.setUTCMonth(shifted.getUTCMonth() - months);
+
+  return shifted;
+}
+
+function toVisitPeriodResponse(range: VisitPeriodRange): VisitPeriodResponse {
+  return {
+    startedFrom: range.gte.toISOString(),
+    startedTo: range.lte ? range.lte.toISOString() : null,
+  };
+}
+
+// `draft` is a real VisitStatus but nothing in the product ever leaves a visit
+// there, so it has no counter of its own — it still rides along in `total`,
+// which is the period's whole count rather than a sum of the three named ones.
+function toVisitStatusTotals(
+  groups: Array<{ status: VisitStatus; _count: { _all: number } }>,
+): VisitStatusTotals {
+  const countOf = (status: VisitStatus) =>
+    groups.find((group) => group.status === status)?._count._all ?? 0;
+
+  return {
+    total: groups.reduce((sum, group) => sum + group._count._all, 0),
+    completed: countOf("completed"),
+    inProgress: countOf("in_progress"),
+    cancelled: countOf("cancelled"),
   };
 }
 

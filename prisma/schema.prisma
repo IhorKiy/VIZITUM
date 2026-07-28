@@ -826,6 +826,11 @@ model Visit {
   aiJobs         AiJob[]
 
   @@unique([routeItemId])
+  // Visit lists and the day summary filter on COALESCE(startedAt, createdAt),
+  // which no index below can serve. The two expression indexes that do
+  // ("visits_tenant_representative_period_idx" and "visits_tenant_period_idx")
+  // live in prisma/migrations/20260728120000_visit_period_indexes — Prisma's
+  // schema language cannot express an index on an expression.
   @@index([tenantId, representativeUserId, startedAt])
   @@index([tenantId, locationId, startedAt])
   @@index([tenantId, routeItemId])

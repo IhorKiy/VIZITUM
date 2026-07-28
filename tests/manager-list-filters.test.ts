@@ -24,6 +24,7 @@ describe("manager list filters", () => {
           return [];
         },
         count: async () => 0,
+        groupBy: async () => [],
       },
     };
     const service = new VisitsService(prisma as never);
@@ -76,6 +77,7 @@ describe("manager list filters", () => {
           return [];
         },
         count: async () => 0,
+        groupBy: async () => [],
       },
     };
     const service = new VisitsService(prisma as never);
@@ -84,10 +86,19 @@ describe("manager list filters", () => {
       status: ["draft", "in_progress"],
     });
 
-    assert.deepEqual(capturedWhere, {
-      tenantId: "tenant-a",
-      status: { in: ["draft", "in_progress"] },
-    });
+    const where = capturedWhere as {
+      tenantId: string;
+      status: unknown;
+      AND: Array<{ OR: Array<{ startedAt?: { gte: Date; lte?: Date } }> }>;
+    };
+
+    assert.equal(where.tenantId, "tenant-a");
+    assert.deepEqual(where.status, { in: ["draft", "in_progress"] });
+    // Even with no period asked for, the query is floored 12 months back
+    // rather than left to sweep the whole table — see the clamp coverage in
+    // tests/visit-period-clamp.test.ts.
+    assert.ok(where.AND[0].OR[0].startedAt?.gte instanceof Date);
+    assert.equal(where.AND[0].OR[0].startedAt?.lte, undefined);
   });
 
   it("falls back to createdAt for the started date range when startedAt is null", async () => {
@@ -99,6 +110,7 @@ describe("manager list filters", () => {
           return [];
         },
         count: async () => 0,
+        groupBy: async () => [],
       },
     };
     const service = new VisitsService(prisma as never);
