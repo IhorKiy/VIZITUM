@@ -48,6 +48,8 @@ export class TasksController {
       routePlanId: normalizeQueryString(query.routePlanId),
       dueFrom: normalizeQueryString(query.dueFrom),
       dueTo: normalizeQueryString(query.dueTo),
+      completedFrom: normalizeQueryString(query.completedFrom),
+      completedTo: normalizeQueryString(query.completedTo),
     });
   }
 

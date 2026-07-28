@@ -1376,10 +1376,27 @@ export async function copyRoutePlansFromLastMonth(input: {
   );
 }
 
+// `completedPeriod` echoes the window the API actually read, present only when
+// the caller asked for one — and optional besides, because for a minute or two
+// during a deploy this frontend talks to the previous API. A screen that needs
+// it must handle its absence rather than draw a window nobody confirmed.
+export type TaskCompletedPeriod = {
+  completedFrom: string;
+  completedTo: string | null;
+};
+
+export type TaskListPage = PaginatedResponse<Task> & {
+  completedPeriod?: TaskCompletedPeriod;
+  // Three states, not two: a day, `null` for "this scope has finished nothing
+  // at all", and absent for "nobody asked / an older API answered". Only the
+  // middle one may withhold the step back to an earlier window.
+  completedHistoryStart?: string | null;
+};
+
 export async function listTasks(
   query = "pageSize=50",
-): Promise<ApiResult<PaginatedResponse<Task>>> {
-  return apiGet<PaginatedResponse<Task>>(`/tasks?${query}`);
+): Promise<ApiResult<TaskListPage>> {
+  return apiGet<TaskListPage>(`/tasks?${query}`);
 }
 
 export async function getAdminSettings(): Promise<ApiResult<TenantSettings>> {

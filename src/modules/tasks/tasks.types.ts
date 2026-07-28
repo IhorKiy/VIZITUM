@@ -58,6 +58,36 @@ export type ListTasksQuery = {
   routePlanId?: string;
   dueFrom?: string;
   dueTo?: string;
+  // When a task was finished, as YYYY-MM-DD calendar days. Only done tasks
+  // carry a `completedAt`, so this filter empties an in-progress list rather
+  // than narrowing it — the screens pair it with `status=done`.
+  completedFrom?: string;
+  completedTo?: string;
+};
+
+// The completion window a query actually ran over, after the maximum-length
+// trim, echoed so a screen can name the window it is really showing rather
+// than the one it asked for. Absent when the caller named no window: unlike
+// visits, a task list is not windowed unless it asks to be (see
+// resolveTaskCompletedRange).
+export type TaskCompletedPeriodResponse = {
+  completedFrom: string;
+  completedTo: string | null;
+};
+
+export type ListTasksResponse = {
+  items: TaskResponse[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  completedPeriod?: TaskCompletedPeriodResponse;
+  // When the earliest task in this scope was finished — the only real bottom of
+  // a done list, since the clamp bounds a window's length rather than how far
+  // back it points. `null` says with authority that this scope has finished
+  // nothing; absent means nobody asked (an unwindowed list) and nothing may be
+  // claimed from it. Those are three different answers, not two.
+  completedHistoryStart?: string | null;
 };
 
 export type CreateTaskRequestBody = {
