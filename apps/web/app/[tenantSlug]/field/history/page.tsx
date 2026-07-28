@@ -590,8 +590,8 @@ function HistoryDays({
   });
   // A day where every workable visit is completed has nothing left to act on,
   // so it steps out of the running list and into one collapsed section at the
-  // bottom — see isDayFullyDone for the two conditions that make it safe to
-  // treat a day as done. `showCompletedShare` is precisely "no pill is active".
+  // bottom — see isDayFullyDone for the conditions that make it safe to treat a
+  // day as done. `showCompletedShare` is precisely "no pill is active".
   //
   // Collected rather than dropped: the rep who goes looking for a day they know
   // they worked still finds it here, in the same list, one tap away — no filter
