@@ -25,11 +25,11 @@ export function LocationAssignmentPill({
   }
 
   if (keeper.kind === "unassigned") {
-    return <span className="location-insight-pill">{t("unassigned")}</span>;
+    return <span className="location-assignment-pill">{t("unassigned")}</span>;
   }
 
   return (
-    <span className="location-insight-pill">
+    <span className="location-assignment-pill">
       {keeper.othersCount > 0
         ? t("keptByOthers", {
             name: keeper.name,

@@ -23,9 +23,11 @@ type LocationPotentialPanelProps = {
   // the edit modal's subtitle and is only read in "cards" mode.
   variant?: "inline" | "cards";
   locationName?: string;
-  // Who keeps this location's record, when the caller knows. Only read to
-  // word the "cards" empty state for a reader who cannot write; the header
-  // pill on the same screen states the same fact.
+  // Who keeps this location's record. Only read to word the "cards" empty
+  // state for a reader who cannot write (the header pill on the same screen
+  // states the same fact), which is why the "inline" callers omit it — but a
+  // "cards" caller that omits it falls back to the wording for a location
+  // someone else keeps, so pass it from that variant.
   keeper?: LocationKeeper;
 };
 
@@ -67,7 +69,13 @@ export function LocationPotentialPanel({
                 and a reader without an assignment here has no "+" to answer
                 it with. On a location nobody keeps there is also no assigned
                 representative to point at, so that case names the manager who
-                closes the gap instead of a person who does not exist. */}
+                closes the gap instead of a person who does not exist.
+
+                A "mine" keeper reaching this branch would be told about
+                itself. No standard role does: every holder of an active
+                assignment also holds location_potential.manage_own, so
+                canManage is true for them. A custom role could break that
+                pairing, and this wording would then need a third case. */}
             <p>
               {canManage
                 ? t("potentialEmptyHint")

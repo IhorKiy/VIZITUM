@@ -24,7 +24,7 @@ type LocationContactsModalProps = {
   deleteAction?: (formData: FormData) => Promise<void>;
   // Passed through to the panel's empty state: this dialog covers the header
   // pill that would otherwise carry the same fact.
-  keeper?: LocationKeeper;
+  keeper: LocationKeeper;
 };
 
 // The contacts manager, opened from an icon button in the location header.

@@ -16,7 +16,10 @@ type LocationContactsPanelProps = {
   locationName: string;
   phoneCountry: string | null;
   // Same use as on the potential panel: wording for a reader who cannot write.
-  keeper?: LocationKeeper;
+  // Required rather than optional — this panel has one caller and no
+  // read-only variant to excuse omitting it, so a future caller cannot
+  // silently fall back to citing a keeper a location may not have.
+  keeper: LocationKeeper;
 };
 
 // Body of the contacts manager modal. A location holds at most two contacts,
@@ -47,7 +50,10 @@ export function LocationContactsPanel({
               screen the writer is the assigned representative — the tenant-wide
               contacts tier belongs to the admin roles, which review locations
               elsewhere, and a team_manager holds neither tier — so an
-              unassigned reader is told who adds them rather than to add them. */}
+              unassigned reader is told who adds them rather than to add them.
+              Carries the same "mine" caveat the potential panel spells out:
+              contacts.manage_own travels with the assignment, so only a custom
+              role could make a keeper read about itself here. */}
           <p>
             {canManage
               ? t("contactsEmptyHint")
