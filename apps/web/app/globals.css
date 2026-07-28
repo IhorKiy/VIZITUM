@@ -3937,6 +3937,21 @@ textarea {
   gap: 3px;
   justify-items: center;
   min-height: 48px;
+  /* Without this a flex item refuses to shrink below its label, so the slots
+     stop dividing the bar and start overflowing it — on a 320px screen the
+     last item simply walked off the edge. The bar divides evenly instead and
+     the label below takes the squeeze. */
+  min-width: 0;
+}
+
+/* The squeeze lands here rather than on the row: an ellipsis on one label is
+   a smaller loss than a nav item pushed off-screen, and it keeps the bar at
+   the fixed --mobile-nav-height everything pinned above it is offset by. */
+.mobile-nav-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mobile-nav-link[aria-current="page"] {

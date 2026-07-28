@@ -31,10 +31,11 @@ type PlanningPageProps = {
     month?: string;
     date?: string;
     planning?: string;
-    // Only read to recognise a link written for the old combined screen; see
-    // the redirect below.
+    // Only read to recognise and forward a link written for the old combined
+    // screen; see the redirect below.
     tab?: string;
     route?: string;
+    template?: string;
   }>;
 };
 
@@ -43,16 +44,32 @@ export default async function PlanningPage({
   searchParams,
 }: PlanningPageProps) {
   const { tenantSlug } = await params;
-  const { tab, route, month, date, planning } = await searchParams;
+  const { tab, route, template, month, date, planning } = await searchParams;
 
   // Routes moved to their own screen and nav entry. Links written for the old
   // tabbed screen — bookmarks, a `from` origin already handed out, the route
   // editor's own deep links — still name this path, so they are forwarded
   // rather than silently landing on the calendar.
-  if (tab === "routes" || route) {
+  //
+  // The whole shape travels, not just the path: a redirect landing mid-flight
+  // from a server action (`?template=created`) would otherwise swallow the
+  // notice that says the action worked.
+  if (tab === "routes" || route || template) {
+    const forwarded = new URLSearchParams();
+
+    if (route) {
+      forwarded.set("route", route);
+    }
+
+    if (template) {
+      forwarded.set("template", template);
+    }
+
+    const search = forwarded.toString();
+
     redirect(
-      route
-        ? `/${tenantSlug}/field/routes?route=${encodeURIComponent(route)}`
+      search
+        ? `/${tenantSlug}/field/routes?${search}`
         : `/${tenantSlug}/field/routes`,
     );
   }
