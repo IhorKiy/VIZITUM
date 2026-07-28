@@ -28,7 +28,7 @@ export default async function FieldHelpPage({
   // is resolved here; a deep link falls back to the home route.
   const backTarget = resolveBackTarget(tenantSlug, from, {
     href: `/${tenantSlug}/field`,
-    labelKey: "route",
+    labelKey: "home",
   });
   const questions = ["faq1", "faq2", "faq3", "faq4", "faq5"] as const;
 

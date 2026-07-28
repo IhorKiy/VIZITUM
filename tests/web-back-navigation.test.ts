@@ -64,7 +64,7 @@ describe("resolveBackTarget", () => {
 
     const fromReport = resolveBackTarget("acme", cardOrigin, {
       href: "/acme/field",
-      labelKey: "route",
+      labelKey: "home",
     });
 
     assert.equal(fromReport.labelKey, "location");
@@ -84,7 +84,7 @@ describe("resolveBackTarget", () => {
     // The menu hangs off every field screen, so Help/Locations/Products have
     // no single opener: help opened from tasks must go back to tasks, and the
     // home route is only the deep-link fallback.
-    const menuFallback: BackTarget = { href: "/acme/field", labelKey: "route" };
+    const menuFallback: BackTarget = { href: "/acme/field", labelKey: "home" };
 
     assert.deepEqual(
       resolveBackTarget("acme", "/field/tasks", menuFallback),
@@ -94,6 +94,13 @@ describe("resolveBackTarget", () => {
       resolveBackTarget("acme", "/field/planning", menuFallback),
       { href: "/acme/field/planning", labelKey: "routes" },
     );
+    // `/field` is "Home" in the bottom nav, and the label table has to agree:
+    // the screen leads with today's route, but a control that says "back to
+    // route" names the content rather than the destination.
+    assert.deepEqual(resolveBackTarget("acme", "/field", menuFallback), {
+      href: "/acme/field",
+      labelKey: "home",
+    });
     // A screen the allowlist doesn't name (the menu is rendered on those too)
     // silently falls back rather than advertising an unnamed destination.
     assert.deepEqual(
@@ -236,7 +243,7 @@ describe("resolveBackTarget", () => {
 
     const fromReport = resolveBackTarget("acme", historyOrigin, {
       href: "/acme/field",
-      labelKey: "route",
+      labelKey: "home",
     });
 
     assert.equal(fromReport.labelKey, "locationHistory");

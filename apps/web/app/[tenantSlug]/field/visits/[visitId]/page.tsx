@@ -84,7 +84,7 @@ export default async function VisitDetailPage({
             href: `/${tenantSlug}/field/locations/${demoLocationId}`,
             labelKey: "location",
           }
-        : { href: `/${tenantSlug}/field`, labelKey: "route" },
+        : { href: `/${tenantSlug}/field`, labelKey: "home" },
     );
 
     return (
@@ -120,7 +120,7 @@ export default async function VisitDetailPage({
     // destination this branch can name.
     const notFoundBackTarget = resolveBackTarget(tenantSlug, from, {
       href: `/${tenantSlug}/field`,
-      labelKey: "route",
+      labelKey: "home",
     });
 
     return (

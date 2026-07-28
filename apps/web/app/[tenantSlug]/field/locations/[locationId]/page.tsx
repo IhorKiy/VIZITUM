@@ -92,7 +92,7 @@ export default async function LocationDetailPage({
   // only as the deep-link fallback.
   const backTarget = resolveBackTarget(tenantSlug, from, {
     href: `/${tenantSlug}/field`,
-    labelKey: "route",
+    labelKey: "home",
   });
   // The card's own identity: the route-stop context it was opened on plus the
   // screen it was opened from. Every redirect back to this card replays it, so

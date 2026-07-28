@@ -97,7 +97,7 @@ export default async function FieldLocationsPage({
   // "back" lands is whatever screen the menu was opened on.
   const backTarget = resolveBackTarget(tenantSlug, pageState.from, {
     href: `/${tenantSlug}/field`,
-    labelKey: "route",
+    labelKey: "home",
   });
   const selectedStatus = normalizeLocationStatus(pageState.status);
   const selectedCity = normalizeFilterValue(pageState.city);

@@ -21,7 +21,11 @@
 
 /** Message key under `common.back` — the label always names the real destination. */
 export type BackLabelKey =
-  | "route"
+  // `/field` is "Home" in the bottom nav, so the label that names it says so
+  // too — the screen leads with today's route, but the route is its content,
+  // not its name. Kept distinct from `routes` (`/field/planning`), which is a
+  // different destination entirely.
+  | "home"
   | "routes"
   | "tasks"
   | "history"
@@ -46,7 +50,7 @@ export type BackTarget = {
  * harmless — anything not listed here falls back to the caller's default.
  */
 const RETURNABLE_SCREENS: { pattern: RegExp; labelKey: BackLabelKey }[] = [
-  { pattern: /^\/field$/, labelKey: "route" },
+  { pattern: /^\/field$/, labelKey: "home" },
   { pattern: /^\/field\/planning$/, labelKey: "routes" },
   { pattern: /^\/field\/tasks$/, labelKey: "tasks" },
   { pattern: /^\/field\/history$/, labelKey: "history" },

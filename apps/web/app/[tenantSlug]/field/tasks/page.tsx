@@ -339,7 +339,7 @@ export default async function FieldTasksPage({
   if (!tasksResult.ok) {
     return (
       <AppShell activeArea="field-tasks" tenantSlug={tenantSlug}>
-        <BackLink href={`/${tenantSlug}/field`} label={tBack("route")} />
+        <BackLink href={`/${tenantSlug}/field`} label={tBack("home")} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>

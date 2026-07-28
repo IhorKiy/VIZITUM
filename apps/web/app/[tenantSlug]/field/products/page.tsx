@@ -94,7 +94,7 @@ export default async function FieldProductsPage({
   // "back" lands is whatever screen the menu was opened on.
   const backTarget = resolveBackTarget(tenantSlug, pageState.from, {
     href: `/${tenantSlug}/field`,
-    labelKey: "route",
+    labelKey: "home",
   });
 
   // The menu hides this entry when the tenant runs without a catalogue, but an

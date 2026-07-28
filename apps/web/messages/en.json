@@ -26,7 +26,7 @@
     "notSet": "not set",
     "unknown": "Unknown",
     "back": {
-      "route": "Back to route",
+      "home": "Back to home",
       "routes": "Back to routes",
       "tasks": "Back to tasks",
       "history": "Back to history",
