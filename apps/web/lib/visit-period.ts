@@ -3,10 +3,14 @@
 //
 // Why a window at all: a visit list with no period names no denominator ("59
 // visits" — since when?) and asks the API to sweep a tenant's whole history to
-// answer it. So the screens always send one, and always say which one. The API
-// clamps anything deeper than 12 months regardless (VISIT_PERIOD_MAX_MONTHS in
-// src/modules/visits/visits.service.ts), but the named default lives here: the
-// clamp is a floor against bad callers, not a window a person chose.
+// answer it. So the screens always send one, and always say which one.
+//
+// The API caps how *long* one window may be — 12 months (VISIT_PERIOD_MAX_MONTHS
+// in src/modules/visits/visits.service.ts) — but never how far back it points:
+// a range two years in the past is answered as asked, as long as it is short
+// enough. That cap is a per-request cost ceiling against bad callers, not a
+// horizon on the data and not a window a person chose; the named default lives
+// here instead.
 
 import type { useTranslations } from "next-intl";
 
@@ -43,6 +47,11 @@ export type VisitPeriod = {
   // "the rep chose 30 days" from "nobody chose anything yet" — the second one
   // must not light up the filter panel's active dot.
   isDefault: boolean;
+  // True when the request was longer than one window may be and the API
+  // trimmed it. The data behind the trimmed part still exists — it just needs
+  // asking for in its own window — so a screen says so rather than implying
+  // the history ends here.
+  clamped: boolean;
 };
 
 /**
@@ -147,36 +156,47 @@ export function resolveVisitPeriod(
     isDefault:
       ordered.startedFrom === fallback.startedFrom &&
       ordered.startedTo === fallback.startedTo,
+    clamped: false,
   };
 }
 
 /**
- * How deep the API will actually read, as a calendar day in the tenant's
- * timezone: it floors every visit query 12 months back (see
- * VISIT_PERIOD_MAX_MONTHS in src/modules/visits/visits.service.ts).
+ * The longest a single window may be, as the API enforces it. Not a horizon:
+ * an older range still returns its data, it just has to be asked for in
+ * windows of at most this length.
  */
 export const VISIT_PERIOD_MAX_MONTHS = 12;
 
-export function visitPeriodFloor(
+/**
+ * Where this history actually begins, as a calendar day in the tenant's
+ * timezone — the day of the earliest visit in scope, which only the API can
+ * know (`historyStart` on the day-summary response).
+ *
+ * This replaced an arithmetic floor of "today minus 12 months", which was
+ * describing a contract that does not exist: the clamp bounds a window's
+ * length, so a rep can always reach further back by naming an earlier range.
+ * The only true bottom of the list is the first visit ever recorded.
+ *
+ * `null` when the scope holds no visits at all, or when the API did not say
+ * (an older build during a deploy) — in both cases the caller has no floor to
+ * announce and should say nothing rather than guess.
+ */
+export function visitHistoryFloor(
+  historyStart: string | null | undefined,
   timeZone: string,
-  now: Date = new Date(),
-): string {
-  const today = todayInTimeZone(timeZone, now);
-  const [year, month, day] = today.split("-").map(Number);
-
-  return new Date(Date.UTC(year, month - 1 - VISIT_PERIOD_MAX_MONTHS, day))
-    .toISOString()
-    .slice(0, 10);
+): string | null {
+  return historyStart ? dayInTimeZone(timeZone, new Date(historyStart)) : null;
 }
 
 /**
  * The window as the API actually read it, which is the one worth naming.
  *
- * A saved link or an old tab can ask for a start deeper than the 12-month
- * ceiling; the API quietly raises it, and a header that still announced the
- * requested range would be claiming visits nobody looked for. Comparing in
- * calendar days (the API answers in instants) keeps this from firing on the
- * sub-second difference between an end-of-day bound and its own echo.
+ * A saved link or an old tab can ask for a window longer than the 12-month
+ * maximum; the API trims it from the near end, and a header that still
+ * announced the requested range would be claiming visits nobody looked for.
+ * Comparing in calendar days (the API answers in instants) keeps this from
+ * firing on the sub-second difference between an end-of-day bound and its own
+ * echo. The trimmed-away data is still reachable — see `clamped`.
  */
 export function visitPeriodAsRead(
   period: VisitPeriod,
@@ -196,9 +216,10 @@ export function visitPeriodAsRead(
   return {
     ...period,
     startedFrom: readFrom,
-    // A clamped window is nobody's preset and nobody's default.
+    // A trimmed window is nobody's preset and nobody's default.
     preset: "custom",
     isDefault: false,
+    clamped: true,
   };
 }
 

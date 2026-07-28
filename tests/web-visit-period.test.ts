@@ -4,8 +4,8 @@ import { describe, it } from "node:test";
 import {
   previousVisitPeriod,
   resolveVisitPeriod,
+  visitHistoryFloor,
   visitPeriodAsRead,
-  visitPeriodFloor,
   visitPeriodPresetRange,
 } from "../apps/web/lib/visit-period";
 
@@ -27,6 +27,7 @@ describe("visit period window (web)", () => {
       startedTo: "2026-07-28",
       preset: "month",
       isDefault: true,
+      clamped: false,
     });
   });
 
@@ -87,17 +88,55 @@ describe("visit period window (web)", () => {
     assert.equal(untouched.startedFrom, requested.startedFrom);
   });
 
-  it("knows how far back the history reaches, so the handover can stop there", () => {
-    const floor = visitPeriodFloor(kyiv, lateEvening);
+  // Two endings the screen must not confuse. Hitting the maximum window length
+  // is not the bottom of the history: the API caps how long one window may be,
+  // never how far back it points, so the data behind a trimmed window is one
+  // date range away. Only the first visit ever recorded is a real bottom.
+  it("takes the history floor from the earliest visit, not from arithmetic on today", () => {
+    // The API reports it as an instant; the floor is its day in the tenant's
+    // timezone, which is where the day-keyed windows are compared.
+    assert.equal(
+      visitHistoryFloor("2024-03-05T22:30:00.000Z", kyiv),
+      "2024-03-06",
+    );
+    // No visits in scope, or an older API that doesn't report it: no floor to
+    // announce, so the screen claims nothing.
+    assert.equal(visitHistoryFloor(null, kyiv), null);
+    assert.equal(visitHistoryFloor(undefined, kyiv), null);
+  });
 
-    assert.equal(floor, "2025-07-28");
-    // A window already sitting on the floor has nothing behind it to offer.
-    const oldest = resolveVisitPeriod(
-      { startedFrom: "2025-07-28", startedTo: "2025-08-26" },
+  it("separates 'window was trimmed' from 'history ends here'", () => {
+    const requested = resolveVisitPeriod(
+      { startedFrom: "2019-01-01", startedTo: "2026-07-28" },
       kyiv,
       lateEvening,
     );
-    assert.ok(previousVisitPeriod(oldest).startedTo < floor);
+    const trimmed = visitPeriodAsRead(
+      requested,
+      { startedFrom: "2025-07-28T00:00:00.000Z", startedTo: null },
+      kyiv,
+    );
+    const floor = visitHistoryFloor("2019-05-04T09:00:00.000Z", kyiv);
+
+    // The window was capped at 12 months...
+    assert.equal(trimmed.clamped, true);
+    // ...but visits from 2019 still exist, so the step back is real and the
+    // screen must not announce an end.
+    assert.ok(previousVisitPeriod(trimmed).startedTo >= (floor as string));
+  });
+
+  it("stops the handover at the first recorded visit", () => {
+    const oldest = resolveVisitPeriod(
+      { startedFrom: "2024-03-06", startedTo: "2024-04-04" },
+      kyiv,
+      lateEvening,
+    );
+    const floor = visitHistoryFloor("2024-03-05T22:30:00.000Z", kyiv);
+
+    assert.equal(oldest.clamped, false);
+    // Everything behind this window predates the first visit — there is
+    // genuinely nothing left to step back to.
+    assert.ok(previousVisitPeriod(oldest).startedTo < (floor as string));
   });
 
   it("lights the preset pill whose window the URL happens to name", () => {
@@ -139,6 +178,7 @@ describe("visit period window (web)", () => {
       startedTo: "2026-06-30",
       preset: "custom",
       isDefault: false,
+      clamped: false,
     });
     assert.equal(openEnd.startedTo, "2026-07-28");
   });

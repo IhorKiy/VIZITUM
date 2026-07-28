@@ -200,21 +200,22 @@ export default async function ManagerVisitsPage({
 
   const visits = visitsResult.data.items;
   const totalPages = visitsResult.data.totalPages;
-  // What the API actually read, which is what the cards name: a saved link
-  // asking past the 12-month ceiling gets quietly raised, and a card that
-  // still announced the requested range would be counting a wider window than
-  // the one it read.
+  // What the API actually read, which is what the cards name: a window longer
+  // than the 12-month maximum comes back trimmed, and a card that still
+  // announced the requested range would be counting a wider window than the
+  // one it read.
   const period = visitPeriodAsRead(
     requestedPeriod,
     visitsResult.data.period,
     timeZone,
   );
   const periodLabel = visitPeriodLabel(tPeriod, format, period);
-  const counters = buildVisitCounters(
-    visitsResult.data.statusTotals,
-    periodLabel,
-    t,
-  );
+  // Absent for a minute or two mid-deploy, when this build is already serving
+  // pages against the previous API. Three cards reading zero above a list full
+  // of visits would be worse than no cards, so the row sits it out.
+  const counters = visitsResult.data.statusTotals
+    ? buildVisitCounters(visitsResult.data.statusTotals, periodLabel, t)
+    : [];
   const pageHref = (targetPage: number) => {
     const params = new URLSearchParams(query);
     params.delete("pageSize");
@@ -250,22 +251,24 @@ export default async function ManagerVisitsPage({
         </div>
       </header>
 
-      <section className="manager-grid" aria-label={t("metricsAria")}>
-        {counters.map((counter) => (
-          <article className="metric-card" key={counter.label}>
-            <header>
-              <p className="metric-label">{counter.label}</p>
-              <span className={`status-pill ${counter.tone}`}>
-                {counter.tone === "active"
-                  ? tCommon("tone.ok")
-                  : tCommon(`tone.${counter.tone}`)}
-              </span>
-            </header>
-            <p className="metric-value">{counter.value}</p>
-            <p className="small-label">{counter.detail}</p>
-          </article>
-        ))}
-      </section>
+      {counters.length > 0 ? (
+        <section className="manager-grid" aria-label={t("metricsAria")}>
+          {counters.map((counter) => (
+            <article className="metric-card" key={counter.label}>
+              <header>
+                <p className="metric-label">{counter.label}</p>
+                <span className={`status-pill ${counter.tone}`}>
+                  {counter.tone === "active"
+                    ? tCommon("tone.ok")
+                    : tCommon(`tone.${counter.tone}`)}
+                </span>
+              </header>
+              <p className="metric-value">{counter.value}</p>
+              <p className="small-label">{counter.detail}</p>
+            </article>
+          ))}
+        </section>
+      ) : null}
 
       <section aria-label={t("visitList")} className="panel drilldown-panel">
         <FilterForm action={`/${tenantSlug}/manager/visits`}>

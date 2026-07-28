@@ -24,8 +24,8 @@ import { formatEnumLabel, statusPillTone } from "../../../../lib/format";
 import {
   previousVisitPeriod,
   resolveVisitPeriod,
+  visitHistoryFloor,
   visitPeriodAsRead,
-  visitPeriodFloor,
   visitPeriodLabel,
   VISIT_PERIOD_MAX_MONTHS,
 } from "../../../../lib/visit-period";
@@ -191,9 +191,10 @@ export default async function FieldHistoryPage({
 
   const visits = visitsResult.data.items;
   const totalPages = visitsResult.data.totalPages;
-  // What the API actually read, which is what the recap names: a saved link
-  // asking for a start deeper than the 12-month ceiling gets quietly raised,
-  // and announcing the requested range would claim visits nobody looked for.
+  // What the API actually read, which is what the recap names: a window longer
+  // than the 12-month maximum comes back trimmed, and announcing the requested
+  // range would claim visits nobody looked for. The trimmed-away months are
+  // still reachable — as their own window, which the note under the list says.
   const period = visitPeriodAsRead(
     requestedPeriod,
     visitsResult.data.period,
@@ -203,11 +204,14 @@ export default async function FieldHistoryPage({
   // The whole period's split, ignoring the status pill — it arrives with the
   // list itself, so picking a pill promotes one of these numbers to the front
   // of the line without asking the API anything more.
-  const counts = buildHistoryCounts(
-    visitsResult.data.statusTotals,
-    selectedStatus,
-    t,
-  );
+  //
+  // Absent for a minute or two mid-deploy, when this build is already serving
+  // pages against the previous API. A recap reading "0 visits" above a list of
+  // visible cards is worse than no recap, so the whole line sits it out.
+  const statusTotals = visitsResult.data.statusTotals;
+  const counts = statusTotals
+    ? buildHistoryCounts(statusTotals, selectedStatus, t)
+    : [];
   const pageHref = (targetPage: number) => {
     const params = new URLSearchParams(query);
     params.delete("pageSize");
@@ -227,15 +231,22 @@ export default async function FieldHistoryPage({
   // Where the list continues once this window is read out: the window of the
   // same length immediately behind it, on page one.
   const earlier = previousVisitPeriod(period);
-  // ...unless there is nothing behind it. The API reads back 12 months and no
-  // further, so a window already sitting on that floor has no earlier period
-  // to offer — without this the handover would walk into empty window after
-  // empty window forever. The ceiling is the honest signal here and it costs
-  // nothing: no probing request, no guess about whether a window happens to be
-  // empty (an empty *month* inside the covered year is a real answer, and the
-  // step back is still the right move there).
-  const historyFloor = visitPeriodFloor(timeZone);
-  const hasEarlierPeriod = earlier.startedTo >= historyFloor;
+  // ...unless there is nothing behind it. The bottom of this list is the rep's
+  // own first visit, which only the API can name (`historyStart`, unbounded by
+  // the window and scoped exactly like the day aggregate). It is *not* "twelve
+  // months ago": the API caps how long one window may be, not how far back a
+  // window may point, so a rep who names an older range still gets its data.
+  // Without a real floor the handover would either walk into empty window
+  // after empty window forever, or stop at a line the data doesn't have.
+  const historyFloor = visitHistoryFloor(
+    daySummaryResult.ok ? daySummaryResult.data.historyStart : null,
+    timeZone,
+  );
+  // No floor reported (a scope with no visits, or an older API mid-deploy)
+  // means no claim to make: the step back stays offered rather than announcing
+  // an end nobody confirmed.
+  const hasEarlierPeriod =
+    historyFloor === null || earlier.startedTo >= historyFloor;
   const earlierPeriodParams = new URLSearchParams({
     startedFrom: earlier.startedFrom,
     startedTo: earlier.startedTo,
@@ -248,17 +259,36 @@ export default async function FieldHistoryPage({
     ...earlier,
     preset: "custom",
   });
-  const earlierPeriodLink = hasEarlierPeriod ? (
-    <a
-      className="secondary-button"
-      href={`/${tenantSlug}/field/history?${earlierPeriodParams.toString()}`}
-    >
-      {t("periodEarlier", { period: earlierPeriodLabel })}
-    </a>
-  ) : (
-    <p className="small-label">
-      {t("periodFloorReached", { months: VISIT_PERIOD_MAX_MONTHS })}
-    </p>
+  // Two different endings, which the old copy collapsed into one false claim.
+  // Reaching the first visit really is the end of the history. Hitting the
+  // maximum window length is not — the months behind a trimmed window are one
+  // date range away — so that case points at the filter instead of announcing
+  // a bottom, and the step back stays offered.
+  //
+  // The trimmed note stands down once the first visit is inside the window:
+  // "nothing was recorded before this" is the stronger, more specific answer,
+  // and inviting someone to dig deeper for data that does not exist is exactly
+  // the walk-into-nothing this whole block exists to prevent.
+  const earlierPeriodLink = (
+    <>
+      {hasEarlierPeriod ? (
+        <>
+          <a
+            className="secondary-button"
+            href={`/${tenantSlug}/field/history?${earlierPeriodParams.toString()}`}
+          >
+            {t("periodEarlier", { period: earlierPeriodLabel })}
+          </a>
+          {period.clamped ? (
+            <p className="small-label">
+              {t("periodWindowCapped", { months: VISIT_PERIOD_MAX_MONTHS })}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="small-label">{t("periodOldestReached")}</p>
+      )}
+    </>
   );
 
   return (
@@ -336,12 +366,14 @@ export default async function FieldHistoryPage({
             reads as its own label anyway. */}
         {/* The period leads the line: a count with no window behind it is a
             number without a denominator. */}
-        <p className="visit-count-summary">
-          <strong>{periodLabel}</strong>
-          {counts.map((part) => (
-            <span key={part}>{part}</span>
-          ))}
-        </p>
+        {statusTotals ? (
+          <p className="visit-count-summary">
+            <strong>{periodLabel}</strong>
+            {counts.map((part) => (
+              <span key={part}>{part}</span>
+            ))}
+          </p>
+        ) : null}
 
         {visits.length > 0 ? (
           <>
