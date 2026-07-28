@@ -20,6 +20,7 @@ import {
 } from "../../../../lib/api-client";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { formatCancellationReason } from "../../../../lib/visit-cancellation";
+import { isDayFullyDone } from "../../../../lib/visit-history-days";
 import { formatEnumLabel, statusPillTone } from "../../../../lib/format";
 import {
   hasEarlierPeriod as canStepBack,
@@ -554,143 +555,206 @@ function HistoryDays({
     return sum;
   };
 
-  return (
-    <div className="visit-day-groups">
-      {groups.map((group, groupIndex) => {
-        const summaryEntry = daySummaryByDay.get(group.key);
-        const completed =
-          summaryEntry?.completed ??
-          group.visits.filter((visit) => visit.status === "completed").length;
-        const count = summaryEntry?.total ?? group.visits.length;
-        const cancelled =
-          summaryEntry?.cancelled ??
-          group.visits.filter((visit) => visit.status === "cancelled").length;
-        const isContinuedFromPreviousPage =
-          groupIndex === 0 &&
-          page > 1 &&
-          daySummary !== null &&
-          cumulativeBeforeDay(group.key) < (page - 1) * pageSize;
-        // The share, not the tally: how a day went is one number, and the day
-        // opens onto its own visits for anyone who wants them counted. The raw
-        // tally stays on the hover title.
-        //
-        // Cancelled visits leave the denominator: they were closed with a
-        // reason, not left undone, so a day of four completed and four
-        // cancelled reads as finished rather than half done. A day that was
-        // cancelled outright has nothing left to take a share of, so it shows
-        // no percentage at all — its cards carry the cancelled pill.
-        const workable = count - cancelled;
-        const completedPercent =
-          workable > 0 ? Math.round((completed / workable) * 100) : null;
-        const dayDate = new Date(visitDayTimestamp(group.visits[0]));
-        const isToday = group.key === todayKey;
-        const isYesterday = group.key === yesterdayKey;
-        // The date leads; the weekday is an aid for placing a day the rep still
-        // remembers by name, so it only rides along for the current week and
-        // drops off entirely further back.
-        const isThisWeek = group.key >= weekStartKey;
-        const dateLabel = format.dateTime(dayDate, {
-          day: "numeric",
-          month: "long",
-          // Only spell the year out once the history reaches back past the
-          // current one, where day and month alone stop placing the day.
-          ...(group.key.slice(0, 4) === todayKey.slice(0, 4)
-            ? {}
-            : { year: "numeric" }),
-        });
-        const dayLabel = isToday
-          ? t("dayToday", { date: dateLabel })
-          : isYesterday
-            ? t("dayYesterday", { date: dateLabel })
-            : isThisWeek
-              ? t("dayWithWeekday", {
-                  date: dateLabel,
-                  weekday: format.dateTime(dayDate, { weekday: "long" }),
-                })
-              : dateLabel;
+  // Each day's recap numbers, resolved once so the fully-done filter below and
+  // the rendered header read the same figures.
+  const groupsWithStats = groups.map((group, groupIndex) => {
+    const summaryEntry = daySummaryByDay.get(group.key);
+    const completed =
+      summaryEntry?.completed ??
+      group.visits.filter((visit) => visit.status === "completed").length;
+    const count = summaryEntry?.total ?? group.visits.length;
+    const cancelled =
+      summaryEntry?.cancelled ??
+      group.visits.filter((visit) => visit.status === "cancelled").length;
+    // The share, not the tally: how a day went is one number, and the day
+    // opens onto its own visits for anyone who wants them counted. The raw
+    // tally stays on the hover title.
+    //
+    // Cancelled visits leave the denominator: they were closed with a
+    // reason, not left undone, so a day of four completed and four
+    // cancelled reads as finished rather than half done. A day that was
+    // cancelled outright has nothing left to take a share of, so it shows
+    // no percentage at all — its cards carry the cancelled pill.
+    const workable = count - cancelled;
+    const completedPercent =
+      workable > 0 ? Math.round((completed / workable) * 100) : null;
 
-        return (
-          <details className="visit-day" key={group.key}>
-            {/* The day is the level above the visit cards, whose titles are
+    return {
+      cancelled,
+      completed,
+      completedPercent,
+      group,
+      groupIndex,
+      workable,
+    };
+  });
+  // A day where every workable visit is completed has nothing left to act on,
+  // so it steps out of the running list and into one collapsed section at the
+  // bottom — see isDayFullyDone for the conditions that make it safe to treat a
+  // day as done. `showCompletedShare` is precisely "no pill is active".
+  //
+  // Collected rather than dropped: the rep who goes looking for a day they know
+  // they worked still finds it here, in the same list, one tap away — no filter
+  // change, no lost scroll position.
+  const openGroups: typeof groupsWithStats = [];
+  const doneGroups: typeof groupsWithStats = [];
+
+  for (const entry of groupsWithStats) {
+    const bucket = isDayFullyDone({
+      completed: entry.completed,
+      dayTotalsTrusted: daySummary !== null,
+      statusFilterActive: !showCompletedShare,
+      workable: entry.workable,
+    })
+      ? doneGroups
+      : openGroups;
+
+    bucket.push(entry);
+  }
+
+  // One day, rendered the same whether it sits in the running list or inside
+  // the collapsed section — a completed day keeps its header, its share and its
+  // visit cards, it just isn't in the way.
+  const renderDay = ({
+    cancelled,
+    completed,
+    completedPercent,
+    group,
+    groupIndex,
+    workable,
+  }: (typeof groupsWithStats)[number]) => {
+    const isContinuedFromPreviousPage =
+      groupIndex === 0 &&
+      page > 1 &&
+      daySummary !== null &&
+      cumulativeBeforeDay(group.key) < (page - 1) * pageSize;
+    const dayDate = new Date(visitDayTimestamp(group.visits[0]));
+    const isToday = group.key === todayKey;
+    const isYesterday = group.key === yesterdayKey;
+    // The date leads; the weekday is an aid for placing a day the rep still
+    // remembers by name, so it only rides along for the current week and
+    // drops off entirely further back.
+    const isThisWeek = group.key >= weekStartKey;
+    const dateLabel = format.dateTime(dayDate, {
+      day: "numeric",
+      month: "long",
+      // Only spell the year out once the history reaches back past the
+      // current one, where day and month alone stop placing the day.
+      ...(group.key.slice(0, 4) === todayKey.slice(0, 4)
+        ? {}
+        : { year: "numeric" }),
+    });
+    const dayLabel = isToday
+      ? t("dayToday", { date: dateLabel })
+      : isYesterday
+        ? t("dayYesterday", { date: dateLabel })
+        : isThisWeek
+          ? t("dayWithWeekday", {
+              date: dateLabel,
+              weekday: format.dateTime(dayDate, { weekday: "long" }),
+            })
+          : dateLabel;
+
+    return (
+      <details className="visit-day" key={group.key}>
+        {/* The day is the level above the visit cards, whose titles are
                 h3s — so it takes h2 and the page's h1 stays the only one. */}
-            <summary className="visit-day-header">
-              <span className="visit-day-header-text">
-                <h2>{dayLabel}</h2>
-                {isContinuedFromPreviousPage ? (
-                  <span className="small-label">{t("dayContinued")}</span>
-                ) : null}
-                {showCompletedShare && completedPercent !== null ? (
-                  <span
-                    className="small-label"
-                    title={
-                      cancelled > 0
-                        ? t("daySummaryTitleCancelled", {
-                            cancelled,
-                            completed,
-                            count: workable,
-                          })
-                        : t("daySummaryTitle", { completed, count: workable })
-                    }
-                  >
-                    {t("daySummary", { completedPercent })}
-                  </span>
-                ) : null}
+        <summary className="visit-day-header">
+          <span className="visit-day-header-text">
+            <h2>{dayLabel}</h2>
+            {isContinuedFromPreviousPage ? (
+              <span className="small-label">{t("dayContinued")}</span>
+            ) : null}
+            {showCompletedShare && completedPercent !== null ? (
+              <span
+                className="small-label"
+                title={
+                  cancelled > 0
+                    ? t("daySummaryTitleCancelled", {
+                        cancelled,
+                        completed,
+                        count: workable,
+                      })
+                    : t("daySummaryTitle", { completed, count: workable })
+                }
+              >
+                {t("daySummary", { completedPercent })}
               </span>
-              <span aria-hidden="true" className="visit-day-chevron">
-                <ChevronDownIcon />
-              </span>
-            </summary>
-            <div className="field-card-list">
-              {group.visits.map((visit) => {
-                const unfinished = visit.status === "in_progress";
+            ) : null}
+          </span>
+          <span aria-hidden="true" className="visit-day-chevron">
+            <ChevronDownIcon />
+          </span>
+        </summary>
+        <div className="field-card-list">
+          {group.visits.map((visit) => {
+            const unfinished = visit.status === "in_progress";
 
-                return (
-                  <a
-                    className={`location-mini-card location-mini-card-link visit-history-card${
-                      unfinished ? " is-unfinished" : ""
-                    }`}
-                    href={withBackOrigin(
-                      `/${tenantSlug}/field/visits/${visit.id}`,
-                      origin,
-                    )}
-                    key={visit.id}
+            return (
+              <a
+                className={`location-mini-card location-mini-card-link visit-history-card${
+                  unfinished ? " is-unfinished" : ""
+                }`}
+                href={withBackOrigin(
+                  `/${tenantSlug}/field/visits/${visit.id}`,
+                  origin,
+                )}
+                key={visit.id}
+              >
+                <header>
+                  <div>
+                    <h3>{visit.location.name}</h3>
+                    <p>
+                      {[visit.location.addressLine, visit.location.city]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  </div>
+                  <span
+                    className={`status-pill ${statusPillTone(visit.status)}`}
                   >
-                    <header>
-                      <div>
-                        <h3>{visit.location.name}</h3>
-                        <p>
-                          {[visit.location.addressLine, visit.location.city]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </p>
-                      </div>
-                      <span
-                        className={`status-pill ${statusPillTone(visit.status)}`}
-                      >
-                        {formatEnumLabel(tCommon, visit.status)}
-                      </span>
-                    </header>
-                    {/* Why a visit was cancelled is the one thing the card
+                    {formatEnumLabel(tCommon, visit.status)}
+                  </span>
+                </header>
+                {/* Why a visit was cancelled is the one thing the card
                         can't convey with its status pill alone, so it stays
                         even on the slimmed-down card. */}
-                    {visit.status === "cancelled" &&
-                    visit.cancellationReason ? (
-                      <p className="visit-meta">
-                        {t("cancelReasonLabel")}
-                        {": "}
-                        {formatCancellationReason(
-                          tCommon,
-                          visit.cancellationReason,
-                        )}
-                      </p>
-                    ) : null}
-                  </a>
-                );
-              })}
-            </div>
-          </details>
-        );
-      })}
+                {visit.status === "cancelled" && visit.cancellationReason ? (
+                  <p className="visit-meta">
+                    {t("cancelReasonLabel")}
+                    {": "}
+                    {formatCancellationReason(
+                      tCommon,
+                      visit.cancellationReason,
+                    )}
+                  </p>
+                ) : null}
+              </a>
+            );
+          })}
+        </div>
+      </details>
+    );
+  };
+
+  return (
+    <div className="visit-day-groups">
+      {openGroups.map(renderDay)}
+      {doneGroups.length > 0 ? (
+        <details className="visit-days-done">
+          <summary className="visit-days-done-header">
+            <span className="small-label">
+              {t("completedDaysSection", { count: doneGroups.length })}
+            </span>
+            <span aria-hidden="true" className="visit-day-chevron">
+              <ChevronDownIcon />
+            </span>
+          </summary>
+          <div className="visit-days-done-list">
+            {doneGroups.map(renderDay)}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
