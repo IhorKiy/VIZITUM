@@ -57,7 +57,14 @@ export function LocationPotentialPanel({
               <BanknoteIcon size={28} />
             </span>
             <h2>{t("potentialEmptyTitle")}</h2>
-            <p>{t("potentialEmptyHint")}</p>
+            {/* The title states a fact either way; only the hint may invite,
+                and a reader without an assignment here has no "+" to answer
+                it with. */}
+            <p>
+              {canManage
+                ? t("potentialEmptyHint")
+                : t("potentialEmptyReadOnlyHint")}
+            </p>
           </div>
         ) : (
           <p className="empty-state">{t("potentialEmpty")}</p>
