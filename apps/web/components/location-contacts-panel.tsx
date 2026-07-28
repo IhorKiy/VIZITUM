@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 
 import type { LocationContact } from "../lib/api-client";
+import type { LocationKeeper } from "../lib/location-keeper";
 import { formatPhoneForDisplay, phoneHref } from "../lib/phone";
 import { MailIcon, PhoneIcon, TrashIcon, UserIcon } from "./icons";
 import { LocationContactFormModal } from "./location-contact-form-modal";
@@ -14,6 +15,11 @@ type LocationContactsPanelProps = {
   deleteAction?: (formData: FormData) => Promise<void>;
   locationName: string;
   phoneCountry: string | null;
+  // Same use as on the potential panel: wording for a reader who cannot write.
+  // Required rather than optional — this panel has one caller and no
+  // read-only variant to excuse omitting it, so a future caller cannot
+  // silently fall back to citing a keeper a location may not have.
+  keeper: LocationKeeper;
 };
 
 // Body of the contacts manager modal. A location holds at most two contacts,
@@ -28,6 +34,7 @@ export function LocationContactsPanel({
   deleteAction,
   locationName,
   phoneCountry,
+  keeper,
 }: LocationContactsPanelProps) {
   const t = useTranslations("field.location");
 
@@ -39,7 +46,21 @@ export function LocationContactsPanel({
             <UserIcon size={28} />
           </span>
           <h2>{t("contactsEmptyTitle")}</h2>
-          <p>{t("contactsEmptyHint")}</p>
+          {/* Same split as the potential and assortment panels. On this field
+              screen the writer is the assigned representative — the tenant-wide
+              contacts tier belongs to the admin roles, which review locations
+              elsewhere, and a team_manager holds neither tier — so an
+              unassigned reader is told who adds them rather than to add them.
+              Carries the same "mine" caveat the potential panel spells out:
+              contacts.manage_own travels with the assignment, so only a custom
+              role could make a keeper read about itself here. */}
+          <p>
+            {canManage
+              ? t("contactsEmptyHint")
+              : keeper?.kind === "unassigned"
+                ? t("contactsEmptyUnassignedHint")
+                : t("contactsEmptyReadOnlyHint")}
+          </p>
         </div>
       ) : null}
 

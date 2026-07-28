@@ -5,9 +5,11 @@ import { AppShell } from "../../../../../../components/app-shell";
 import { BackLink } from "../../../../../../components/back-link";
 import { DismissableNotice } from "../../../../../../components/dismissable-notice";
 import { BanknoteIcon } from "../../../../../../components/icons";
+import { LocationAssignmentPill } from "../../../../../../components/location-assignment-pill";
 import { LocationPotentialModal } from "../../../../../../components/location-potential-modal";
 import { LocationPotentialPanel } from "../../../../../../components/location-potential-panel";
 import { resolveBackTarget } from "../../../../../../lib/back-navigation";
+import { resolveLocationKeeper } from "../../../../../../lib/location-keeper";
 import {
   getCurrentSession,
   getLocation,
@@ -83,6 +85,10 @@ export default async function LocationPotentialPage({
   }
 
   const locationName = locationResult.data.name;
+  const keeper = resolveLocationKeeper(
+    locationResult.data.assignments,
+    sessionResult.data.user.id,
+  );
 
   const [potentialResult, categoriesResult] = await Promise.all([
     listLocationPotential(locationId),
@@ -144,6 +150,7 @@ export default async function LocationPotentialPage({
                   count: potentialRows.length,
                 })}
               </p>
+              <LocationAssignmentPill keeper={keeper} />
             </div>
           </div>
         </div>
@@ -165,6 +172,7 @@ export default async function LocationPotentialPage({
             availableCategories={availableCategories}
             canManage={canManagePotential}
             deleteAction={deletePotentialAction}
+            keeper={keeper}
             locationName={locationName}
             rows={potentialRows}
             upsertAction={upsertPotentialAction}

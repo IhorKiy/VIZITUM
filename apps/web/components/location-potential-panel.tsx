@@ -3,6 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { LocationPotential } from "../lib/api-client";
 import { formatDate } from "../lib/format";
 import { INPUT_LIMITS } from "../lib/input-limits";
+import type { LocationKeeper } from "../lib/location-keeper";
 import { BanknoteIcon, TrashIcon } from "./icons";
 import { LocationPotentialModal } from "./location-potential-modal";
 import { PendingSubmitButton } from "./pending-submit-button";
@@ -22,6 +23,12 @@ type LocationPotentialPanelProps = {
   // the edit modal's subtitle and is only read in "cards" mode.
   variant?: "inline" | "cards";
   locationName?: string;
+  // Who keeps this location's record. Only read to word the "cards" empty
+  // state for a reader who cannot write (the header pill on the same screen
+  // states the same fact), which is why the "inline" callers omit it — but a
+  // "cards" caller that omits it falls back to the wording for a location
+  // someone else keeps, so pass it from that variant.
+  keeper?: LocationKeeper;
 };
 
 // Shared by the field location detail screen and the admin location detail
@@ -38,6 +45,7 @@ export function LocationPotentialPanel({
   deleteAction,
   variant = "inline",
   locationName = "",
+  keeper,
 }: LocationPotentialPanelProps) {
   const t = useTranslations("common.locationInsights");
   const tCommon = useTranslations("common");
@@ -57,7 +65,24 @@ export function LocationPotentialPanel({
               <BanknoteIcon size={28} />
             </span>
             <h2>{t("potentialEmptyTitle")}</h2>
-            <p>{t("potentialEmptyHint")}</p>
+            {/* The title states a fact either way; only the hint may invite,
+                and a reader without an assignment here has no "+" to answer
+                it with. On a location nobody keeps there is also no assigned
+                representative to point at, so that case names the manager who
+                closes the gap instead of a person who does not exist.
+
+                A "mine" keeper reaching this branch would be told about
+                itself. No standard role does: every holder of an active
+                assignment also holds location_potential.manage_own, so
+                canManage is true for them. A custom role could break that
+                pairing, and this wording would then need a third case. */}
+            <p>
+              {canManage
+                ? t("potentialEmptyHint")
+                : keeper?.kind === "unassigned"
+                  ? t("potentialEmptyUnassignedHint")
+                  : t("potentialEmptyReadOnlyHint")}
+            </p>
           </div>
         ) : (
           <p className="empty-state">{t("potentialEmpty")}</p>

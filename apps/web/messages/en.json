@@ -129,11 +129,18 @@
     "datePlaceholder": "__.__.____",
     "phoneInvalid": "Enter a valid phone number.",
     "phoneInternationalRequired": "Enter the phone in international format starting with +.",
+    "locationAssignment": {
+      "keptBy": "Kept by {name}",
+      "keptByOthers": "Kept by {name} +{count}",
+      "unassigned": "No representative"
+    },
     "locationInsights": {
       "potentialTitle": "Potential",
       "potentialCount": "{count, plural, one {# product category} other {# product categories}}",
       "potentialEmptyTitle": "Potential not filled in yet",
       "potentialEmptyHint": "Add product categories and a sales plan",
+      "potentialEmptyReadOnlyHint": "The assigned representative fills this in",
+      "potentialEmptyUnassignedHint": "A manager assigns the representative who fills this in",
       "potentialEmpty": "Product category potential is not tracked yet.",
       "currency": "UAH",
       "readAmount": "Potential: {amount}",
@@ -160,6 +167,7 @@
       "assortmentCount": "{count, plural, one {# item} other {# items}}",
       "assortmentEmptyTitle": "Assortment not filled in yet",
       "assortmentEmptyHint": "List the products this location must carry",
+      "assortmentEmptyReadOnlyHint": "A manager with assortment access defines it",
       "assortmentEmpty": "Assortment tracking has no items yet.",
       "assortmentOptional": "Not required here",
       "assortmentUnchecked": "Not checked yet",
@@ -1079,6 +1087,8 @@
       "contactsTitle": "Contacts",
       "contactsEmptyTitle": "No contacts yet",
       "contactsEmptyHint": "Add the people who work at this location",
+      "contactsEmptyReadOnlyHint": "The assigned representative adds them",
+      "contactsEmptyUnassignedHint": "A manager assigns the representative who adds them",
       "removeContactAria": "Remove {name}",
       "contactsModal": {
         "title": "Add contact",

@@ -92,7 +92,14 @@ export function LocationAssortmentPanel({
               <PackageIcon size={28} />
             </span>
             <h2>{t("assortmentEmptyTitle")}</h2>
-            <p>{t("assortmentEmptyHint")}</p>
+            {/* Same split as the potential panel: the field zone reads this
+                matrix, the manager authors it, so only a manager is told to
+                fill it in. */}
+            <p>
+              {canManage
+                ? t("assortmentEmptyHint")
+                : t("assortmentEmptyReadOnlyHint")}
+            </p>
           </div>
         ) : (
           <p className="empty-state">{t("assortmentEmpty")}</p>

@@ -2080,7 +2080,13 @@ textarea {
 
 /* Shared muted pill for the potential/assortment read cards (matrix flag,
    dates, etc.). */
-.location-insight-pill {
+/* Two names for one quiet treatment, kept apart because they answer different
+   questions: .location-insight-pill annotates a potential/assortment row,
+   .location-assignment-pill says who keeps the location in a screen header —
+   and the header grid rule below keys off the latter, so an insights pill that
+   ever lands in a header does not inherit its placement. */
+.location-insight-pill,
+.location-assignment-pill {
   background: var(--surface-muted);
   border-radius: 999px;
   color: var(--muted);
@@ -4773,8 +4779,17 @@ textarea {
 .location-header-identity > .location-header-title,
 .location-header-identity > .location-header-address,
 .location-header-identity > .location-header-chain,
-.location-header-identity > .location-header-meta {
+.location-header-identity > .location-header-meta,
+.location-header-identity > .location-assignment-pill {
   grid-column: 2;
+}
+
+/* The assignment pill sits under the address like the chain badge. As a grid
+   item it would otherwise stretch across the 1fr column, so it needs the same
+   start alignment the chain badge sets on itself. */
+.location-header-identity > .location-assignment-pill {
+  justify-self: start;
+  margin-top: 6px;
 }
 
 /* Accent-tinted leading icon next to the header title — identifies the current

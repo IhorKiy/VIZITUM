@@ -12,6 +12,7 @@ import {
   MapPinIcon,
   PackageIcon,
 } from "../../../../../components/icons";
+import { LocationAssignmentPill } from "../../../../../components/location-assignment-pill";
 import { LocationContactsModal } from "../../../../../components/location-contacts-modal";
 import { LocationNotesModal } from "../../../../../components/location-notes-modal";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
@@ -40,6 +41,7 @@ import {
   upsertLocationContactAction,
   upsertLocationNotesAction,
 } from "../../../../../lib/location-header-actions";
+import { resolveLocationKeeper } from "../../../../../lib/location-keeper";
 import { isTaskUnfinished } from "../../../../../lib/task-status";
 import { resolveTenantLocale } from "../../../../../lib/tenant-locale";
 
@@ -307,6 +309,12 @@ export default async function LocationDetailPage({
   const representativeUserId = sessionResult.ok
     ? sessionResult.data.user.id
     : null;
+  // Demo mode has no location behind it, so there is nothing to resolve and
+  // the pill renders nothing.
+  const keeper = resolveLocationKeeper(
+    locationResult.ok ? locationResult.data.assignments : [],
+    representativeUserId,
+  );
 
   // pageSize=50 is the API's max page size — the visit-history icon badge and
   // the dedicated history page deliberately reflect only the 50 most recent
@@ -477,6 +485,7 @@ export default async function LocationDetailPage({
               <span className="location-header-chain">
                 {chainName ?? t("location.chainNone")}
               </span>
+              <LocationAssignmentPill keeper={keeper} />
             </div>
           </div>
           <div className="location-header-actions">
@@ -490,6 +499,7 @@ export default async function LocationDetailPage({
               <LocationContactsModal
                 canManage={canManageContacts}
                 deleteAction={deleteContactAction}
+                keeper={keeper}
                 locationName={locationName}
                 phoneCountry={phoneCountry}
                 rows={contacts}
