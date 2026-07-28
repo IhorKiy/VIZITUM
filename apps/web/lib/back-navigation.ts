@@ -23,10 +23,12 @@
 export type BackLabelKey =
   // `/field` is "Home" in the bottom nav, so the label that names it says so
   // too — the screen leads with today's route, but the route is its content,
-  // not its name. Kept distinct from `routes` (`/field/planning`), which is a
-  // different destination entirely.
+  // not its name. Kept distinct from `routes` (`/field/routes`, the reusable
+  // routes themselves) and from `planning` (`/field/planning`, the calendar
+  // they are scheduled on) — three different destinations.
   | "home"
   | "routes"
+  | "planning"
   | "tasks"
   | "history"
   | "products"
@@ -51,7 +53,8 @@ export type BackTarget = {
  */
 const RETURNABLE_SCREENS: { pattern: RegExp; labelKey: BackLabelKey }[] = [
   { pattern: /^\/field$/, labelKey: "home" },
-  { pattern: /^\/field\/planning$/, labelKey: "routes" },
+  { pattern: /^\/field\/routes$/, labelKey: "routes" },
+  { pattern: /^\/field\/planning$/, labelKey: "planning" },
   { pattern: /^\/field\/tasks$/, labelKey: "tasks" },
   { pattern: /^\/field\/history$/, labelKey: "history" },
   { pattern: /^\/field\/products$/, labelKey: "products" },
@@ -96,6 +99,38 @@ function hasControlCharacter(value: string): boolean {
 
 type ParsedFrom = { pathAndQuery: string; labelKey: BackLabelKey };
 
+/**
+ * Transitional: the routes list moved off `/field/planning` onto its own
+ * screen, and an origin handed out by the previous build still names the old
+ * path. `/field/planning` redirects such a link to `/field/routes`, so
+ * resolving it through the table would label a control "back to planning"
+ * that demonstrably lands on the routes list — the exact mismatch the label
+ * table exists to prevent.
+ *
+ * Mirrors the redirect in the planning page rather than trusting the origin:
+ * the returned path is a literal and the only carried value is percent-encoded
+ * into a query param, so a crafted `from` gains nothing here.
+ *
+ * Safe to delete once no browser tab can still be sitting on the pre-split
+ * build, since nothing writes this shape any more.
+ */
+function legacyRoutesTarget(path: string, query: string): string | null {
+  if (path !== "/field/planning") {
+    return null;
+  }
+
+  const params = new URLSearchParams(query);
+  const route = params.get("route");
+
+  if (params.get("tab") !== "routes" && !route) {
+    return null;
+  }
+
+  return route
+    ? `/field/routes?route=${encodeURIComponent(route)}`
+    : "/field/routes";
+}
+
 function parseFrom(from: string | undefined): ParsedFrom | null {
   if (!from || from.length > MAX_FROM_LENGTH) {
     return null;
@@ -118,6 +153,12 @@ function parseFrom(from: string | undefined): ParsedFrom | null {
   const path =
     queryStart === -1 ? withoutFragment : withoutFragment.slice(0, queryStart);
   const query = queryStart === -1 ? "" : withoutFragment.slice(queryStart + 1);
+
+  const legacy = legacyRoutesTarget(path, query);
+
+  if (legacy) {
+    return { pathAndQuery: legacy, labelKey: "routes" };
+  }
 
   const screen = RETURNABLE_SCREENS.find((candidate) =>
     candidate.pattern.test(path),

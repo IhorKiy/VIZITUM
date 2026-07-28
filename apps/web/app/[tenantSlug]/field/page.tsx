@@ -80,12 +80,12 @@ export default async function FieldPage({
 }: FieldPageProps) {
   const { tenantSlug } = await params;
   const { announcement, report, stop } = await searchParams;
-  // The add-stop affordance below reuses field.planning's strings rather than
+  // The add-stop affordance below reuses field.routes' strings rather than
   // duplicating them: it is the same "add a location to a route" action the
-  // planning screen offers, and the two must not drift apart in wording.
-  const [t, tPlanning, tCommon, format] = await Promise.all([
+  // routes screen offers, and the two must not drift apart in wording.
+  const [t, tRoutes, tCommon, format] = await Promise.all([
     getTranslations("field"),
-    getTranslations("field.planning"),
+    getTranslations("field.routes"),
     getTranslations("common"),
     getFormatter(),
   ]);
@@ -452,7 +452,7 @@ export default async function FieldPage({
               {canAddStop && !isDemoMode && lastStop ? (
                 <details className="route-add-stop today-add-stop">
                   <summary className="route-add-stop-trigger">
-                    <span aria-hidden="true">+</span> {tPlanning("addStop")}
+                    <span aria-hidden="true">+</span> {tRoutes("addStop")}
                   </summary>
                   {availableLocations.length > 0 ? (
                     <form
@@ -465,7 +465,7 @@ export default async function FieldPage({
                         value={lastStop.routePlanId}
                       />
                       <label>
-                        {tPlanning("locationLabel")}
+                        {tRoutes("locationLabel")}
                         <select name="locationId" required>
                           {availableLocations.map((location) => (
                             <option key={location.id} value={location.id}>
@@ -477,16 +477,16 @@ export default async function FieldPage({
                       </label>
                       <PendingSubmitButton
                         className="primary-button"
-                        pendingLabel={tPlanning("adding")}
+                        pendingLabel={tRoutes("adding")}
                       >
-                        {tPlanning("addToRoute")}
+                        {tRoutes("addToRoute")}
                       </PendingSubmitButton>
                     </form>
                   ) : (
                     <p className="empty-state">
                       {locations.length === 0
-                        ? tPlanning("noLocations")
-                        : tPlanning("allLocationsUsed")}
+                        ? tRoutes("noLocations")
+                        : tRoutes("allLocationsUsed")}
                     </p>
                   )}
                 </details>

@@ -319,7 +319,7 @@ export async function AppShell({
                 <NavIcon name={item.icon} />
                 {navBadge(item.area)}
               </span>
-              <span>{tNav(item.area)}</span>
+              <span className="mobile-nav-label">{tNav(item.area)}</span>
             </Link>
           ))}
         </div>

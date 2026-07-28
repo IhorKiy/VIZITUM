@@ -74,6 +74,7 @@ describe("navigation zones", () => {
     const byArea = new Map(items.map((item) => [item.area, item.zone]));
 
     assert.equal(byArea.get("field"), "field");
+    assert.equal(byArea.get("field-routes"), "field");
     assert.equal(byArea.get("field-planning"), "field");
     assert.equal(byArea.get("admin-pilot"), "admin");
     assert.equal(byArea.get("manager-overview"), "manager");

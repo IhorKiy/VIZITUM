@@ -1,6 +1,7 @@
 // Areas that own a nav item, and therefore a `common.nav.<area>` label.
 export type NavArea =
   | "field"
+  | "field-routes"
   | "field-planning"
   | "field-history"
   | "field-tasks"
@@ -37,6 +38,7 @@ export type Zone = "field" | "manager" | "admin" | "operations";
 export type NavIconName =
   | "home"
   | "route"
+  | "calendar"
   | "grid"
   | "clock"
   | "flag"
@@ -101,10 +103,19 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     requiredPermissions: ["visits.read_own", "visits.read_team"],
   },
   {
+    // The rep's reusable routes: what a round looks like, independent of any
+    // date. Split from the calendar below, which is where a route meets a day.
+    path: "/field/routes",
+    area: "field-routes",
+    zone: "field",
+    icon: "route",
+    requiredPermissions: ["routes.read"],
+  },
+  {
     path: "/field/planning",
     area: "field-planning",
     zone: "field",
-    icon: "route",
+    icon: "calendar",
     requiredPermissions: ["routes.read"],
   },
   {

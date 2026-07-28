@@ -54,6 +54,54 @@ describe("resolveBackTarget", () => {
     );
   });
 
+  it("tells the routes screen apart from the planning calendar", () => {
+    // They were one tabbed screen and now are two nav entries; a back control
+    // that says "routes" but lands on the calendar (or the reverse) is exactly
+    // what the label table exists to prevent.
+    const fromRouteEditor = resolveBackTarget(
+      "acme",
+      backOrigin("/field/routes", { route: "tpl-1" }),
+      LOCATION_FALLBACK,
+    );
+
+    assert.equal(fromRouteEditor.labelKey, "routes");
+    assert.equal(fromRouteEditor.href, "/acme/field/routes?route=tpl-1");
+
+    assert.equal(
+      resolveBackTarget("acme", "/field/planning", LOCATION_FALLBACK).labelKey,
+      "planning",
+    );
+  });
+
+  it("sends an origin written for the old combined planning screen to routes", () => {
+    // Those origins are still in flight in tabs opened on the previous build,
+    // and /field/planning forwards them. Resolving them by path alone would
+    // label a control "back to planning" that lands on the routes list.
+    const fromRouteEditor = resolveBackTarget(
+      "acme",
+      "/field/planning?tab=routes&route=tpl-1",
+      LOCATION_FALLBACK,
+    );
+
+    assert.equal(fromRouteEditor.labelKey, "routes");
+    assert.equal(fromRouteEditor.href, "/acme/field/routes?route=tpl-1");
+
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/planning?tab=routes", LOCATION_FALLBACK),
+      { href: "/acme/field/routes", labelKey: "routes" },
+    );
+
+    // A planning origin that named no route is exactly what it says it is.
+    assert.equal(
+      resolveBackTarget(
+        "acme",
+        "/field/planning?month=2026-07",
+        LOCATION_FALLBACK,
+      ).labelKey,
+      "planning",
+    );
+  });
+
   it("unwinds one screen at a time through a nested origin chain", () => {
     // Locations list → location card → visit report: the report returns to
     // the card, and the card still knows the list it came from.
@@ -90,9 +138,15 @@ describe("resolveBackTarget", () => {
       resolveBackTarget("acme", "/field/tasks", menuFallback),
       { href: "/acme/field/tasks", labelKey: "tasks" },
     );
+    // Both halves of the old planning screen carry the menu, and each names
+    // itself: "routes" is the routes themselves, "planning" the calendar.
+    assert.deepEqual(resolveBackTarget("acme", "/field/routes", menuFallback), {
+      href: "/acme/field/routes",
+      labelKey: "routes",
+    });
     assert.deepEqual(
       resolveBackTarget("acme", "/field/planning", menuFallback),
-      { href: "/acme/field/planning", labelKey: "routes" },
+      { href: "/acme/field/planning", labelKey: "planning" },
     );
     // `/field` is "Home" in the bottom nav, and the label table has to agree:
     // the screen leads with today's route, but a control that says "back to

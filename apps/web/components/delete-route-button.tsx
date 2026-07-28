@@ -17,7 +17,7 @@ export function DeleteRouteButton({
   routeName,
   deleteAction,
 }: DeleteRouteButtonProps) {
-  const t = useTranslations("field.planning");
+  const t = useTranslations("field.routes");
   const tCommon = useTranslations("common");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isDeleting, setIsDeleting] = useState(false);

@@ -50,7 +50,7 @@ export function RouteStopDragList({
   removeAction,
   reorderAction,
 }: RouteStopDragListProps) {
-  const t = useTranslations("field.planning");
+  const t = useTranslations("field.routes");
   const [order, setOrder] = useState(stops);
   const [, startTransition] = useTransition();
   const orderRef = useRef(order);
@@ -212,7 +212,7 @@ function RouteStopRow({
   templateId,
   tenantSlug,
 }: RouteStopRowProps) {
-  const t = useTranslations("field.planning");
+  const t = useTranslations("field.routes");
   const {
     attributes,
     listeners,
@@ -255,9 +255,9 @@ function RouteStopRow({
         className="route-stop-summary"
         href={withBackOrigin(
           `/${tenantSlug}/field/locations/${stop.location.id}`,
-          // Back into the route being edited, not the routes tab's default
-          // selection — the editor is a tab + selected-route pair.
-          backOrigin("/field/planning", { tab: "routes", route: templateId }),
+          // Back into the route being edited, not the bare list — the editor
+          // is the list screen with a route selected.
+          backOrigin("/field/routes", { route: templateId }),
         )}
         aria-label={t("viewLocationAria", { name: stop.location.name })}
       >
