@@ -431,7 +431,12 @@
       "completedFrom": "Завершено з",
       "completedTo": "Завершено до",
       "completedInPeriod": "Виконані задачі рахуються за цей період; задачі в роботі показані повністю.",
-      "doneCount": "{count, plural, one {# виконана} few {# виконані} many {# виконаних} other {# виконаних}}"
+      "doneCount": "{count, plural, one {# виконана} few {# виконані} many {# виконаних} other {# виконаних}}",
+      "paginationAria": "Сторінки списку задач",
+      "pagePosition": "Сторінка {page} з {totalPages}",
+      "pagePrevious": "Попередня",
+      "pageNext": "Наступна",
+      "periodWindowCapped": "Один період охоплює щонайбільше {months} місяців. Щоб зазирнути глибше, оберіть давніший діапазон у фільтрах."
     },
     "locations": {
       "title": "Покриття",

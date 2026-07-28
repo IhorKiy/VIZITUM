@@ -68,6 +68,12 @@ export class TasksService {
       query.completedTo,
     );
     const where = buildTaskWhere(context, query, completedRange);
+    // Only a done-only list can walk back through windows, so only a done-only
+    // list pays for knowing where the walk stops. A mixed list always has its
+    // open half in view, so it never reaches an end to announce — computing the
+    // boundary there would be one MIN() per render that nobody reads.
+    const reportsHistoryStart =
+      Boolean(completedRange) && query.status === "done";
     const [tasks, total, completedHistoryStart] = await Promise.all([
       this.prisma.task.findMany({
         where,
@@ -77,9 +83,7 @@ export class TasksService {
         take: pagination.take,
       }),
       this.prisma.task.count({ where }),
-      // Only a windowed list has an end to walk to, so only a windowed list
-      // pays for knowing where the walk stops.
-      completedRange
+      reportsHistoryStart
         ? this.findCompletedHistoryStart(context, query)
         : Promise.resolve(undefined),
     ]);
@@ -87,8 +91,14 @@ export class TasksService {
     return {
       ...createPaginatedResponse(tasks.map(toTaskResponse), pagination, total),
       ...(completedRange
+        ? { completedPeriod: toTaskCompletedPeriodResponse(completedRange) }
+        : {}),
+      // Absent rather than null when it was not computed: "nobody asked" and
+      // "this scope has finished nothing" are different answers, and a screen
+      // that reads them as one withholds the step back from a rep who has work
+      // sitting right behind the window.
+      ...(reportsHistoryStart
         ? {
-            completedPeriod: toTaskCompletedPeriodResponse(completedRange),
             completedHistoryStart: completedHistoryStart?.toISOString() ?? null,
           }
         : {}),
@@ -475,11 +485,24 @@ export function resolveTaskCompletedRange(
   toValue: unknown,
   now: Date = new Date(),
 ): TaskCompletedRange | null {
-  const gte = parseDateOnlyBoundary(fromValue, "start");
-  const lte = parseDateOnlyBoundary(toValue, "end");
+  const requestedFrom = parseDateOnlyBoundary(fromValue, "start");
+  const requestedTo = parseDateOnlyBoundary(toValue, "end");
 
-  if (!gte && !lte) {
+  if (!requestedFrom && !requestedTo) {
     return null;
+  }
+
+  let gte = requestedFrom;
+  let lte = requestedTo;
+
+  // A backwards range asks for the empty set and gets echoed back backwards,
+  // so the caller sees a window that explains nothing. The web layer already
+  // swaps the ends; doing it here too means a direct API call — a script, a
+  // saved query — is read as the range it obviously meant rather than answered
+  // with a confident nothing. The bounds are whole calendar days, so swapping
+  // re-derives the day boundaries rather than just exchanging two instants.
+  if (gte && lte && gte.getTime() > lte.getTime()) {
+    [gte, lte] = [startOfUtcDay(lte), endOfUtcDay(gte)];
   }
 
   const windowEnd = lte ?? now;
@@ -499,6 +522,14 @@ function subtractMonths(value: Date, months: number): Date {
   shifted.setUTCMonth(shifted.getUTCMonth() - months);
 
   return shifted;
+}
+
+function endOfUtcDay(value: Date): Date {
+  const end = new Date(value.getTime());
+
+  end.setUTCHours(23, 59, 59, 999);
+
+  return end;
 }
 
 function startOfUtcDay(value: Date): Date {
@@ -524,6 +555,11 @@ function toTaskCompletedPeriodResponse(
  * to meet, and the same ordering would head a done list with its oldest
  * deadlines; what a person asks of a finished list is "what did I close
  * lately", so it reads newest-completion-first.
+ *
+ * `createdAt` is only a tie-break, and the index is sorted by `completedAt`
+ * alone — so equal completion instants cost a small top-N sort. At one row per
+ * task actually finished in a window that is noise, noted rather than indexed
+ * away.
  *
  * `nulls: "last"` covers the column being nullable rather than a row this can
  * actually meet: a backfill migration

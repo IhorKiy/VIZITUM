@@ -49,6 +49,7 @@ import { getFormString } from "../../../../lib/form";
 import {
   hasEarlierPeriod,
   historyFloor,
+  normalizePage,
   periodAsRead,
   periodLabel as formatPeriodLabel,
   periodSearchParams,
@@ -523,6 +524,10 @@ export default async function FieldTasksPage({
                   action={`/${tenantSlug}/field/tasks`}
                   ariaLabel={t("completedPeriod")}
                   names={TASK_COMPLETED_PERIOD_PARAMS}
+                  // Status is the whole of it here, and deliberately so: the
+                  // priority and overdue toggles are only ever live on the
+                  // in-progress list (see selectedPriorityOnly above), so there
+                  // is no other filter for a period link to drop.
                   otherParams={new URLSearchParams({ status: "done" })}
                   period={period}
                   timeZone={timeZone}
@@ -886,12 +891,6 @@ function previousIsoDate(isoDate: string): string {
   date.setUTCDate(date.getUTCDate() - 1);
 
   return date.toISOString().slice(0, 10);
-}
-
-function normalizePage(value: string | undefined): number {
-  const parsed = Number.parseInt(value ?? "", 10);
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function normalizeTaskStatus(

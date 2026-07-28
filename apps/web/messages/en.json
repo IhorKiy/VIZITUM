@@ -431,7 +431,12 @@
       "completedFrom": "Completed from",
       "completedTo": "Completed to",
       "completedInPeriod": "Finished work is counted over this window; open work is shown in full.",
-      "doneCount": "{count, plural, one {# completed} other {# completed}}"
+      "doneCount": "{count, plural, one {# completed} other {# completed}}",
+      "paginationAria": "Task list pages",
+      "pagePosition": "Page {page} of {totalPages}",
+      "pagePrevious": "Previous",
+      "pageNext": "Next",
+      "periodWindowCapped": "One period covers at most {months} months. Pick an earlier range in the filters to go further back."
     },
     "locations": {
       "title": "Coverage",

@@ -25,6 +25,7 @@ import {
   hasEarlierPeriod as canStepBack,
   historyFloor as resolveHistoryFloor,
   normalizeDayParam,
+  normalizePage,
   periodAsRead,
   periodLabel as formatPeriodLabel,
   periodSearchParams,
@@ -808,10 +809,4 @@ function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
   }
 
   return null;
-}
-
-function normalizePage(value: string | undefined): number {
-  const parsed = Number.parseInt(value ?? "", 10);
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }

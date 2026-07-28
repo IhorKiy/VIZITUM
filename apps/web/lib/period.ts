@@ -199,6 +199,19 @@ export function resolvePeriodFromParams(
   );
 }
 
+/**
+ * The page a URL asks for: 1 for anything that is not a positive integer.
+ *
+ * Lives here because paging and the window are the same mechanism seen at two
+ * scales — a windowed list pages within its period and then hands over to the
+ * period behind it — and every screen that reads one reads the other.
+ */
+export function normalizePage(value: string | undefined): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
 /** A range as the two URL parameters that carry it. */
 export function periodSearchParams(
   range: DayRange,

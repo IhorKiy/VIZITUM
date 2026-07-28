@@ -59,8 +59,11 @@ import {
 import { formatEnumLabel, type IntlFormatter } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 import {
+  normalizePage,
+  periodAsRead,
   periodLabel as formatPeriodLabel,
   periodSearchParams,
+  PERIOD_MAX_MONTHS,
   resolvePeriodFromParams,
   TASK_COMPLETED_PERIOD_PARAMS,
 } from "../../../../lib/period";
@@ -84,6 +87,7 @@ type ManagerTasksPageProps = {
     edited?: string;
     error?: string;
     locationId?: string;
+    page?: string;
     // Set by the "Period…" pill: the range itself is already in the URL, this
     // only asks the filter panel to open on it.
     period?: string;
@@ -98,6 +102,13 @@ type ManagerTasksPageProps = {
 // The status pill that means "no status filter". A real value, because the
 // filter form drops empty ones — see selectedStatus below.
 const ALL_STATUSES = "all";
+
+// The list used to ask for 100 rows and show them all, under a count that named
+// the filtered total — so past 100 the screen quietly disagreed with itself.
+// The completion window makes that far less likely, but "less likely" is not a
+// fix. Paginated at 50, the same page size the manager visit list and the field
+// lists use.
+const PAGE_SIZE = 50;
 
 export default async function ManagerTasksPage({
   params,
@@ -146,7 +157,11 @@ export default async function ManagerTasksPage({
   const selectedRoutePlanId = normalizeFilterValue(pageState.routePlanId);
   const dueFrom = normalizeDateFilter(pageState.dueFrom);
   const dueTo = normalizeDateFilter(pageState.dueTo);
-  const query = new URLSearchParams({ pageSize: "100" });
+  const page = normalizePage(pageState.page);
+  const query = new URLSearchParams({
+    page: String(page),
+    pageSize: String(PAGE_SIZE),
+  });
   const hasFilters = Boolean(
     selectedStatus !== "in_progress" ||
     (completedPeriod && !completedPeriod.isDefault) ||
@@ -193,6 +208,21 @@ export default async function ManagerTasksPage({
   if (dueTo) {
     query.set("dueTo", dueTo);
   }
+
+  // Everything the URL is currently narrowed by *except* the window itself.
+  // The period pills are links, not form controls, so whatever they don't carry
+  // is dropped: without this, changing the period would silently clear the
+  // assignee, the location, the route and the deadline range the manager had
+  // just set.
+  const otherFilterParams = new URLSearchParams([
+    ["status", selectedStatus ?? ALL_STATUSES],
+    ...(selectedPriorityOnly ? [["priority", "1"]] : []),
+    ...(selectedAssigneeId ? [["assignedToUserId", selectedAssigneeId]] : []),
+    ...(selectedLocationId ? [["locationId", selectedLocationId]] : []),
+    ...(selectedRoutePlanId ? [["routePlanId", selectedRoutePlanId]] : []),
+    ...(dueFrom ? [["dueFrom", dueFrom]] : []),
+    ...(dueTo ? [["dueTo", dueTo]] : []),
+  ]);
 
   async function createTaskAction(
     formData: FormData,
@@ -381,6 +411,31 @@ export default async function ManagerTasksPage({
   }
 
   const tasks = tasksResult.data.items;
+  // What the API actually read, which is what the line below names. A saved
+  // link asking past the maximum window length comes back trimmed, and a recap
+  // still announcing the requested range would put a lie in the denominator of
+  // the count beside it. Absent mid-deploy, when this build talks to the
+  // previous API — then the window stands as resolved.
+  const totalPages = tasksResult.data.totalPages;
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams(query);
+    params.delete("pageSize");
+
+    if (targetPage <= 1) {
+      params.delete("page");
+    } else {
+      params.set("page", String(targetPage));
+    }
+
+    return `/${tenantSlug}/manager/tasks?${params.toString()}`;
+  };
+  const period = completedPeriod
+    ? periodAsRead(
+        completedPeriod,
+        tasksResult.data.completedPeriod?.completedFrom,
+        timeZone,
+      )
+    : null;
   // Deleting needs team scope, which an own-scope viewer on this page lacks —
   // showing them a button that can only 403 is worse than not showing it.
   const canDeleteTasks = sessionResult.ok
@@ -530,17 +585,13 @@ export default async function ManagerTasksPage({
             <div className="filter-groups">
               {/* How deep the list reads sits above what it cuts by. Only the
                   views that can hold finished work have a window at all. */}
-              {completedPeriod ? (
+              {period ? (
                 <PeriodPills
                   action={`/${tenantSlug}/manager/tasks`}
                   ariaLabel={t("completedPeriod")}
                   names={TASK_COMPLETED_PERIOD_PARAMS}
-                  otherParams={
-                    new URLSearchParams({
-                      status: selectedStatus ?? ALL_STATUSES,
-                    })
-                  }
-                  period={completedPeriod}
+                  otherParams={otherFilterParams}
+                  period={period}
                   timeZone={timeZone}
                 />
               ) : null}
@@ -626,16 +677,16 @@ export default async function ManagerTasksPage({
                   window rather than with whatever the URL carried: editing one
                   end of the default period should narrow those 30 days, not
                   open an unbounded range. */}
-              {completedPeriod ? (
+              {period ? (
                 <FilterDateRange
                   fromLabel={t("completedFrom")}
                   fromName={TASK_COMPLETED_PERIOD_PARAMS.from}
-                  fromValue={completedPeriod.from}
+                  fromValue={period.from}
                   label={t("completedPeriod")}
                   placeholder={tCommon("datePlaceholder")}
                   toLabel={t("completedTo")}
                   toName={TASK_COMPLETED_PERIOD_PARAMS.to}
-                  toValue={completedPeriod.to}
+                  toValue={period.to}
                 />
               ) : null}
               <FilterFooter
@@ -657,30 +708,55 @@ export default async function ManagerTasksPage({
             on what the window actually cut — a done-only list is the window, so
             it takes the count; the mixed list needs saying that only its
             finished half is bounded, or the number above reads as a total. */}
-        {completedPeriod ? (
+        {period ? (
           <p className="list-count-summary">
-            <strong>
-              {formatPeriodLabel(tPeriod, format, completedPeriod)}
-            </strong>
+            <strong>{formatPeriodLabel(tPeriod, format, period)}</strong>
             <span>
               {selectedStatus === "done"
                 ? t("doneCount", { count: tasksResult.data.total })
                 : t("completedInPeriod")}
             </span>
+            {/* A trimmed window is not the end of the history — the months
+                behind it are one date range away — so this points at the
+                filter rather than implying there is nothing older. */}
+            {period.clamped ? (
+              <span>
+                {t("periodWindowCapped", { months: PERIOD_MAX_MONTHS })}
+              </span>
+            ) : null}
           </p>
         ) : null}
 
         {tasks.length > 0 ? (
-          <TasksCards
-            assigneeOptions={assignAssigneeOptions}
-            deleteTaskAction={canDeleteTasks ? deleteTaskAction : undefined}
-            locationOptions={locationOptions}
-            tasks={tasks}
-            todayIsoDate={todayIsoDate}
-            updateTaskDetailsAction={updateTaskDetailsAction}
-            updateTaskFieldsAction={updateTaskFieldsAction}
-            updateTaskStatusAction={updateTaskStatusAction}
-          />
+          <>
+            <TasksCards
+              assigneeOptions={assignAssigneeOptions}
+              deleteTaskAction={canDeleteTasks ? deleteTaskAction : undefined}
+              locationOptions={locationOptions}
+              tasks={tasks}
+              todayIsoDate={todayIsoDate}
+              updateTaskDetailsAction={updateTaskDetailsAction}
+              updateTaskFieldsAction={updateTaskFieldsAction}
+              updateTaskStatusAction={updateTaskStatusAction}
+            />
+            {totalPages > 1 ? (
+              <nav aria-label={t("paginationAria")} className="list-pagination">
+                {page > 1 ? (
+                  <a className="secondary-button" href={pageHref(page - 1)}>
+                    {t("pagePrevious")}
+                  </a>
+                ) : null}
+                <p className="small-label">
+                  {t("pagePosition", { page, totalPages })}
+                </p>
+                {page < totalPages ? (
+                  <a className="secondary-button" href={pageHref(page + 1)}>
+                    {t("pageNext")}
+                  </a>
+                ) : null}
+              </nav>
+            ) : null}
+          </>
         ) : (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>

@@ -37,6 +37,7 @@ import {
 } from "../../../../lib/api-client";
 import {
   normalizeDayParam,
+  normalizePage,
   periodAsRead,
   periodLabel as formatPeriodLabel,
   periodSearchParams,
@@ -569,10 +570,4 @@ function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
 function normalizeFilterValue(value: string | undefined): string | null {
   const normalizedValue = value?.trim();
   return normalizedValue || null;
-}
-
-function normalizePage(value: string | undefined): number {
-  const parsed = Number.parseInt(value ?? "", 10);
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }

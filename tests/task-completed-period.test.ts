@@ -61,6 +61,31 @@ describe("task completion window", () => {
     assert.deepEqual(range, { gte: new Date("2025-07-28T00:00:00.000Z") });
   });
 
+  // The web layer swaps the ends before it asks, so this is for everyone else:
+  // a script or a saved query that names them the wrong way round would
+  // otherwise get a confident empty answer and a backwards window echoed back
+  // to explain it.
+  it("reads a backwards range as the range it meant", () => {
+    const range = resolveTaskCompletedRange("2026-07-20", "2026-07-10", now);
+
+    // Swapped as whole calendar days, not as two exchanged instants: the ends
+    // carry different times of day, so the new start takes 00:00:00.000 and the
+    // new end 23:59:59.999 rather than inheriting each other's.
+    assert.deepEqual(range, {
+      gte: new Date("2026-07-10T00:00:00.000Z"),
+      lte: new Date("2026-07-20T23:59:59.999Z"),
+    });
+  });
+
+  it("still trims a backwards range that is too long, from its corrected end", () => {
+    const range = resolveTaskCompletedRange("2024-06-30", "2019-01-01", now);
+
+    assert.deepEqual(range, {
+      gte: new Date("2023-06-30T00:00:00.000Z"),
+      lte: new Date("2024-06-30T23:59:59.999Z"),
+    });
+  });
+
   it("rejects a bound that is not a calendar day rather than guessing at one", () => {
     assert.throws(() => resolveTaskCompletedRange("28-07-2026", undefined, now), {
       message: "Date filters must use YYYY-MM-DD format.",
