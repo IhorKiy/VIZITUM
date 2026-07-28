@@ -1,5 +1,10 @@
 import { useFormatter, useTranslations } from "next-intl";
-import { getLocale, getTranslations } from "next-intl/server";
+import {
+  getFormatter,
+  getLocale,
+  getTimeZone,
+  getTranslations,
+} from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { CardFact } from "../../../../components/card-fact";
@@ -21,15 +26,19 @@ import {
   TagIcon,
   UserIcon,
 } from "../../../../components/icons";
+import { VisitPeriodPills } from "../../../../components/visit-period-pills";
 import {
   listAdminLocations,
   listTodayRoutes,
   listVisits,
-  type ApiResult,
-  type PaginatedResponse,
   type Visit,
   type VisitStatus,
+  type VisitStatusTotals,
 } from "../../../../lib/api-client";
+import {
+  resolveVisitPeriod,
+  visitPeriodLabel,
+} from "../../../../lib/visit-period";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { formatCancellationReason } from "../../../../lib/visit-cancellation";
 import {
@@ -47,6 +56,9 @@ type ManagerVisitsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     locationId?: string;
+    // Set by the "Period…" pill: the range itself is already in the URL, this
+    // only asks the filter panel to open on it.
+    period?: string;
     representativeUserId?: string;
     routePlanId?: string;
     startedFrom?: string;
@@ -66,38 +78,58 @@ export default async function ManagerVisitsPage({
 }: ManagerVisitsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [locale, t, tManager, tCommon] = await Promise.all([
-    getLocale(),
-    getTranslations("manager.visits"),
-    getTranslations("manager"),
-    getTranslations("common"),
-  ]);
+  const [locale, t, tManager, tCommon, tPeriod, format, timeZone] =
+    await Promise.all([
+      getLocale(),
+      getTranslations("manager.visits"),
+      getTranslations("manager"),
+      getTranslations("common"),
+      getTranslations("common.visitPeriod"),
+      getFormatter(),
+      getTimeZone(),
+    ]);
   const selectedStatus = normalizeVisitStatus(pageState.status);
   const selectedRepresentativeId = normalizeFilterValue(
     pageState.representativeUserId,
   );
   const selectedLocationId = normalizeFilterValue(pageState.locationId);
   const selectedRoutePlanId = normalizeFilterValue(pageState.routePlanId);
-  const startedFrom = normalizeDateFilter(pageState.startedFrom);
-  const startedTo = normalizeDateFilter(pageState.startedTo);
-  // A visit opened from this list returns to it with the same filters still
-  // applied, rather than to a bare, unfiltered list.
+  // Team-wide, so the window matters more here than in field history: with no
+  // period the list asks for every visit every representative ever made. With
+  // nothing in the URL that window is the last 30 days in the tenant's
+  // timezone, and it is named above the list rather than assumed.
+  const period = resolveVisitPeriod(
+    {
+      startedFrom: normalizeDateFilter(pageState.startedFrom),
+      startedTo: normalizeDateFilter(pageState.startedTo),
+    },
+    timeZone,
+  );
+  const periodLabel = visitPeriodLabel(tPeriod, format, period);
+  // A visit opened from this list returns to it with the same filters — and
+  // the same window — still applied, rather than to a bare list.
   const origin = backOrigin("/manager/visits", {
     locationId: selectedLocationId,
     representativeUserId: selectedRepresentativeId,
     routePlanId: selectedRoutePlanId,
-    startedFrom,
-    startedTo,
+    startedFrom: period.startedFrom,
+    startedTo: period.startedTo,
     status: selectedStatus,
   });
-  const query = new URLSearchParams({ pageSize: "100" });
+  const periodParams = new URLSearchParams({
+    startedFrom: period.startedFrom,
+    startedTo: period.startedTo,
+  });
+  const query = new URLSearchParams(periodParams);
+  query.set("pageSize", "100");
+  // The default window is nobody's choice, so it doesn't count as a filter:
+  // it neither lights the panel's active dot nor makes the reset link appear.
   const hasFilters = Boolean(
     selectedStatus ||
     selectedRepresentativeId ||
     selectedLocationId ||
     selectedRoutePlanId ||
-    startedFrom ||
-    startedTo,
+    !period.isDefault,
   );
 
   if (selectedStatus) {
@@ -116,17 +148,12 @@ export default async function ManagerVisitsPage({
     query.set("routePlanId", selectedRoutePlanId);
   }
 
-  if (startedFrom) {
-    query.set("startedFrom", startedFrom);
-  }
-
-  if (startedTo) {
-    query.set("startedTo", startedTo);
-  }
-
   const visitsResult = await listVisits(query.toString());
+  // The representative dropdown lists whoever worked in this window, so it is
+  // scoped to the period but not to the other filters — picking a
+  // representative must not empty the list you picked them from.
   const allVisitsResult = hasFilters
-    ? await listVisits("pageSize=100")
+    ? await listVisits(`pageSize=100&${periodParams.toString()}`)
     : visitsResult;
   const routesResult = await listTodayRoutes();
   const locationsResult = await listAdminLocations("pageSize=100");
@@ -162,7 +189,11 @@ export default async function ManagerVisitsPage({
   }
 
   const visits = visitsResult.data.items;
-  const counters = buildVisitCounters(visitsResult, t);
+  const counters = buildVisitCounters(
+    visitsResult.data.statusTotals,
+    periodLabel,
+    t,
+  );
   const representativeOptions = allVisitsResult.ok
     ? buildRepresentativeOptions(allVisitsResult.data.items, locale)
     : [];
@@ -201,7 +232,28 @@ export default async function ManagerVisitsPage({
 
       <section aria-label={t("visitList")} className="panel drilldown-panel">
         <FilterForm action={`/${tenantSlug}/manager/visits`}>
-          <div className="panel-toolbar">
+          <div className="panel-toolbar panel-toolbar-filters">
+            {/* How deep the list reads sits above what it is cut by — the
+                counters at the top of the screen are counts of this window. */}
+            <VisitPeriodPills
+              action={`/${tenantSlug}/manager/visits`}
+              otherParams={
+                new URLSearchParams([
+                  ...(selectedStatus ? [["status", selectedStatus]] : []),
+                  ...(selectedRepresentativeId
+                    ? [["representativeUserId", selectedRepresentativeId]]
+                    : []),
+                  ...(selectedLocationId
+                    ? [["locationId", selectedLocationId]]
+                    : []),
+                  ...(selectedRoutePlanId
+                    ? [["routePlanId", selectedRoutePlanId]]
+                    : []),
+                ])
+              }
+              period={period}
+              timeZone={timeZone}
+            />
             <FilterPills
               ariaLabel={t("statusFiltersAria")}
               name="status"
@@ -217,7 +269,7 @@ export default async function ManagerVisitsPage({
           </div>
 
           <FilterDisclosure
-            hasFilters={hasFilters}
+            hasFilters={hasFilters || pageState.period === "custom"}
             label={tCommon("filtersLabel")}
           >
             <div className="filter-form">
@@ -260,15 +312,18 @@ export default async function ManagerVisitsPage({
                   ))}
                 </select>
               </FilterField>
+              {/* Seeded with the resolved window rather than with whatever the
+                  URL happened to carry: editing one end of the default period
+                  should narrow those 30 days, not open an unbounded range. */}
               <FilterDateRange
                 fromLabel={t("startedFrom")}
                 fromName="startedFrom"
-                fromValue={startedFrom ?? ""}
+                fromValue={period.startedFrom}
                 label={t("visitPeriod")}
                 placeholder={tCommon("datePlaceholder")}
                 toLabel={t("startedTo")}
                 toName="startedTo"
-                toValue={startedTo ?? ""}
+                toValue={period.startedTo}
               />
               <FilterFooter
                 resetHref={
@@ -396,8 +451,14 @@ function VisitsCards({
   );
 }
 
+// The three metric cards, read off the period's own status aggregate rather
+// than off the loaded page: they used to count the first 100 rows and call the
+// result "reports confirmed", which quietly stopped being true on tenant 101.
+// The window they describe is named on the first card, since a count of
+// completed visits means nothing without one.
 function buildVisitCounters(
-  visitsResult: ApiResult<PaginatedResponse<Visit>>,
+  totals: VisitStatusTotals,
+  periodLabel: string,
   t: Awaited<ReturnType<typeof getTranslations<"manager.visits">>>,
 ): Array<{
   label: string;
@@ -405,32 +466,24 @@ function buildVisitCounters(
   detail: string;
   tone: "active" | "info" | "warning";
 }> {
-  if (!visitsResult.ok) {
-    return [];
-  }
-
-  const visits = visitsResult.data.items;
-  const completed = visits.filter((visit) => visit.status === "completed");
-  const inProgress = visits.filter((visit) => visit.status === "in_progress");
-
   return [
     {
-      label: t("visibleVisits"),
-      value: String(visitsResult.data.total),
-      detail: t("loadedOnPage", { count: visits.length }),
+      label: periodLabel,
+      value: String(totals.total),
+      detail: t("periodDetail"),
       tone: "active",
     },
     {
       label: t("reportsConfirmed"),
-      value: String(completed.length),
-      detail: t("waitingDetail", { count: inProgress.length }),
-      tone: completed.length > 0 ? "active" : "info",
+      value: String(totals.completed),
+      detail: t("waitingDetail", { count: totals.inProgress }),
+      tone: totals.completed > 0 ? "active" : "info",
     },
     {
       label: t("inProgress"),
-      value: String(inProgress.length),
+      value: String(totals.inProgress),
       detail: t("inProgressDetail"),
-      tone: inProgress.length > 0 ? "warning" : "active",
+      tone: totals.inProgress > 0 ? "warning" : "active",
     },
   ];
 }

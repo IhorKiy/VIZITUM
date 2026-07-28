@@ -944,6 +944,25 @@ textarea {
   }
 }
 
+/* The end of the window, handing over to the period control rather than to one
+   more page button: paging lives inside the window, reaching further back is a
+   different decision. */
+.period-exhausted {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 18px;
+  text-align: center;
+}
+
+.period-exhausted p {
+  color: var(--muted);
+  margin: 0;
+}
+
 .list-pagination {
   align-items: center;
   display: flex;
@@ -3152,6 +3171,25 @@ textarea {
   font-size: 12px;
   font-weight: 850;
   padding: 7px 10px;
+}
+
+/* Pills that navigate rather than select (VisitPeriodPills): a period preset
+   writes two params at once, which no single form control can express. Same
+   shape as the radio pills above so a row of each reads as one control. */
+.filter-pills--links a {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+
+.filter-pills--links a[aria-current="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
 }
 
 /* The radio is what the pill actually is; the label draws it. Kept in the

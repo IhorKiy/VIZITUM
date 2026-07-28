@@ -205,6 +205,21 @@
       "archivedAria": "Недоступно для архівних точок",
       "archivedTitle": "Не відстежується в архіві",
       "archivedBody": "Потенціал і асортимент не відстежуються для архівних точок. Відновіть точку, щоб знову переглядати або редагувати ці дані."
+    },
+    "visitPeriod": {
+      "pillsAria": "Період візитів",
+      "presetPill": {
+        "week": "Тиждень",
+        "month": "30 днів",
+        "quarter": "Квартал"
+      },
+      "customPill": "Період…",
+      "preset": {
+        "week": "Останні 7 днів",
+        "month": "Останні 30 днів",
+        "quarter": "Останні 90 днів"
+      },
+      "custom": "{from} – {to}"
     }
   },
   "auth": {
@@ -317,7 +332,6 @@
       "notConnectedTitle": "Візити не підключені",
       "metricsAria": "Метрики візитів",
       "visibleVisits": "Видимі візити",
-      "loadedOnPage": "{count} завантажено на цій сторінці",
       "reportsConfirmed": "Звіти підтверджено",
       "waitingDetail": "{count} в процесі",
       "inProgress": "У процесі",
@@ -341,7 +355,8 @@
       "open": "Відкрити",
       "visitPeriod": "Період візиту",
       "filterResultCount": "{count, plural, =0 {Візитів не знайдено} one {Знайдено <b>#</b> візит} few {Знайдено <b>#</b> візити} many {Знайдено <b>#</b> візитів} other {Знайдено <b>#</b> візита}}",
-      "tableCancelReason": "Причина скасування"
+      "tableCancelReason": "Причина скасування",
+      "periodDetail": "Візити за цей період"
     },
     "tasks": {
       "title": "Задачі",
@@ -1378,7 +1393,10 @@
       "showEarlier": "Раніші візити",
       "showNewer": "Новіші візити",
       "visitPeriod": "Період візиту",
-      "cancelReasonLabel": "Причина"
+      "cancelReasonLabel": "Причина",
+      "periodExhaustedTitle": "Це весь період",
+      "periodExhaustedBody": "Гортання живе всередині вибраного вікна. Раніші візити — у ранішому періоді.",
+      "periodEarlier": "Раніший період: {period}"
     },
     "locations": {
       "title": "Точки",

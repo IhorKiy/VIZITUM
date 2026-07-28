@@ -709,10 +709,32 @@ export async function switchZone(
   return apiPost<SwitchZoneResult>("/auth/zone", { zone });
 }
 
+// The status split of the whole selected period, ignoring any status filter —
+// the recap a status pill is picked from. Comes back with the list itself, so
+// a screen never counts statuses by firing one request per status.
+export type VisitStatusTotals = {
+  total: number;
+  completed: number;
+  inProgress: number;
+  cancelled: number;
+};
+
+// The window the API actually read, after its own 12-month depth clamp. ISO
+// instants, not calendar days.
+export type VisitPeriodWindow = {
+  startedFrom: string;
+  startedTo: string | null;
+};
+
+export type VisitListResponse = PaginatedResponse<Visit> & {
+  period: VisitPeriodWindow;
+  statusTotals: VisitStatusTotals;
+};
+
 export async function listVisits(
   query = "pageSize=50",
-): Promise<ApiResult<PaginatedResponse<Visit>>> {
-  return apiGet<PaginatedResponse<Visit>>(`/visits?${query}`);
+): Promise<ApiResult<VisitListResponse>> {
+  return apiGet<VisitListResponse>(`/visits?${query}`);
 }
 
 export type VisitDaySummaryEntry = {
@@ -724,6 +746,7 @@ export type VisitDaySummaryEntry = {
 
 export type VisitDaySummary = {
   days: VisitDaySummaryEntry[];
+  period: VisitPeriodWindow;
 };
 
 export async function listVisitDaySummary(

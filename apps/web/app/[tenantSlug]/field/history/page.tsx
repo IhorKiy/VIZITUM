@@ -1,5 +1,5 @@
 import { useFormatter, useTranslations } from "next-intl";
-import { getTimeZone, getTranslations } from "next-intl/server";
+import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { FilterDateRange } from "../../../../components/filter-date-range";
@@ -8,24 +8,32 @@ import { FilterFooter } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
 import { ChevronDownIcon } from "../../../../components/icons";
+import { VisitPeriodPills } from "../../../../components/visit-period-pills";
 import {
   getCurrentSession,
   listVisitDaySummary,
   listVisits,
-  type ApiResult,
-  type PaginatedResponse,
   type Visit,
   type VisitDaySummaryEntry,
   type VisitStatus,
+  type VisitStatusTotals,
 } from "../../../../lib/api-client";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { formatCancellationReason } from "../../../../lib/visit-cancellation";
 import { formatEnumLabel, statusPillTone } from "../../../../lib/format";
+import {
+  previousVisitPeriod,
+  resolveVisitPeriod,
+  visitPeriodLabel,
+} from "../../../../lib/visit-period";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     page?: string;
+    // Set by the "Period…" pill: the range itself is already in the URL, this
+    // only asks the filter panel to open on it.
+    period?: string;
     startedFrom?: string;
     startedTo?: string;
     status?: string;
@@ -47,10 +55,12 @@ export default async function FieldHistoryPage({
   searchParams,
 }: FieldHistoryPageProps) {
   const { tenantSlug } = await params;
-  const [t, tField, tCommon, timeZone] = await Promise.all([
+  const [t, tField, tCommon, tPeriod, format, timeZone] = await Promise.all([
     getTranslations("field.history"),
     getTranslations("field"),
     getTranslations("common"),
+    getTranslations("common.visitPeriod"),
+    getFormatter(),
     getTimeZone(),
   ]);
   const sessionResult = await getCurrentSession();
@@ -90,29 +100,37 @@ export default async function FieldHistoryPage({
 
   const pageState = await searchParams;
   const selectedStatus = normalizeVisitStatus(pageState.status);
-  const startedFrom = normalizeDateFilter(pageState.startedFrom);
-  const startedTo = normalizeDateFilter(pageState.startedTo);
+  const requestedFrom = normalizeDateFilter(pageState.startedFrom);
+  const requestedTo = normalizeDateFilter(pageState.startedTo);
+  // The list is always read through a named window: with nothing in the URL
+  // that is the last 30 days in the tenant's timezone, not all of history.
+  // Resolved here rather than left to the API so the recap below can say which
+  // period the numbers describe.
+  const period = resolveVisitPeriod(
+    { startedFrom: requestedFrom, startedTo: requestedTo },
+    timeZone,
+  );
+  const periodLabel = visitPeriodLabel(tPeriod, format, period);
   const page = normalizePage(pageState.page);
-  const hasFilters = Boolean(selectedStatus || startedFrom || startedTo);
+  // The default window is nobody's choice, so it doesn't light the filter
+  // panel; a period the rep picked does.
+  const hasFilters = Boolean(selectedStatus) || !period.isDefault;
   // A visit report opens from here, from the location card and from a
   // location's own history; it returns to whichever one it was opened from,
-  // with this list's period/status/page still applied.
+  // with this list's period/status/page still applied. The window travels as
+  // dates rather than as a preset name so the return lands on the same days,
+  // not on a relative window that has since slid.
   const historyOrigin = backOrigin("/field/history", {
     page: page > 1 ? page : undefined,
-    startedFrom,
-    startedTo,
+    startedFrom: period.startedFrom,
+    startedTo: period.startedTo,
     status: selectedStatus,
   });
 
-  const periodParams = new URLSearchParams();
-
-  if (startedFrom) {
-    periodParams.set("startedFrom", startedFrom);
-  }
-
-  if (startedTo) {
-    periodParams.set("startedTo", startedTo);
-  }
+  const periodParams = new URLSearchParams({
+    startedFrom: period.startedFrom,
+    startedTo: period.startedTo,
+  });
 
   const query = new URLSearchParams(periodParams);
   query.set("page", String(page));
@@ -128,44 +146,11 @@ export default async function FieldHistoryPage({
   daySummaryQuery.delete("page");
   daySummaryQuery.delete("pageSize");
 
-  // The counters summarise the whole selected period and deliberately ignore
-  // the status pill — the pill narrows the list below, while the counters stay
-  // the "how is this period going" recap the pills are picked from. Each is its
-  // own count query rather than a tally of the loaded page, which only ever
-  // described the first 50 visits.
-  const countQuery = (status?: VisitStatus | VisitStatus[]) => {
-    const params = new URLSearchParams(periodParams);
-    params.set("pageSize", "1");
-
-    // `status` alone would treat an empty array as truthy and send a bare
-    // `status=`, so the array branch checks its own length instead.
-    if (status && (!Array.isArray(status) || status.length > 0)) {
-      params.set("status", Array.isArray(status) ? status.join(",") : status);
-    }
-
-    return params.toString();
-  };
-
-  const [
-    visitsResult,
-    periodResult,
-    completedResult,
-    followUpResult,
-    daySummaryResult,
-  ] = await Promise.all([
+  // Two requests for the whole screen: the page of visits (whose response
+  // carries the period's status split, so the recap costs nothing extra) and
+  // the per-day aggregate the day headers read.
+  const [visitsResult, daySummaryResult] = await Promise.all([
     listVisits(query.toString()),
-    // With no status pill the list query already counts exactly the period's
-    // rows, so its own total stands in and the request is skipped.
-    selectedStatus ? listVisits(countQuery()) : null,
-    // Each count is skipped whenever the recap line below won't reach for it:
-    // the selected status is read off the list's own total, and the line only
-    // ever carries one of the two remaining statuses beside it.
-    selectedStatus === "completed" ? null : listVisits(countQuery("completed")),
-    // The in-progress count: "draft" is a real VisitStatus value but nothing in
-    // the product ever leaves a visit there.
-    !selectedStatus || selectedStatus === "completed"
-      ? listVisits(countQuery("in_progress"))
-      : null,
     listVisitDaySummary(daySummaryQuery.toString()),
   ]);
   // A failed request falls back to the old page-local tally further down
@@ -204,15 +189,11 @@ export default async function FieldHistoryPage({
 
   const visits = visitsResult.data.items;
   const totalPages = visitsResult.data.totalPages;
-  // With a status pill on, the list's own total already counts exactly that
-  // status, so the selected count never costs an extra request.
+  // The whole period's split, ignoring the status pill — it arrives with the
+  // list itself, so picking a pill promotes one of these numbers to the front
+  // of the line without asking the API anything more.
   const counts = buildHistoryCounts(
-    {
-      period: periodResult ? totalOf(periodResult) : visitsResult.data.total,
-      completed: completedResult ? totalOf(completedResult) : null,
-      inProgress: followUpResult ? totalOf(followUpResult) : null,
-      selected: selectedStatus ? visitsResult.data.total : null,
-    },
+    visitsResult.data.statusTotals,
     selectedStatus,
     t,
   );
@@ -232,6 +213,21 @@ export default async function FieldHistoryPage({
       ? `/${tenantSlug}/field/history?${search}`
       : `/${tenantSlug}/field/history`;
   };
+  // Where the list continues once this window is read out: the window of the
+  // same length immediately behind it, on page one.
+  const earlier = previousVisitPeriod(period);
+  const earlierPeriodParams = new URLSearchParams({
+    startedFrom: earlier.startedFrom,
+    startedTo: earlier.startedTo,
+    ...(selectedStatus ? { status: selectedStatus } : {}),
+    // Opens the filter panel on the range it just moved to, so the next step
+    // back is one edit away rather than a second guess.
+    period: "custom",
+  });
+  const earlierPeriodLabel = visitPeriodLabel(tPeriod, format, {
+    ...earlier,
+    preset: "custom",
+  });
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-history">
@@ -246,7 +242,20 @@ export default async function FieldHistoryPage({
 
       <section aria-label={t("myVisits")} className="panel drilldown-panel">
         <FilterForm action={`/${tenantSlug}/field/history`}>
-          <div className="panel-toolbar">
+          <div className="panel-toolbar panel-toolbar-filters">
+            {/* How deep the list reads sits above what it is cut by: the
+                period is the denominator every count below is measured
+                against, the status pill only narrows the cards. */}
+            <VisitPeriodPills
+              action={`/${tenantSlug}/field/history`}
+              otherParams={
+                new URLSearchParams(
+                  selectedStatus ? { status: selectedStatus } : {},
+                )
+              }
+              period={period}
+              timeZone={timeZone}
+            />
             <FilterPills
               ariaLabel={t("statusFiltersAria")}
               name="status"
@@ -262,19 +271,22 @@ export default async function FieldHistoryPage({
           </div>
 
           <FilterDisclosure
-            hasFilters={hasFilters}
+            hasFilters={hasFilters || pageState.period === "custom"}
             label={tCommon("filtersLabel")}
           >
             <div className="filter-form field-history-filter-form">
+              {/* Seeded with the resolved window rather than with whatever the
+                  URL happened to carry: editing one end of the default period
+                  should narrow those 30 days, not open an unbounded range. */}
               <FilterDateRange
                 fromLabel={t("startedFrom")}
                 fromName="startedFrom"
-                fromValue={startedFrom ?? ""}
+                fromValue={period.startedFrom}
                 label={t("visitPeriod")}
                 placeholder={tCommon("datePlaceholder")}
                 toLabel={t("startedTo")}
                 toName="startedTo"
-                toValue={startedTo ?? ""}
+                toValue={period.startedTo}
               />
               {/* No match count here: the recap line under the panel already
                   leads with the count for this very selection. */}
@@ -290,14 +302,14 @@ export default async function FieldHistoryPage({
 
         {/* No aria-label here: ARIA prohibits naming a paragraph, and the line
             reads as its own label anyway. */}
-        {counts.length > 0 ? (
-          <p className="visit-count-summary">
-            <strong>{counts[0]}</strong>
-            {counts.slice(1).map((part) => (
-              <span key={part}>{part}</span>
-            ))}
-          </p>
-        ) : null}
+        {/* The period leads the line: a count with no window behind it is a
+            number without a denominator. */}
+        <p className="visit-count-summary">
+          <strong>{periodLabel}</strong>
+          {counts.map((part) => (
+            <span key={part}>{part}</span>
+          ))}
+        </p>
 
         {visits.length > 0 ? (
           <>
@@ -331,12 +343,37 @@ export default async function FieldHistoryPage({
                 ) : null}
               </nav>
             ) : null}
+            {/* Paging stops at the edge of the window rather than sliding
+                silently into the archive: the last page hands over to the
+                period control, which is the thing that actually reaches
+                further back. */}
+            {page >= totalPages ? (
+              <div className="period-exhausted">
+                <p className="small-label">{t("periodExhaustedTitle")}</p>
+                <p>{t("periodExhaustedBody")}</p>
+                <a
+                  className="secondary-button"
+                  href={`/${tenantSlug}/field/history?${earlierPeriodParams.toString()}`}
+                >
+                  {t("periodEarlier", { period: earlierPeriodLabel })}
+                </a>
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
             <p>{t("emptyBody")}</p>
             <div className="toolbar">
+              {/* An empty window is the one case where reaching further back
+                  is the obvious next move, so the same handover the end of a
+                  full list offers sits here too. */}
+              <a
+                className="secondary-button"
+                href={`/${tenantSlug}/field/history?${earlierPeriodParams.toString()}`}
+              >
+                {t("periodEarlier", { period: earlierPeriodLabel })}
+              </a>
               {hasFilters || page > 1 ? (
                 <a
                   className="secondary-button"
@@ -633,72 +670,48 @@ function shiftDayKey(key: string, days: number): string {
     .slice(0, 10);
 }
 
-function totalOf(result: ApiResult<PaginatedResponse<Visit>>): number | null {
-  return result.ok ? result.data.total : null;
-}
-
 type HistoryTranslator = Awaited<
   ReturnType<typeof getTranslations<"field.history">>
 >;
 
-// The period recap, as one line led by whatever the status pill selected: with
-// no pill it opens on the period's own total, and picking a status promotes
-// that status's count to the front while the rest of the split stays visible
-// behind it. Cancelled is only ever the selected count — the resting line keeps
-// to the two numbers a rep acts on, done and still open.
+// The rest of the recap line, after the period that leads it: with no status
+// pill it reads as the period's own total and its two working numbers, and
+// picking a status promotes that status's count to the front while the split
+// stays visible behind it. Cancelled is only ever the selected count — the
+// resting line keeps to the two numbers a rep acts on, done and still open.
 //
-// A count whose own request failed drops out of the line rather than showing a
-// zero that would read as a fact.
+// Every number comes from one status aggregate the list response already
+// carried, so the pill changes the phrasing, never the request count.
 function buildHistoryCounts(
-  totals: {
-    period: number | null;
-    completed: number | null;
-    inProgress: number | null;
-    selected: number | null;
-  },
+  totals: VisitStatusTotals,
   selectedStatus: VisitStatus | null,
   t: HistoryTranslator,
 ): string[] {
-  // A period with nothing in it needs no recap: the empty state below already
-  // says so, and a row of zeroes above it just repeats the news.
-  if (totals.period === 0) {
+  // A period with nothing in it needs no tally: the empty state below already
+  // says so, and a row of zeroes just repeats the news — the period label
+  // leading the line still stands on its own.
+  if (totals.total === 0) {
     return [];
   }
 
-  const total =
-    totals.period === null ? null : t("countTotal", { count: totals.period });
-  const completed =
-    totals.completed === null
-      ? null
-      : t("countCompleted", { count: totals.completed });
-  const inProgress =
-    totals.inProgress === null
-      ? null
-      : t("countInProgress", { count: totals.inProgress });
+  const total = t("countTotal", { count: totals.total });
+  const completed = t("countCompleted", { count: totals.completed });
+  const inProgress = t("countInProgress", { count: totals.inProgress });
 
   if (!selectedStatus) {
-    return [
-      totals.period === null
-        ? null
-        : t("countVisits", { count: totals.period }),
-      completed,
-      inProgress,
-    ].filter((part): part is string => part !== null);
+    return [t("countVisits", { count: totals.total }), completed, inProgress];
   }
 
-  const count = totals.selected;
   // "draft" is a real VisitStatus but never offered as a filter, so it has no
   // count phrasing of its own and simply leaves the line to the split below.
   const selected =
-    count === null
-      ? null
-      : selectedStatus === "completed"
-        ? t("countCompleted", { count })
-        : selectedStatus === "in_progress"
-          ? t("countInProgress", { count })
-          : selectedStatus === "cancelled"
-            ? t("countCancelled", { count })
-            : null;
+    selectedStatus === "completed"
+      ? completed
+      : selectedStatus === "in_progress"
+        ? inProgress
+        : selectedStatus === "cancelled"
+          ? t("countCancelled", { count: totals.cancelled })
+          : null;
 
   return [
     selected,
