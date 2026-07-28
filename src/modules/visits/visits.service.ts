@@ -203,6 +203,13 @@ export class VisitsService {
       );
     }
 
+    // The conditions that say *which* visits, before the ones that say *when*.
+    // Kept separately because the history boundary below asks the same scope
+    // question over all of time: it is the answer to "is there anything older
+    // than the window I am looking at", which a window-bounded WHERE can never
+    // give.
+    const scopeConditions = [...conditions];
+
     // Always bounded below, even when the caller sent no period at all: this
     // GROUP BY is the one query in the module that would otherwise sweep a
     // tenant's whole visit history on a bare request.
@@ -230,14 +237,15 @@ export class VisitsService {
     // parsing, which reintroduces exactly the local-timezone ambiguity this
     // query exists to avoid. `date::text` is unambiguous — always YYYY-MM-DD,
     // in any driver.
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        day: string;
-        total: bigint;
-        completed: bigint;
-        cancelled: bigint;
-      }>
-    >(Prisma.sql`
+    const [rows, historyRows] = await Promise.all([
+      this.prisma.$queryRaw<
+        Array<{
+          day: string;
+          total: bigint;
+          completed: bigint;
+          cancelled: bigint;
+        }>
+      >(Prisma.sql`
       SELECT
         ((COALESCE("startedAt", "createdAt") AT TIME ZONE 'UTC') AT TIME ZONE ${tenant.timezone})::date::text AS day,
         COUNT(*)::bigint AS total,
@@ -247,7 +255,30 @@ export class VisitsService {
       WHERE ${Prisma.join(conditions, " AND ")}
       GROUP BY day
       ORDER BY day DESC
-    `);
+    `),
+      // Where this scope's history actually begins — the one fact a screen
+      // cannot derive from a bounded window, and the difference between "no
+      // visits before this window" and "nothing here, keep walking backwards".
+      // Deliberately unbounded in time while carrying every other condition
+      // (tenant, representative, location, route, status), so it answers for
+      // the same set of visits the days above describe.
+      //
+      // MIN over the COALESCE expression, which is exactly what
+      // visits_tenant_representative_period_idx is sorted by — Postgres
+      // rewrites it into a one-row index scan rather than an aggregate over
+      // the scope. It lives on day-summary rather than on the list because
+      // only field history needs it, and the other eight callers of
+      // GET /visits should not pay for a query they never read.
+      this.prisma.$queryRaw<Array<{ historyStart: Date | null }>>(Prisma.sql`
+      SELECT MIN(COALESCE("startedAt", "createdAt")) AS "historyStart"
+      FROM visits
+      WHERE ${Prisma.join(scopeConditions, " AND ")}
+    `),
+    ]);
+    // A tenant (or a representative) with no visits at all has no earliest
+    // one. That is a valid answer, not a failure: the screen reads it as "this
+    // history has no floor to reach".
+    const historyStart = historyRows[0]?.historyStart ?? null;
 
     return {
       days: rows.map((row): VisitDaySummaryEntry => ({
@@ -257,6 +288,7 @@ export class VisitsService {
         cancelled: Number(row.cancelled),
       })),
       period: toVisitPeriodResponse(startedAtRange),
+      historyStart: historyStart ? historyStart.toISOString() : null,
     };
   }
 
@@ -1149,19 +1181,28 @@ function buildVisitWhere(
   };
 }
 
-// The deepest any visit query is allowed to reach. Without a floor, a caller
-// that sends no period at all makes the list count and the day-summary GROUP
-// BY sweep a tenant's entire visit history — and the frontend is not the place
-// to enforce that, since an old client, a saved link or a script can all skip
-// it. Clamped rather than rejected: a request for "everything" still answers,
-// it just answers for the last year, so no existing caller breaks.
+// The longest a single window may be — a cost ceiling on one request, not a
+// horizon on the data. Without it, a caller that sends no period at all makes
+// the list count and the day-summary GROUP BY sweep a tenant's entire visit
+// history, and the frontend is not the place to enforce that, since an old
+// client, a saved link or a script can all skip it.
+//
+// Note what this deliberately does *not* do: it never moves a window forward
+// in time. `startedFrom=2020-01-01&startedTo=2020-06-30` is six months long,
+// so it passes untouched and returns 2020 — nothing ages out of reach, and a
+// rep who wants the year before last simply names that range. Only the length
+// is capped, measured back from the window's own end.
+//
+// Clamped rather than rejected: a request for "everything" still answers, it
+// just answers for one year's worth, so no existing caller breaks.
 export const VISIT_PERIOD_MAX_MONTHS = 12;
 
 // Always bounded below, so every consumer can name the window it is showing.
 export type VisitPeriodRange = { gte: Date; lte?: Date };
 
-// The requested period, floored to VISIT_PERIOD_MAX_MONTHS back from its own
-// upper bound (or from now, when the caller named no end).
+// The requested period, trimmed to at most VISIT_PERIOD_MAX_MONTHS measured
+// back from its own upper bound (or from now, when the caller named no end).
+// A window that is already short enough passes through wherever it points.
 //
 // The floor lands on the *start* of that day. Every other bound in this filter
 // is a whole calendar day — `startedTo` becomes 23:59:59.999 — so subtracting

@@ -28,9 +28,16 @@ type FakeSummaryRow = {
   cancelled: bigint;
 };
 
+// The two raw queries the endpoint runs are told apart by their shape: the
+// day aggregate GROUP BYs, the history boundary is a bare MIN.
+function isHistoryBoundaryQuery(query: Prisma.Sql): boolean {
+  return query.strings.join("").includes("MIN(");
+}
+
 function createFakePrisma(options: {
   timezone?: string | null;
   rows: FakeSummaryRow[];
+  historyStart?: Date | null;
 }) {
   const queryRawCalls: Prisma.Sql[] = [];
   const prisma = {
@@ -40,11 +47,20 @@ function createFakePrisma(options: {
     },
     $queryRaw: async (query: Prisma.Sql) => {
       queryRawCalls.push(query);
-      return options.rows;
+
+      return isHistoryBoundaryQuery(query)
+        ? [{ historyStart: options.historyStart ?? null }]
+        : options.rows;
     },
   };
 
-  return { prisma, queryRawCalls };
+  return {
+    prisma,
+    queryRawCalls,
+    daySummaryCalls: () =>
+      queryRawCalls.filter((q) => !isHistoryBoundaryQuery(q)),
+    historyCalls: () => queryRawCalls.filter(isHistoryBoundaryQuery),
+  };
 }
 
 // The COALESCE(startedAt, createdAt)/timezone-bucketing itself, the same
@@ -86,7 +102,7 @@ describe("visit day summary", () => {
   });
 
   it("aggregates in a single query scoped to the caller's own visits and the tenant timezone, when only visits.read_own is held", async () => {
-    const { prisma, queryRawCalls } = createFakePrisma({
+    const { prisma, daySummaryCalls } = createFakePrisma({
       timezone: "Europe/Kyiv",
       rows: [],
     });
@@ -100,26 +116,22 @@ describe("visit day summary", () => {
       {},
     );
 
-    // No findMany/count fallback: exactly one aggregate query, never a
-    // row-per-visit fetch — see the "unbounded team-scope read" note on
-    // getVisitDaySummary.
-    assert.equal(queryRawCalls.length, 1);
+    // No findMany/count fallback: the days come from exactly one aggregate
+    // query, never a row-per-visit fetch — see the "unbounded team-scope read"
+    // note on getVisitDaySummary.
+    assert.equal(daySummaryCalls().length, 1);
     // [timezone, tenantId, representativeUserId, periodFloor] — the SELECT's
     // day expression binds the timezone before the WHERE clause's own values,
     // and the floor is always there: a request with no period still groups
     // over a bounded window rather than the tenant's whole history.
-    const values = queryRawCalls[0].values;
-    assert.deepEqual(values.slice(0, 3), [
-      "Europe/Kyiv",
-      "tenant-a",
-      "rep-a",
-    ]);
+    const values = daySummaryCalls()[0].values;
+    assert.deepEqual(values.slice(0, 3), ["Europe/Kyiv", "tenant-a", "rep-a"]);
     assert.equal(values.length, 4);
     assert.ok(values[3] instanceof Date);
   });
 
   it("applies the status and started-date filters with no representative condition for a team-scope caller", async () => {
-    const { prisma, queryRawCalls } = createFakePrisma({
+    const { prisma, daySummaryCalls } = createFakePrisma({
       timezone: "Europe/Kyiv",
       rows: [],
     });
@@ -134,8 +146,8 @@ describe("visit day summary", () => {
       },
     );
 
-    assert.equal(queryRawCalls.length, 1);
-    assert.deepEqual(queryRawCalls[0].values, [
+    assert.equal(daySummaryCalls().length, 1);
+    assert.deepEqual(daySummaryCalls()[0].values, [
       "Europe/Kyiv",
       "tenant-a",
       "completed",
@@ -145,7 +157,7 @@ describe("visit day summary", () => {
   });
 
   it("binds every value of a multi-status filter into the IN-list", async () => {
-    const { prisma, queryRawCalls } = createFakePrisma({
+    const { prisma, daySummaryCalls } = createFakePrisma({
       timezone: "Europe/Kyiv",
       rows: [],
     });
@@ -156,8 +168,8 @@ describe("visit day summary", () => {
       { status: ["draft", "in_progress"] },
     );
 
-    assert.equal(queryRawCalls.length, 1);
-    const values = queryRawCalls[0].values;
+    assert.equal(daySummaryCalls().length, 1);
+    const values = daySummaryCalls()[0].values;
     assert.deepEqual(values.slice(0, 4), [
       "Europe/Kyiv",
       "tenant-a",
@@ -167,6 +179,70 @@ describe("visit day summary", () => {
     // The clamped period floor closes the WHERE clause.
     assert.equal(values.length, 5);
     assert.ok(values[4] instanceof Date);
+  });
+
+  // Where the history begins is the one fact a windowed aggregate can never
+  // report, and the difference between two very different things the field
+  // history screen has to say: "there is nothing older than this window" and
+  // "this window is empty, keep walking back".
+  it("reports the earliest visit in scope, unbounded by the window, alongside the days", async () => {
+    const { prisma, historyCalls } = createFakePrisma({
+      timezone: "Europe/Kyiv",
+      rows: [],
+      historyStart: new Date("2024-03-05T08:15:00.000Z"),
+    });
+    const service = new VisitsService(prisma as never);
+
+    const summary = await service.getVisitDaySummary(
+      createContext({ permissions: [PERMISSIONS.VISITS_READ_OWN] }),
+      { startedFrom: "2026-07-01", startedTo: "2026-07-31" },
+    );
+
+    assert.equal(summary.historyStart, "2024-03-05T08:15:00.000Z");
+    assert.equal(historyCalls().length, 1);
+    // Scope without window: tenant and representative are bound, neither end
+    // of the period is — a boundary that respected the window could only ever
+    // answer with the window's own edge.
+    assert.deepEqual(historyCalls()[0].values, ["tenant-a", "rep-a"]);
+  });
+
+  it("carries every scope filter into the history boundary, so it answers for the same visits the days describe", async () => {
+    const { prisma, historyCalls } = createFakePrisma({
+      timezone: "Europe/Kyiv",
+      rows: [],
+      historyStart: new Date("2025-01-02T00:00:00.000Z"),
+    });
+    const service = new VisitsService(prisma as never);
+
+    await service.getVisitDaySummary(
+      createContext({ permissions: [PERMISSIONS.VISITS_READ_TEAM] }),
+      {
+        locationId: "location-a",
+        status: ["completed"],
+        startedFrom: "2026-07-01",
+      },
+    );
+
+    assert.deepEqual(historyCalls()[0].values, [
+      "tenant-a",
+      "location-a",
+      "completed",
+    ]);
+  });
+
+  it("reports no boundary at all for a scope that holds no visits", async () => {
+    const { prisma } = createFakePrisma({
+      timezone: "Europe/Kyiv",
+      rows: [],
+      historyStart: null,
+    });
+    const service = new VisitsService(prisma as never);
+
+    const summary = await service.getVisitDaySummary(createContext(), {});
+
+    // A valid answer, not a failure: this history has no floor to reach.
+    assert.equal(summary.historyStart, null);
+    assert.deepEqual(summary.days, []);
   });
 
   it("rejects when the tenant cannot be resolved", async () => {
