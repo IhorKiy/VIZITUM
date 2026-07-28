@@ -9,19 +9,19 @@ const TRUSTED_UNFILTERED = {
 };
 
 describe("isDayFullyDone", () => {
-  it("hides a day whose every workable visit is completed", () => {
+  it("files a day whose every workable visit is completed into the tail", () => {
     assert.equal(
       isDayFullyDone({ completedPercent: 100, ...TRUSTED_UNFILTERED }),
       true,
     );
   });
 
-  it("keeps a day with anything still open", () => {
+  it("keeps a day with anything still open in the running list", () => {
     for (const completedPercent of [0, 50, 99]) {
       assert.equal(
         isDayFullyDone({ completedPercent, ...TRUSTED_UNFILTERED }),
         false,
-        `${completedPercent}% should stay visible`,
+        `${completedPercent}% should stay in the running list`,
       );
     }
   });
@@ -35,9 +35,9 @@ describe("isDayFullyDone", () => {
     );
   });
 
-  it("hides nothing while a status pill is narrowing the list", () => {
-    // Under the "completed" pill every day is 100% by construction; hiding
-    // them would empty the very list the rep just asked for.
+  it("folds nothing away while a status pill is narrowing the list", () => {
+    // Under the "completed" pill every day is 100% by construction; folding
+    // them away would put the very list the rep asked for behind a lid.
     assert.equal(
       isDayFullyDone({
         completedPercent: 100,
@@ -48,10 +48,10 @@ describe("isDayFullyDone", () => {
     );
   });
 
-  it("hides nothing when the day totals came from the current page only", () => {
+  it("folds nothing away when the day totals came from the current page only", () => {
     // The page-local fallback describes this page's slice of a day, not the
     // day. A day split across a page boundary whose slice happens to be all
-    // completed must not vanish while the day itself is unfinished.
+    // completed must not be filed as finished while the day is unfinished.
     assert.equal(
       isDayFullyDone({
         completedPercent: 100,

@@ -944,17 +944,27 @@ textarea {
   }
 }
 
-/* Says how many fully completed days the history list left out, and links to
-   the filter that shows them. Sits above the day headers, quiet enough not to
-   compete with them but never silent — a hidden day nobody was told about is
-   a day the rep goes hunting for. */
-.visit-days-hidden-note {
-  margin: 0 0 12px;
+/* The history list's finished tail: every day whose work is fully done, folded
+   into one row under the days that still need something. Deliberately quieter
+   than a day header — it is a lid, not an entry — but it stays in the list, so
+   a day nobody has to act on is still one tap from being read. */
+.visit-days-done > summary {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  list-style: none;
+  padding: 14px 0 4px;
 }
 
-.visit-days-hidden-note a {
-  color: var(--accent);
-  text-decoration: underline;
+.visit-days-done > summary::-webkit-details-marker {
+  display: none;
+}
+
+.visit-days-done[open] > summary .visit-day-chevron {
+  transform: rotate(180deg);
 }
 
 /* The end of the window, handing over to the period control rather than to one
