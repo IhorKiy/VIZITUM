@@ -944,6 +944,41 @@ textarea {
   }
 }
 
+/* The history list's finished tail: every day whose work is fully done, folded
+   into one row under the days that still need something. Deliberately quieter
+   than a day header — it is a lid, not an entry — but it stays in the list, so
+   a day nobody has to act on is still one tap from being read. */
+.visit-days-done-header {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  list-style: none;
+  padding: 14px 0 4px;
+}
+
+.visit-days-done-header::-webkit-details-marker {
+  display: none;
+}
+
+/* Child combinator, not a descendant one: the days inside the tail are
+   .visit-day disclosures with chevrons of their own, and those must keep
+   tracking their own open state. */
+.visit-days-done[open] > .visit-days-done-header .visit-day-chevron {
+  transform: rotate(180deg);
+}
+
+/* The days inside the lid space themselves the same way the top-level list
+   does — .visit-day carries no margin of its own, so without this the second
+   day's header would sit flush against the first day's cards. */
+.visit-days-done-list {
+  display: grid;
+  gap: 20px;
+  margin-top: 10px;
+}
+
 /* The end of the window, handing over to the period control rather than to one
    more page button: paging lives inside the window, reaching further back is a
    different decision. */
