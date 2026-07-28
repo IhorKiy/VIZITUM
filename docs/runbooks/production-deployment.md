@@ -17,6 +17,14 @@ Migrations belong to the API service's pre-deploy command and nowhere else: it i
 
 A pre-deploy command that fails aborts the deploy and leaves the previous release serving, which is the desired outcome: a release whose migrations did not apply must not reach production. The reverse — code that ships ahead of its migration — is the failure this column exists to prevent, and it does not surface as a failed deploy. It surfaces later, as a runtime error on whichever path first touches the new schema, typically a cron worker emailing `worker_task_failed` every run.
 
+Render locks the pre-deploy field on free instance types (the field is visible under Settings → Deploy with a padlock). Until the API is on a paid instance, fold the migration into the start command instead:
+
+```sh
+npm run prisma:migrate:deploy && npm start
+```
+
+This keeps the schema ahead of the code, at three costs worth knowing. A failed migration leaves the service down rather than aborting the deploy and leaving the previous release serving. It runs on every container start rather than once per release, which on a free instance means every wake from sleep — harmless, since an up-to-date database makes it a sub-second no-op. And it would race across instances if the service ever scaled past one, which a free instance cannot. Move back to the pre-deploy command as soon as the instance is upgraded, and restore the plain `npm start`.
+
 The cleanup worker is intentionally a one-shot task. Schedule it at least hourly for the pilot unless provider limits or storage policy require a shorter interval.
 
 The purge worker is the destructive half of tenant lifecycle: it auto-archives stale `pilot` tenants (only when `TENANT_PILOT_AUTO_ARCHIVE_DAYS` is set — unset means disabled) and **permanently deletes** archived tenants once `TENANT_PURGE_RETENTION_DAYS` (default 30) has elapsed since archiving, or immediately after an explicit purge request from the platform console. Daily scheduling is enough. It deletes R2 storage objects before database rows, is crash-safe/re-runnable (an interrupted purge resumes on the next run; a partially-purged tenant can never be unarchived), and refuses to run on misconfigured env values instead of assuming defaults. Every purge leaves a `tenant.purge_started`/`tenant.purged` trail in `platform_operation_events` with per-table row counts.
