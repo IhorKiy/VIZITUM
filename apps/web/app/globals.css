@@ -4773,8 +4773,17 @@ textarea {
 .location-header-identity > .location-header-title,
 .location-header-identity > .location-header-address,
 .location-header-identity > .location-header-chain,
-.location-header-identity > .location-header-meta {
+.location-header-identity > .location-header-meta,
+.location-header-identity > .location-insight-pill {
   grid-column: 2;
+}
+
+/* The assignment pill sits under the address like the chain badge. As a grid
+   item it would otherwise stretch across the 1fr column, so it needs the same
+   start alignment the chain badge sets on itself. */
+.location-header-identity > .location-insight-pill {
+  justify-self: start;
+  margin-top: 6px;
 }
 
 /* Accent-tinted leading icon next to the header title — identifies the current

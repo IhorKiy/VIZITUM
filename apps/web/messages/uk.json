@@ -129,6 +129,11 @@
     "datePlaceholder": "__.__.____",
     "phoneInvalid": "Введіть дійсний номер телефону.",
     "phoneInternationalRequired": "Введіть номер у міжнародному форматі, починаючи з +.",
+    "locationAssignment": {
+      "keptBy": "Веде: {name}",
+      "keptByOthers": "Веде: {name} +{count}",
+      "unassigned": "Без представника"
+    },
     "locationInsights": {
       "potentialTitle": "Потенціал",
       "potentialCount": "{count, plural, one {# товарна категорія} few {# товарні категорії} many {# товарних категорій} other {# товарної категорії}}",

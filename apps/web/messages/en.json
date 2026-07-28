@@ -129,6 +129,11 @@
     "datePlaceholder": "__.__.____",
     "phoneInvalid": "Enter a valid phone number.",
     "phoneInternationalRequired": "Enter the phone in international format starting with +.",
+    "locationAssignment": {
+      "keptBy": "Kept by {name}",
+      "keptByOthers": "Kept by {name} +{count}",
+      "unassigned": "No representative"
+    },
     "locationInsights": {
       "potentialTitle": "Potential",
       "potentialCount": "{count, plural, one {# product category} other {# product categories}}",

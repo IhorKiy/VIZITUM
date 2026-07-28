@@ -5,6 +5,7 @@ import { AppShell } from "../../../../../../components/app-shell";
 import { BackLink } from "../../../../../../components/back-link";
 import { DismissableNotice } from "../../../../../../components/dismissable-notice";
 import { BanknoteIcon } from "../../../../../../components/icons";
+import { LocationAssignmentPill } from "../../../../../../components/location-assignment-pill";
 import { LocationPotentialModal } from "../../../../../../components/location-potential-modal";
 import { LocationPotentialPanel } from "../../../../../../components/location-potential-panel";
 import { resolveBackTarget } from "../../../../../../lib/back-navigation";
@@ -83,6 +84,8 @@ export default async function LocationPotentialPage({
   }
 
   const locationName = locationResult.data.name;
+  const locationAssignments = locationResult.data.assignments;
+  const currentUserId = sessionResult.data.user.id;
 
   const [potentialResult, categoriesResult] = await Promise.all([
     listLocationPotential(locationId),
@@ -144,6 +147,10 @@ export default async function LocationPotentialPage({
                   count: potentialRows.length,
                 })}
               </p>
+              <LocationAssignmentPill
+                assignments={locationAssignments}
+                currentUserId={currentUserId}
+              />
             </div>
           </div>
         </div>

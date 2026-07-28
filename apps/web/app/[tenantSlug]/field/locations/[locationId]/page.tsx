@@ -12,6 +12,7 @@ import {
   MapPinIcon,
   PackageIcon,
 } from "../../../../../components/icons";
+import { LocationAssignmentPill } from "../../../../../components/location-assignment-pill";
 import { LocationContactsModal } from "../../../../../components/location-contacts-modal";
 import { LocationNotesModal } from "../../../../../components/location-notes-modal";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
@@ -303,6 +304,9 @@ export default async function LocationDetailPage({
   const canManageContacts = locationResult.ok
     ? (locationResult.data.canManageContacts ?? false)
     : false;
+  const locationAssignments = locationResult.ok
+    ? locationResult.data.assignments
+    : [];
 
   const representativeUserId = sessionResult.ok
     ? sessionResult.data.user.id
@@ -477,6 +481,12 @@ export default async function LocationDetailPage({
               <span className="location-header-chain">
                 {chainName ?? t("location.chainNone")}
               </span>
+              {/* Demo mode has no location behind it, so there is no
+                  assignment to speak of and the pill renders nothing. */}
+              <LocationAssignmentPill
+                assignments={locationAssignments}
+                currentUserId={representativeUserId}
+              />
             </div>
           </div>
           <div className="location-header-actions">
