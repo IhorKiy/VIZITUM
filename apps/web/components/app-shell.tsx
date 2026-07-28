@@ -132,7 +132,11 @@ export async function AppShell({
   // the menu button instead of a fifth bottom tab — see components/field-menu.tsx.
   const fieldMenuLinks =
     currentZone === "field"
-      ? buildFieldMenuLinks(tenantSlug, productsEnabled)
+      ? buildFieldMenuLinks(
+          tenantSlug,
+          sessionResult.ok ? sessionResult.data.permissions : undefined,
+          productsEnabled,
+        )
       : [];
 
   // Counts hanging off a field nav item, sidebar and mobile alike: tasks still

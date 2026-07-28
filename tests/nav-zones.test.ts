@@ -182,12 +182,37 @@ describe("navigation zones", () => {
 
   it("the field menu drops the catalogue when the tenant has products disabled", () => {
     assert.deepEqual(
-      buildFieldMenuLinks("acme", true).map((link) => link.href),
+      buildFieldMenuLinks("acme", FIELD_REPRESENTATIVE_PERMISSIONS, true).map(
+        (link) => link.href,
+      ),
       ["/acme/field/locations", "/acme/field/products", "/acme/field/help"],
     );
     assert.deepEqual(
-      buildFieldMenuLinks("acme", false).map((link) => link.href),
+      buildFieldMenuLinks("acme", FIELD_REPRESENTATIVE_PERMISSIONS, false).map(
+        (link) => link.href,
+      ),
       ["/acme/field/locations", "/acme/field/help"],
+    );
+  });
+
+  it("the field menu only offers screens the user can actually open", () => {
+    // Each entry leads to a screen that checks the same permission itself, so
+    // without this filter the menu would advertise a "you need access" page.
+    assert.deepEqual(
+      buildFieldMenuLinks("acme", ["visits.read_own"]).map((link) => link.key),
+      ["help"],
+    );
+    assert.deepEqual(
+      buildFieldMenuLinks("acme", ["visits.read_own", "products.read"]).map(
+        (link) => link.key,
+      ),
+      ["products", "help"],
+    );
+    // Help carries no permission of its own: the answers are reference text,
+    // and they matter most when the API is the thing that failed.
+    assert.deepEqual(
+      buildFieldMenuLinks("acme", []).map((link) => link.key),
+      ["help"],
     );
   });
 

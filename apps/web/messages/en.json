@@ -1532,7 +1532,10 @@
       "emptyTitle": "No products match this filter",
       "emptyBody": "Try another filter or clear it to see the full list.",
       "showAll": "Show all products",
-      "filterResultCount": "{count, plural, =0 {No products found} one {Found <b>#</b> product} other {Found <b>#</b> products}}"
+      "filterResultCount": "{count, plural, =0 {No products found} one {Found <b>#</b> product} other {Found <b>#</b> products}}",
+      "disabledAria": "Catalogue status",
+      "disabledTitle": "The product catalogue is off",
+      "disabledBody": "This workspace runs without a product catalogue. Ask an administrator to turn it on if you need one."
     },
     "tasks": {
       "title": "Tasks",

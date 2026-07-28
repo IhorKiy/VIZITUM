@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { withBackOrigin } from "../lib/back-navigation";
 import type { FieldMenuLink, Zone } from "../lib/navigation";
 import { logoutAction } from "../lib/session-actions";
 import { selectZoneAction } from "../lib/zone-actions";
@@ -50,23 +52,51 @@ export function FieldMenu({
   const tCommon = useTranslations("common");
   const tZoneSwitcher = useTranslations("common.zone.switcher");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  // Navigating away is what closes the menu: the links are plain <a>-style
-  // Next links, and without this the dialog would still be open on the screen
-  // the user just landed on.
+  // This menu hangs off every field screen, so a link out of it has no single
+  // opener to return to: help opened from tasks must go back to tasks, not to
+  // the home route. The screen the menu is currently sitting on states itself
+  // as the origin, and the target resolves it (lib/back-navigation.ts).
+  // Anything not on the RETURNABLE_SCREENS allowlist falls back there instead.
+  const query = searchParams.toString();
+  const tenantPrefix = `/${tenantSlug}`;
+  const currentPath = pathname.startsWith(`${tenantPrefix}/`)
+    ? pathname.slice(tenantPrefix.length)
+    : null;
+  const origin = currentPath
+    ? `${currentPath}${query ? `?${query}` : ""}`
+    : null;
+
+  // Navigating away is what closes the menu: with client-side routing the
+  // dialog element survives the transition and would otherwise still be open
+  // on the screen the user just landed on.
   useEffect(() => {
     dialogRef.current?.close();
+    setOpen(false);
   }, [pathname]);
+
+  function openDialog() {
+    dialogRef.current?.showModal();
+    setOpen(true);
+  }
+
+  function closeDialog() {
+    dialogRef.current?.close();
+    setOpen(false);
+  }
 
   return (
     <>
       <button
+        aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={t("open")}
         className="field-menu-button"
         data-active={active ? "true" : undefined}
-        onClick={() => dialogRef.current?.showModal()}
+        onClick={openDialog}
         title={t("open")}
         type="button"
       >
@@ -76,6 +106,25 @@ export function FieldMenu({
       <dialog
         aria-label={t("title")}
         className="field-menu-dialog"
+        // A native <dialog> ignores backdrop clicks, and tapping beside a
+        // drawer is the expected way to dismiss one on a phone. Clicks on the
+        // backdrop are reported against the dialog element itself, so the point
+        // is tested against the drawer's own box rather than trusting the
+        // target alone — the element's padding would otherwise close it too.
+        onClick={(event) => {
+          const bounds = dialogRef.current?.getBoundingClientRect();
+
+          if (
+            bounds &&
+            (event.clientX < bounds.left ||
+              event.clientX > bounds.right ||
+              event.clientY < bounds.top ||
+              event.clientY > bounds.bottom)
+          ) {
+            closeDialog();
+          }
+        }}
+        onClose={() => setOpen(false)}
         ref={dialogRef}
       >
         <div className="field-menu-header">
@@ -91,7 +140,7 @@ export function FieldMenu({
           <button
             aria-label={tCommon("close")}
             className="icon-button"
-            onClick={() => dialogRef.current?.close()}
+            onClick={closeDialog}
             title={tCommon("close")}
             type="button"
           >
@@ -101,8 +150,12 @@ export function FieldMenu({
 
         <nav aria-label={t("title")} className="field-menu-links">
           {links.map((link) => (
-            <a className="field-menu-link" href={link.href} key={link.key}>
-              <span className="field-menu-link-icon">
+            <Link
+              className="field-menu-link"
+              href={origin ? withBackOrigin(link.href, origin) : link.href}
+              key={link.key}
+            >
+              <span className="field-menu-link-icon nav-icon">
                 <NavIcon name={link.icon} />
               </span>
               <span className="field-menu-link-text">
@@ -114,7 +167,7 @@ export function FieldMenu({
               <span aria-hidden="true" className="field-menu-link-chevron">
                 ›
               </span>
-            </a>
+            </Link>
           ))}
         </nav>
 

@@ -331,18 +331,45 @@ const FIELD_MENU_LINK_DEFS: {
   key: FieldMenuLinkKey;
   path: string;
   icon: NavIconName;
+  /** Same shape as a nav item's, and read the same way: any one of them is enough. */
+  requiredPermissions: string[];
 }[] = [
-  { key: "locations", path: "/field/locations", icon: "pin" },
-  { key: "products", path: "/field/products", icon: "box" },
-  { key: "help", path: "/field/help", icon: "help" },
+  {
+    key: "locations",
+    path: "/field/locations",
+    icon: "pin",
+    requiredPermissions: ["locations.read"],
+  },
+  {
+    key: "products",
+    path: "/field/products",
+    icon: "box",
+    requiredPermissions: ["products.read"],
+  },
+  // No permission of its own: the answers are reference text, and they are most
+  // useful exactly when the API — and with it the session's permission list —
+  // is the thing that failed.
+  { key: "help", path: "/field/help", icon: "help", requiredPermissions: [] },
 ];
 
+// Argument order mirrors buildTenantNav's, and the permission filter works the
+// same way, so a menu entry can't offer a screen that answers "you need access"
+// — the screens still check for themselves.
 export function buildFieldMenuLinks(
   tenantSlug: string,
+  permissions?: string[],
   productsEnabled = true,
 ): FieldMenuLink[] {
+  const permissionSet = permissions ? new Set(permissions) : null;
+
   return FIELD_MENU_LINK_DEFS.filter(
-    (link) => productsEnabled || link.key !== "products",
+    (link) =>
+      (productsEnabled || link.key !== "products") &&
+      (!permissionSet ||
+        link.requiredPermissions.length === 0 ||
+        link.requiredPermissions.some((permission) =>
+          permissionSet.has(permission),
+        )),
   ).map((link) => ({
     key: link.key,
     href: `/${tenantSlug}${link.path}`,

@@ -80,6 +80,28 @@ describe("resolveBackTarget", () => {
     });
   });
 
+  it("returns a field menu screen to the screen the menu was opened on", () => {
+    // The menu hangs off every field screen, so Help/Locations/Products have
+    // no single opener: help opened from tasks must go back to tasks, and the
+    // home route is only the deep-link fallback.
+    const menuFallback: BackTarget = { href: "/acme/field", labelKey: "route" };
+
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/tasks", menuFallback),
+      { href: "/acme/field/tasks", labelKey: "tasks" },
+    );
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/planning", menuFallback),
+      { href: "/acme/field/planning", labelKey: "routes" },
+    );
+    // A screen the allowlist doesn't name (the menu is rendered on those too)
+    // silently falls back rather than advertising an unnamed destination.
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/visits/visit-1", menuFallback),
+      menuFallback,
+    );
+  });
+
   describe("rejects an origin that isn't a real in-app screen", () => {
     // Each of these must fall back rather than become the back link's href —
     // `from` is attacker-controllable, so the allowlist is the only thing

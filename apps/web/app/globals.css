@@ -4472,7 +4472,9 @@ textarea {
   border-color: var(--accent);
 }
 
-.field-menu-link-icon .nav-icon {
+/* Compound, not descendant: the span *is* the .nav-icon badge, so the icon
+   reads the same here as it does in the sidebar. */
+.field-menu-link-icon.nav-icon {
   height: 32px;
   width: 32px;
 }

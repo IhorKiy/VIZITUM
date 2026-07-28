@@ -20,6 +20,7 @@ import {
   type ProductCategory,
   type ProductStatus,
 } from "../../../../lib/api-client";
+import { backOrigin, resolveBackTarget } from "../../../../lib/back-navigation";
 import {
   formatEnumLabel,
   normalizeFilterValue,
@@ -31,6 +32,7 @@ type FieldProductsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     category?: string;
+    from?: string;
     search?: string;
     status?: string;
   }>;
@@ -85,6 +87,37 @@ export default async function FieldProductsPage({
   }
 
   const pageState = await searchParams;
+  // Opened from the field menu, which hangs off every field screen, so where
+  // "back" lands is whatever screen the menu was opened on.
+  const backTarget = resolveBackTarget(tenantSlug, pageState.from, {
+    href: `/${tenantSlug}/field`,
+    labelKey: "route",
+  });
+
+  // The menu hides this entry when the tenant runs without a catalogue, but an
+  // old link or a bookmark still reaches the URL — same notice the manager's
+  // potential screen shows for the same flag.
+  if (!sessionResult.data.productsEnabled) {
+    return (
+      <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
+        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
+        <header className="page-header">
+          <div>
+            <p className="eyebrow">{tField("flowEyebrow")}</p>
+            <h1>{t("title")}</h1>
+          </div>
+        </header>
+
+        <section aria-label={t("disabledAria")} className="notice-panel">
+          <div>
+            <h2>{t("disabledTitle")}</h2>
+            <p>{t("disabledBody")}</p>
+          </div>
+        </section>
+      </AppShell>
+    );
+  }
+
   const selectedStatus = normalizeStatus(pageState.status);
   const selectedCategory = normalizeFilterValue(pageState.category);
   const search = normalizeFilterValue(pageState.search);
@@ -111,7 +144,7 @@ export default async function FieldProductsPage({
   if (!productsResult.ok) {
     return (
       <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
-        <BackLink href={`/${tenantSlug}/field`} label={tBack("route")} />
+        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
@@ -147,7 +180,7 @@ export default async function FieldProductsPage({
 
   return (
     <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
-      <BackLink href={`/${tenantSlug}/field`} label={tBack("route")} />
+      <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
       <header className="page-header">
         <div>
           <p className="eyebrow">{tField("flowEyebrow")}</p>
@@ -158,6 +191,11 @@ export default async function FieldProductsPage({
 
       <section aria-label={t("listAria")} className="panel drilldown-panel">
         <FilterForm action={`/${tenantSlug}/field/products`}>
+          {/* FilterForm rebuilds the URL from this form's own fields, so the
+              opener has to travel as one or filtering would strip it. */}
+          {pageState.from ? (
+            <input name="from" type="hidden" value={pageState.from} />
+          ) : null}
           <div className="panel-toolbar">
             <FilterPills
               ariaLabel={t("statusFiltersAria")}
@@ -199,7 +237,11 @@ export default async function FieldProductsPage({
               </FilterField>
               <FilterFooter
                 resetHref={
-                  hasFilters ? `/${tenantSlug}/field/products` : undefined
+                  hasFilters
+                    ? backOrigin(`/${tenantSlug}/field/products`, {
+                        from: pageState.from,
+                      })
+                    : undefined
                 }
                 resetLabel={tCommon("reset")}
                 resultText={t.rich("filterResultCount", {
