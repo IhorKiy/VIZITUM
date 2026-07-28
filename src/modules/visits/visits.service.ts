@@ -1162,6 +1162,12 @@ export type VisitPeriodRange = { gte: Date; lte?: Date };
 
 // The requested period, floored to VISIT_PERIOD_MAX_MONTHS back from its own
 // upper bound (or from now, when the caller named no end).
+//
+// The floor lands on the *start* of that day. Every other bound in this filter
+// is a whole calendar day — `startedTo` becomes 23:59:59.999 — so subtracting
+// twelve months from an end bound would otherwise put the floor at 23:59:59.999
+// too and swallow all but the last millisecond of the boundary day, which is a
+// day of visits that silently doesn't exist.
 export function resolveVisitPeriodRange(
   fromValue: unknown,
   toValue: unknown,
@@ -1169,7 +1175,9 @@ export function resolveVisitPeriodRange(
 ): VisitPeriodRange {
   const range = buildDateTimeRangeFilter(fromValue, toValue);
   const windowEnd = range?.lte ?? now;
-  const earliest = subtractMonths(windowEnd, VISIT_PERIOD_MAX_MONTHS);
+  const earliest = startOfUtcDay(
+    subtractMonths(windowEnd, VISIT_PERIOD_MAX_MONTHS),
+  );
   const gte =
     range?.gte && range.gte.getTime() > earliest.getTime()
       ? range.gte
@@ -1184,6 +1192,14 @@ function subtractMonths(value: Date, months: number): Date {
   shifted.setUTCMonth(shifted.getUTCMonth() - months);
 
   return shifted;
+}
+
+function startOfUtcDay(value: Date): Date {
+  const start = new Date(value.getTime());
+
+  start.setUTCHours(0, 0, 0, 0);
+
+  return start;
 }
 
 function toVisitPeriodResponse(range: VisitPeriodRange): VisitPeriodResponse {

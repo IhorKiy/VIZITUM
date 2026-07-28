@@ -34,7 +34,9 @@ describe("visit period window", () => {
   it("floors a period-less query 12 months back from now instead of rejecting it", () => {
     const range = resolveVisitPeriodRange(undefined, undefined, now);
 
-    assert.deepEqual(range, { gte: new Date("2025-07-28T09:00:00.000Z") });
+    // Start of that day, not the same clock time: the floor is a calendar
+    // boundary like every other bound in this filter.
+    assert.deepEqual(range, { gte: new Date("2025-07-28T00:00:00.000Z") });
     assert.equal(VISIT_PERIOD_MAX_MONTHS, 12);
   });
 
@@ -52,8 +54,11 @@ describe("visit period window", () => {
 
     // The end the caller asked for survives; only the start moves up, so an
     // old window stays where it was pointed rather than snapping to today.
+    // The floor is the start of the boundary day: taking twelve months off an
+    // end bound of 23:59:59.999 would otherwise leave a floor of 23:59:59.999
+    // and drop all but the last millisecond of 30 June 2023.
     assert.deepEqual(range, {
-      gte: new Date("2023-06-30T23:59:59.999Z"),
+      gte: new Date("2023-06-30T00:00:00.000Z"),
       lte: new Date("2024-06-30T23:59:59.999Z"),
     });
   });
@@ -61,13 +66,21 @@ describe("visit period window", () => {
   it("bounds a half-open period that only names its start", () => {
     const range = resolveVisitPeriodRange("2020-01-01", undefined, now);
 
-    assert.deepEqual(range, { gte: new Date("2025-07-28T09:00:00.000Z") });
+    assert.deepEqual(range, { gte: new Date("2025-07-28T00:00:00.000Z") });
+  });
+
+  it("keeps the whole boundary day inside the window", () => {
+    const range = resolveVisitPeriodRange("2000-01-01", "2026-07-28", now);
+    // A visit at one minute past midnight on the floor day is in the window;
+    // before the day was rounded down, only the final millisecond was.
+    const firstMomentOfFloorDay = new Date("2025-07-28T00:01:00.000Z");
+
+    assert.ok(range.gte.getTime() <= firstMomentOfFloorDay.getTime());
   });
 
   it("applies the floor to the list query even when the caller sent no dates", async () => {
     let capturedWhere:
-      | { AND: Array<{ OR: Array<{ startedAt?: { gte?: Date } }> }> }
-      | undefined;
+      { AND: Array<{ OR: Array<{ startedAt?: { gte?: Date } }> }> } | undefined;
     const prisma = {
       visit: {
         findMany: async (query: { where: typeof capturedWhere }) => {
