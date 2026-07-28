@@ -20,7 +20,10 @@ import {
   type ProductCategory,
   type ProductStatus,
 } from "../../../../lib/api-client";
-import { backOrigin, resolveBackTarget } from "../../../../lib/back-navigation";
+import {
+  resolveBackTarget,
+  withBackOrigin,
+} from "../../../../lib/back-navigation";
 import {
   formatEnumLabel,
   normalizeFilterValue,
@@ -118,6 +121,12 @@ export default async function FieldProductsPage({
     );
   }
 
+  // withBackOrigin, not backOrigin: this is an outgoing link that has to keep
+  // the opener, not a tenant-relative origin being built.
+  const listHref = `/${tenantSlug}/field/products`;
+  const resetFiltersHref = pageState.from
+    ? withBackOrigin(listHref, pageState.from)
+    : listHref;
   const selectedStatus = normalizeStatus(pageState.status);
   const selectedCategory = normalizeFilterValue(pageState.category);
   const search = normalizeFilterValue(pageState.search);
@@ -236,13 +245,7 @@ export default async function FieldProductsPage({
                 />
               </FilterField>
               <FilterFooter
-                resetHref={
-                  hasFilters
-                    ? backOrigin(`/${tenantSlug}/field/products`, {
-                        from: pageState.from,
-                      })
-                    : undefined
-                }
+                resetHref={hasFilters ? resetFiltersHref : undefined}
                 resetLabel={tCommon("reset")}
                 resultText={t.rich("filterResultCount", {
                   ...filterCountTags,

@@ -107,15 +107,19 @@ export function FieldMenu({
         aria-label={t("title")}
         className="field-menu-dialog"
         // A native <dialog> ignores backdrop clicks, and tapping beside a
-        // drawer is the expected way to dismiss one on a phone. Clicks on the
-        // backdrop are reported against the dialog element itself, so the point
-        // is tested against the drawer's own box rather than trusting the
-        // target alone — the element's padding would otherwise close it too.
+        // drawer is the expected way to dismiss one on a phone. Both conditions
+        // are needed. The backdrop is reported against the dialog element
+        // itself, so a click on any child is never a dismissal — including the
+        // (0, 0) click a keyboard Enter/Space synthesizes, which the point test
+        // alone would read as landing left of a right-pinned drawer. And a
+        // click that *is* on the element can still be inside its own padding,
+        // which the point test rejects.
         onClick={(event) => {
           const bounds = dialogRef.current?.getBoundingClientRect();
 
           if (
             bounds &&
+            event.target === dialogRef.current &&
             (event.clientX < bounds.left ||
               event.clientX > bounds.right ||
               event.clientY < bounds.top ||

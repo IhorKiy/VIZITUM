@@ -155,6 +155,12 @@ export default async function FieldLocationsPage({
   // The location card is also reachable from today's route and the route
   // editor, so it can't guess where to return — this list hands it the filter
   // state the rep leaves behind.
+  // withBackOrigin, not backOrigin: this is an outgoing link that has to keep
+  // the opener, not a tenant-relative origin being built.
+  const listHref = `/${tenantSlug}/field/locations`;
+  const resetFiltersHref = pageState.from
+    ? withBackOrigin(listHref, pageState.from)
+    : listHref;
   const origin = backOrigin("/field/locations", {
     city: selectedCity,
     from: pageState.from,
@@ -220,13 +226,7 @@ export default async function FieldLocationsPage({
                 </select>
               </FilterField>
               <FilterFooter
-                resetHref={
-                  hasFilters
-                    ? backOrigin(`/${tenantSlug}/field/locations`, {
-                        from: pageState.from,
-                      })
-                    : undefined
-                }
+                resetHref={hasFilters ? resetFiltersHref : undefined}
                 resetLabel={tCommon("reset")}
                 resultText={t.rich("filterResultCount", {
                   ...filterCountTags,
