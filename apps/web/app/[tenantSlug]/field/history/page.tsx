@@ -8,7 +8,7 @@ import { FilterFooter } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
 import { ChevronDownIcon } from "../../../../components/icons";
-import { VisitPeriodPills } from "../../../../components/visit-period-pills";
+import { PeriodPills } from "../../../../components/period-pills";
 import {
   getCurrentSession,
   listVisitDaySummary,
@@ -22,13 +22,18 @@ import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { formatCancellationReason } from "../../../../lib/visit-cancellation";
 import { formatEnumLabel, statusPillTone } from "../../../../lib/format";
 import {
-  previousVisitPeriod,
-  resolveVisitPeriod,
-  visitHistoryFloor,
-  visitPeriodAsRead,
-  visitPeriodLabel,
-  VISIT_PERIOD_MAX_MONTHS,
-} from "../../../../lib/visit-period";
+  hasEarlierPeriod as canStepBack,
+  historyFloor as resolveHistoryFloor,
+  normalizeDayParam,
+  normalizePage,
+  periodAsRead,
+  periodLabel as formatPeriodLabel,
+  periodSearchParams,
+  PERIOD_MAX_MONTHS,
+  previousPeriod,
+  resolvePeriod,
+  VISIT_PERIOD_PARAMS,
+} from "../../../../lib/period";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -62,7 +67,7 @@ export default async function FieldHistoryPage({
     getTranslations("field.history"),
     getTranslations("field"),
     getTranslations("common"),
-    getTranslations("common.visitPeriod"),
+    getTranslations("common.period"),
     getFormatter(),
     getTimeZone(),
   ]);
@@ -103,14 +108,14 @@ export default async function FieldHistoryPage({
 
   const pageState = await searchParams;
   const selectedStatus = normalizeVisitStatus(pageState.status);
-  const requestedFrom = normalizeDateFilter(pageState.startedFrom);
-  const requestedTo = normalizeDateFilter(pageState.startedTo);
+  const requestedFrom = normalizeDayParam(pageState.startedFrom);
+  const requestedTo = normalizeDayParam(pageState.startedTo);
   // The list is always read through a named window: with nothing in the URL
   // that is the last 30 days in the tenant's timezone, not all of history.
   // Resolved here rather than left to the API so the recap below can say which
   // period the numbers describe.
-  const requestedPeriod = resolveVisitPeriod(
-    { startedFrom: requestedFrom, startedTo: requestedTo },
+  const requestedPeriod = resolvePeriod(
+    { from: requestedFrom, to: requestedTo },
     timeZone,
   );
   const page = normalizePage(pageState.page);
@@ -124,15 +129,14 @@ export default async function FieldHistoryPage({
   // not on a relative window that has since slid.
   const historyOrigin = backOrigin("/field/history", {
     page: page > 1 ? page : undefined,
-    startedFrom: requestedPeriod.startedFrom,
-    startedTo: requestedPeriod.startedTo,
+    startedFrom: requestedPeriod.from,
+    startedTo: requestedPeriod.to,
     status: selectedStatus,
   });
 
-  const periodParams = new URLSearchParams({
-    startedFrom: requestedPeriod.startedFrom,
-    startedTo: requestedPeriod.startedTo,
-  });
+  const periodParams = new URLSearchParams(
+    periodSearchParams(requestedPeriod, VISIT_PERIOD_PARAMS),
+  );
 
   const query = new URLSearchParams(periodParams);
   query.set("page", String(page));
@@ -195,12 +199,12 @@ export default async function FieldHistoryPage({
   // than the 12-month maximum comes back trimmed, and announcing the requested
   // range would claim visits nobody looked for. The trimmed-away months are
   // still reachable — as their own window, which the note under the list says.
-  const period = visitPeriodAsRead(
+  const period = periodAsRead(
     requestedPeriod,
-    visitsResult.data.period,
+    visitsResult.data.period?.startedFrom,
     timeZone,
   );
-  const periodLabel = visitPeriodLabel(tPeriod, format, period);
+  const periodLabel = formatPeriodLabel(tPeriod, format, period);
   // The whole period's split, ignoring the status pill — it arrives with the
   // list itself, so picking a pill promotes one of these numbers to the front
   // of the line without asking the API anything more.
@@ -230,7 +234,7 @@ export default async function FieldHistoryPage({
   };
   // Where the list continues once this window is read out: the window of the
   // same length immediately behind it, on page one.
-  const earlier = previousVisitPeriod(period);
+  const earlier = previousPeriod(period);
   // ...unless there is nothing behind it. The bottom of this list is the rep's
   // own first visit, which only the API can name (`historyStart`, unbounded by
   // the window and scoped exactly like the day aggregate). It is *not* "twelve
@@ -243,7 +247,7 @@ export default async function FieldHistoryPage({
   // not answer" and "the API answered, and this scope is empty" are both
   // truthful states with opposite consequences, and flattening them is how a
   // confirmed "nothing was ever recorded" turns back into an endless walk.
-  const historyFloor = visitHistoryFloor(
+  const historyFloor = resolveHistoryFloor(
     daySummaryResult.ok ? daySummaryResult.data.historyStart : undefined,
     timeZone,
   );
@@ -254,18 +258,15 @@ export default async function FieldHistoryPage({
   const historyIsEmpty = historyFloor.state === "empty";
   // With no answer at all, the step back stays offered rather than announcing
   // an end nobody confirmed.
-  const hasEarlierPeriod =
-    historyFloor.state === "unknown" ||
-    (historyFloor.state === "day" && earlier.startedTo >= historyFloor.day);
+  const hasEarlierPeriod = canStepBack(period, historyFloor);
   const earlierPeriodParams = new URLSearchParams({
-    startedFrom: earlier.startedFrom,
-    startedTo: earlier.startedTo,
+    ...periodSearchParams(earlier, VISIT_PERIOD_PARAMS),
     ...(selectedStatus ? { status: selectedStatus } : {}),
     // Opens the filter panel on the range it just moved to, so the next step
     // back is one edit away rather than a second guess.
     period: "custom",
   });
-  const earlierPeriodLabel = visitPeriodLabel(tPeriod, format, {
+  const earlierPeriodLabel = formatPeriodLabel(tPeriod, format, {
     ...earlier,
     preset: "custom",
   });
@@ -291,7 +292,7 @@ export default async function FieldHistoryPage({
           </a>
           {period.clamped ? (
             <p className="small-label">
-              {t("periodWindowCapped", { months: VISIT_PERIOD_MAX_MONTHS })}
+              {t("periodWindowCapped", { months: PERIOD_MAX_MONTHS })}
             </p>
           ) : null}
         </>
@@ -320,8 +321,10 @@ export default async function FieldHistoryPage({
             {/* How deep the list reads sits above what it is cut by: the
                 period is the denominator every count below is measured
                 against, the status pill only narrows the cards. */}
-            <VisitPeriodPills
+            <PeriodPills
               action={`/${tenantSlug}/field/history`}
+              ariaLabel={t("visitPeriod")}
+              names={VISIT_PERIOD_PARAMS}
               otherParams={
                 new URLSearchParams(
                   selectedStatus ? { status: selectedStatus } : {},
@@ -355,12 +358,12 @@ export default async function FieldHistoryPage({
               <FilterDateRange
                 fromLabel={t("startedFrom")}
                 fromName="startedFrom"
-                fromValue={period.startedFrom}
+                fromValue={period.from}
                 label={t("visitPeriod")}
                 placeholder={tCommon("datePlaceholder")}
                 toLabel={t("startedTo")}
                 toName="startedTo"
-                toValue={period.startedTo}
+                toValue={period.to}
               />
               {/* No match count here: the recap line under the panel already
                   leads with the count for this very selection. */}
@@ -379,7 +382,7 @@ export default async function FieldHistoryPage({
         {/* The period leads the line: a count with no window behind it is a
             number without a denominator. */}
         {statusTotals ? (
-          <p className="visit-count-summary">
+          <p className="list-count-summary">
             <strong>{periodLabel}</strong>
             {counts.map((part) => (
               <span key={part}>{part}</span>
@@ -806,20 +809,4 @@ function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
   }
 
   return null;
-}
-
-function normalizeDateFilter(value: string | undefined): string | null {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue || !/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
-    return null;
-  }
-
-  return normalizedValue;
-}
-
-function normalizePage(value: string | undefined): number {
-  const parsed = Number.parseInt(value ?? "", 10);
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }

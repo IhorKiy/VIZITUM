@@ -8,7 +8,6 @@ import type { Prisma, TaskStatus } from "@prisma/client";
 
 import {
   createPaginatedResponse,
-  type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
 import { AuditService } from "../audit/audit.service";
@@ -18,6 +17,8 @@ import type { RequestContext } from "../tenancy/request-context";
 import type {
   CreateTaskRequestBody,
   ListTasksQuery,
+  ListTasksResponse,
+  TaskCompletedPeriodResponse,
   TaskResponse,
   UpdateTaskRequestBody,
 } from "./tasks.types";
@@ -60,25 +61,74 @@ export class TasksService {
   async listTasks(
     context: RequestContext,
     query: ListTasksQuery,
-  ): Promise<PaginatedResponse<TaskResponse>> {
+  ): Promise<ListTasksResponse> {
     const pagination = resolvePagination(query);
-    const where = buildTaskWhere(context, query);
-    const [tasks, total] = await Promise.all([
+    const completedRange = resolveTaskCompletedRange(
+      query.completedFrom,
+      query.completedTo,
+    );
+    const where = buildTaskWhere(context, query, completedRange);
+    // Only a done-only list can walk back through windows, so only a done-only
+    // list pays for knowing where the walk stops. A mixed list always has its
+    // open half in view, so it never reaches an end to announce — computing the
+    // boundary there would be one MIN() per render that nobody reads.
+    const reportsHistoryStart =
+      Boolean(completedRange) && query.status === "done";
+    const [tasks, total, completedHistoryStart] = await Promise.all([
       this.prisma.task.findMany({
         where,
         include: taskInclude,
-        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+        orderBy: taskOrderBy(query.status),
         skip: pagination.skip,
         take: pagination.take,
       }),
       this.prisma.task.count({ where }),
+      reportsHistoryStart
+        ? this.findCompletedHistoryStart(context, query)
+        : Promise.resolve(undefined),
     ]);
 
-    return createPaginatedResponse(
-      tasks.map(toTaskResponse),
-      pagination,
-      total,
-    );
+    return {
+      ...createPaginatedResponse(tasks.map(toTaskResponse), pagination, total),
+      ...(completedRange
+        ? { completedPeriod: toTaskCompletedPeriodResponse(completedRange) }
+        : {}),
+      // Absent rather than null when it was not computed: "nobody asked" and
+      // "this scope has finished nothing" are different answers, and a screen
+      // that reads them as one withholds the step back from a rep who has work
+      // sitting right behind the window.
+      ...(reportsHistoryStart
+        ? {
+            completedHistoryStart: completedHistoryStart?.toISOString() ?? null,
+          }
+        : {}),
+    };
+  }
+
+  /**
+   * When the earliest task in this exact scope was finished, or null when the
+   * scope holds no finished task at all — deliberately unbounded in time.
+   *
+   * The clamp caps how long one window may be, not how far back a window may
+   * point, so "twelve months ago" is the bottom of nothing. Without this a
+   * screen cannot tell "this window is empty, keep walking back" from "there
+   * was never anything here", and a representative who has finished nothing
+   * gets an endless walk through empty windows.
+   *
+   * `MIN(completedAt)` over the same scope columns the done list filters on is
+   * what the completedAt indexes are sorted by, so Postgres answers it from the
+   * index rather than by scanning the scope.
+   */
+  private async findCompletedHistoryStart(
+    context: RequestContext,
+    query: ListTasksQuery,
+  ): Promise<Date | null> {
+    const scope = await this.prisma.task.aggregate({
+      where: buildTaskWhere(context, query, null),
+      _min: { completedAt: true },
+    });
+
+    return scope._min.completedAt;
   }
 
   async createTask(
@@ -403,9 +453,136 @@ const taskInclude = {
   },
 } satisfies Prisma.TaskInclude;
 
+/**
+ * The longest a single completion window may be. Same ceiling as the visit
+ * period (VISIT_PERIOD_MAX_MONTHS), and the same meaning: a cost ceiling on
+ * one request, never a horizon on the data. A range two years back is answered
+ * as asked, as long as it is short enough.
+ *
+ * Unlike visits, this is *not* applied to every task query. A visit belongs to
+ * a moment, so flooring every visit read is free; an open task belongs to no
+ * moment at all — it is open until someone closes it — so a floor on any task
+ * timestamp would hide exactly the stale work a list exists to surface. Only a
+ * window the caller actually asked for is trimmed.
+ */
+export const TASK_COMPLETED_PERIOD_MAX_MONTHS = 12;
+
+export type TaskCompletedRange = { gte: Date; lte?: Date };
+
+/**
+ * The completion window a query runs over: the requested range, trimmed to at
+ * most TASK_COMPLETED_PERIOD_MAX_MONTHS measured back from its own upper bound
+ * (or from now, when the caller named no end). `null` when nothing was asked
+ * for, which leaves the list unwindowed.
+ *
+ * The floor lands on the start of its day, for the reason the visit clamp
+ * documents: `completedTo` becomes 23:59:59.999, so subtracting months from an
+ * end bound would otherwise put the floor at 23:59:59.999 too and leave the
+ * boundary day existing for a single millisecond.
+ */
+export function resolveTaskCompletedRange(
+  fromValue: unknown,
+  toValue: unknown,
+  now: Date = new Date(),
+): TaskCompletedRange | null {
+  const requestedFrom = parseDateOnlyBoundary(fromValue, "start");
+  const requestedTo = parseDateOnlyBoundary(toValue, "end");
+
+  if (!requestedFrom && !requestedTo) {
+    return null;
+  }
+
+  let gte = requestedFrom;
+  let lte = requestedTo;
+
+  // A backwards range asks for the empty set and gets echoed back backwards,
+  // so the caller sees a window that explains nothing. The web layer already
+  // swaps the ends; doing it here too means a direct API call — a script, a
+  // saved query — is read as the range it obviously meant rather than answered
+  // with a confident nothing. The bounds are whole calendar days, so swapping
+  // re-derives the day boundaries rather than just exchanging two instants.
+  if (gte && lte && gte.getTime() > lte.getTime()) {
+    [gte, lte] = [startOfUtcDay(lte), endOfUtcDay(gte)];
+  }
+
+  const windowEnd = lte ?? now;
+  const earliest = startOfUtcDay(
+    subtractMonths(windowEnd, TASK_COMPLETED_PERIOD_MAX_MONTHS),
+  );
+
+  return {
+    gte: gte && gte.getTime() > earliest.getTime() ? gte : earliest,
+    ...(lte ? { lte } : {}),
+  };
+}
+
+function subtractMonths(value: Date, months: number): Date {
+  const shifted = new Date(value.getTime());
+
+  shifted.setUTCMonth(shifted.getUTCMonth() - months);
+
+  return shifted;
+}
+
+function endOfUtcDay(value: Date): Date {
+  const end = new Date(value.getTime());
+
+  end.setUTCHours(23, 59, 59, 999);
+
+  return end;
+}
+
+function startOfUtcDay(value: Date): Date {
+  const start = new Date(value.getTime());
+
+  start.setUTCHours(0, 0, 0, 0);
+
+  return start;
+}
+
+function toTaskCompletedPeriodResponse(
+  range: TaskCompletedRange,
+): TaskCompletedPeriodResponse {
+  return {
+    completedFrom: range.gte.toISOString(),
+    completedTo: range.lte ? range.lte.toISOString() : null,
+  };
+}
+
+/**
+ * Open work is ordered by when it is owed — the soonest deadline first, which
+ * is the order someone works through it in. Finished work has no deadline left
+ * to meet, and the same ordering would head a done list with its oldest
+ * deadlines; what a person asks of a finished list is "what did I close
+ * lately", so it reads newest-completion-first.
+ *
+ * `createdAt` is only a tie-break, and the index is sorted by `completedAt`
+ * alone — so equal completion instants cost a small top-N sort. At one row per
+ * task actually finished in a window that is noise, noted rather than indexed
+ * away.
+ *
+ * `nulls: "last"` covers the column being nullable rather than a row this can
+ * actually meet: a backfill migration
+ * (20260721150000_task_done_completed_at_backfill) made every done task carry a
+ * completedAt, and the app has always stamped one on the transition.
+ */
+export function taskOrderBy(
+  status: TaskStatus | undefined,
+): Prisma.TaskOrderByWithRelationInput[] {
+  if (status === "done") {
+    return [
+      { completedAt: { sort: "desc", nulls: "last" } },
+      { createdAt: "desc" },
+    ];
+  }
+
+  return [{ dueDate: "asc" }, { createdAt: "desc" }];
+}
+
 function buildTaskWhere(
   context: RequestContext,
   query: ListTasksQuery,
+  completedRange: TaskCompletedRange | null,
 ): Prisma.TaskWhereInput {
   const requestedAssigneeId = normalizeId(query.assignedToUserId);
   const assignedToFilter = context.permissions.includes(
@@ -443,7 +620,34 @@ function buildTaskWhere(
         }
       : {}),
     ...(dueDate ? { dueDate } : {}),
+    ...buildCompletedFilter(completedRange, query.status),
   };
+}
+
+/**
+ * How a completion window cuts a list, which depends on what the list holds.
+ *
+ * A done-only list is simply the window. A mixed list — the manager's "all
+ * tasks" view — cannot be, because open tasks have no completedAt and the
+ * window would empty them out along with the old finished ones. What that view
+ * means by a period is "everything still open, plus what was closed in these
+ * days", so open work rides through on `completedAt: null` while finished work
+ * is bounded. Open tasks need no window of their own: there are as many as
+ * there is work outstanding.
+ */
+export function buildCompletedFilter(
+  completedRange: TaskCompletedRange | null,
+  status: TaskStatus | undefined,
+): Prisma.TaskWhereInput {
+  if (!completedRange) {
+    return {};
+  }
+
+  if (status === "done") {
+    return { completedAt: completedRange };
+  }
+
+  return { OR: [{ completedAt: null }, { completedAt: completedRange }] };
 }
 
 function parseCreateTaskBody(body: CreateTaskRequestBody): TaskCreateData {

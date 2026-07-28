@@ -1,15 +1,23 @@
 import { useTranslations } from "next-intl";
 
 import {
-  VISIT_PERIOD_PRESETS,
-  visitPeriodPresetRange,
-  type VisitPeriod,
-} from "../lib/visit-period";
+  PERIOD_PRESETS,
+  periodPresetRange,
+  periodSearchParams,
+  type Period,
+  type PeriodParamNames,
+} from "../lib/period";
 
-type VisitPeriodPillsProps = {
+type PeriodPillsProps = {
   // Tenant-relative screen the pills navigate back to, e.g. "/acme/field/history".
   action: string;
-  period: VisitPeriod;
+  // What this row of pills selects, e.g. "Visit period". A plain div takes no
+  // accessible name, so without it the row announces as four loose links with
+  // nothing saying what they are for.
+  ariaLabel: string;
+  // The two URL parameters this screen carries its window in.
+  names: PeriodParamNames;
+  period: Period;
   // Every other filter currently in the URL. Carried through so switching the
   // period keeps the status pill, the representative, the location.
   otherParams: URLSearchParams;
@@ -17,25 +25,27 @@ type VisitPeriodPillsProps = {
 };
 
 /**
- * How deep a visit list reads, as one row of pills above it.
+ * How deep a list reads, as one row of pills above it.
  *
  * Links rather than the radio fields the status pills use: a preset writes two
- * params at once (`startedFrom` and `startedTo`), which no single form control
- * can express, and the resolved dates have to reach the URL so returning to
- * this screen — from a visit card, from a shared link — lands on the same
- * window rather than on a relative one that has since slid.
+ * params at once, which no single form control can express, and the resolved
+ * dates have to reach the URL so returning to this screen — from a card, from a
+ * shared link — lands on the same window rather than on a relative one that has
+ * since slid.
  *
  * The last pill opens the date range in the filter panel instead of naming a
  * window of its own: the presets cover the periods people ask for by name, and
  * anything else is a range someone picks by hand.
  */
-export function VisitPeriodPills({
+export function PeriodPills({
   action,
+  ariaLabel,
+  names,
   period,
   otherParams,
   timeZone,
-}: VisitPeriodPillsProps) {
-  const t = useTranslations("common.visitPeriod");
+}: PeriodPillsProps) {
+  const t = useTranslations("common.period");
   const hrefFor = (params: Record<string, string>) => {
     const search = new URLSearchParams(otherParams);
 
@@ -53,18 +63,17 @@ export function VisitPeriodPills({
   };
 
   return (
-    // role="group" is what makes the aria-label count: a plain div takes no
-    // accessible name, so without it the row of period links would announce
-    // as four loose links with nothing saying what they select.
     <div
-      aria-label={t("pillsAria")}
+      aria-label={ariaLabel}
       className="filter-pills filter-pills--links"
       role="group"
     >
-      {VISIT_PERIOD_PRESETS.map((preset) => (
+      {PERIOD_PRESETS.map((preset) => (
         <a
           aria-current={period.preset === preset ? "true" : undefined}
-          href={hrefFor(visitPeriodPresetRange(preset, timeZone))}
+          href={hrefFor(
+            periodSearchParams(periodPresetRange(preset, timeZone), names),
+          )}
           key={preset}
         >
           {t(`presetPill.${preset}`)}
@@ -75,8 +84,7 @@ export function VisitPeriodPills({
         // The current window rides along so the date fields in the panel open
         // on the period being read, not on two empty inputs.
         href={hrefFor({
-          startedFrom: period.startedFrom,
-          startedTo: period.startedTo,
+          ...periodSearchParams(period, names),
           period: "custom",
         })}
       >

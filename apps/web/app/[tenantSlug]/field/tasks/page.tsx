@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
+import {
+  getFormatter,
+  getLocale,
+  getTimeZone,
+  getTranslations,
+} from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import { BackLink } from "../../../../components/back-link";
@@ -14,6 +19,9 @@ import {
   EditTaskModal,
   type EditTaskActionResult,
 } from "../../../../components/edit-task-modal";
+import { FilterDateRange } from "../../../../components/filter-date-range";
+import { FilterDisclosure } from "../../../../components/filter-disclosure";
+import { FilterFooter } from "../../../../components/filter-footer";
 import { FilterForm } from "../../../../components/filter-form";
 import { FilterPills } from "../../../../components/filter-pills";
 import { FilterTogglePills } from "../../../../components/filter-toggle-pills";
@@ -22,6 +30,7 @@ import {
   FlagIcon,
   MapPinIcon,
 } from "../../../../components/icons";
+import { PeriodPills } from "../../../../components/period-pills";
 import { TaskDetailsEditor } from "../../../../components/task-details-editor";
 import { TaskStatusEditor } from "../../../../components/task-status-editor";
 import {
@@ -37,36 +46,69 @@ import {
 import { buildLocationOptions } from "../../../../lib/filter-options";
 import { formatEnumLabel, type IntlFormatter } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
+import {
+  hasEarlierPeriod,
+  historyFloor,
+  normalizePage,
+  periodAsRead,
+  periodLabel as formatPeriodLabel,
+  periodSearchParams,
+  PERIOD_MAX_MONTHS,
+  previousPeriod,
+  resolvePeriodFromParams,
+  TASK_COMPLETED_PERIOD_PARAMS,
+} from "../../../../lib/period";
 import { parseTaskIsPriorityInput } from "../../../../lib/task-form";
 import { isTaskUnfinished, taskStatuses } from "../../../../lib/task-status";
 
 type FieldTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    completedFrom?: string;
+    completedTo?: string;
     create?: string;
     error?: string;
     overdue?: string;
+    page?: string;
+    // Set by the "Period…" pill: the range itself is already in the URL, this
+    // only asks the filter panel to open on it.
+    period?: string;
     priority?: string;
     status?: string;
     task?: string;
   }>;
 };
 
+// Half the API's max, the same page size the field visit history uses: this is
+// a phone screen, and anything older is one step back through the period away.
+const DONE_PAGE_SIZE = 50;
+
 export default async function FieldTasksPage({
   params,
   searchParams,
 }: FieldTasksPageProps) {
   const { tenantSlug } = await params;
-  const [locale, timeZone, t, tBack, tField, tCreateTask, tCommon] =
-    await Promise.all([
-      getLocale(),
-      getTimeZone(),
-      getTranslations("field.tasks"),
-      getTranslations("common.back"),
-      getTranslations("field"),
-      getTranslations("field.createTask"),
-      getTranslations("common"),
-    ]);
+  const [
+    locale,
+    timeZone,
+    format,
+    t,
+    tBack,
+    tField,
+    tCreateTask,
+    tCommon,
+    tPeriod,
+  ] = await Promise.all([
+    getLocale(),
+    getTimeZone(),
+    getFormatter(),
+    getTranslations("field.tasks"),
+    getTranslations("common.back"),
+    getTranslations("field"),
+    getTranslations("field.createTask"),
+    getTranslations("common"),
+    getTranslations("common.period"),
+  ]);
   // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
   // against today's date in the tenant timezone, not the server's local
   // midnight (mirrors manager/tasks/page.tsx).
@@ -243,18 +285,39 @@ export default async function FieldTasksPage({
   // outright rather than narrow it.
   const selectedOverdueOnly =
     selectedStatus === "in_progress" && pageState.overdue === "1";
-  // pageSize=100 is the API's max. A location card links here with a
-  // #task-<id> anchor (see the location detail page); if a rep ever holds more
-  // than 100 open tasks the target could fall outside this page and the anchor
-  // would land nowhere — not paginated for now, as that volume is unrealistic
-  // for a single field rep.
-  const query = new URLSearchParams({ pageSize: "100" });
+  // Open work and finished work are two different lists, and only one of them
+  // grows without bound. Open tasks are self-limiting — there are as many as
+  // there is work outstanding — so that list stays whole on one page, which is
+  // also what the #task-<id> anchor a location card links here with relies on.
+  // Finished tasks only ever accumulate, so that list is read through a window
+  // and paged inside it.
+  const isDoneList = selectedStatus === "done";
+  // The window the done list reads through: the last 30 days in the tenant's
+  // timezone unless the URL names another. Resolved here rather than left to
+  // the API so the recap can say which period its count describes.
+  const completedPeriod = isDoneList
+    ? resolvePeriodFromParams(pageState, TASK_COMPLETED_PERIOD_PARAMS, timeZone)
+    : null;
+  const page = normalizePage(pageState.page);
+  const query = new URLSearchParams(
+    isDoneList
+      ? { page: String(page), pageSize: String(DONE_PAGE_SIZE) }
+      : { pageSize: "100" },
+  );
   const hasFilters =
     selectedStatus !== "in_progress" ||
     selectedPriorityOnly ||
     selectedOverdueOnly;
 
   query.set("status", selectedStatus);
+
+  if (completedPeriod) {
+    for (const [name, value] of Object.entries(
+      periodSearchParams(completedPeriod, TASK_COMPLETED_PERIOD_PARAMS),
+    )) {
+      query.set(name, value);
+    }
+  }
 
   if (selectedPriorityOnly) {
     query.set("isPriority", "true");
@@ -299,6 +362,87 @@ export default async function FieldTasksPage({
   }
 
   const tasks = tasksResult.data.items;
+  // What the API actually read: a window longer than the maximum comes back
+  // trimmed, and a recap naming the requested range would count days nobody
+  // looked at. Absent mid-deploy, when this build talks to the previous API —
+  // in which case the window stands as resolved.
+  const period =
+    completedPeriod &&
+    periodAsRead(
+      completedPeriod,
+      tasksResult.data.completedPeriod?.completedFrom,
+      timeZone,
+    );
+  // The bottom of the done list is the rep's own first finished task, which
+  // only the API can name. `null` is the API saying this rep has finished
+  // nothing at all; absent (an older API, or an unwindowed list) claims
+  // nothing, and the step back stays offered rather than announcing an end.
+  const completedFloor = historyFloor(
+    period ? tasksResult.data.completedHistoryStart : undefined,
+    timeZone,
+  );
+  const totalPages = tasksResult.data.totalPages;
+  const earlier = period ? previousPeriod(period) : null;
+  // Whether there is anything behind this window at all. With no answer the
+  // step stays offered rather than announcing an end nobody confirmed.
+  const canReachEarlier = period
+    ? hasEarlierPeriod(period, completedFloor)
+    : false;
+  // This rep has finished nothing, ever — which is not the same as this window
+  // being empty, and takes different words. A narrow window empties the list
+  // all the time with finished tasks sitting right behind it, so it is the
+  // floor that separates them and never `tasks.length`.
+  const noneEverCompleted = completedFloor.state === "empty";
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams(query);
+    params.delete("pageSize");
+
+    if (targetPage <= 1) {
+      params.delete("page");
+    } else {
+      params.set("page", String(targetPage));
+    }
+
+    return `/${tenantSlug}/field/tasks?${params.toString()}`;
+  };
+  const earlierHref = earlier
+    ? `/${tenantSlug}/field/tasks?${new URLSearchParams({
+        status: "done",
+        ...periodSearchParams(earlier, TASK_COMPLETED_PERIOD_PARAMS),
+        // Opens the filter panel on the range it just moved to, so the next
+        // step back is one edit away rather than a second guess.
+        period: "custom",
+      }).toString()}`
+    : null;
+  // Two different endings, which must not be collapsed into one claim. Reaching
+  // the first finished task really is the end. Hitting the maximum window
+  // length is not — the months behind a trimmed window are one date range away
+  // — so that case points at the filter and keeps the step back. The trimmed
+  // note stands down once the first finished task is inside the window: there
+  // is nothing further to dig for, and saying otherwise is the walk into
+  // nothing this block exists to prevent.
+  const earlierPeriodLink =
+    period && earlier && earlierHref ? (
+      canReachEarlier ? (
+        <>
+          <a className="secondary-button" href={earlierHref}>
+            {t("periodEarlier", {
+              period: formatPeriodLabel(tPeriod, format, {
+                ...earlier,
+                preset: "custom",
+              }),
+            })}
+          </a>
+          {period.clamped ? (
+            <p className="small-label">
+              {t("periodWindowCapped", { months: PERIOD_MAX_MONTHS })}
+            </p>
+          ) : null}
+        </>
+      ) : noneEverCompleted ? null : (
+        <p className="small-label">{t("periodOldestReached")}</p>
+      )
+    ) : null;
   const locations = locationsResult.ok ? locationsResult.data.items : [];
   const locationOptions = buildLocationOptions(locations, locale);
   // "Assigned locations" for the create form: the locations this rep has an
@@ -372,6 +516,23 @@ export default async function FieldTasksPage({
         <FilterForm action={`/${tenantSlug}/field/tasks`}>
           <div className="panel-toolbar">
             <div className="filter-groups">
+              {/* Finished work only accumulates, so the done list leads with
+                  how deep it reads. Open work needs no window — there are as
+                  many open tasks as there is work outstanding. */}
+              {period ? (
+                <PeriodPills
+                  action={`/${tenantSlug}/field/tasks`}
+                  ariaLabel={t("completedPeriod")}
+                  names={TASK_COMPLETED_PERIOD_PARAMS}
+                  // Status is the whole of it here, and deliberately so: the
+                  // priority and overdue toggles are only ever live on the
+                  // in-progress list (see selectedPriorityOnly above), so there
+                  // is no other filter for a period link to drop.
+                  otherParams={new URLSearchParams({ status: "done" })}
+                  period={period}
+                  timeZone={timeZone}
+                />
+              ) : null}
               <FilterPills
                 ariaLabel={t("statusFiltersAria")}
                 name="status"
@@ -405,22 +566,102 @@ export default async function FieldTasksPage({
               {t("taskCount", { count: tasksResult.data.total })}
             </p>
           </div>
+
+          {/* Only the done list has a window to edit by hand, and this is where
+              its "Period…" pill lands. Seeded with the resolved window rather
+              than with whatever the URL carried: editing one end of the default
+              period should narrow those 30 days, not open an unbounded range. */}
+          {period ? (
+            <FilterDisclosure
+              hasFilters={!period.isDefault || pageState.period === "custom"}
+              label={tCommon("filtersLabel")}
+            >
+              <div className="filter-form field-history-filter-form">
+                <FilterDateRange
+                  fromLabel={t("completedFrom")}
+                  fromName={TASK_COMPLETED_PERIOD_PARAMS.from}
+                  fromValue={period.from}
+                  label={t("completedPeriod")}
+                  placeholder={tCommon("datePlaceholder")}
+                  toLabel={t("completedTo")}
+                  toName={TASK_COMPLETED_PERIOD_PARAMS.to}
+                  toValue={period.to}
+                />
+                <FilterFooter
+                  resetHref={
+                    period.isDefault
+                      ? undefined
+                      : `/${tenantSlug}/field/tasks?status=done`
+                  }
+                  resetLabel={tCommon("reset")}
+                />
+              </div>
+            </FilterDisclosure>
+          ) : null}
         </FilterForm>
 
+        {/* The period leads the line: a count with no window behind it is a
+            number without a denominator. */}
+        {period ? (
+          <p className="list-count-summary">
+            <strong>{formatPeriodLabel(tPeriod, format, period)}</strong>
+            <span>{t("doneCount", { count: tasksResult.data.total })}</span>
+          </p>
+        ) : null}
+
         {tasks.length > 0 ? (
-          <TasksCards
-            locationOptions={locationOptions}
-            tasks={tasks}
-            todayIsoDate={todayIsoDate}
-            updateTaskDetailsAction={updateTaskDetailsAction}
-            updateTaskFieldsAction={updateTaskFieldsAction}
-            updateTaskStatusAction={updateTaskStatusAction}
-          />
+          <>
+            <TasksCards
+              locationOptions={locationOptions}
+              tasks={tasks}
+              todayIsoDate={todayIsoDate}
+              updateTaskDetailsAction={updateTaskDetailsAction}
+              updateTaskFieldsAction={updateTaskFieldsAction}
+              updateTaskStatusAction={updateTaskStatusAction}
+            />
+            {period && totalPages > 1 ? (
+              <nav aria-label={t("paginationAria")} className="list-pagination">
+                {page > 1 ? (
+                  <a className="secondary-button" href={pageHref(page - 1)}>
+                    {t("showNewer")}
+                  </a>
+                ) : null}
+                <p className="small-label">
+                  {t("pagePosition", { page, totalPages })}
+                </p>
+                {page < totalPages ? (
+                  <a className="secondary-button" href={pageHref(page + 1)}>
+                    {t("showEarlier")}
+                  </a>
+                ) : null}
+              </nav>
+            ) : null}
+            {/* Paging stops at the edge of the window rather than sliding
+                silently into the archive: the last page hands over to the
+                period control, which is the thing that reaches further back. */}
+            {period && page >= totalPages ? (
+              <div className="period-exhausted">
+                <p className="small-label">{t("periodExhaustedTitle")}</p>
+                <p>{t("periodExhaustedBody")}</p>
+                {earlierPeriodLink}
+              </div>
+            ) : null}
+          </>
         ) : (
           <div className="empty-state-panel">
-            <h2>{t("emptyTitle")}</h2>
-            <p>{t("emptyBody")}</p>
+            {/* An empty window and an empty history are different answers and
+                get different words. "Nothing matches this filter" is true of a
+                narrow window; it is wrong for a rep who has never finished
+                anything, where no filter and no date will ever help. */}
+            <h2>
+              {noneEverCompleted ? t("emptyDoneEverTitle") : t("emptyTitle")}
+            </h2>
+            <p>{noneEverCompleted ? t("emptyDoneEverBody") : t("emptyBody")}</p>
             <div className="toolbar">
+              {/* An empty window is the one case where reaching further back is
+                  the obvious next move. With nothing ever finished there is no
+                  step to offer, and the panel above already said so once. */}
+              {noneEverCompleted ? null : earlierPeriodLink}
               {hasFilters ? (
                 <a
                   className="secondary-button"

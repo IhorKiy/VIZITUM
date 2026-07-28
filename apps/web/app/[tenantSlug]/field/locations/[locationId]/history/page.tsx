@@ -20,7 +20,7 @@ import {
   formatEnumLabel,
   statusPillTone,
 } from "../../../../../../lib/format";
-import { dayInTimeZone } from "../../../../../../lib/visit-period";
+import { dayInTimeZone } from "../../../../../../lib/period";
 
 type LocationHistoryPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;

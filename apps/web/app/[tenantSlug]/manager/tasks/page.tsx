@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { getLocale, getTimeZone, getTranslations } from "next-intl/server";
+import {
+  getFormatter,
+  getLocale,
+  getTimeZone,
+  getTranslations,
+} from "next-intl/server";
 
 import { AppShell } from "../../../../components/app-shell";
 import {
@@ -30,6 +35,7 @@ import {
   RouteIcon,
   UserIcon,
 } from "../../../../components/icons";
+import { PeriodPills } from "../../../../components/period-pills";
 import { TaskDetailsEditor } from "../../../../components/task-details-editor";
 import { TaskStatusEditor } from "../../../../components/task-status-editor";
 import {
@@ -53,6 +59,15 @@ import {
 import { formatEnumLabel, type IntlFormatter } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 import {
+  normalizePage,
+  periodAsRead,
+  periodLabel as formatPeriodLabel,
+  periodSearchParams,
+  PERIOD_MAX_MONTHS,
+  resolvePeriodFromParams,
+  TASK_COMPLETED_PERIOD_PARAMS,
+} from "../../../../lib/period";
+import {
   buildTaskAssigneeOptions,
   buildTaskLocationOptions,
   parseTaskIsPriorityInput,
@@ -65,11 +80,17 @@ type ManagerTasksPageProps = {
     assign?: string;
     assignedToUserId?: string;
     deleted?: string;
+    completedFrom?: string;
+    completedTo?: string;
     dueFrom?: string;
     dueTo?: string;
     edited?: string;
     error?: string;
     locationId?: string;
+    page?: string;
+    // Set by the "Period…" pill: the range itself is already in the URL, this
+    // only asks the filter panel to open on it.
+    period?: string;
     priority?: string;
     routePlanId?: string;
     status?: string;
@@ -78,36 +99,72 @@ type ManagerTasksPageProps = {
   }>;
 };
 
+// The status pill that means "no status filter". A real value, because the
+// filter form drops empty ones — see selectedStatus below.
+const ALL_STATUSES = "all";
+
+// The list used to ask for 100 rows and show them all, under a count that named
+// the filtered total — so past 100 the screen quietly disagreed with itself.
+// The completion window makes that far less likely, but "less likely" is not a
+// fix. Paginated at 50, the same page size the manager visit list and the field
+// lists use.
+const PAGE_SIZE = 50;
+
 export default async function ManagerTasksPage({
   params,
   searchParams,
 }: ManagerTasksPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
-  const [locale, timeZone, t, tManager, tAssign, tCommon] = await Promise.all([
-    getLocale(),
-    getTimeZone(),
-    getTranslations("manager.tasks"),
-    getTranslations("manager"),
-    getTranslations("manager.assignTask"),
-    getTranslations("common"),
-  ]);
+  const [locale, timeZone, format, t, tManager, tAssign, tCommon, tPeriod] =
+    await Promise.all([
+      getLocale(),
+      getTimeZone(),
+      getFormatter(),
+      getTranslations("manager.tasks"),
+      getTranslations("manager"),
+      getTranslations("manager.assignTask"),
+      getTranslations("common"),
+      getTranslations("common.period"),
+    ]);
   // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
   // against today's date in the tenant timezone (the same zone the formatted
   // dates render in), not the server's local midnight.
   const todayIsoDate = new Intl.DateTimeFormat("en-CA", { timeZone }).format(
     new Date(),
   );
-  const selectedStatus = normalizeTaskStatus(pageState.status);
+  // Open work is what a manager opens this screen for, and it is the only half
+  // of the list that stays a fixed size — finished tasks only accumulate. So
+  // the list rests on open work; "all" and "done" are deliberate choices, and
+  // both are read through a completion window rather than through everything
+  // the team ever closed.
+  // "all" has to be a real value rather than an empty one: FilterForm drops
+  // empty fields, so an absent `status` cannot mean both "nothing chosen yet"
+  // (which now rests on open work) and "the manager asked for everything".
+  const selectedStatus =
+    pageState.status === ALL_STATUSES
+      ? null
+      : (normalizeTaskStatus(pageState.status) ?? "in_progress");
+  const windowsCompleted = selectedStatus !== "in_progress";
+  // The window only bounds the finished half: on the mixed "all" view open
+  // tasks ride through it untouched (see buildCompletedFilter in the API).
+  const completedPeriod = windowsCompleted
+    ? resolvePeriodFromParams(pageState, TASK_COMPLETED_PERIOD_PARAMS, timeZone)
+    : null;
   const selectedPriorityOnly = pageState.priority === "1";
   const selectedAssigneeId = normalizeFilterValue(pageState.assignedToUserId);
   const selectedLocationId = normalizeFilterValue(pageState.locationId);
   const selectedRoutePlanId = normalizeFilterValue(pageState.routePlanId);
   const dueFrom = normalizeDateFilter(pageState.dueFrom);
   const dueTo = normalizeDateFilter(pageState.dueTo);
-  const query = new URLSearchParams({ pageSize: "100" });
+  const page = normalizePage(pageState.page);
+  const query = new URLSearchParams({
+    page: String(page),
+    pageSize: String(PAGE_SIZE),
+  });
   const hasFilters = Boolean(
-    selectedStatus ||
+    selectedStatus !== "in_progress" ||
+    (completedPeriod && !completedPeriod.isDefault) ||
     selectedPriorityOnly ||
     selectedAssigneeId ||
     selectedLocationId ||
@@ -118,6 +175,14 @@ export default async function ManagerTasksPage({
 
   if (selectedStatus) {
     query.set("status", selectedStatus);
+  }
+
+  if (completedPeriod) {
+    for (const [name, value] of Object.entries(
+      periodSearchParams(completedPeriod, TASK_COMPLETED_PERIOD_PARAMS),
+    )) {
+      query.set(name, value);
+    }
   }
 
   if (selectedPriorityOnly) {
@@ -143,6 +208,21 @@ export default async function ManagerTasksPage({
   if (dueTo) {
     query.set("dueTo", dueTo);
   }
+
+  // Everything the URL is currently narrowed by *except* the window itself.
+  // The period pills are links, not form controls, so whatever they don't carry
+  // is dropped: without this, changing the period would silently clear the
+  // assignee, the location, the route and the deadline range the manager had
+  // just set.
+  const otherFilterParams = new URLSearchParams([
+    ["status", selectedStatus ?? ALL_STATUSES],
+    ...(selectedPriorityOnly ? [["priority", "1"]] : []),
+    ...(selectedAssigneeId ? [["assignedToUserId", selectedAssigneeId]] : []),
+    ...(selectedLocationId ? [["locationId", selectedLocationId]] : []),
+    ...(selectedRoutePlanId ? [["routePlanId", selectedRoutePlanId]] : []),
+    ...(dueFrom ? [["dueFrom", dueFrom]] : []),
+    ...(dueTo ? [["dueTo", dueTo]] : []),
+  ]);
 
   async function createTaskAction(
     formData: FormData,
@@ -331,6 +411,42 @@ export default async function ManagerTasksPage({
   }
 
   const tasks = tasksResult.data.items;
+  // What the API actually read, which is what the recap below names. A saved
+  // link asking past the maximum window length comes back trimmed, and a recap
+  // still announcing the requested range would put a lie in the denominator of
+  // the count beside it. Absent mid-deploy, when this build talks to the
+  // previous API — then the window stands as resolved.
+  const period = completedPeriod
+    ? periodAsRead(
+        completedPeriod,
+        tasksResult.data.completedPeriod?.completedFrom,
+        timeZone,
+      )
+    : null;
+  const totalPages = tasksResult.data.totalPages;
+  // Built from the screen's own parameters, not from `query`. The two agree on
+  // most names but not all, and both disagreements are silent: `query` omits
+  // `status` for the mixed view (so a page link would come back as the default
+  // in-progress list, quietly changing the view mid-scroll) and spells the
+  // priority filter `isPriority=true` where the screen reads `priority=1` (so
+  // page 2 would drop the filter and carry a dead parameter instead).
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams(otherFilterParams);
+
+    if (period) {
+      for (const [name, value] of Object.entries(
+        periodSearchParams(period, TASK_COMPLETED_PERIOD_PARAMS),
+      )) {
+        params.set(name, value);
+      }
+    }
+
+    if (targetPage > 1) {
+      params.set("page", String(targetPage));
+    }
+
+    return `/${tenantSlug}/manager/tasks?${params.toString()}`;
+  };
   // Deleting needs team scope, which an own-scope viewer on this page lacks —
   // showing them a button that can only 403 is worse than not showing it.
   const canDeleteTasks = sessionResult.ok
@@ -478,17 +594,29 @@ export default async function ManagerTasksPage({
         <FilterForm action={`/${tenantSlug}/manager/tasks`}>
           <div className="panel-toolbar">
             <div className="filter-groups">
+              {/* How deep the list reads sits above what it cuts by. Only the
+                  views that can hold finished work have a window at all. */}
+              {period ? (
+                <PeriodPills
+                  action={`/${tenantSlug}/manager/tasks`}
+                  ariaLabel={t("completedPeriod")}
+                  names={TASK_COMPLETED_PERIOD_PARAMS}
+                  otherParams={otherFilterParams}
+                  period={period}
+                  timeZone={timeZone}
+                />
+              ) : null}
               <FilterPills
                 ariaLabel={t("statusFiltersAria")}
                 name="status"
                 options={[
-                  { label: tCommon("all"), value: "" },
+                  { label: tCommon("all"), value: ALL_STATUSES },
                   ...taskStatuses.map((status) => ({
                     label: formatEnumLabel(tCommon, status),
                     value: status,
                   })),
                 ]}
-                value={selectedStatus ?? ""}
+                value={selectedStatus ?? ALL_STATUSES}
               />
               <FilterPills
                 ariaLabel={t("priorityFiltersAria")}
@@ -556,6 +684,22 @@ export default async function ManagerTasksPage({
                 toName="dueTo"
                 toValue={dueTo ?? ""}
               />
+              {/* Where the "Period…" pill lands. Seeded with the resolved
+                  window rather than with whatever the URL carried: editing one
+                  end of the default period should narrow those 30 days, not
+                  open an unbounded range. */}
+              {period ? (
+                <FilterDateRange
+                  fromLabel={t("completedFrom")}
+                  fromName={TASK_COMPLETED_PERIOD_PARAMS.from}
+                  fromValue={period.from}
+                  label={t("completedPeriod")}
+                  placeholder={tCommon("datePlaceholder")}
+                  toLabel={t("completedTo")}
+                  toName={TASK_COMPLETED_PERIOD_PARAMS.to}
+                  toValue={period.to}
+                />
+              ) : null}
               <FilterFooter
                 resetHref={
                   hasFilters ? `/${tenantSlug}/manager/tasks` : undefined
@@ -570,17 +714,60 @@ export default async function ManagerTasksPage({
           </FilterDisclosure>
         </FilterForm>
 
+        {/* The period leads the line: a count of finished work with no window
+            behind it is a number without a denominator. What follows it depends
+            on what the window actually cut — a done-only list is the window, so
+            it takes the count; the mixed list needs saying that only its
+            finished half is bounded, or the number above reads as a total. */}
+        {period ? (
+          <p className="list-count-summary">
+            <strong>{formatPeriodLabel(tPeriod, format, period)}</strong>
+            <span>
+              {selectedStatus === "done"
+                ? t("doneCount", { count: tasksResult.data.total })
+                : t("completedInPeriod")}
+            </span>
+            {/* A trimmed window is not the end of the history — the months
+                behind it are one date range away — so this points at the
+                filter rather than implying there is nothing older. */}
+            {period.clamped ? (
+              <span>
+                {t("periodWindowCapped", { months: PERIOD_MAX_MONTHS })}
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+
         {tasks.length > 0 ? (
-          <TasksCards
-            assigneeOptions={assignAssigneeOptions}
-            deleteTaskAction={canDeleteTasks ? deleteTaskAction : undefined}
-            locationOptions={locationOptions}
-            tasks={tasks}
-            todayIsoDate={todayIsoDate}
-            updateTaskDetailsAction={updateTaskDetailsAction}
-            updateTaskFieldsAction={updateTaskFieldsAction}
-            updateTaskStatusAction={updateTaskStatusAction}
-          />
+          <>
+            <TasksCards
+              assigneeOptions={assignAssigneeOptions}
+              deleteTaskAction={canDeleteTasks ? deleteTaskAction : undefined}
+              locationOptions={locationOptions}
+              tasks={tasks}
+              todayIsoDate={todayIsoDate}
+              updateTaskDetailsAction={updateTaskDetailsAction}
+              updateTaskFieldsAction={updateTaskFieldsAction}
+              updateTaskStatusAction={updateTaskStatusAction}
+            />
+            {totalPages > 1 ? (
+              <nav aria-label={t("paginationAria")} className="list-pagination">
+                {page > 1 ? (
+                  <a className="secondary-button" href={pageHref(page - 1)}>
+                    {t("pagePrevious")}
+                  </a>
+                ) : null}
+                <p className="small-label">
+                  {t("pagePosition", { page, totalPages })}
+                </p>
+                {page < totalPages ? (
+                  <a className="secondary-button" href={pageHref(page + 1)}>
+                    {t("pageNext")}
+                  </a>
+                ) : null}
+              </nav>
+            ) : null}
+          </>
         ) : (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>

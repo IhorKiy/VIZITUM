@@ -934,6 +934,12 @@ model Task {
   @@index([tenantId, dueDate])
   @@index([tenantId, locationId])
   @@index([tenantId, visitId])
+  // The done list, in its two scopes: a representative's own finished work and
+  // a manager's tenant-wide view. Both filter on status plus a completedAt
+  // window and order by completedAt desc, so completedAt trails the equality
+  // columns and the range and the sort come off one index.
+  @@index([tenantId, assignedToUserId, status, completedAt])
+  @@index([tenantId, status, completedAt])
   @@map("tasks")
 }
 

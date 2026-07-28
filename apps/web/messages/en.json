@@ -9,6 +9,20 @@
     "reset": "Reset",
     "filtersLabel": "Filters",
     "all": "All",
+    "period": {
+      "presetPill": {
+        "week": "Week",
+        "month": "30 days",
+        "quarter": "Quarter"
+      },
+      "customPill": "Period…",
+      "preset": {
+        "week": "Last 7 days",
+        "month": "Last 30 days",
+        "quarter": "Last 90 days"
+      },
+      "custom": "{from} – {to}"
+    },
     "notSet": "not set",
     "unknown": "Unknown",
     "back": {
@@ -213,21 +227,6 @@
       "archivedAria": "Not available for archived locations",
       "archivedTitle": "Not tracked while archived",
       "archivedBody": "Potential and assortment are not tracked for archived locations. Restore the location to view or edit them again."
-    },
-    "visitPeriod": {
-      "pillsAria": "Visit period",
-      "presetPill": {
-        "week": "Week",
-        "month": "30 days",
-        "quarter": "Quarter"
-      },
-      "customPill": "Period…",
-      "preset": {
-        "week": "Last 7 days",
-        "month": "Last 30 days",
-        "quarter": "Last 90 days"
-      },
-      "custom": "{from} – {to}"
     }
   },
   "auth": {
@@ -427,7 +426,17 @@
       "filterResultCount": "{count, plural, =0 {No tasks found} one {Found <b>#</b> task} other {Found <b>#</b> tasks}}",
       "history": "History",
       "historyCreated": "Created by {name}, {date}",
-      "historyStatusChanged": "Marked {status} by {name}, {date}"
+      "historyStatusChanged": "Marked {status} by {name}, {date}",
+      "completedPeriod": "Completion period",
+      "completedFrom": "Completed from",
+      "completedTo": "Completed to",
+      "completedInPeriod": "Finished work is counted over this window; open work is shown in full.",
+      "doneCount": "{count, plural, one {# completed} other {# completed}}",
+      "paginationAria": "Task list pages",
+      "pagePosition": "Page {page} of {totalPages}",
+      "pagePrevious": "Previous",
+      "pageNext": "Next",
+      "periodWindowCapped": "One period covers at most {months} months. Pick an earlier range in the filters to go further back."
     },
     "locations": {
       "title": "Coverage",
@@ -1493,7 +1502,22 @@
       "taskErrorBody": "Refresh and try again.",
       "history": "History",
       "historyCreated": "Created by {name}, {date}",
-      "historyStatusChanged": "Marked {status} by {name}, {date}"
+      "historyStatusChanged": "Marked {status} by {name}, {date}",
+      "completedPeriod": "Completion period",
+      "completedFrom": "Completed from",
+      "completedTo": "Completed to",
+      "doneCount": "{count, plural, one {# completed} other {# completed}}",
+      "paginationAria": "Task list pages",
+      "pagePosition": "Page {page} of {totalPages}",
+      "showNewer": "Newer",
+      "showEarlier": "Earlier",
+      "periodExhaustedTitle": "End of this period",
+      "periodExhaustedBody": "You have reached the oldest task finished in this period.",
+      "periodEarlier": "Earlier period: {period}",
+      "periodWindowCapped": "One period covers at most {months} months. Pick an earlier range in the filters to go further back.",
+      "periodOldestReached": "This is your first finished task — there is nothing earlier.",
+      "emptyDoneEverTitle": "Nothing finished yet",
+      "emptyDoneEverBody": "Once you mark a task as done it shows up here, with the period you finished it in."
     },
     "createTask": {
       "title": "New task",
