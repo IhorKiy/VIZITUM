@@ -11,38 +11,52 @@ const TRUSTED_UNFILTERED = {
 describe("isDayFullyDone", () => {
   it("files a day whose every workable visit is completed into the tail", () => {
     assert.equal(
-      isDayFullyDone({ completedPercent: 100, ...TRUSTED_UNFILTERED }),
+      isDayFullyDone({ completed: 4, workable: 4, ...TRUSTED_UNFILTERED }),
       true,
     );
   });
 
   it("keeps a day with anything still open in the running list", () => {
-    for (const completedPercent of [0, 50, 99]) {
+    for (const [completed, workable] of [
+      [0, 3],
+      [1, 2],
+      [3, 4],
+    ]) {
       assert.equal(
-        isDayFullyDone({ completedPercent, ...TRUSTED_UNFILTERED }),
+        isDayFullyDone({ completed, workable, ...TRUSTED_UNFILTERED }),
         false,
-        `${completedPercent}% should stay in the running list`,
+        `${completed}/${workable} should stay in the running list`,
       );
     }
   });
 
-  it("keeps a day that has no completed share at all", () => {
+  it("does not let the rounded share decide that a day is finished", () => {
+    // The header renders Math.round((199 / 200) * 100) === 100%, but a visit is
+    // still open. The share may flatter the day; it must not fold it away.
+    assert.equal(
+      isDayFullyDone({ completed: 199, workable: 200, ...TRUSTED_UNFILTERED }),
+      false,
+    );
+  });
+
+  it("keeps a day that had nothing to finish", () => {
     // Every visit cancelled: nothing was left undone, but nothing was worked
     // either, so the day is not "done" — it carries its own cancelled pills.
     assert.equal(
-      isDayFullyDone({ completedPercent: null, ...TRUSTED_UNFILTERED }),
+      isDayFullyDone({ completed: 0, workable: 0, ...TRUSTED_UNFILTERED }),
       false,
     );
   });
 
   it("folds nothing away while a status pill is narrowing the list", () => {
-    // Under the "completed" pill every day is 100% by construction; folding
-    // them away would put the very list the rep asked for behind a lid.
+    // Under the "completed" pill every day is fully done by construction;
+    // folding them would put the very list the rep asked for behind a lid.
     assert.equal(
       isDayFullyDone({
-        completedPercent: 100,
+        completed: 4,
         dayTotalsTrusted: true,
         statusFilterActive: true,
+        workable: 4,
       }),
       false,
     );
@@ -54,9 +68,10 @@ describe("isDayFullyDone", () => {
     // completed must not be filed as finished while the day is unfinished.
     assert.equal(
       isDayFullyDone({
-        completedPercent: 100,
+        completed: 4,
         dayTotalsTrusted: false,
         statusFilterActive: false,
+        workable: 4,
       }),
       false,
     );

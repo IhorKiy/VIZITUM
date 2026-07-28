@@ -601,9 +601,10 @@ function HistoryDays({
 
   for (const entry of groupsWithStats) {
     const bucket = isDayFullyDone({
-      completedPercent: entry.completedPercent,
+      completed: entry.completed,
       dayTotalsTrusted: daySummary !== null,
       statusFilterActive: !showCompletedShare,
+      workable: entry.workable,
     })
       ? doneGroups
       : openGroups;
