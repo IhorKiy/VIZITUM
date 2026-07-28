@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import {
   previousVisitPeriod,
   resolveVisitPeriod,
+  visitPeriodAsRead,
+  visitPeriodFloor,
   visitPeriodPresetRange,
 } from "../apps/web/lib/visit-period";
 
@@ -34,13 +36,75 @@ describe("visit period window (web)", () => {
     assert.equal(period.startedTo, "2026-07-27");
   });
 
+  it("still reads as the default when the URL carries the default window's own dates", () => {
+    // The screens seed their date inputs with the resolved window and the
+    // filter form serializes every non-empty field, so clicking a status pill
+    // writes those dates into the URL. Reading "has dates" as "the user chose
+    // a period" would light the filter panel's active dot and offer a reset
+    // for a window nobody picked.
+    const submitted = resolveVisitPeriod({}, kyiv, lateEvening);
+    const period = resolveVisitPeriod(submitted, kyiv, lateEvening);
+
+    assert.equal(period.isDefault, true);
+    assert.equal(period.preset, "month");
+  });
+
+  it("treats a window the user actually picked as a choice", () => {
+    const week = visitPeriodPresetRange("week", kyiv, lateEvening);
+
+    assert.equal(resolveVisitPeriod(week, kyiv, lateEvening).isDefault, false);
+    assert.equal(
+      resolveVisitPeriod(
+        { startedFrom: "2026-07-01", startedTo: "2026-07-10" },
+        kyiv,
+        lateEvening,
+      ).isDefault,
+      false,
+    );
+  });
+
+  it("names the window the API actually read when the clamp raised it", () => {
+    const requested = resolveVisitPeriod(
+      { startedFrom: "2019-01-01", startedTo: "2026-07-28" },
+      kyiv,
+      lateEvening,
+    );
+    // What the API answers with after flooring the request 12 months back.
+    const asRead = visitPeriodAsRead(
+      requested,
+      { startedFrom: "2025-07-28T00:00:00.000Z", startedTo: null },
+      kyiv,
+    );
+
+    assert.equal(asRead.startedFrom, "2025-07-28");
+    assert.equal(asRead.preset, "custom");
+    // An unclamped window is left exactly as it was resolved.
+    const untouched = visitPeriodAsRead(
+      requested,
+      { startedFrom: "2018-01-01T00:00:00.000Z", startedTo: null },
+      kyiv,
+    );
+    assert.equal(untouched.startedFrom, requested.startedFrom);
+  });
+
+  it("knows how far back the history reaches, so the handover can stop there", () => {
+    const floor = visitPeriodFloor(kyiv, lateEvening);
+
+    assert.equal(floor, "2025-07-28");
+    // A window already sitting on the floor has nothing behind it to offer.
+    const oldest = resolveVisitPeriod(
+      { startedFrom: "2025-07-28", startedTo: "2025-08-26" },
+      kyiv,
+      lateEvening,
+    );
+    assert.ok(previousVisitPeriod(oldest).startedTo < floor);
+  });
+
   it("lights the preset pill whose window the URL happens to name", () => {
     const week = visitPeriodPresetRange("week", kyiv, lateEvening);
     const period = resolveVisitPeriod(week, kyiv, lateEvening);
 
     assert.equal(period.preset, "week");
-    // A period someone chose is not the default, even when it matches a pill:
-    // the filter panel's active dot tracks the choice, not the value.
     assert.equal(period.isDefault, false);
     assert.deepEqual(week, {
       startedFrom: "2026-07-22",

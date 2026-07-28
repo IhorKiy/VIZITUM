@@ -24,7 +24,10 @@ import { formatEnumLabel, statusPillTone } from "../../../../lib/format";
 import {
   previousVisitPeriod,
   resolveVisitPeriod,
+  visitPeriodAsRead,
+  visitPeriodFloor,
   visitPeriodLabel,
+  VISIT_PERIOD_MAX_MONTHS,
 } from "../../../../lib/visit-period";
 
 type FieldHistoryPageProps = {
@@ -106,15 +109,14 @@ export default async function FieldHistoryPage({
   // that is the last 30 days in the tenant's timezone, not all of history.
   // Resolved here rather than left to the API so the recap below can say which
   // period the numbers describe.
-  const period = resolveVisitPeriod(
+  const requestedPeriod = resolveVisitPeriod(
     { startedFrom: requestedFrom, startedTo: requestedTo },
     timeZone,
   );
-  const periodLabel = visitPeriodLabel(tPeriod, format, period);
   const page = normalizePage(pageState.page);
   // The default window is nobody's choice, so it doesn't light the filter
   // panel; a period the rep picked does.
-  const hasFilters = Boolean(selectedStatus) || !period.isDefault;
+  const hasFilters = Boolean(selectedStatus) || !requestedPeriod.isDefault;
   // A visit report opens from here, from the location card and from a
   // location's own history; it returns to whichever one it was opened from,
   // with this list's period/status/page still applied. The window travels as
@@ -122,14 +124,14 @@ export default async function FieldHistoryPage({
   // not on a relative window that has since slid.
   const historyOrigin = backOrigin("/field/history", {
     page: page > 1 ? page : undefined,
-    startedFrom: period.startedFrom,
-    startedTo: period.startedTo,
+    startedFrom: requestedPeriod.startedFrom,
+    startedTo: requestedPeriod.startedTo,
     status: selectedStatus,
   });
 
   const periodParams = new URLSearchParams({
-    startedFrom: period.startedFrom,
-    startedTo: period.startedTo,
+    startedFrom: requestedPeriod.startedFrom,
+    startedTo: requestedPeriod.startedTo,
   });
 
   const query = new URLSearchParams(periodParams);
@@ -189,6 +191,15 @@ export default async function FieldHistoryPage({
 
   const visits = visitsResult.data.items;
   const totalPages = visitsResult.data.totalPages;
+  // What the API actually read, which is what the recap names: a saved link
+  // asking for a start deeper than the 12-month ceiling gets quietly raised,
+  // and announcing the requested range would claim visits nobody looked for.
+  const period = visitPeriodAsRead(
+    requestedPeriod,
+    visitsResult.data.period,
+    timeZone,
+  );
+  const periodLabel = visitPeriodLabel(tPeriod, format, period);
   // The whole period's split, ignoring the status pill — it arrives with the
   // list itself, so picking a pill promotes one of these numbers to the front
   // of the line without asking the API anything more.
@@ -216,6 +227,15 @@ export default async function FieldHistoryPage({
   // Where the list continues once this window is read out: the window of the
   // same length immediately behind it, on page one.
   const earlier = previousVisitPeriod(period);
+  // ...unless there is nothing behind it. The API reads back 12 months and no
+  // further, so a window already sitting on that floor has no earlier period
+  // to offer — without this the handover would walk into empty window after
+  // empty window forever. The ceiling is the honest signal here and it costs
+  // nothing: no probing request, no guess about whether a window happens to be
+  // empty (an empty *month* inside the covered year is a real answer, and the
+  // step back is still the right move there).
+  const historyFloor = visitPeriodFloor(timeZone);
+  const hasEarlierPeriod = earlier.startedTo >= historyFloor;
   const earlierPeriodParams = new URLSearchParams({
     startedFrom: earlier.startedFrom,
     startedTo: earlier.startedTo,
@@ -228,6 +248,18 @@ export default async function FieldHistoryPage({
     ...earlier,
     preset: "custom",
   });
+  const earlierPeriodLink = hasEarlierPeriod ? (
+    <a
+      className="secondary-button"
+      href={`/${tenantSlug}/field/history?${earlierPeriodParams.toString()}`}
+    >
+      {t("periodEarlier", { period: earlierPeriodLabel })}
+    </a>
+  ) : (
+    <p className="small-label">
+      {t("periodFloorReached", { months: VISIT_PERIOD_MAX_MONTHS })}
+    </p>
+  );
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-history">
@@ -351,12 +383,7 @@ export default async function FieldHistoryPage({
               <div className="period-exhausted">
                 <p className="small-label">{t("periodExhaustedTitle")}</p>
                 <p>{t("periodExhaustedBody")}</p>
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/field/history?${earlierPeriodParams.toString()}`}
-                >
-                  {t("periodEarlier", { period: earlierPeriodLabel })}
-                </a>
+                {earlierPeriodLink}
               </div>
             ) : null}
           </>
@@ -367,13 +394,9 @@ export default async function FieldHistoryPage({
             <div className="toolbar">
               {/* An empty window is the one case where reaching further back
                   is the obvious next move, so the same handover the end of a
-                  full list offers sits here too. */}
-              <a
-                className="secondary-button"
-                href={`/${tenantSlug}/field/history?${earlierPeriodParams.toString()}`}
-              >
-                {t("periodEarlier", { period: earlierPeriodLabel })}
-              </a>
+                  full list offers sits here too — and it stops at the same
+                  floor rather than offering an endless walk into nothing. */}
+              {earlierPeriodLink}
               {hasFilters || page > 1 ? (
                 <a
                   className="secondary-button"

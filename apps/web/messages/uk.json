@@ -331,7 +331,6 @@
       "signedOutBody": "Для роботи менеджера потрібні живі дані візитів.",
       "notConnectedTitle": "Візити не підключені",
       "metricsAria": "Метрики візитів",
-      "visibleVisits": "Видимі візити",
       "reportsConfirmed": "Звіти підтверджено",
       "waitingDetail": "{count} в процесі",
       "inProgress": "У процесі",
@@ -356,7 +355,11 @@
       "visitPeriod": "Період візиту",
       "filterResultCount": "{count, plural, =0 {Візитів не знайдено} one {Знайдено <b>#</b> візит} few {Знайдено <b>#</b> візити} many {Знайдено <b>#</b> візитів} other {Знайдено <b>#</b> візита}}",
       "tableCancelReason": "Причина скасування",
-      "periodDetail": "Візити за цей період"
+      "periodDetail": "Візити за цей період",
+      "paginationAria": "Сторінки списку візитів",
+      "pagePosition": "Сторінка {page} з {totalPages}",
+      "showEarlier": "Раніші візити",
+      "showNewer": "Новіші візити"
     },
     "tasks": {
       "title": "Задачі",
@@ -1121,6 +1124,7 @@
       "noOpenTasks": "Для цієї точки немає відкритих задач.",
       "visitHistory": "Історія візитів",
       "visitCount": "{count, plural, one {# візит} few {# візити} many {# візитів} other {# візиту}}",
+      "visitCountSince": "{count, plural, one {# візит} few {# візити} many {# візитів} other {# візиту}} з {since}",
       "noPastVisits": "Попередніх візитів ще немає.",
       "visitCancelledAria": "Стан візиту",
       "visitCancelledEyebrow": "Візит скасовано",
@@ -1396,7 +1400,8 @@
       "cancelReasonLabel": "Причина",
       "periodExhaustedTitle": "Це весь період",
       "periodExhaustedBody": "Гортання живе всередині вибраного вікна. Раніші візити — у ранішому періоді.",
-      "periodEarlier": "Раніший період: {period}"
+      "periodEarlier": "Раніший період: {period}",
+      "periodFloorReached": "Історія візитів сягає на {months} місяців назад. Це найраніший період."
     },
     "locations": {
       "title": "Точки",

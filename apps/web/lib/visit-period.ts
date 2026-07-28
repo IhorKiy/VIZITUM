@@ -46,18 +46,23 @@ export type VisitPeriod = {
 };
 
 /**
- * Today's calendar day in the tenant's timezone as YYYY-MM-DD.
+ * A moment's calendar day in the tenant's timezone as YYYY-MM-DD.
  *
  * en-CA renders exactly that shape and the locale is never shown — it is a
  * formatting detail, not a user-facing choice.
  */
-export function todayInTimeZone(timeZone: string, now: Date = new Date()) {
+export function dayInTimeZone(timeZone: string, moment: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     day: "2-digit",
     month: "2-digit",
     timeZone,
     year: "numeric",
-  }).format(now);
+  }).format(moment);
+}
+
+/** Today's calendar day in the tenant's timezone. */
+export function todayInTimeZone(timeZone: string, now: Date = new Date()) {
+  return dayInTimeZone(timeZone, now);
 }
 
 /**
@@ -109,18 +114,9 @@ export function resolveVisitPeriod(
   const today = todayInTimeZone(timeZone, now);
   const requestedFrom = params.startedFrom ?? null;
   const requestedTo = params.startedTo ?? null;
-
-  if (!requestedFrom && !requestedTo) {
-    return {
-      ...visitPeriodPresetRange(DEFAULT_VISIT_PERIOD_PRESET, timeZone, now),
-      preset: DEFAULT_VISIT_PERIOD_PRESET,
-      isDefault: true,
-    };
-  }
-
   const startedTo = requestedTo ?? today;
-  // With only an end given, the open start falls back to the default window's
-  // length rather than to the beginning of time.
+  // With only an end given (or neither), the open start falls back to the
+  // default window's length rather than to the beginning of time.
   const startedFrom =
     requestedFrom ??
     shiftDay(
@@ -133,10 +129,75 @@ export function resolveVisitPeriod(
     startedFrom <= startedTo
       ? { startedFrom, startedTo }
       : { startedFrom: startedTo, startedTo: startedFrom };
+  const fallback = visitPeriodPresetRange(
+    DEFAULT_VISIT_PERIOD_PRESET,
+    timeZone,
+    now,
+  );
 
   return {
     ...ordered,
     preset: matchVisitPeriodPreset(ordered, today),
+    // The *window*, not the URL, decides this. These screens seed their date
+    // inputs with the resolved window and the filter form serializes every
+    // non-empty field, so merely clicking a status pill writes the default
+    // dates into the URL — reading "has dates" as "the user chose a period"
+    // would light the filter panel's active dot and offer a reset for a
+    // window nobody picked.
+    isDefault:
+      ordered.startedFrom === fallback.startedFrom &&
+      ordered.startedTo === fallback.startedTo,
+  };
+}
+
+/**
+ * How deep the API will actually read, as a calendar day in the tenant's
+ * timezone: it floors every visit query 12 months back (see
+ * VISIT_PERIOD_MAX_MONTHS in src/modules/visits/visits.service.ts).
+ */
+export const VISIT_PERIOD_MAX_MONTHS = 12;
+
+export function visitPeriodFloor(
+  timeZone: string,
+  now: Date = new Date(),
+): string {
+  const today = todayInTimeZone(timeZone, now);
+  const [year, month, day] = today.split("-").map(Number);
+
+  return new Date(Date.UTC(year, month - 1 - VISIT_PERIOD_MAX_MONTHS, day))
+    .toISOString()
+    .slice(0, 10);
+}
+
+/**
+ * The window as the API actually read it, which is the one worth naming.
+ *
+ * A saved link or an old tab can ask for a start deeper than the 12-month
+ * ceiling; the API quietly raises it, and a header that still announced the
+ * requested range would be claiming visits nobody looked for. Comparing in
+ * calendar days (the API answers in instants) keeps this from firing on the
+ * sub-second difference between an end-of-day bound and its own echo.
+ */
+export function visitPeriodAsRead(
+  period: VisitPeriod,
+  apiPeriod: { startedFrom: string; startedTo: string | null } | undefined,
+  timeZone: string,
+): VisitPeriod {
+  if (!apiPeriod) {
+    return period;
+  }
+
+  const readFrom = dayInTimeZone(timeZone, new Date(apiPeriod.startedFrom));
+
+  if (readFrom <= period.startedFrom) {
+    return period;
+  }
+
+  return {
+    ...period,
+    startedFrom: readFrom,
+    // A clamped window is nobody's preset and nobody's default.
+    preset: "custom",
     isDefault: false,
   };
 }

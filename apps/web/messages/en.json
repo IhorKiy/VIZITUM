@@ -331,7 +331,6 @@
       "signedOutBody": "Live visit data is required before manager review can continue.",
       "notConnectedTitle": "Visits are not connected",
       "metricsAria": "Visit metrics",
-      "visibleVisits": "Visible visits",
       "reportsConfirmed": "Reports confirmed",
       "waitingDetail": "{count} in progress",
       "inProgress": "In progress",
@@ -356,7 +355,11 @@
       "visitPeriod": "Visit period",
       "filterResultCount": "{count, plural, =0 {No visits found} one {Found <b>#</b> visit} other {Found <b>#</b> visits}}",
       "tableCancelReason": "Cancellation reason",
-      "periodDetail": "Visits in this period"
+      "periodDetail": "Visits in this period",
+      "paginationAria": "Visit list pages",
+      "pagePosition": "Page {page} of {totalPages}",
+      "showEarlier": "Earlier visits",
+      "showNewer": "Newer visits"
     },
     "tasks": {
       "title": "Tasks",
@@ -1121,6 +1124,7 @@
       "noOpenTasks": "No open tasks for this location.",
       "visitHistory": "Visit history",
       "visitCount": "{count, plural, one {# visit} other {# visits}}",
+      "visitCountSince": "{count, plural, one {# visit} other {# visits}} since {since}",
       "noPastVisits": "No past visits recorded yet.",
       "visitCancelledAria": "Visit status",
       "visitCancelledEyebrow": "Visit cancelled",
@@ -1396,7 +1400,8 @@
       "cancelReasonLabel": "Reason",
       "periodExhaustedTitle": "That is the whole period",
       "periodExhaustedBody": "Scrolling stays inside the selected window. Earlier visits live in an earlier period.",
-      "periodEarlier": "Earlier period: {period}"
+      "periodEarlier": "Earlier period: {period}",
+      "periodFloorReached": "Visit history reaches back {months} months. This is the earliest period."
     },
     "locations": {
       "title": "Locations",

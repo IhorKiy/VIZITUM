@@ -37,6 +37,7 @@ import {
 } from "../../../../lib/api-client";
 import {
   resolveVisitPeriod,
+  visitPeriodAsRead,
   visitPeriodLabel,
 } from "../../../../lib/visit-period";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
@@ -56,6 +57,7 @@ type ManagerVisitsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     locationId?: string;
+    page?: string;
     // Set by the "Period…" pill: the range itself is already in the URL, this
     // only asks the filter panel to open on it.
     period?: string;
@@ -71,6 +73,12 @@ type ManagerVisitsPageProps = {
 // "in_progress" immediately — nothing in the product ever leaves a visit
 // in "draft", so it's excluded here rather than offered as a dead filter.
 const visitStatuses: VisitStatus[] = ["in_progress", "completed", "cancelled"];
+
+// The list used to ask for 100 rows and show them all, under a counter that
+// named the period's real total — so past 100 the screen quietly disagreed
+// with itself. Paginated at 50, the same page size the field history list
+// uses, with the count above it staying the period's own.
+const PAGE_SIZE = 50;
 
 export default async function ManagerVisitsPage({
   params,
@@ -98,30 +106,32 @@ export default async function ManagerVisitsPage({
   // period the list asks for every visit every representative ever made. With
   // nothing in the URL that window is the last 30 days in the tenant's
   // timezone, and it is named above the list rather than assumed.
-  const period = resolveVisitPeriod(
+  const requestedPeriod = resolveVisitPeriod(
     {
       startedFrom: normalizeDateFilter(pageState.startedFrom),
       startedTo: normalizeDateFilter(pageState.startedTo),
     },
     timeZone,
   );
-  const periodLabel = visitPeriodLabel(tPeriod, format, period);
+  const page = normalizePage(pageState.page);
   // A visit opened from this list returns to it with the same filters — and
   // the same window — still applied, rather than to a bare list.
   const origin = backOrigin("/manager/visits", {
     locationId: selectedLocationId,
+    page: page > 1 ? page : undefined,
     representativeUserId: selectedRepresentativeId,
     routePlanId: selectedRoutePlanId,
-    startedFrom: period.startedFrom,
-    startedTo: period.startedTo,
+    startedFrom: requestedPeriod.startedFrom,
+    startedTo: requestedPeriod.startedTo,
     status: selectedStatus,
   });
   const periodParams = new URLSearchParams({
-    startedFrom: period.startedFrom,
-    startedTo: period.startedTo,
+    startedFrom: requestedPeriod.startedFrom,
+    startedTo: requestedPeriod.startedTo,
   });
   const query = new URLSearchParams(periodParams);
-  query.set("pageSize", "100");
+  query.set("page", String(page));
+  query.set("pageSize", String(PAGE_SIZE));
   // The default window is nobody's choice, so it doesn't count as a filter:
   // it neither lights the panel's active dot nor makes the reset link appear.
   const hasFilters = Boolean(
@@ -129,7 +139,7 @@ export default async function ManagerVisitsPage({
     selectedRepresentativeId ||
     selectedLocationId ||
     selectedRoutePlanId ||
-    !period.isDefault,
+    !requestedPeriod.isDefault,
   );
 
   if (selectedStatus) {
@@ -189,11 +199,38 @@ export default async function ManagerVisitsPage({
   }
 
   const visits = visitsResult.data.items;
+  const totalPages = visitsResult.data.totalPages;
+  // What the API actually read, which is what the cards name: a saved link
+  // asking past the 12-month ceiling gets quietly raised, and a card that
+  // still announced the requested range would be counting a wider window than
+  // the one it read.
+  const period = visitPeriodAsRead(
+    requestedPeriod,
+    visitsResult.data.period,
+    timeZone,
+  );
+  const periodLabel = visitPeriodLabel(tPeriod, format, period);
   const counters = buildVisitCounters(
     visitsResult.data.statusTotals,
     periodLabel,
     t,
   );
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams(query);
+    params.delete("pageSize");
+
+    if (targetPage <= 1) {
+      params.delete("page");
+    } else {
+      params.set("page", String(targetPage));
+    }
+
+    const search = params.toString();
+
+    return search
+      ? `/${tenantSlug}/manager/visits?${search}`
+      : `/${tenantSlug}/manager/visits`;
+  };
   const representativeOptions = allVisitsResult.ok
     ? buildRepresentativeOptions(allVisitsResult.data.items, locale)
     : [];
@@ -340,17 +377,39 @@ export default async function ManagerVisitsPage({
         </FilterForm>
 
         {visits.length > 0 ? (
-          <VisitsCards
-            origin={origin}
-            tenantSlug={tenantSlug}
-            visits={visits}
-          />
+          <>
+            <VisitsCards
+              origin={origin}
+              tenantSlug={tenantSlug}
+              visits={visits}
+            />
+            {/* The counters above count the whole period, so the list under
+                them has to be able to reach all of it rather than stopping
+                silently at the first page. */}
+            {totalPages > 1 ? (
+              <nav aria-label={t("paginationAria")} className="list-pagination">
+                {page > 1 ? (
+                  <a className="secondary-button" href={pageHref(page - 1)}>
+                    {t("showNewer")}
+                  </a>
+                ) : null}
+                <p className="small-label">
+                  {t("pagePosition", { page, totalPages })}
+                </p>
+                {page < totalPages ? (
+                  <a className="secondary-button" href={pageHref(page + 1)}>
+                    {t("showEarlier")}
+                  </a>
+                ) : null}
+              </nav>
+            ) : null}
+          </>
         ) : (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
             <p>{t("emptyBody")}</p>
             <div className="toolbar">
-              {hasFilters ? (
+              {hasFilters || page > 1 ? (
                 <a
                   className="secondary-button"
                   href={`/${tenantSlug}/manager/visits`}
@@ -503,6 +562,12 @@ function normalizeVisitStatus(value: string | undefined): VisitStatus | null {
 function normalizeFilterValue(value: string | undefined): string | null {
   const normalizedValue = value?.trim();
   return normalizedValue || null;
+}
+
+function normalizePage(value: string | undefined): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function normalizeDateFilter(value: string | undefined): string | null {
