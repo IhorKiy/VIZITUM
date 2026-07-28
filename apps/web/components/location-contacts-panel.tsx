@@ -39,7 +39,16 @@ export function LocationContactsPanel({
             <UserIcon size={28} />
           </span>
           <h2>{t("contactsEmptyTitle")}</h2>
-          <p>{t("contactsEmptyHint")}</p>
+          {/* Same split as the potential and assortment panels. On this field
+              screen the writer is the assigned representative — the tenant-wide
+              contacts tier belongs to the admin roles, which review locations
+              elsewhere, and a team_manager holds neither tier — so an
+              unassigned reader is told who adds them rather than to add them. */}
+          <p>
+            {canManage
+              ? t("contactsEmptyHint")
+              : t("contactsEmptyReadOnlyHint")}
+          </p>
         </div>
       ) : null}
 

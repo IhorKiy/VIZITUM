@@ -1086,6 +1086,7 @@
       "contactsTitle": "Contacts",
       "contactsEmptyTitle": "No contacts yet",
       "contactsEmptyHint": "Add the people who work at this location",
+      "contactsEmptyReadOnlyHint": "The assigned representative adds them",
       "removeContactAria": "Remove {name}",
       "contactsModal": {
         "title": "Add contact",

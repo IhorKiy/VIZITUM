@@ -1086,6 +1086,7 @@
       "contactsTitle": "Контакти",
       "contactsEmptyTitle": "Контактів ще немає",
       "contactsEmptyHint": "Додайте людей, які працюють на цій точці",
+      "contactsEmptyReadOnlyHint": "Контакти додає закріплений за точкою представник",
       "removeContactAria": "Видалити {name}",
       "contactsModal": {
         "title": "Додати контакт",
