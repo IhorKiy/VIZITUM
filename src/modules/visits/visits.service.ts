@@ -263,12 +263,19 @@ export class VisitsService {
       // (tenant, representative, location, route, status), so it answers for
       // the same set of visits the days above describe.
       //
-      // MIN over the COALESCE expression, which is exactly what
-      // visits_tenant_representative_period_idx is sorted by — Postgres
-      // rewrites it into a one-row index scan rather than an aggregate over
-      // the scope. It lives on day-summary rather than on the list because
-      // only field history needs it, and the other eight callers of
-      // GET /visits should not pay for a query they never read.
+      // MIN over the COALESCE expression, which is exactly what the visit
+      // period indexes are sorted by — Postgres rewrites it into a one-row
+      // index scan rather than an aggregate over the scope. With a status
+      // filter that role passes to the status-prefixed pair added in
+      // 20260728160000; without one, to the plain expression pair from
+      // 20260728120000. Either way it costs ~4 shared buffers on a 300k-row
+      // table. The one shape neither covers is a *multi*-status filter, where
+      // MIN over `status = ANY(...)` cannot be a single boundary scan and the
+      // scan walks to its first match — no screen sends more than one status.
+      //
+      // It lives on day-summary rather than on the list because only field
+      // history needs it, and the other eight callers of GET /visits should
+      // not pay for a query they never read.
       this.prisma.$queryRaw<Array<{ historyStart: Date | null }>>(Prisma.sql`
       SELECT MIN(COALESCE("startedAt", "createdAt")) AS "historyStart"
       FROM visits
