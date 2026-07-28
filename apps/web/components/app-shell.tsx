@@ -9,14 +9,17 @@ import {
 } from "../lib/api-client";
 import { resolveTenantBranding } from "../lib/tenant-branding";
 import { BrandMark } from "./brand-mark";
+import { FieldMenu } from "./field-menu";
 import { NavIcon } from "./nav-icon";
 import {
   availableZones,
+  buildFieldMenuLinks,
   buildTenantNav,
   normalizeTenantName,
   resolveZoneLanding,
   zoneForArea,
   zoneHomePath,
+  ZONE_ORDER,
   type RoleArea,
   type Zone,
 } from "../lib/navigation";
@@ -122,6 +125,19 @@ export async function AppShell({
   ).filter((item) => item.zone === currentZone);
 
   const currentUser = sessionResult.ok ? sessionResult.data.user : null;
+  const productsEnabled = sessionResult.ok
+    ? sessionResult.data.productsEnabled
+    : true;
+  // The field zone's catalogue/help screens and its session controls hang off
+  // the menu button instead of a fifth bottom tab — see components/field-menu.tsx.
+  const fieldMenuLinks =
+    currentZone === "field"
+      ? buildFieldMenuLinks(
+          tenantSlug,
+          sessionResult.ok ? sessionResult.data.permissions : undefined,
+          productsEnabled,
+        )
+      : [];
 
   // Counts hanging off a field nav item, sidebar and mobile alike: tasks still
   // in progress on "Tasks", announcements not yet acknowledged on "Home".
@@ -177,13 +193,31 @@ export async function AppShell({
           </div>
 
           <div className="topbar-aside">
+            {currentZone === "field" ? (
+              <FieldMenu
+                active={activeArea === "field-menu"}
+                companyName={normalizeTenantName(tenantSlug)}
+                links={fieldMenuLinks}
+                otherZones={otherZones}
+                tenantSlug={tenantSlug}
+                user={
+                  currentUser
+                    ? { name: currentUser.name, email: currentUser.email }
+                    : null
+                }
+                zoneNames={Object.fromEntries(
+                  ZONE_ORDER.map((zone) => [zone, tZoneNames(zone)]),
+                )}
+              />
+            ) : null}
+
             {currentUser && currentZone !== "field" ? (
               // The field zone shows the signed-in name in its page greeting
               // ("Hi, {firstName}!"), so the topbar name would just duplicate it.
               <p className="topbar-user-name">{currentUser.name}</p>
             ) : null}
 
-            {otherZones.length > 0 ? (
+            {otherZones.length > 0 && currentZone !== "field" ? (
               <div
                 aria-label={tZoneSwitcher("ariaLabel")}
                 className="zone-switcher-mobile"

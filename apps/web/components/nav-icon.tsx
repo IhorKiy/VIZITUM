@@ -106,6 +106,13 @@ const ICON_PATHS: Record<NavIconName, React.ReactNode> = {
       <path d="M20 9a3 3 0 0 1 0 6" />
     </>
   ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.6" />
+      <line x1="12" y1="17" x2="12" y2="17" />
+    </>
+  ),
 };
 
 export function NavIcon({ name }: { name: NavIconName }) {

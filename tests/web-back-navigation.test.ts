@@ -64,7 +64,7 @@ describe("resolveBackTarget", () => {
 
     const fromReport = resolveBackTarget("acme", cardOrigin, {
       href: "/acme/field",
-      labelKey: "route",
+      labelKey: "home",
     });
 
     assert.equal(fromReport.labelKey, "location");
@@ -78,6 +78,35 @@ describe("resolveBackTarget", () => {
       href: "/acme/field/locations?city=Kyiv",
       labelKey: "locations",
     });
+  });
+
+  it("returns a field menu screen to the screen the menu was opened on", () => {
+    // The menu hangs off every field screen, so Help/Locations/Products have
+    // no single opener: help opened from tasks must go back to tasks, and the
+    // home route is only the deep-link fallback.
+    const menuFallback: BackTarget = { href: "/acme/field", labelKey: "home" };
+
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/tasks", menuFallback),
+      { href: "/acme/field/tasks", labelKey: "tasks" },
+    );
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/planning", menuFallback),
+      { href: "/acme/field/planning", labelKey: "routes" },
+    );
+    // `/field` is "Home" in the bottom nav, and the label table has to agree:
+    // the screen leads with today's route, but a control that says "back to
+    // route" names the content rather than the destination.
+    assert.deepEqual(resolveBackTarget("acme", "/field", menuFallback), {
+      href: "/acme/field",
+      labelKey: "home",
+    });
+    // A screen the allowlist doesn't name (the menu is rendered on those too)
+    // silently falls back rather than advertising an unnamed destination.
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/visits/visit-1", menuFallback),
+      menuFallback,
+    );
   });
 
   describe("rejects an origin that isn't a real in-app screen", () => {
@@ -214,7 +243,7 @@ describe("resolveBackTarget", () => {
 
     const fromReport = resolveBackTarget("acme", historyOrigin, {
       href: "/acme/field",
-      labelKey: "route",
+      labelKey: "home",
     });
 
     assert.equal(fromReport.labelKey, "locationHistory");

@@ -19,7 +19,11 @@ import {
   listAllLocations,
   type LocationStatus,
 } from "../../../../lib/api-client";
-import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
+import {
+  backOrigin,
+  resolveBackTarget,
+  withBackOrigin,
+} from "../../../../lib/back-navigation";
 import { buildLocationFieldOptions } from "../../../../lib/filter-options";
 import {
   formatEnumLabel,
@@ -33,6 +37,7 @@ type FieldLocationsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     city?: string;
+    from?: string;
     search?: string;
     status?: string;
   }>;
@@ -59,7 +64,7 @@ export default async function FieldLocationsPage({
     !sessionResult.data.permissions.includes("locations.read")
   ) {
     return (
-      <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
+      <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
@@ -88,6 +93,12 @@ export default async function FieldLocationsPage({
   }
 
   const pageState = await searchParams;
+  // Opened from the field menu, which hangs off every field screen, so where
+  // "back" lands is whatever screen the menu was opened on.
+  const backTarget = resolveBackTarget(tenantSlug, pageState.from, {
+    href: `/${tenantSlug}/field`,
+    labelKey: "home",
+  });
   const selectedStatus = normalizeLocationStatus(pageState.status);
   const selectedCity = normalizeFilterValue(pageState.city);
   const search = normalizeFilterValue(pageState.search);
@@ -114,11 +125,8 @@ export default async function FieldLocationsPage({
 
   if (!locationsResult.ok) {
     return (
-      <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
-        <BackLink
-          href={`/${tenantSlug}/field/general`}
-          label={tBack("general")}
-        />
+      <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
+        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
@@ -147,18 +155,22 @@ export default async function FieldLocationsPage({
   // The location card is also reachable from today's route and the route
   // editor, so it can't guess where to return — this list hands it the filter
   // state the rep leaves behind.
+  // withBackOrigin, not backOrigin: this is an outgoing link that has to keep
+  // the opener, not a tenant-relative origin being built.
+  const listHref = `/${tenantSlug}/field/locations`;
+  const resetFiltersHref = pageState.from
+    ? withBackOrigin(listHref, pageState.from)
+    : listHref;
   const origin = backOrigin("/field/locations", {
     city: selectedCity,
+    from: pageState.from,
     search,
     status: selectedStatus,
   });
 
   return (
-    <AppShell activeArea="field-general" tenantSlug={tenantSlug}>
-      <BackLink
-        href={`/${tenantSlug}/field/general`}
-        label={tBack("general")}
-      />
+    <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
+      <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
       <header className="page-header">
         <div>
           <p className="eyebrow">{tField("flowEyebrow")}</p>
@@ -169,6 +181,11 @@ export default async function FieldLocationsPage({
 
       <section aria-label={t("listAria")} className="panel drilldown-panel">
         <FilterForm action={`/${tenantSlug}/field/locations`}>
+          {/* FilterForm rebuilds the URL from this form's own fields, so the
+              opener has to travel as one or filtering would strip it. */}
+          {pageState.from ? (
+            <input name="from" type="hidden" value={pageState.from} />
+          ) : null}
           <div className="panel-toolbar">
             <FilterPills
               ariaLabel={t("statusFiltersAria")}
@@ -209,9 +226,7 @@ export default async function FieldLocationsPage({
                 </select>
               </FilterField>
               <FilterFooter
-                resetHref={
-                  hasFilters ? `/${tenantSlug}/field/locations` : undefined
-                }
+                resetHref={hasFilters ? resetFiltersHref : undefined}
                 resetLabel={tCommon("reset")}
                 resultText={t.rich("filterResultCount", {
                   ...filterCountTags,

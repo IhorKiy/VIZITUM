@@ -1,7 +1,7 @@
-export type RoleArea =
+// Areas that own a nav item, and therefore a `common.nav.<area>` label.
+export type NavArea =
   | "field"
   | "field-planning"
-  | "field-general"
   | "field-history"
   | "field-tasks"
   | "admin-users"
@@ -18,6 +18,16 @@ export type RoleArea =
   | "manager-potential"
   | "manager-announcements"
   | "operations";
+
+/**
+ * Areas with no nav item of their own: screens the field menu opens
+ * (components/field-menu.tsx). They carry no nav label and never appear in the
+ * bottom nav, but a page still declares one as its `activeArea` so the
+ * AppShell can place it in a zone.
+ */
+export type MenuOnlyArea = "field-menu";
+
+export type RoleArea = NavArea | MenuOnlyArea;
 
 export type Zone = "field" | "manager" | "admin" | "operations";
 
@@ -39,7 +49,8 @@ export type NavIconName =
   | "clipboard"
   | "check"
   | "activity"
-  | "megaphone";
+  | "megaphone"
+  | "help";
 
 export const ZONE_ORDER: readonly Zone[] = [
   "field",
@@ -61,7 +72,7 @@ const ZONE_HOME_PATH: Record<Zone, string> = {
 
 export type NavItem = {
   href: string;
-  area: RoleArea;
+  area: NavArea;
   zone: Zone;
   icon: NavIconName;
   requiredPermissions: string[];
@@ -69,7 +80,7 @@ export type NavItem = {
 
 type NavItemDef = {
   path: string;
-  area: RoleArea;
+  area: NavArea;
   zone: Zone;
   icon: NavIconName;
   requiredPermissions: string[];
@@ -102,13 +113,6 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     zone: "field",
     icon: "check",
     requiredPermissions: ["tasks.read_own"],
-  },
-  {
-    path: "/field/general",
-    area: "field-general",
-    zone: "field",
-    icon: "grid",
-    requiredPermissions: ["routes.manage_own"],
   },
   {
     path: "/field/history",
@@ -292,11 +296,86 @@ export function buildTenantNav(
   );
 }
 
+// Screens that belong to a zone but carry no nav item of their own: the
+// representative's locations, product catalogue and help pages are opened from
+// the field menu (components/field-menu.tsx), not from the bottom nav. They
+// still need a zone so the AppShell deep-link guard can place them.
+//
+// Deliberately kept out of NAV_ITEM_DEFS: a nav item's permissions widen its
+// whole zone (availability is an OR across the zone's items), so listing these
+// with locations.read/products.read would hand the field zone to every admin
+// and manager who holds those. The screens enforce their own permissions
+// server-side as before.
+const MENU_ONLY_AREA_ZONE: Record<MenuOnlyArea, Zone> = {
+  "field-menu": "field",
+};
+
 // Derived once from NAV_ITEM_DEFS (single source of truth) rather than
 // hand-duplicated, so a RoleArea can never silently drift from its zone.
-const AREA_ZONE = new Map<RoleArea, Zone>(
-  NAV_ITEM_DEFS.map((item) => [item.area, item.zone]),
-);
+const AREA_ZONE = new Map<RoleArea, Zone>([
+  ...NAV_ITEM_DEFS.map((item): [RoleArea, Zone] => [item.area, item.zone]),
+  ...(Object.entries(MENU_ONLY_AREA_ZONE) as [RoleArea, Zone][]),
+]);
+
+// The field menu's own entries. Not nav items (see MENU_ONLY_AREA_ZONE) — this
+// is a plain link list, labelled in the UI via `field.menu.<key>`.
+export type FieldMenuLinkKey = "locations" | "products" | "help";
+
+export type FieldMenuLink = {
+  key: FieldMenuLinkKey;
+  href: string;
+  icon: NavIconName;
+};
+
+const FIELD_MENU_LINK_DEFS: {
+  key: FieldMenuLinkKey;
+  path: string;
+  icon: NavIconName;
+  /** Same shape as a nav item's, and read the same way: any one of them is enough. */
+  requiredPermissions: string[];
+}[] = [
+  {
+    key: "locations",
+    path: "/field/locations",
+    icon: "pin",
+    requiredPermissions: ["locations.read"],
+  },
+  {
+    key: "products",
+    path: "/field/products",
+    icon: "box",
+    requiredPermissions: ["products.read"],
+  },
+  // No permission of its own: the answers are reference text, and they are most
+  // useful exactly when the API — and with it the session's permission list —
+  // is the thing that failed.
+  { key: "help", path: "/field/help", icon: "help", requiredPermissions: [] },
+];
+
+// Argument order mirrors buildTenantNav's, and the permission filter works the
+// same way, so a menu entry can't offer a screen that answers "you need access"
+// — the screens still check for themselves.
+export function buildFieldMenuLinks(
+  tenantSlug: string,
+  permissions?: string[],
+  productsEnabled = true,
+): FieldMenuLink[] {
+  const permissionSet = permissions ? new Set(permissions) : null;
+
+  return FIELD_MENU_LINK_DEFS.filter(
+    (link) =>
+      (productsEnabled || link.key !== "products") &&
+      (!permissionSet ||
+        link.requiredPermissions.length === 0 ||
+        link.requiredPermissions.some((permission) =>
+          permissionSet.has(permission),
+        )),
+  ).map((link) => ({
+    key: link.key,
+    href: `/${tenantSlug}${link.path}`,
+    icon: link.icon,
+  }));
+}
 
 export function zoneForArea(area: RoleArea): Zone {
   const zone = AREA_ZONE.get(area);
