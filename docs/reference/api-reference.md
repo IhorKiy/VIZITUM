@@ -136,6 +136,19 @@ A task starts `in_progress` (the default on create) and the only status transiti
 | `PATCH /tasks/:taskId` | any: `tasks.update_own`, `tasks.update_team` | any create field plus `status?, completedAt?`. The same own-scope `assignedToUserId` restriction as `POST /tasks` applies here too whenever the patch includes it — an own-scope-only caller can't reassign or unassign their own task via PATCH either. | `Task`                                                            |
 | `DELETE /tasks/:taskId` | all: `tasks.update_team`                    | —                                                                                                                                                                      | `{ deleted: true }` — soft delete (sets `deletedAt`), audited as `task.deleted`; for mistakenly created tasks (retire a real task by marking it `done` instead) |
 
+### Announcements — `/announcements` (`announcements.controller.ts`)
+
+The tenant notice board: a manager publishes something that holds for a period, every field representative sees it while it is in force, and acknowledging it leaves a receipt. `state` is **derived** on every read from the inclusive, date-only window against today in the tenant's timezone plus `archivedAt` (`scheduled` / `active` / `finished` / `archived`) — it is never sent on a write and nothing has to run for an announcement to start or expire. `startsAt`/`endsAt` are `YYYY-MM-DD` and both included; an `endsAt` before `startsAt` 400s (`ANNOUNCEMENT_INVALID`). `title` is capped at 200 characters and `body` at 2000, mirroring `INPUT_LIMITS` in the web app. There is no delete: withdrawing sets `archivedAt`, which keeps the read record intact. Both write paths that change a published announcement — editing and withdrawing — are audited, so a live notice can't be reworded without a trail.
+
+| Method & path | Permissions | Body / query | Returns |
+| --- | --- | --- | --- |
+| `GET /announcements` | all: `announcements.manage` | query: `page, pageSize, state (scheduled\|active\|finished\|archived)` | paginated `Announcement` plus `readCount` and `recipientCount`. Both count the **same** population — active, non-deleted `field_representative` users — so the tally can't read "8 of 7" when a manager (who also holds `announcements.read`) acknowledges their own notice from the field zone. `recipientCount` is one count query per page, not per row |
+| `GET /announcements/active` | all: `announcements.read` | — | `{ items, unreadCount }` — only what is in force today, newest window first, capped at 50 and unpaginated; each item carries `isRead` for the calling user |
+| `POST /announcements` | all: `announcements.manage` | `{ title, body, startsAt, endsAt }` | `Announcement`; `createdByUserId` comes from the session |
+| `PATCH /announcements/:announcementId` | all: `announcements.manage` | any create field; the window is re-validated as a whole even when only one end moves | `Announcement`, audited as `announcement.updated` (metadata names the fields that moved) in the same transaction. Only a `scheduled` or `active` announcement is editable — a `finished` or `archived` one 400s (`ANNOUNCEMENT_NOT_EDITABLE`), because receipts against it say the team read *that text* |
+| `POST /announcements/:announcementId/archive` | all: `announcements.manage` | — | `Announcement` (now `archived`), audited as `announcement.archived` in the same transaction; archiving twice 400s (`ANNOUNCEMENT_ALREADY_ARCHIVED`) |
+| `POST /announcements/:announcementId/read` | all: `announcements.read` | — | `{ read: true }` — idempotent upsert on `(tenantId, announcementId, userId)`. Only an announcement currently in force is accepted; a scheduled or withdrawn one 404s (`ANNOUNCEMENT_NOT_FOUND`), since it was never on the caller's screen |
+
 ### Locations — `/locations` (`locations.controller.ts`)
 
 | Method & path                                                       | Permissions             | Body / query                                                                                            |
@@ -317,4 +330,4 @@ Purpose-level access checks inside `StorageService` are stricter than the guard-
 
 ## Endpoint count
 
-122 endpoints across 25 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 13, tasks 4, locations 13, location-potential 3, location-assortment 3, location-insights-summary 1, chains 4, location-categories 4, products 5, product-categories 4, routes 8, route templates 11, imports 6, admin users 8, admin settings 5, storage 3).
+128 endpoints across 26 controllers (auth 6, tenancy 2, health 2, operations 1, platform auth 3, platform 7, platform tenant users 1, platform tenant superadmin 3, pilot review 2, visits 13, tasks 4, announcements 6, locations 13, location-potential 3, location-assortment 3, location-insights-summary 1, chains 4, location-categories 4, products 5, product-categories 4, routes 8, route templates 11, imports 6, admin users 8, admin settings 5, storage 3).

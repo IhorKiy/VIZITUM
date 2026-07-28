@@ -99,6 +99,13 @@ const ICON_PATHS: Record<NavIconName, React.ReactNode> = {
     </>
   ),
   activity: <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />,
+  megaphone: (
+    <>
+      <path d="M3 11v2a2 2 0 0 0 2 2h2l10 5V4L7 9H5a2 2 0 0 0-2 2z" />
+      <path d="M7 15v4a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-2" />
+      <path d="M20 9a3 3 0 0 1 0 6" />
+    </>
+  ),
 };
 
 export function NavIcon({ name }: { name: NavIconName }) {

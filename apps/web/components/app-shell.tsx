@@ -2,7 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
-import { getCurrentSession, listTasks } from "../lib/api-client";
+import {
+  getCurrentSession,
+  listActiveAnnouncements,
+  listTasks,
+} from "../lib/api-client";
 import { resolveTenantBranding } from "../lib/tenant-branding";
 import { BrandMark } from "./brand-mark";
 import { NavIcon } from "./nav-icon";
@@ -39,6 +43,7 @@ export async function AppShell({
     tZoneNames,
     tZoneSwitcher,
     fieldTasksInProgressResult,
+    activeAnnouncementsResult,
   ] = await Promise.all([
     getCurrentSession(),
     resolveTenantBranding(tenantSlug),
@@ -53,11 +58,19 @@ export async function AppShell({
     currentZone === "field"
       ? listTasks("status=in_progress&pageSize=1")
       : Promise.resolve(null),
+    // Feeds the unread badge on the "Home" nav item, fetched the same way and
+    // for the same reason: the board lives on the home screen, so the count
+    // has to be visible from wherever in the field zone the rep currently is.
+    currentZone === "field" ? listActiveAnnouncements() : Promise.resolve(null),
   ]);
 
   const fieldTasksInProgressCount =
     fieldTasksInProgressResult && fieldTasksInProgressResult.ok
       ? fieldTasksInProgressResult.data.total
+      : 0;
+  const unreadAnnouncementCount =
+    activeAnnouncementsResult && activeAnnouncementsResult.ok
+      ? activeAnnouncementsResult.data.unreadCount
       : 0;
 
   let otherZones: Zone[] = [];
@@ -110,20 +123,39 @@ export async function AppShell({
 
   const currentUser = sessionResult.ok ? sessionResult.data.user : null;
 
-  // Shown only on the "Tasks" nav item, sidebar and mobile alike — null for
-  // every other item, and for "Tasks" itself once there is nothing in
-  // progress to count.
-  const taskBadge = (area: RoleArea) =>
-    area === "field-tasks" && fieldTasksInProgressCount > 0 ? (
-      <span
-        aria-label={tNav("taskBadgeAria", {
-          count: fieldTasksInProgressCount,
-        })}
-        className="nav-badge"
-      >
-        {fieldTasksInProgressCount > 99 ? "99+" : fieldTasksInProgressCount}
-      </span>
-    ) : null;
+  // Counts hanging off a field nav item, sidebar and mobile alike: tasks still
+  // in progress on "Tasks", announcements not yet acknowledged on "Home".
+  // Null for every other item, and for each of those two once its own count
+  // reaches zero.
+  const navBadge = (area: RoleArea) => {
+    if (area === "field-tasks" && fieldTasksInProgressCount > 0) {
+      return (
+        <span
+          aria-label={tNav("taskBadgeAria", {
+            count: fieldTasksInProgressCount,
+          })}
+          className="nav-badge"
+        >
+          {fieldTasksInProgressCount > 99 ? "99+" : fieldTasksInProgressCount}
+        </span>
+      );
+    }
+
+    if (area === "field" && unreadAnnouncementCount > 0) {
+      return (
+        <span
+          aria-label={tNav("announcementBadgeAria", {
+            count: unreadAnnouncementCount,
+          })}
+          className="nav-badge"
+        >
+          {unreadAnnouncementCount > 99 ? "99+" : unreadAnnouncementCount}
+        </span>
+      );
+    }
+
+    return null;
+  };
 
   // The field (representative) zone is phone-only: it always renders the
   // mobile layout, framed in a centered phone-width column on wider screens.
@@ -230,7 +262,7 @@ export async function AppShell({
             >
               <span className="nav-icon">
                 <NavIcon name={item.icon} />
-                {taskBadge(item.area)}
+                {navBadge(item.area)}
               </span>
               <span>{tNav(item.area)}</span>
             </Link>
@@ -251,7 +283,7 @@ export async function AppShell({
             >
               <span className="mobile-nav-icon">
                 <NavIcon name={item.icon} />
-                {taskBadge(item.area)}
+                {navBadge(item.area)}
               </span>
               <span>{tNav(item.area)}</span>
             </Link>

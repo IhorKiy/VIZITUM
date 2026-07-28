@@ -6262,3 +6262,152 @@ a.metric-card:hover {
     transform: rotate(360deg);
   }
 }
+
+/* Announcements — the manager's notice board and its field-side feed. */
+
+.announcement-body {
+  color: var(--muted);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* A withdrawn or finished notice is history: it stays legible but stops
+   competing with the ones still in force. */
+.announcement-card.is-archived,
+.announcement-card.is-finished {
+  opacity: 0.72;
+}
+
+.announcement-card.is-active {
+  border-left: 3px solid var(--accent);
+}
+
+.announcement-reads {
+  display: inline-grid;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.announcement-reads-bar {
+  background: var(--surface-muted);
+  border-radius: 999px;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.announcement-reads-bar::after {
+  background: var(--accent);
+  border-radius: 999px;
+  content: "";
+  inset: 0 auto 0 0;
+  position: absolute;
+  width: var(--read-share, 0%);
+}
+
+.announcement-reads-label {
+  font-variant-numeric: tabular-nums;
+}
+
+.announcement-feed {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.announcement-feed-heading {
+  align-items: center;
+  display: flex;
+  font-size: 15px;
+  gap: 8px;
+  margin: 0;
+}
+
+.announcement-feed-count {
+  background: var(--blue);
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  min-width: 18px;
+  padding: 3px 6px;
+  text-align: center;
+}
+
+.announcement-note {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+/* Unacknowledged notices carry the accent so a rep scanning the home screen
+   can tell at a glance what is new since they last looked. */
+.announcement-note.is-unread {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.announcement-note-top {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.announcement-note-top h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.announcement-new-tag {
+  background: var(--accent);
+  border-radius: 999px;
+  color: #ffffff;
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+}
+
+.announcement-note-body {
+  color: var(--ink);
+  font-size: 14px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.announcement-note-foot {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.announcement-note-window {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.announcement-read-button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.announcement-feed-read > summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.announcement-feed-read[open] {
+  display: grid;
+  gap: 10px;
+}

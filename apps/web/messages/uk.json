@@ -87,6 +87,7 @@
       "field-history": "Історія",
       "field-tasks": "Задачі",
       "taskBadgeAria": "У процесі: {count}",
+      "announcementBadgeAria": "Непрочитані оголошення: {count}",
       "admin-users": "Користувачі",
       "admin-locations": "Точки/Мережі",
       "admin-products": "Товари",
@@ -99,7 +100,8 @@
       "manager-locations": "Покриття",
       "manager-representatives": "Команда",
       "operations": "Операції",
-      "manager-potential": "Потенціал"
+      "manager-potential": "Потенціал",
+      "manager-announcements": "Оголошення"
     },
     "zone": {
       "names": {
@@ -596,6 +598,66 @@
       "disabledTitle": "Облік товарів вимкнено",
       "disabledBody": "Попросіть адміністратора компанії увімкнути облік товарів для цього тенанта, щоб користуватися відстеженням потенціалу та асортименту.",
       "notConnectedTitle": "Не вдалося завантажити підсумок"
+    },
+    "announcements": {
+      "title": "Оголошення",
+      "subtitle": "Повідомлення, які бачить кожен представник, поки вони діють.",
+      "signedOutBody": "Увійдіть, щоб публікувати оголошення для команди.",
+      "notConnectedTitle": "Оголошення недоступні",
+      "statusAria": "Статус оголошення",
+      "listAria": "Опубліковані оголошення",
+      "stateFiltersAria": "Фільтр оголошень за станом",
+      "createdEyebrow": "Опубліковано",
+      "createdTitle": "Оголошення опубліковано",
+      "createdBody": "Представники бачитимуть його весь заданий період.",
+      "updatedEyebrow": "Збережено",
+      "updatedTitle": "Оголошення оновлено",
+      "archivedEyebrow": "Знято",
+      "archivedTitle": "Оголошення знято з публікації",
+      "archivedBody": "Представники його більше не бачать. Запис про прочитання збережено.",
+      "errorAria": "Помилка оголошення",
+      "errorEyebrow": "Не вдалося",
+      "errorTitle": "Оголошення не збережено",
+      "errorBody": "Спробуйте ще раз або перезавантажте сторінку, якщо помилка повторюється.",
+      "state": {
+        "active": "Діє",
+        "scheduled": "Заплановано",
+        "finished": "Завершено",
+        "archived": "Знято"
+      },
+      "window": "{from} - {to}",
+      "readOf": "Прочитали {read} з {total}",
+      "factWindow": "Період дії",
+      "factReads": "Прочитання",
+      "factAuthor": "Автор",
+      "edit": "Редагувати",
+      "editAria": "Редагувати оголошення: {title}",
+      "archive": "Зняти",
+      "archiveAria": "Зняти оголошення: {title}",
+      "archiving": "Знімаємо...",
+      "archivePrompt": "Зняти це оголошення з усіх представників?",
+      "emptyTitle": "Оголошень ще немає",
+      "emptyBody": "Опублікуйте оголошення, щоб повідомити всю команду про те, що діє певний період — акцію, зміну ціни, правило на місяць.",
+      "emptyFilteredBody": "За цим фільтром нічого немає.",
+      "showAll": "Показати всі",
+      "paginationAria": "Сторінки оголошень",
+      "pagePosition": "Сторінка {page} з {totalPages}",
+      "showNewer": "Новіші оголошення",
+      "showEarlier": "Раніші оголошення"
+    },
+    "announcementModal": {
+      "createTitle": "Нове оголошення",
+      "editTitle": "Редагувати оголошення",
+      "formTitle": "Заголовок",
+      "formTitlePlaceholder": "-15% на лінійку X",
+      "formBody": "Повідомлення",
+      "formBodyPlaceholder": "Що команді треба знати і що з цим робити під час візитів.",
+      "formStartsAt": "Показувати з",
+      "formEndsAt": "Показувати до",
+      "formWindowHint": "Обидві дати включно: в останній день представники теж бачать оголошення.",
+      "publish": "Опублікувати",
+      "saving": "Зберігаємо...",
+      "errorBody": "Перевірте заголовок, текст і дати — кінець не може бути раніше за початок."
     }
   },
   "admin": {
@@ -1083,6 +1145,17 @@
       "dragAwayAnnouncement": "{name} більше не над списком.",
       "dragDroppedAnnouncement": "{name} відпущено.",
       "dragCancelledAnnouncement": "Перетягування скасовано. {name} повернено на початкову позицію."
+    },
+    "announcements": {
+      "sectionAria": "Оголошення від менеджера",
+      "heading": "Оголошення",
+      "newBadge": "Нове",
+      "markRead": "Прочитано",
+      "marking": "Зберігаємо...",
+      "endsOn": "Діє до {date}",
+      "readCount": "Уже прочитані ({count})",
+      "markFailedTitle": "Не вдалося позначити прочитаним",
+      "markFailedBody": "Оголошення лишилося на місці. Спробуйте ще раз."
     },
     "location": {
       "signedOutTitle": "Точка",

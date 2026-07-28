@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
+import { AnnouncementFeed } from "../../../components/announcement-feed";
 import { AppShell } from "../../../components/app-shell";
 import { DismissableNotice } from "../../../components/dismissable-notice";
 import { PendingSubmitButton } from "../../../components/pending-submit-button";
@@ -8,8 +9,10 @@ import {
   addRouteItem,
   deleteRouteItem,
   getCurrentSession,
+  listActiveAnnouncements,
   listLocations,
   listTodayRoutes,
+  markAnnouncementRead,
   reorderRouteItems,
   updateRouteItem,
   type RoutePlan,
@@ -21,6 +24,7 @@ import { TodayRouteDragList } from "./today-route-drag-list";
 type FieldPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    announcement?: string;
     report?: string;
     stop?: string;
   }>;
@@ -75,7 +79,7 @@ export default async function FieldPage({
   searchParams,
 }: FieldPageProps) {
   const { tenantSlug } = await params;
-  const { report, stop } = await searchParams;
+  const { announcement, report, stop } = await searchParams;
   // The add-stop affordance below reuses field.planning's strings rather than
   // duplicating them: it is the same "add a location to a route" action the
   // planning screen offers, and the two must not drift apart in wording.
@@ -86,11 +90,13 @@ export default async function FieldPage({
     getFormatter(),
   ]);
 
-  const [sessionResult, routesResult, locationsResult] = await Promise.all([
-    getCurrentSession(),
-    listTodayRoutes(),
-    listLocations(),
-  ]);
+  const [sessionResult, routesResult, locationsResult, announcementsResult] =
+    await Promise.all([
+      getCurrentSession(),
+      listTodayRoutes(),
+      listLocations(),
+      listActiveAnnouncements(),
+    ]);
   const todayRoutesResult = sessionResult.ok
     ? routesResult
     : {
@@ -168,6 +174,12 @@ export default async function FieldPage({
   const availableLocations = locations.filter(
     (location) => !plannedLocationIds.has(location.id),
   );
+  // A failed announcements fetch leaves the board empty rather than taking the
+  // whole home screen down: the route is the thing the rep came here for, and
+  // it is already loaded.
+  const activeAnnouncements = announcementsResult.ok
+    ? announcementsResult.data.items
+    : [];
 
   // Called directly from the client-side drag list (not a <form> submit)
   // once a drag or arrow-key move settles on a new order — see
@@ -262,6 +274,23 @@ export default async function FieldPage({
     redirect(`/${tenantSlug}/field?stop=${result.ok ? "removed" : "failed"}`);
   }
 
+  // Acknowledging a notice. No success notice of its own: the card visibly
+  // moves into the "already read" disclosure, which is the feedback. A failure
+  // does say so, because the card looks untouched either way.
+  async function markAnnouncementReadAction(formData: FormData) {
+    "use server";
+
+    const announcementId = getFormString(formData, "announcementId").trim();
+
+    if (!announcementId) {
+      redirect(`/${tenantSlug}/field?announcement=failed`);
+    }
+
+    const result = await markAnnouncementRead(announcementId);
+
+    redirect(`/${tenantSlug}/field${result.ok ? "" : "?announcement=failed"}`);
+  }
+
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
       <header className="page-header greeting-header">
@@ -334,6 +363,24 @@ export default async function FieldPage({
           </div>
         </section>
       ) : null}
+
+      {announcement === "failed" ? (
+        <DismissableNotice
+          ariaLabel={t("announcements.sectionAria")}
+          body={t("announcements.markFailedBody")}
+          clearParams={["announcement"]}
+          title={t("announcements.markFailedTitle")}
+          tone="danger"
+        />
+      ) : null}
+
+      {/* Above the route on purpose: what is in force this month frames the
+          day's visits, so it has to be read before the first stop, not after
+          scrolling past it. */}
+      <AnnouncementFeed
+        announcements={activeAnnouncements}
+        markReadAction={markAnnouncementReadAction}
+      />
 
       <section className="route-section" aria-label={t("home.todayRouteAria")}>
         {routeStops.length > 0 ? (

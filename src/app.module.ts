@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { AiModule } from "./modules/ai/ai.module";
+import { AnnouncementsModule } from "./modules/announcements/announcements.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { ChainsModule } from "./modules/chains/chains.module";
@@ -39,6 +40,7 @@ import { VisitsModule } from "./modules/visits/visits.module";
     SettingsModule,
     VisitsModule,
     TasksModule,
+    AnnouncementsModule,
     ImportsModule,
     AiModule,
     StorageModule,

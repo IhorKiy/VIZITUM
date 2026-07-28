@@ -16,6 +16,7 @@ export type RoleArea =
   | "manager-locations"
   | "manager-representatives"
   | "manager-potential"
+  | "manager-announcements"
   | "operations";
 
 export type Zone = "field" | "manager" | "admin" | "operations";
@@ -37,7 +38,8 @@ export type NavIconName =
   | "layout"
   | "clipboard"
   | "check"
-  | "activity";
+  | "activity"
+  | "megaphone";
 
 export const ZONE_ORDER: readonly Zone[] = [
   "field",
@@ -217,6 +219,19 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     area: "manager-potential",
     zone: "manager",
     icon: "box",
+    requiredPermissions: ["dashboard.manager.read"],
+  },
+  {
+    // Gated on dashboard.manager.read rather than the endpoint's own
+    // announcements.manage, for the same reason manager-potential is: that
+    // permission is also held by tenant_superadmin as a no-screen repair
+    // path, and zone availability is an OR across a zone's items, so gating
+    // on it here would hand a superadmin the whole manager zone. Every
+    // team_manager holds both, so nobody the screen is for loses it.
+    path: "/manager/announcements",
+    area: "manager-announcements",
+    zone: "manager",
+    icon: "megaphone",
     requiredPermissions: ["dashboard.manager.read"],
   },
   {
