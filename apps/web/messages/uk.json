@@ -9,6 +9,20 @@
     "reset": "Скинути",
     "filtersLabel": "Фільтри",
     "all": "Усі",
+    "period": {
+      "presetPill": {
+        "week": "Тиждень",
+        "month": "30 днів",
+        "quarter": "Квартал"
+      },
+      "customPill": "Період…",
+      "preset": {
+        "week": "Останні 7 днів",
+        "month": "Останні 30 днів",
+        "quarter": "Останні 90 днів"
+      },
+      "custom": "{from} – {to}"
+    },
     "notSet": "не вказано",
     "unknown": "Невідомо",
     "back": {
@@ -213,21 +227,6 @@
       "archivedAria": "Недоступно для архівних точок",
       "archivedTitle": "Не відстежується в архіві",
       "archivedBody": "Потенціал і асортимент не відстежуються для архівних точок. Відновіть точку, щоб знову переглядати або редагувати ці дані."
-    },
-    "visitPeriod": {
-      "pillsAria": "Період візитів",
-      "presetPill": {
-        "week": "Тиждень",
-        "month": "30 днів",
-        "quarter": "Квартал"
-      },
-      "customPill": "Період…",
-      "preset": {
-        "week": "Останні 7 днів",
-        "month": "Останні 30 днів",
-        "quarter": "Останні 90 днів"
-      },
-      "custom": "{from} – {to}"
     }
   },
   "auth": {
@@ -423,11 +422,16 @@
       "noLocation": "Без точки",
       "unassigned": "Не призначено",
       "updateTaskStatusAria": "Оновити статус задачі {title}",
-      "duePeriod": "Період виконання",
+      "duePeriod": "Термін виконання",
       "filterResultCount": "{count, plural, =0 {Задач не знайдено} one {Знайдено <b>#</b> задачу} few {Знайдено <b>#</b> задачі} many {Знайдено <b>#</b> задач} other {Знайдено <b>#</b> задачі}}",
       "history": "Історія",
       "historyCreated": "Створено: {name}, {date}",
-      "historyStatusChanged": "Статус змінено на «{status}»: {name}, {date}"
+      "historyStatusChanged": "Статус змінено на «{status}»: {name}, {date}",
+      "completedPeriod": "Період завершення",
+      "completedFrom": "Завершено з",
+      "completedTo": "Завершено до",
+      "completedInPeriod": "Виконані задачі рахуються за цей період; задачі в роботі показані повністю.",
+      "doneCount": "{count, plural, one {# виконана} few {# виконані} many {# виконаних} other {# виконаних}}"
     },
     "locations": {
       "title": "Покриття",
@@ -1493,7 +1497,22 @@
       "taskErrorBody": "Оновіть сторінку та спробуйте ще раз.",
       "history": "Історія",
       "historyCreated": "Створено: {name}, {date}",
-      "historyStatusChanged": "Статус змінено на «{status}»: {name}, {date}"
+      "historyStatusChanged": "Статус змінено на «{status}»: {name}, {date}",
+      "completedPeriod": "Період завершення",
+      "completedFrom": "Завершено з",
+      "completedTo": "Завершено до",
+      "doneCount": "{count, plural, one {# виконана} few {# виконані} many {# виконаних} other {# виконаних}}",
+      "paginationAria": "Сторінки списку задач",
+      "pagePosition": "Сторінка {page} з {totalPages}",
+      "showNewer": "Новіші",
+      "showEarlier": "Давніші",
+      "periodExhaustedTitle": "Кінець цього періоду",
+      "periodExhaustedBody": "Ви дійшли до найдавнішої задачі, виконаної в цьому періоді.",
+      "periodEarlier": "Попередній період: {period}",
+      "periodWindowCapped": "Один період охоплює щонайбільше {months} місяців. Щоб зазирнути глибше, оберіть давніший діапазон у фільтрах.",
+      "periodOldestReached": "Це ваша перша виконана задача — давніших немає.",
+      "emptyDoneEverTitle": "Ще нічого не виконано",
+      "emptyDoneEverBody": "Щойно ви позначите задачу виконаною, вона з’явиться тут разом із періодом, у якому ви її закрили."
     },
     "createTask": {
       "title": "Нова задача",

@@ -26,7 +26,7 @@ import {
   TagIcon,
   UserIcon,
 } from "../../../../components/icons";
-import { VisitPeriodPills } from "../../../../components/visit-period-pills";
+import { PeriodPills } from "../../../../components/period-pills";
 import {
   listAdminLocations,
   listTodayRoutes,
@@ -36,10 +36,13 @@ import {
   type VisitStatusTotals,
 } from "../../../../lib/api-client";
 import {
-  resolveVisitPeriod,
-  visitPeriodAsRead,
-  visitPeriodLabel,
-} from "../../../../lib/visit-period";
+  normalizeDayParam,
+  periodAsRead,
+  periodLabel as formatPeriodLabel,
+  periodSearchParams,
+  resolvePeriod,
+  VISIT_PERIOD_PARAMS,
+} from "../../../../lib/period";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { formatCancellationReason } from "../../../../lib/visit-cancellation";
 import {
@@ -92,7 +95,7 @@ export default async function ManagerVisitsPage({
       getTranslations("manager.visits"),
       getTranslations("manager"),
       getTranslations("common"),
-      getTranslations("common.visitPeriod"),
+      getTranslations("common.period"),
       getFormatter(),
       getTimeZone(),
     ]);
@@ -106,10 +109,10 @@ export default async function ManagerVisitsPage({
   // period the list asks for every visit every representative ever made. With
   // nothing in the URL that window is the last 30 days in the tenant's
   // timezone, and it is named above the list rather than assumed.
-  const requestedPeriod = resolveVisitPeriod(
+  const requestedPeriod = resolvePeriod(
     {
-      startedFrom: normalizeDateFilter(pageState.startedFrom),
-      startedTo: normalizeDateFilter(pageState.startedTo),
+      from: normalizeDayParam(pageState.startedFrom),
+      to: normalizeDayParam(pageState.startedTo),
     },
     timeZone,
   );
@@ -121,14 +124,13 @@ export default async function ManagerVisitsPage({
     page: page > 1 ? page : undefined,
     representativeUserId: selectedRepresentativeId,
     routePlanId: selectedRoutePlanId,
-    startedFrom: requestedPeriod.startedFrom,
-    startedTo: requestedPeriod.startedTo,
+    startedFrom: requestedPeriod.from,
+    startedTo: requestedPeriod.to,
     status: selectedStatus,
   });
-  const periodParams = new URLSearchParams({
-    startedFrom: requestedPeriod.startedFrom,
-    startedTo: requestedPeriod.startedTo,
-  });
+  const periodParams = new URLSearchParams(
+    periodSearchParams(requestedPeriod, VISIT_PERIOD_PARAMS),
+  );
   const query = new URLSearchParams(periodParams);
   query.set("page", String(page));
   query.set("pageSize", String(PAGE_SIZE));
@@ -204,12 +206,12 @@ export default async function ManagerVisitsPage({
   // than the 12-month maximum comes back trimmed, and a card that still
   // announced the requested range would be counting a wider window than the
   // one it read.
-  const period = visitPeriodAsRead(
+  const period = periodAsRead(
     requestedPeriod,
-    visitsResult.data.period,
+    visitsResult.data.period?.startedFrom,
     timeZone,
   );
-  const periodLabel = visitPeriodLabel(tPeriod, format, period);
+  const periodLabel = formatPeriodLabel(tPeriod, format, period);
   // Absent for a minute or two mid-deploy, when this build is already serving
   // pages against the previous API. Three cards reading zero above a list full
   // of visits would be worse than no cards, so the row sits it out.
@@ -275,8 +277,10 @@ export default async function ManagerVisitsPage({
           <div className="panel-toolbar panel-toolbar-filters">
             {/* How deep the list reads sits above what it is cut by — the
                 counters at the top of the screen are counts of this window. */}
-            <VisitPeriodPills
+            <PeriodPills
               action={`/${tenantSlug}/manager/visits`}
+              ariaLabel={t("visitPeriod")}
+              names={VISIT_PERIOD_PARAMS}
               otherParams={
                 new URLSearchParams([
                   ...(selectedStatus ? [["status", selectedStatus]] : []),
@@ -358,12 +362,12 @@ export default async function ManagerVisitsPage({
               <FilterDateRange
                 fromLabel={t("startedFrom")}
                 fromName="startedFrom"
-                fromValue={period.startedFrom}
+                fromValue={period.from}
                 label={t("visitPeriod")}
                 placeholder={tCommon("datePlaceholder")}
                 toLabel={t("startedTo")}
                 toName="startedTo"
-                toValue={period.startedTo}
+                toValue={period.to}
               />
               <FilterFooter
                 resetHref={
@@ -571,14 +575,4 @@ function normalizePage(value: string | undefined): number {
   const parsed = Number.parseInt(value ?? "", 10);
 
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
-}
-
-function normalizeDateFilter(value: string | undefined): string | null {
-  const normalizedValue = value?.trim();
-
-  if (!normalizedValue || !/^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)) {
-    return null;
-  }
-
-  return normalizedValue;
 }
