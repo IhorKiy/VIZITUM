@@ -11,7 +11,6 @@ import { randomUUID } from "node:crypto";
 
 import {
   createPaginatedResponse,
-  type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
 import { PrismaService } from "../prisma/prisma.service";
@@ -38,8 +37,11 @@ import type {
   UpdateVisitRequestBody,
   VisitDaySummaryEntry,
   VisitDaySummaryResponse,
+  VisitListResponse,
   VisitNoteResponse,
+  VisitPeriodResponse,
   VisitResponse,
+  VisitStatusTotals,
 } from "./visits.types";
 
 // Mirrors INPUT_LIMITS.comment in apps/web/lib/input-limits.ts.
@@ -103,10 +105,24 @@ export class VisitsService {
   async listVisits(
     context: RequestContext,
     query: ListVisitsQuery,
-  ): Promise<PaginatedResponse<VisitResponse>> {
+  ): Promise<VisitListResponse> {
     const pagination = resolvePagination(query);
-    const where = buildVisitWhere(context, query);
-    const [visits, total] = await Promise.all([
+    // Resolved once and handed to both WHERE builders: computing it twice
+    // would take `now` twice, and a request that straddles a millisecond
+    // would count its totals over a hair-different window than its list.
+    const period = resolveVisitPeriodRange(query.startedFrom, query.startedTo);
+    const where = buildVisitWhere(context, query, period);
+    // The same period and filters minus the status one: the recap this feeds
+    // is what the status pills are picked *from*, so a pill narrows the list
+    // below it without narrowing the split above it. One grouped aggregate
+    // here replaced the three extra count requests the field history screen
+    // used to fire per render.
+    const statusTotalsWhere = buildVisitWhere(
+      context,
+      { ...query, status: undefined },
+      period,
+    );
+    const [visits, total, statusGroups] = await Promise.all([
       this.prisma.visit.findMany({
         where,
         include: visitInclude,
@@ -115,13 +131,22 @@ export class VisitsService {
         take: pagination.take,
       }),
       this.prisma.visit.count({ where }),
+      this.prisma.visit.groupBy({
+        by: ["status"],
+        where: statusTotalsWhere,
+        _count: { _all: true },
+      }),
     ]);
 
-    return createPaginatedResponse(
-      visits.map(toVisitResponse),
-      pagination,
-      total,
-    );
+    return {
+      ...createPaginatedResponse(
+        visits.map(toVisitResponse),
+        pagination,
+        total,
+      ),
+      period: toVisitPeriodResponse(period),
+      statusTotals: toVisitStatusTotals(statusGroups),
+    };
   }
 
   // Per-day totals for the exact same filter listVisits uses, over the whole
@@ -178,7 +203,17 @@ export class VisitsService {
       );
     }
 
-    const startedAtRange = buildDateTimeRangeFilter(
+    // The conditions that say *which* visits, before the ones that say *when*.
+    // Kept separately because the history boundary below asks the same scope
+    // question over all of time: it is the answer to "is there anything older
+    // than the window I am looking at", which a window-bounded WHERE can never
+    // give.
+    const scopeConditions = [...conditions];
+
+    // Always bounded below, even when the caller sent no period at all: this
+    // GROUP BY is the one query in the module that would otherwise sweep a
+    // tenant's whole visit history on a bare request.
+    const startedAtRange = resolveVisitPeriodRange(
       query.startedFrom,
       query.startedTo,
     );
@@ -187,13 +222,11 @@ export class VisitsService {
     // (and the day-bucketing expression below): a never-started visit has no
     // startedAt to test against the period, so without this it would drop
     // out of the aggregate the list it recaps still includes.
-    if (startedAtRange?.gte) {
-      conditions.push(
-        Prisma.sql`COALESCE("startedAt", "createdAt") >= ${startedAtRange.gte}`,
-      );
-    }
+    conditions.push(
+      Prisma.sql`COALESCE("startedAt", "createdAt") >= ${startedAtRange.gte}`,
+    );
 
-    if (startedAtRange?.lte) {
+    if (startedAtRange.lte) {
       conditions.push(
         Prisma.sql`COALESCE("startedAt", "createdAt") <= ${startedAtRange.lte}`,
       );
@@ -204,14 +237,15 @@ export class VisitsService {
     // parsing, which reintroduces exactly the local-timezone ambiguity this
     // query exists to avoid. `date::text` is unambiguous — always YYYY-MM-DD,
     // in any driver.
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        day: string;
-        total: bigint;
-        completed: bigint;
-        cancelled: bigint;
-      }>
-    >(Prisma.sql`
+    const [rows, historyRows] = await Promise.all([
+      this.prisma.$queryRaw<
+        Array<{
+          day: string;
+          total: bigint;
+          completed: bigint;
+          cancelled: bigint;
+        }>
+      >(Prisma.sql`
       SELECT
         ((COALESCE("startedAt", "createdAt") AT TIME ZONE 'UTC') AT TIME ZONE ${tenant.timezone})::date::text AS day,
         COUNT(*)::bigint AS total,
@@ -221,7 +255,37 @@ export class VisitsService {
       WHERE ${Prisma.join(conditions, " AND ")}
       GROUP BY day
       ORDER BY day DESC
-    `);
+    `),
+      // Where this scope's history actually begins — the one fact a screen
+      // cannot derive from a bounded window, and the difference between "no
+      // visits before this window" and "nothing here, keep walking backwards".
+      // Deliberately unbounded in time while carrying every other condition
+      // (tenant, representative, location, route, status), so it answers for
+      // the same set of visits the days above describe.
+      //
+      // MIN over the COALESCE expression, which is exactly what the visit
+      // period indexes are sorted by — Postgres rewrites it into a one-row
+      // index scan rather than an aggregate over the scope. With a status
+      // filter that role passes to the status-prefixed pair added in
+      // 20260728160000; without one, to the plain expression pair from
+      // 20260728120000. Either way it costs ~4 shared buffers on a 300k-row
+      // table. The one shape neither covers is a *multi*-status filter, where
+      // MIN over `status = ANY(...)` cannot be a single boundary scan and the
+      // scan walks to its first match — no screen sends more than one status.
+      //
+      // It lives on day-summary rather than on the list because only field
+      // history needs it, and the other eight callers of GET /visits should
+      // not pay for a query they never read.
+      this.prisma.$queryRaw<Array<{ historyStart: Date | null }>>(Prisma.sql`
+      SELECT MIN(COALESCE("startedAt", "createdAt")) AS "historyStart"
+      FROM visits
+      WHERE ${Prisma.join(scopeConditions, " AND ")}
+    `),
+    ]);
+    // A tenant (or a representative) with no visits at all has no earliest
+    // one. That is a valid answer, not a failure: the screen reads it as "this
+    // history has no floor to reach".
+    const historyStart = historyRows[0]?.historyStart ?? null;
 
     return {
       days: rows.map((row): VisitDaySummaryEntry => ({
@@ -230,6 +294,8 @@ export class VisitsService {
         completed: Number(row.completed),
         cancelled: Number(row.cancelled),
       })),
+      period: toVisitPeriodResponse(startedAtRange),
+      historyStart: historyStart ? historyStart.toISOString() : null,
     };
   }
 
@@ -1068,12 +1134,14 @@ function resolveVisitRepresentativeFilter(
 function buildVisitWhere(
   context: RequestContext,
   query: ListVisitsQuery,
-): Prisma.VisitWhereInput {
-  const representativeFilter = resolveVisitRepresentativeFilter(context, query);
-  const startedAtRange = buildDateTimeRangeFilter(
+  // Passed in rather than derived here so a caller that builds two WHEREs for
+  // one request (the list and its status totals) pins both to one window.
+  startedAtRange: VisitPeriodRange = resolveVisitPeriodRange(
     query.startedFrom,
     query.startedTo,
-  );
+  ),
+): Prisma.VisitWhereInput {
+  const representativeFilter = resolveVisitRepresentativeFilter(context, query);
 
   return {
     tenantId: context.tenantId,
@@ -1109,18 +1177,100 @@ function buildVisitWhere(
     // filter that also needs its own OR condition would silently overwrite
     // this one otherwise, since object-spread keeps only the last value
     // written to a given key.
-    ...(startedAtRange
-      ? {
-          AND: [
-            {
-              OR: [
-                { startedAt: startedAtRange },
-                { startedAt: null, createdAt: startedAtRange },
-              ],
-            },
-          ],
-        }
-      : {}),
+    AND: [
+      {
+        OR: [
+          { startedAt: startedAtRange },
+          { startedAt: null, createdAt: startedAtRange },
+        ],
+      },
+    ],
+  };
+}
+
+// The longest a single window may be — a cost ceiling on one request, not a
+// horizon on the data. Without it, a caller that sends no period at all makes
+// the list count and the day-summary GROUP BY sweep a tenant's entire visit
+// history, and the frontend is not the place to enforce that, since an old
+// client, a saved link or a script can all skip it.
+//
+// Note what this deliberately does *not* do: it never moves a window forward
+// in time. `startedFrom=2020-01-01&startedTo=2020-06-30` is six months long,
+// so it passes untouched and returns 2020 — nothing ages out of reach, and a
+// rep who wants the year before last simply names that range. Only the length
+// is capped, measured back from the window's own end.
+//
+// Clamped rather than rejected: a request for "everything" still answers, it
+// just answers for one year's worth, so no existing caller breaks.
+export const VISIT_PERIOD_MAX_MONTHS = 12;
+
+// Always bounded below, so every consumer can name the window it is showing.
+export type VisitPeriodRange = { gte: Date; lte?: Date };
+
+// The requested period, trimmed to at most VISIT_PERIOD_MAX_MONTHS measured
+// back from its own upper bound (or from now, when the caller named no end).
+// A window that is already short enough passes through wherever it points.
+//
+// The floor lands on the *start* of that day. Every other bound in this filter
+// is a whole calendar day — `startedTo` becomes 23:59:59.999 — so subtracting
+// twelve months from an end bound would otherwise put the floor at 23:59:59.999
+// too and swallow all but the last millisecond of the boundary day, which is a
+// day of visits that silently doesn't exist.
+export function resolveVisitPeriodRange(
+  fromValue: unknown,
+  toValue: unknown,
+  now: Date = new Date(),
+): VisitPeriodRange {
+  const range = buildDateTimeRangeFilter(fromValue, toValue);
+  const windowEnd = range?.lte ?? now;
+  const earliest = startOfUtcDay(
+    subtractMonths(windowEnd, VISIT_PERIOD_MAX_MONTHS),
+  );
+  const gte =
+    range?.gte && range.gte.getTime() > earliest.getTime()
+      ? range.gte
+      : earliest;
+
+  return { gte, ...(range?.lte ? { lte: range.lte } : {}) };
+}
+
+function subtractMonths(value: Date, months: number): Date {
+  const shifted = new Date(value.getTime());
+
+  shifted.setUTCMonth(shifted.getUTCMonth() - months);
+
+  return shifted;
+}
+
+function startOfUtcDay(value: Date): Date {
+  const start = new Date(value.getTime());
+
+  start.setUTCHours(0, 0, 0, 0);
+
+  return start;
+}
+
+function toVisitPeriodResponse(range: VisitPeriodRange): VisitPeriodResponse {
+  return {
+    startedFrom: range.gte.toISOString(),
+    startedTo: range.lte ? range.lte.toISOString() : null,
+  };
+}
+
+// `draft` is a real VisitStatus but nothing in the product ever leaves a visit
+// there, so it has no counter of its own — it still rides along in `total`,
+// which is the period's whole count rather than a sum of the three named ones.
+function toVisitStatusTotals(
+  groups: Array<{ status: VisitStatus; _count: { _all: number } }>,
+): VisitStatusTotals {
+  const countOf = (status: VisitStatus) =>
+    groups.find((group) => group.status === status)?._count._all ?? 0;
+
+  return {
+    total: groups.reduce((sum, group) => sum + group._count._all, 0),
+    completed: countOf("completed"),
+    inProgress: countOf("in_progress"),
+    cancelled: countOf("cancelled"),
   };
 }
 

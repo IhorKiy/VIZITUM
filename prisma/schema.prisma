@@ -826,7 +826,29 @@ model Visit {
   aiJobs         AiJob[]
 
   @@unique([routeItemId])
+  // Placing a visit in time means COALESCE(startedAt, createdAt), and that
+  // reaches the database in two different shapes. The *day summary* sends the
+  // COALESCE literally, which only an expression index can serve — those two
+  // ("visits_tenant_representative_period_idx", "visits_tenant_period_idx")
+  // live in prisma/migrations/20260728120000_visit_period_indexes, since
+  // Prisma's schema language cannot express an index on an expression. Its
+  // history-boundary query (MIN over the same expression, scoped but unbounded
+  // in time) needs the same expression with `status` folded in when a status
+  // filter is on — two more hand-written indexes, in
+  // prisma/migrations/20260728160000_visit_history_start_indexes; they extend
+  // rather than replace the pair above, since `status` sits between the scope
+  // columns and the timestamp. The
+  // *list* (findMany/count/groupBy) goes through the ORM, which expands the
+  // same intent into `startedAt >= x OR (startedAt IS NULL AND createdAt >= x)`
+  // — a plain bitmap OR that the expression indexes cannot serve at all. The
+  // four indexes below are the ones that do: one pair per branch of that OR,
+  // once scoped to a representative (field history) and once tenant-wide
+  // (manager visits, which had no usable index and sequentially scanned).
+  // The createdAt pairs double as the ORDER BY createdAt DESC support.
   @@index([tenantId, representativeUserId, startedAt])
+  @@index([tenantId, representativeUserId, createdAt])
+  @@index([tenantId, startedAt])
+  @@index([tenantId, createdAt])
   @@index([tenantId, locationId, startedAt])
   @@index([tenantId, routeItemId])
   @@index([tenantId, status])

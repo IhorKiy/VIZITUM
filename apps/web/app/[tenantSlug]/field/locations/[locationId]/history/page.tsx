@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../../components/app-shell";
 import { BackLink } from "../../../../../../components/back-link";
@@ -20,6 +20,7 @@ import {
   formatEnumLabel,
   statusPillTone,
 } from "../../../../../../lib/format";
+import { dayInTimeZone } from "../../../../../../lib/visit-period";
 
 type LocationHistoryPageProps = {
   params: Promise<{ tenantSlug: string; locationId: string }>;
@@ -34,11 +35,12 @@ export default async function LocationHistoryPage({
 }: LocationHistoryPageProps) {
   const { tenantSlug, locationId } = await params;
   const { from } = await searchParams;
-  const [t, tBack, tCommon, format] = await Promise.all([
+  const [t, tBack, tCommon, format, timeZone] = await Promise.all([
     getTranslations("field"),
     getTranslations("common.back"),
     getTranslations("common"),
     getFormatter(),
+    getTimeZone(),
   ]);
 
   const backTarget = resolveBackTarget(tenantSlug, from, {
@@ -75,6 +77,20 @@ export default async function LocationHistoryPage({
     pageSize: "50",
   }).toString();
   const visitsResult = await listVisits(visitsQuery);
+  // This list sends no period of its own, so the API's 12-month floor is the
+  // window — and an unnamed window is a count with no denominator. The
+  // response says where it actually started reading; the caption repeats it
+  // rather than implying "every visit ever made here".
+  //
+  // `period` is optional for version skew (a new frontend against the previous
+  // API for a minute or two during a deploy); without it the caption falls
+  // back to the plain count rather than inventing a start date.
+  const readFrom = visitsResult.ok
+    ? (visitsResult.data.period?.startedFrom ?? null)
+    : null;
+  const readFromDay = readFrom
+    ? dayInTimeZone(timeZone, new Date(readFrom))
+    : null;
   const visitHistory = (visitsResult.ok ? visitsResult.data.items : [])
     .filter(
       (item) => item.status === "completed" || item.status === "cancelled",
@@ -104,7 +120,15 @@ export default async function LocationHistoryPage({
               </h1>
               <p className="location-header-address">{locationName}</p>
               <p className="location-header-meta">
-                {t("location.visitCount", { count: visitHistory.length })}
+                {readFromDay
+                  ? t("location.visitCountSince", {
+                      count: visitHistory.length,
+                      since: format.dateTime(
+                        new Date(`${readFromDay}T12:00:00.000Z`),
+                        { day: "numeric", month: "short", year: "numeric" },
+                      ),
+                    })
+                  : t("location.visitCount", { count: visitHistory.length })}
               </p>
             </div>
           </div>

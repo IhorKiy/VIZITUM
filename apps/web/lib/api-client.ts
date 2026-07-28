@@ -709,10 +709,39 @@ export async function switchZone(
   return apiPost<SwitchZoneResult>("/auth/zone", { zone });
 }
 
+// The status split of the whole selected period, ignoring any status filter —
+// the recap a status pill is picked from. Comes back with the list itself, so
+// a screen never counts statuses by firing one request per status.
+export type VisitStatusTotals = {
+  total: number;
+  completed: number;
+  inProgress: number;
+  cancelled: number;
+};
+
+// The window the API actually read, after its cap on how long a single window
+// may be (12 months). ISO instants, not calendar days. Note what the cap is
+// not: it never moves a window forward in time, so a request for a range two
+// years back is answered as asked — only an over-long window is trimmed.
+export type VisitPeriodWindow = {
+  startedFrom: string;
+  startedTo: string | null;
+};
+
+// Both extras are optional *on purpose*, not because the API may omit them:
+// during a deploy a new frontend talks to the old API for a minute or two, and
+// a required type would let a screen render `undefined` as a number. Optional
+// makes TypeScript ask every caller what to do when the field isn't there —
+// and the answer is always to draw nothing rather than a confident zero.
+export type VisitListResponse = PaginatedResponse<Visit> & {
+  period?: VisitPeriodWindow;
+  statusTotals?: VisitStatusTotals;
+};
+
 export async function listVisits(
   query = "pageSize=50",
-): Promise<ApiResult<PaginatedResponse<Visit>>> {
-  return apiGet<PaginatedResponse<Visit>>(`/visits?${query}`);
+): Promise<ApiResult<VisitListResponse>> {
+  return apiGet<VisitListResponse>(`/visits?${query}`);
 }
 
 export type VisitDaySummaryEntry = {
@@ -724,6 +753,11 @@ export type VisitDaySummaryEntry = {
 
 export type VisitDaySummary = {
   days: VisitDaySummaryEntry[];
+  period?: VisitPeriodWindow;
+  // The earliest visit in this request's scope, ignoring the window — where
+  // this history begins, or null when the scope holds no visits. Optional for
+  // the same version-skew reason as the fields above.
+  historyStart?: string | null;
 };
 
 export async function listVisitDaySummary(

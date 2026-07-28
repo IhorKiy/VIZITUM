@@ -213,6 +213,21 @@
       "archivedAria": "Not available for archived locations",
       "archivedTitle": "Not tracked while archived",
       "archivedBody": "Potential and assortment are not tracked for archived locations. Restore the location to view or edit them again."
+    },
+    "visitPeriod": {
+      "pillsAria": "Visit period",
+      "presetPill": {
+        "week": "Week",
+        "month": "30 days",
+        "quarter": "Quarter"
+      },
+      "customPill": "Period…",
+      "preset": {
+        "week": "Last 7 days",
+        "month": "Last 30 days",
+        "quarter": "Last 90 days"
+      },
+      "custom": "{from} – {to}"
     }
   },
   "auth": {
@@ -324,8 +339,6 @@
       "signedOutBody": "Live visit data is required before manager review can continue.",
       "notConnectedTitle": "Visits are not connected",
       "metricsAria": "Visit metrics",
-      "visibleVisits": "Visible visits",
-      "loadedOnPage": "{count} loaded on this page",
       "reportsConfirmed": "Reports confirmed",
       "waitingDetail": "{count} in progress",
       "inProgress": "In progress",
@@ -349,7 +362,12 @@
       "open": "Open",
       "visitPeriod": "Visit period",
       "filterResultCount": "{count, plural, =0 {No visits found} one {Found <b>#</b> visit} other {Found <b>#</b> visits}}",
-      "tableCancelReason": "Cancellation reason"
+      "tableCancelReason": "Cancellation reason",
+      "periodDetail": "Visits in this period",
+      "paginationAria": "Visit list pages",
+      "pagePosition": "Page {page} of {totalPages}",
+      "showEarlier": "Earlier visits",
+      "showNewer": "Newer visits"
     },
     "tasks": {
       "title": "Tasks",
@@ -1116,6 +1134,7 @@
       "noOpenTasks": "No open tasks for this location.",
       "visitHistory": "Visit history",
       "visitCount": "{count, plural, one {# visit} other {# visits}}",
+      "visitCountSince": "{count, plural, one {# visit} other {# visits}} since {since}",
       "noPastVisits": "No past visits recorded yet.",
       "visitCancelledAria": "Visit status",
       "visitCancelledEyebrow": "Visit cancelled",
@@ -1388,7 +1407,14 @@
       "showEarlier": "Earlier visits",
       "showNewer": "Newer visits",
       "visitPeriod": "Visit period",
-      "cancelReasonLabel": "Reason"
+      "cancelReasonLabel": "Reason",
+      "periodExhaustedTitle": "That is the whole period",
+      "periodExhaustedBody": "Scrolling stays inside the selected window. Earlier visits live in an earlier period.",
+      "periodEarlier": "Earlier period: {period}",
+      "periodOldestReached": "This is the earliest period. Nothing was recorded before it.",
+      "periodWindowCapped": "One period covers at most {months} months. Pick an earlier range in the filters to look further back.",
+      "emptyEverTitle": "Nothing recorded here yet",
+      "emptyEverBody": "Not in this period, and not in any earlier one."
     },
     "locations": {
       "title": "Locations",
