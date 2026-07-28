@@ -95,14 +95,42 @@ describe("visit period window (web)", () => {
   it("takes the history floor from the earliest visit, not from arithmetic on today", () => {
     // The API reports it as an instant; the floor is its day in the tenant's
     // timezone, which is where the day-keyed windows are compared.
+    assert.deepEqual(visitHistoryFloor("2024-03-05T22:30:00.000Z", kyiv), {
+      state: "day",
+      day: "2024-03-06",
+    });
+  });
+
+  // `null` and `undefined` are two truthful answers with opposite
+  // consequences, so the floor keeps them apart rather than testing for
+  // truthiness: a confirmed-empty scope that arrives as "no information" is
+  // exactly how a rep with no visits gets an endless walk back through empty
+  // windows.
+  it("distinguishes a confirmed-empty scope from an unanswered one", () => {
+    assert.deepEqual(visitHistoryFloor(null, kyiv), { state: "empty" });
+    assert.deepEqual(visitHistoryFloor(undefined, kyiv), { state: "unknown" });
+  });
+
+  it("offers the step back when nothing is known, and withholds it when the scope is confirmed empty", () => {
+    const period = resolveVisitPeriod({}, kyiv, lateEvening);
+    // The screen's own rule, kept in one place here so both branches are
+    // pinned: unknown never blocks, empty always does, a day compares.
+    const canStepBack = (floor: ReturnType<typeof visitHistoryFloor>) =>
+      floor.state === "unknown" ||
+      (floor.state === "day" &&
+        previousVisitPeriod(period).startedTo >= floor.day);
+
+    // Day-summary failed, or an older API during a deploy: nothing to claim,
+    // so the step stays offered.
+    assert.equal(canStepBack(visitHistoryFloor(undefined, kyiv)), true);
+    // The API said this scope holds no visits at all. There is no earlier
+    // period, because there is no period.
+    assert.equal(canStepBack(visitHistoryFloor(null, kyiv)), false);
+    // A scope that does have history keeps stepping back through it.
     assert.equal(
-      visitHistoryFloor("2024-03-05T22:30:00.000Z", kyiv),
-      "2024-03-06",
+      canStepBack(visitHistoryFloor("2020-01-01T00:00:00.000Z", kyiv)),
+      true,
     );
-    // No visits in scope, or an older API that doesn't report it: no floor to
-    // announce, so the screen claims nothing.
-    assert.equal(visitHistoryFloor(null, kyiv), null);
-    assert.equal(visitHistoryFloor(undefined, kyiv), null);
   });
 
   it("separates 'window was trimmed' from 'history ends here'", () => {
@@ -122,7 +150,11 @@ describe("visit period window (web)", () => {
     assert.equal(trimmed.clamped, true);
     // ...but visits from 2019 still exist, so the step back is real and the
     // screen must not announce an end.
-    assert.ok(previousVisitPeriod(trimmed).startedTo >= (floor as string));
+    assert.equal(floor.state, "day");
+    assert.ok(
+      previousVisitPeriod(trimmed).startedTo >=
+        (floor as { state: "day"; day: string }).day,
+    );
   });
 
   it("stops the handover at the first recorded visit", () => {
@@ -136,7 +168,11 @@ describe("visit period window (web)", () => {
     assert.equal(oldest.clamped, false);
     // Everything behind this window predates the first visit — there is
     // genuinely nothing left to step back to.
-    assert.ok(previousVisitPeriod(oldest).startedTo < (floor as string));
+    assert.equal(floor.state, "day");
+    assert.ok(
+      previousVisitPeriod(oldest).startedTo <
+        (floor as { state: "day"; day: string }).day,
+    );
   });
 
   it("lights the preset pill whose window the URL happens to name", () => {

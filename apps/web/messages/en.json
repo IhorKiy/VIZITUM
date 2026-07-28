@@ -1402,7 +1402,9 @@
       "periodExhaustedBody": "Scrolling stays inside the selected window. Earlier visits live in an earlier period.",
       "periodEarlier": "Earlier period: {period}",
       "periodOldestReached": "This is the earliest period. Nothing was recorded before it.",
-      "periodWindowCapped": "One period covers at most {months} months. Pick an earlier range in the filters to look further back."
+      "periodWindowCapped": "One period covers at most {months} months. Pick an earlier range in the filters to look further back.",
+      "emptyEverTitle": "Nothing recorded here yet",
+      "emptyEverBody": "Not in this period, and not in any earlier one."
     },
     "locations": {
       "title": "Locations",

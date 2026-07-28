@@ -168,24 +168,46 @@ export function resolveVisitPeriod(
 export const VISIT_PERIOD_MAX_MONTHS = 12;
 
 /**
- * Where this history actually begins, as a calendar day in the tenant's
- * timezone — the day of the earliest visit in scope, which only the API can
- * know (`historyStart` on the day-summary response).
+ * Where this history begins — three states, because the API answers three
+ * different things and only one of them is a date.
  *
- * This replaced an arithmetic floor of "today minus 12 months", which was
- * describing a contract that does not exist: the clamp bounds a window's
- * length, so a rep can always reach further back by naming an earlier range.
- * The only true bottom of the list is the first visit ever recorded.
+ * `day` is the calendar day (tenant timezone) of the earliest visit in scope,
+ * which only the API can know (`historyStart` on the day-summary response).
+ * This replaced an arithmetic floor of "today minus 12 months", a contract
+ * that does not exist: the clamp bounds a window's length, so a rep can always
+ * reach further back by naming an earlier range. The only true bottom is the
+ * first visit ever recorded.
  *
- * `null` when the scope holds no visits at all, or when the API did not say
- * (an older build during a deploy) — in both cases the caller has no floor to
- * announce and should say nothing rather than guess.
+ * `empty` is the API saying, with authority, that this scope holds no visits
+ * at all — a rep who has not worked yet, or a status nothing was ever filed
+ * under. There is no earlier period to offer, because there is no period.
+ *
+ * `unknown` is not an answer: the day-summary request failed, or an older
+ * build is serving during a deploy. Nothing may be claimed from it.
+ *
+ * Collapsing `empty` into `unknown` is what this type exists to prevent — they
+ * lead to opposite behavior, and a truthful "nothing was ever recorded" that
+ * arrives as "no information" turns into an endless walk back through empty
+ * windows.
  */
+export type VisitHistoryFloor =
+  { state: "day"; day: string } | { state: "empty" } | { state: "unknown" };
+
 export function visitHistoryFloor(
+  // `null` and `undefined` mean different things here, so this deliberately
+  // does not test for truthiness.
   historyStart: string | null | undefined,
   timeZone: string,
-): string | null {
-  return historyStart ? dayInTimeZone(timeZone, new Date(historyStart)) : null;
+): VisitHistoryFloor {
+  if (historyStart === undefined) {
+    return { state: "unknown" };
+  }
+
+  if (historyStart === null) {
+    return { state: "empty" };
+  }
+
+  return { state: "day", day: dayInTimeZone(timeZone, new Date(historyStart)) };
 }
 
 /**

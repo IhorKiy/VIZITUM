@@ -238,15 +238,25 @@ export default async function FieldHistoryPage({
   // window may point, so a rep who names an older range still gets its data.
   // Without a real floor the handover would either walk into empty window
   // after empty window forever, or stop at a line the data doesn't have.
+  //
+  // A failed day-summary request passes `undefined`, not `null`: "the API did
+  // not answer" and "the API answered, and this scope is empty" are both
+  // truthful states with opposite consequences, and flattening them is how a
+  // confirmed "nothing was ever recorded" turns back into an endless walk.
   const historyFloor = visitHistoryFloor(
-    daySummaryResult.ok ? daySummaryResult.data.historyStart : null,
+    daySummaryResult.ok ? daySummaryResult.data.historyStart : undefined,
     timeZone,
   );
-  // No floor reported (a scope with no visits, or an older API mid-deploy)
-  // means no claim to make: the step back stays offered rather than announcing
+  // Nothing was ever recorded in this scope — which is *not* the same as this
+  // window being empty. A status pill or a narrow window empties the list all
+  // the time while older visits sit right behind it; only `historyStart` can
+  // tell those apart, so `visits.length` is deliberately not consulted here.
+  const historyIsEmpty = historyFloor.state === "empty";
+  // With no answer at all, the step back stays offered rather than announcing
   // an end nobody confirmed.
   const hasEarlierPeriod =
-    historyFloor === null || earlier.startedTo >= historyFloor;
+    historyFloor.state === "unknown" ||
+    (historyFloor.state === "day" && earlier.startedTo >= historyFloor.day);
   const earlierPeriodParams = new URLSearchParams({
     startedFrom: earlier.startedFrom,
     startedTo: earlier.startedTo,
@@ -285,6 +295,8 @@ export default async function FieldHistoryPage({
             </p>
           ) : null}
         </>
+      ) : historyIsEmpty ? (
+        <p className="small-label">{t("emptyEverTitle")}</p>
       ) : (
         <p className="small-label">{t("periodOldestReached")}</p>
       )}
@@ -421,14 +433,23 @@ export default async function FieldHistoryPage({
           </>
         ) : (
           <div className="empty-state-panel">
-            <h2>{t("emptyTitle")}</h2>
-            <p>{t("emptyBody")}</p>
+            {/* An empty *window* and an empty *history* are different answers
+                and get different words. "No visits match this filter" is true
+                of a narrow window or a status pill and points at both; it is
+                wrong for a rep who has never worked, where no filter and no
+                date will ever help. */}
+            <h2>{historyIsEmpty ? t("emptyEverTitle") : t("emptyTitle")}</h2>
+            <p>{historyIsEmpty ? t("emptyEverBody") : t("emptyBody")}</p>
             <div className="toolbar">
               {/* An empty window is the one case where reaching further back
                   is the obvious next move, so the same handover the end of a
                   full list offers sits here too — and it stops at the same
-                  floor rather than offering an endless walk into nothing. */}
-              {earlierPeriodLink}
+                  floor rather than offering an endless walk into nothing.
+                  With nothing recorded anywhere there is no step to offer, and
+                  the panel above has already said so once; a second copy of
+                  that sentence in the toolbar would be the two-messages-side-
+                  by-side this replaced. */}
+              {historyIsEmpty ? null : earlierPeriodLink}
               {hasFilters || page > 1 ? (
                 <a
                   className="secondary-button"
