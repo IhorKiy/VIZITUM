@@ -49,6 +49,7 @@ function createRow(
 type Captured = {
   announcementWhere: Record<string, unknown>[];
   userWhere: Record<string, unknown>[];
+  include: Record<string, unknown>[];
 };
 
 function createPrisma(
@@ -59,8 +60,12 @@ function createPrisma(
   return {
     platformTenant: { findUnique: async () => ({ timezone: "Europe/Kyiv" }) },
     announcement: {
-      findMany: async (query: { where: Record<string, unknown> }) => {
+      findMany: async (query: {
+        where: Record<string, unknown>;
+        include: Record<string, unknown>;
+      }) => {
         captured.announcementWhere.push(query.where);
+        captured.include.push(query.include);
         return rows;
       },
       count: async () => rows.length,
@@ -76,7 +81,11 @@ function createPrisma(
 
 describe("announcements manager list", () => {
   it("derives each announcement's state from its window and archive mark", async () => {
-    const captured: Captured = { announcementWhere: [], userWhere: [] };
+    const captured: Captured = {
+      announcementWhere: [],
+      userWhere: [],
+      include: [],
+    };
     const service = new AnnouncementsService(
       createPrisma(
         [
@@ -108,7 +117,11 @@ describe("announcements manager list", () => {
   });
 
   it("counts the reads against the representatives there are to reach", async () => {
-    const captured: Captured = { announcementWhere: [], userWhere: [] };
+    const captured: Captured = {
+      announcementWhere: [],
+      userWhere: [],
+      include: [],
+    };
     const service = new AnnouncementsService(
       createPrisma(
         [
@@ -144,8 +157,43 @@ describe("announcements manager list", () => {
     });
   });
 
+  // A manager also holds announcements.read, so one working in the field zone
+  // can leave a receipt on their own notice. Counting it would let the tally
+  // read "8 of 7" — numerator and denominator have to describe the same
+  // people, so the count is filtered to the same audience the denominator is.
+  it("counts only representatives' receipts, matching who the denominator counts", async () => {
+    const captured: Captured = {
+      announcementWhere: [],
+      userWhere: [],
+      include: [],
+    };
+    const service = new AnnouncementsService(
+      createPrisma([createRow("live-now", -3, 3)], captured) as never,
+      { recordEvent: async () => {} } as never,
+    );
+
+    await service.listAnnouncements(managerContext(), {});
+
+    const readReceiptCount = (
+      captured.include[0]?._count as {
+        select: { readReceipts: { where: Record<string, unknown> } };
+      }
+    ).select.readReceipts;
+    assert.deepEqual(readReceiptCount.where, {
+      user: {
+        deletedAt: null,
+        status: "active",
+        roles: { some: { roleCode: "field_representative" } },
+      },
+    });
+  });
+
   it("scopes every state filter to the request tenant", async () => {
-    const captured: Captured = { announcementWhere: [], userWhere: [] };
+    const captured: Captured = {
+      announcementWhere: [],
+      userWhere: [],
+      include: [],
+    };
     const service = new AnnouncementsService(
       createPrisma([], captured) as never,
       { recordEvent: async () => {} } as never,

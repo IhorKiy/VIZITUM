@@ -630,7 +630,11 @@
       "emptyTitle": "No announcements yet",
       "emptyBody": "Publish one to tell the whole field team something that holds for a period - a promotion, a price change, a rule for the month.",
       "emptyFilteredBody": "Nothing matches this filter.",
-      "showAll": "Show all"
+      "showAll": "Show all",
+      "paginationAria": "Announcement pages",
+      "pagePosition": "Page {page} of {totalPages}",
+      "showNewer": "Newer announcements",
+      "showEarlier": "Earlier announcements"
     },
     "announcementModal": {
       "createTitle": "New announcement",

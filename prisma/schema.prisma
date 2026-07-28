@@ -1007,6 +1007,10 @@ model AnnouncementReadReceipt {
 
   @@unique([tenantId, announcementId, userId])
   @@index([tenantId, userId])
+  // The unique constraint above leads with tenantId, so it can't serve a
+  // lookup by announcement alone — which is what the manager board's per-row
+  // read count and the announcement's own delete cascade both do.
+  @@index([announcementId])
   @@map("announcement_read_receipts")
 }
 

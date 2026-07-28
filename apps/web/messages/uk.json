@@ -630,7 +630,11 @@
       "emptyTitle": "Оголошень ще немає",
       "emptyBody": "Опублікуйте оголошення, щоб повідомити всю команду про те, що діє певний період — акцію, зміну ціни, правило на місяць.",
       "emptyFilteredBody": "За цим фільтром нічого немає.",
-      "showAll": "Показати всі"
+      "showAll": "Показати всі",
+      "paginationAria": "Сторінки оголошень",
+      "pagePosition": "Сторінка {page} з {totalPages}",
+      "showNewer": "Новіші оголошення",
+      "showEarlier": "Раніші оголошення"
     },
     "announcementModal": {
       "createTitle": "Нове оголошення",
@@ -1137,7 +1141,7 @@
       "sectionAria": "Оголошення від менеджера",
       "heading": "Оголошення",
       "newBadge": "Нове",
-      "markRead": "Прочитав",
+      "markRead": "Прочитано",
       "marking": "Зберігаємо...",
       "endsOn": "Діє до {date}",
       "readCount": "Уже прочитані ({count})",

@@ -16,10 +16,3 @@ export function formatAnnouncementDate(
     day: "numeric",
   });
 }
-
-// Whether a date-only window has passed, judged against the tenant's own
-// calendar day (both sides are "YYYY-MM-DD", so a string compare is the date
-// compare).
-export function isWindowEnding(endsAt: string, todayIsoDate: string): boolean {
-  return endsAt === todayIsoDate;
-}

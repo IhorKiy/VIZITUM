@@ -34,6 +34,11 @@ const ANNOUNCEMENT_STATES: readonly AnnouncementState[] = [
   "archived",
 ];
 
+// Notices accumulate slowly, but they do accumulate — a board that silently
+// stopped at the API's maximum page would drop the oldest ones with nothing
+// on screen to say so.
+const PAGE_SIZE = 25;
+
 type ManagerAnnouncementsPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
@@ -41,6 +46,7 @@ type ManagerAnnouncementsPageProps = {
     archived?: string;
     created?: string;
     error?: string;
+    page?: string;
     state?: string;
     updated?: string;
   }>;
@@ -69,11 +75,36 @@ export default async function ManagerAnnouncementsPage({
     new Date(),
   );
   const selectedState = normalizeState(pageState.state);
-  const query = new URLSearchParams({ pageSize: "100" });
+  const page = normalizePage(pageState.page);
+  const query = new URLSearchParams({ pageSize: String(PAGE_SIZE) });
 
   if (selectedState) {
     query.set("state", selectedState);
   }
+
+  query.set("page", String(page));
+
+  // Paging links carry the active filter but not the page size, and drop the
+  // page param entirely on page one so the first page has one canonical URL.
+  // Changing the filter drops the page on its own — FilterForm rebuilds the
+  // query from its own fields, and `page` is not one of them.
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams();
+
+    if (selectedState) {
+      params.set("state", selectedState);
+    }
+
+    if (targetPage > 1) {
+      params.set("page", String(targetPage));
+    }
+
+    const search = params.toString();
+
+    return search
+      ? `/${tenantSlug}/manager/announcements?${search}`
+      : `/${tenantSlug}/manager/announcements`;
+  };
 
   // The form parsing is duplicated across the two actions on purpose: a
   // "use server" function may only close over serializable data and other
@@ -193,6 +224,7 @@ export default async function ManagerAnnouncementsPage({
   }
 
   const announcements = announcementsResult.data.items;
+  const totalPages = announcementsResult.data.totalPages;
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="manager-announcements">
@@ -342,7 +374,27 @@ export default async function ManagerAnnouncementsPage({
               </li>
             ))}
           </ul>
-        ) : (
+        ) : null}
+
+        {totalPages > 1 ? (
+          <nav aria-label={t("paginationAria")} className="list-pagination">
+            {page > 1 ? (
+              <a className="secondary-button" href={pageHref(page - 1)}>
+                {t("showNewer")}
+              </a>
+            ) : null}
+            <p className="small-label">
+              {t("pagePosition", { page, totalPages })}
+            </p>
+            {page < totalPages ? (
+              <a className="secondary-button" href={pageHref(page + 1)}>
+                {t("showEarlier")}
+              </a>
+            ) : null}
+          </nav>
+        ) : null}
+
+        {announcements.length === 0 ? (
           <div className="empty-state-panel">
             <h2>{t("emptyTitle")}</h2>
             <p>{selectedState ? t("emptyFilteredBody") : t("emptyBody")}</p>
@@ -357,7 +409,7 @@ export default async function ManagerAnnouncementsPage({
               </div>
             ) : null}
           </div>
-        )}
+        ) : null}
       </section>
     </AppShell>
   );
@@ -403,6 +455,12 @@ function stateTone(state: AnnouncementState): string {
     default:
       return "neutral";
   }
+}
+
+function normalizePage(value: string | undefined): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function normalizeState(value: string | undefined): AnnouncementState | null {

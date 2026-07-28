@@ -144,6 +144,21 @@ export class AnnouncementsService {
       context.tenantId,
       announcementId,
     );
+    const today = await this.resolveTenantToday(context.tenantId);
+    const state = resolveState(existing, today);
+
+    // A finished or withdrawn announcement is a record, not a draft: people
+    // have already read it, and their receipts say they read *this text*.
+    // Editing it would rewrite what the team was told after they were told
+    // it, which is exactly what the receipts are supposed to make impossible.
+    // Enforced here rather than only in the UI, which merely hides the button.
+    if (state === "finished" || state === "archived") {
+      throw new BadRequestException({
+        code: "ANNOUNCEMENT_NOT_EDITABLE",
+        message:
+          "A finished or withdrawn announcement can no longer be edited.",
+      });
+    }
 
     // The window is validated as a whole even when only one end is being
     // moved, so a PATCH cannot leave a row whose end precedes its start.
@@ -151,12 +166,29 @@ export class AnnouncementsService {
       startsAt: existing.startsAt,
       endsAt: existing.endsAt,
     });
-    const today = await this.resolveTenantToday(context.tenantId);
 
-    const updated = await this.prisma.announcement.update({
-      where: { id: existing.id },
-      data,
-      include: announcementInclude,
+    // Editing a live announcement is legitimate — a typo, a date pushed back —
+    // but it still changes text that receipts may already point at, so it
+    // leaves a trail the same way withdrawing does.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.announcement.update({
+        where: { id: existing.id },
+        data,
+        include: announcementInclude,
+      });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "announcement",
+          entityId: row.id,
+          eventType: "announcement.updated",
+          metadata: { fields: Object.keys(data).sort() },
+        },
+        tx,
+      );
+
+      return row;
     });
 
     return toAnnouncementResponse(updated, today);
@@ -302,9 +334,26 @@ export class AnnouncementsService {
   }
 }
 
+// `announcements.read` is held by managers too, so a manager working in the
+// field zone can leave a receipt on their own notice. Counting those would
+// make the numerator and the denominator describe different groups of people
+// and let a tally read "8 of 7", so the count is scoped to the same audience
+// countRecipients measures: active representatives.
 const announcementInclude = {
   createdBy: true,
-  _count: { select: { readReceipts: true } },
+  _count: {
+    select: {
+      readReceipts: {
+        where: {
+          user: {
+            deletedAt: null,
+            status: "active",
+            roles: { some: { roleCode: "field_representative" } },
+          },
+        },
+      },
+    },
+  },
 } satisfies Prisma.AnnouncementInclude;
 
 function buildActiveWhere(
