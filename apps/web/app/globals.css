@@ -3179,7 +3179,7 @@ textarea {
   padding: 7px 10px;
 }
 
-/* Pills that navigate rather than select (VisitPeriodPills): a period preset
+/* Pills that navigate rather than select (PeriodPills): a period preset
    writes two params at once, which no single form control can express. Same
    shape as the radio pills above so a row of each reads as one control. */
 .filter-pills--links a {

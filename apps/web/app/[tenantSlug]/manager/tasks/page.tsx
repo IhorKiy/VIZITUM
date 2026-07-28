@@ -411,24 +411,11 @@ export default async function ManagerTasksPage({
   }
 
   const tasks = tasksResult.data.items;
-  // What the API actually read, which is what the line below names. A saved
+  // What the API actually read, which is what the recap below names. A saved
   // link asking past the maximum window length comes back trimmed, and a recap
   // still announcing the requested range would put a lie in the denominator of
   // the count beside it. Absent mid-deploy, when this build talks to the
   // previous API — then the window stands as resolved.
-  const totalPages = tasksResult.data.totalPages;
-  const pageHref = (targetPage: number) => {
-    const params = new URLSearchParams(query);
-    params.delete("pageSize");
-
-    if (targetPage <= 1) {
-      params.delete("page");
-    } else {
-      params.set("page", String(targetPage));
-    }
-
-    return `/${tenantSlug}/manager/tasks?${params.toString()}`;
-  };
   const period = completedPeriod
     ? periodAsRead(
         completedPeriod,
@@ -436,6 +423,30 @@ export default async function ManagerTasksPage({
         timeZone,
       )
     : null;
+  const totalPages = tasksResult.data.totalPages;
+  // Built from the screen's own parameters, not from `query`. The two agree on
+  // most names but not all, and both disagreements are silent: `query` omits
+  // `status` for the mixed view (so a page link would come back as the default
+  // in-progress list, quietly changing the view mid-scroll) and spells the
+  // priority filter `isPriority=true` where the screen reads `priority=1` (so
+  // page 2 would drop the filter and carry a dead parameter instead).
+  const pageHref = (targetPage: number) => {
+    const params = new URLSearchParams(otherFilterParams);
+
+    if (period) {
+      for (const [name, value] of Object.entries(
+        periodSearchParams(period, TASK_COMPLETED_PERIOD_PARAMS),
+      )) {
+        params.set(name, value);
+      }
+    }
+
+    if (targetPage > 1) {
+      params.set("page", String(targetPage));
+    }
+
+    return `/${tenantSlug}/manager/tasks?${params.toString()}`;
+  };
   // Deleting needs team scope, which an own-scope viewer on this page lacks —
   // showing them a button that can only 403 is worse than not showing it.
   const canDeleteTasks = sessionResult.ok
