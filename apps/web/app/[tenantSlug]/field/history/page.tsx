@@ -20,6 +20,7 @@ import {
 } from "../../../../lib/api-client";
 import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import { formatCancellationReason } from "../../../../lib/visit-cancellation";
+import { isDayFullyDone } from "../../../../lib/visit-history-days";
 import { formatEnumLabel, statusPillTone } from "../../../../lib/format";
 import {
   hasEarlierPeriod as canStepBack,
@@ -232,6 +233,15 @@ export default async function FieldHistoryPage({
       ? `/${tenantSlug}/field/history?${search}`
       : `/${tenantSlug}/field/history`;
   };
+  // Where the days this list hides actually are: the same window, narrowed to
+  // completed. Built from the period alone — page and pageSize are left off so
+  // the link lands on page one of its own, shorter list.
+  const completedHref = (() => {
+    const params = new URLSearchParams(periodParams);
+    params.set("status", "completed");
+
+    return `/${tenantSlug}/field/history?${params.toString()}`;
+  })();
   // Where the list continues once this window is read out: the window of the
   // same length immediately behind it, on page one.
   const earlier = previousPeriod(period);
@@ -393,6 +403,7 @@ export default async function FieldHistoryPage({
         {visits.length > 0 ? (
           <>
             <HistoryDays
+              completedHref={completedHref}
               daySummary={daySummary}
               origin={historyOrigin}
               page={page}
@@ -478,6 +489,7 @@ export default async function FieldHistoryPage({
 // a gold rail and a "finish report" call to action, so the loose ends of a day
 // are visible without reaching for the status filter.
 function HistoryDays({
+  completedHref,
   daySummary,
   origin,
   page,
@@ -487,6 +499,7 @@ function HistoryDays({
   timeZone,
   visits,
 }: {
+  completedHref: string;
   daySummary: VisitDaySummaryEntry[] | null;
   origin: string;
   page: number;
@@ -587,24 +600,28 @@ function HistoryDays({
       workable,
     };
   });
-  // This list exists to surface the loose ends, so a day where every workable
-  // visit is completed has nothing left to say and stays out of the way — its
-  // visits are still counted by the recap line above and still reachable
-  // through the status filter. Only in the unfiltered view: under a status
-  // pill the rep asked for those exact visits, fully-done days included, and
-  // `showCompletedShare` is precisely "no pill is active".
-  const visibleGroups = showCompletedShare
-    ? groupsWithStats.filter((entry) => entry.completedPercent !== 100)
-    : groupsWithStats;
+  // A day where every workable visit is completed has nothing left to say, so
+  // it stays out of the way — see isDayFullyDone for the two conditions that
+  // make hiding it safe. `showCompletedShare` is precisely "no pill is active".
+  const visibleGroups = groupsWithStats.filter(
+    (entry) =>
+      !isDayFullyDone({
+        completedPercent: entry.completedPercent,
+        dayTotalsTrusted: daySummary !== null,
+        statusFilterActive: !showCompletedShare,
+      }),
+  );
   const hiddenDays = groupsWithStats.length - visibleGroups.length;
 
   return (
     <div className="visit-day-groups">
-      {/* Every day on this page came back fully done: say so instead of
-          rendering a blank strip between the recap and the pagination. */}
-      {visibleGroups.length === 0 && hiddenDays > 0 ? (
-        <p className="small-label">
-          {t("allDaysCompleted", { count: hiddenDays })}
+      {/* Hiding a day silently is how a rep ends up hunting for one they know
+          they worked. Whenever anything was hidden — not only when everything
+          was — the list says so and points at where those days are. */}
+      {hiddenDays > 0 ? (
+        <p className="small-label visit-days-hidden-note">
+          {t("completedDaysHidden", { count: hiddenDays })}{" "}
+          <a href={completedHref}>{t("showCompletedDays")}</a>
         </p>
       ) : null}
       {visibleGroups.map(

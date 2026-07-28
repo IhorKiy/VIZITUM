@@ -944,6 +944,19 @@ textarea {
   }
 }
 
+/* Says how many fully completed days the history list left out, and links to
+   the filter that shows them. Sits above the day headers, quiet enough not to
+   compete with them but never silent — a hidden day nobody was told about is
+   a day the rep goes hunting for. */
+.visit-days-hidden-note {
+  margin: 0 0 12px;
+}
+
+.visit-days-hidden-note a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 /* The end of the window, handing over to the period control rather than to one
    more page button: paging lives inside the window, reaching further back is a
    different decision. */
