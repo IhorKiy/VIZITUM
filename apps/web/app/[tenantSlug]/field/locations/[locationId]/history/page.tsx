@@ -81,8 +81,15 @@ export default async function LocationHistoryPage({
   // window — and an unnamed window is a count with no denominator. The
   // response says where it actually started reading; the caption repeats it
   // rather than implying "every visit ever made here".
+  //
+  // `period` is optional for version skew (a new frontend against the previous
+  // API for a minute or two during a deploy); without it the caption falls
+  // back to the plain count rather than inventing a start date.
   const readFrom = visitsResult.ok
-    ? dayInTimeZone(timeZone, new Date(visitsResult.data.period.startedFrom))
+    ? (visitsResult.data.period?.startedFrom ?? null)
+    : null;
+  const readFromDay = readFrom
+    ? dayInTimeZone(timeZone, new Date(readFrom))
     : null;
   const visitHistory = (visitsResult.ok ? visitsResult.data.items : [])
     .filter(
@@ -113,11 +120,11 @@ export default async function LocationHistoryPage({
               </h1>
               <p className="location-header-address">{locationName}</p>
               <p className="location-header-meta">
-                {readFrom
+                {readFromDay
                   ? t("location.visitCountSince", {
                       count: visitHistory.length,
                       since: format.dateTime(
-                        new Date(`${readFrom}T12:00:00.000Z`),
+                        new Date(`${readFromDay}T12:00:00.000Z`),
                         { day: "numeric", month: "short", year: "numeric" },
                       ),
                     })

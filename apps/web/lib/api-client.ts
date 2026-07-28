@@ -719,16 +719,23 @@ export type VisitStatusTotals = {
   cancelled: number;
 };
 
-// The window the API actually read, after its own 12-month depth clamp. ISO
-// instants, not calendar days.
+// The window the API actually read, after its cap on how long a single window
+// may be (12 months). ISO instants, not calendar days. Note what the cap is
+// not: it never moves a window forward in time, so a request for a range two
+// years back is answered as asked — only an over-long window is trimmed.
 export type VisitPeriodWindow = {
   startedFrom: string;
   startedTo: string | null;
 };
 
+// Both extras are optional *on purpose*, not because the API may omit them:
+// during a deploy a new frontend talks to the old API for a minute or two, and
+// a required type would let a screen render `undefined` as a number. Optional
+// makes TypeScript ask every caller what to do when the field isn't there —
+// and the answer is always to draw nothing rather than a confident zero.
 export type VisitListResponse = PaginatedResponse<Visit> & {
-  period: VisitPeriodWindow;
-  statusTotals: VisitStatusTotals;
+  period?: VisitPeriodWindow;
+  statusTotals?: VisitStatusTotals;
 };
 
 export async function listVisits(
@@ -746,7 +753,11 @@ export type VisitDaySummaryEntry = {
 
 export type VisitDaySummary = {
   days: VisitDaySummaryEntry[];
-  period: VisitPeriodWindow;
+  period?: VisitPeriodWindow;
+  // The earliest visit in this request's scope, ignoring the window — where
+  // this history begins, or null when the scope holds no visits. Optional for
+  // the same version-skew reason as the fields above.
+  historyStart?: string | null;
 };
 
 export async function listVisitDaySummary(
