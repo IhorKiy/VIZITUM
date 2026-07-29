@@ -10,12 +10,27 @@ import type {
   Product,
 } from "../lib/api-client";
 import {
+  FIELD_REPORT_DRAFT_VERSION,
+  isEmptyFieldReportDraft,
+  parseFieldReportDraft,
+  PROBLEM_TYPES,
+  type FieldReportDraft,
+  type ProblemType,
+} from "../lib/field-report-draft";
+import {
   confirmFieldReportAction,
   registerFieldReportAudioAction,
   registerProblemPhotoAction,
   transcribeFieldReportAction,
 } from "../lib/field-report-actions";
 import { INPUT_LIMITS } from "../lib/input-limits";
+import {
+  deleteDraft,
+  pruneDrafts,
+  readDraft,
+  writeDraft,
+  type DraftScope,
+} from "../lib/offline-drafts";
 import {
   deriveVisitOutcome,
   isNoOrderReason,
@@ -37,8 +52,6 @@ import {
   StopIcon,
 } from "./icons";
 
-type ProblemType = "return" | "damaged" | "expired" | "conflict";
-
 // How many matrix chips a collapsed shelf panel shows. The rest are one tap
 // away rather than dropped: confirming the check speaks for all of them.
 const SHELF_CHIP_PREVIEW = 12;
@@ -54,6 +67,9 @@ type ShelfProduct = {
 
 type FieldVisitReportFormProps = {
   tenantSlug: string;
+  // Part of the draft key: reps share phones, so a report half-typed under one
+  // login must not surface under the next.
+  userId: string;
   visitId: string;
   products: Product[];
   // The outlet's whole matrix (assortment rows flagged `shouldBeListed`),
@@ -149,15 +165,13 @@ function resolveMediaRecorderMimeType(): string | undefined {
   return undefined;
 }
 
-const PROBLEM_TYPES: ProblemType[] = [
-  "return",
-  "damaged",
-  "expired",
-  "conflict",
-];
+// Long enough that a burst of typing is one write, short enough that what the
+// rep loses to a phone dying mid-sentence is the sentence, not the report.
+const DRAFT_WRITE_DEBOUNCE_MS = 500;
 
 export function FieldVisitReportForm({
   tenantSlug,
+  userId,
   visitId,
   products,
   shelfProducts,
@@ -244,6 +258,174 @@ export function FieldVisitReportForm({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // --- On-device draft -----------------------------------------------------
+  // Everything below keeps an unconfirmed report on the phone. A rep works
+  // through stops with no signal, and until this existed a reload, a killed
+  // tab or the OS reclaiming a backgrounded browser took the whole report with
+  // it. Storage failures are silent by design: a draft is a safety net, and a
+  // net that throws is worse than no net.
+
+  const [draftRestored, setDraftRestored] = useState(false);
+  // Nothing may be written before the stored draft has been read, or an empty
+  // first render would delete the very report we are about to restore.
+  const draftLoadedRef = useRef(false);
+  const draftStoredRef = useRef(false);
+  // Set once the report is confirmed. Without it the flush that runs when this
+  // screen unmounts would write the draft straight back after the delete, and
+  // the redirect makes that unmount immediate.
+  const draftClosedRef = useRef(false);
+
+  const draftScope = useMemo<DraftScope>(
+    () => ({ tenantSlug, userId, visitId }),
+    [tenantSlug, userId, visitId],
+  );
+
+  const currentDraft = useMemo<FieldReportDraft>(
+    () => ({
+      visitDate,
+      orderPlaced,
+      noOrderReason,
+      missingProductIds,
+      shelfChecked,
+      shelfCheckedTouched,
+      shelfOpen,
+      problemOpen,
+      problemType,
+      problemNote,
+      problemPhoto,
+      notesOpen,
+      notes,
+      nextAction,
+      nextActionDueDate,
+    }),
+    [
+      visitDate,
+      orderPlaced,
+      noOrderReason,
+      missingProductIds,
+      shelfChecked,
+      shelfCheckedTouched,
+      shelfOpen,
+      problemOpen,
+      problemType,
+      problemNote,
+      problemPhoto,
+      notesOpen,
+      notes,
+      nextAction,
+      nextActionDueDate,
+    ],
+  );
+
+  const currentDraftRef = useRef(currentDraft);
+  currentDraftRef.current = currentDraft;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const stored = await readDraft(draftScope, FIELD_REPORT_DRAFT_VERSION);
+      const draft = stored ? parseFieldReportDraft(stored) : null;
+
+      if (cancelled) return;
+
+      // The read is a single indexed lookup, but a rep who started typing
+      // before it landed owns the form — restoring over them would be the very
+      // data loss this exists to prevent.
+      const untouched = isEmptyFieldReportDraft(
+        currentDraftRef.current,
+        todayIsoDate(),
+      );
+
+      if (
+        draft &&
+        untouched &&
+        !isEmptyFieldReportDraft(draft, todayIsoDate())
+      ) {
+        setVisitDate(draft.visitDate || todayIsoDate());
+        setOrderPlaced(draft.orderPlaced);
+        setNoOrderReason(draft.noOrderReason);
+        setMissingProductIds(draft.missingProductIds);
+        setShelfChecked(draft.shelfChecked);
+        setShelfCheckedTouched(draft.shelfCheckedTouched);
+        setShelfOpen(draft.shelfOpen);
+        setProblemOpen(draft.problemOpen);
+        setProblemType(draft.problemType);
+        setProblemNote(draft.problemNote);
+        setProblemPhoto(draft.problemPhoto);
+        setNotesOpen(draft.notesOpen);
+        setNotes(draft.notes);
+        setNextAction(draft.nextAction);
+        setNextActionDueDate(draft.nextActionDueDate);
+        // Straight to the form: the voice screen would hide the work being
+        // restored behind a mic button.
+        setStep("form");
+        draftStoredRef.current = true;
+        setDraftRestored(true);
+      }
+
+      draftLoadedRef.current = true;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftScope]);
+
+  useEffect(() => {
+    if (!draftLoadedRef.current || draftClosedRef.current) return;
+
+    if (isEmptyFieldReportDraft(currentDraft, todayIsoDate())) {
+      // The rep cleared the form back to nothing — leaving the old draft would
+      // resurrect it on the next open.
+      if (draftStoredRef.current) {
+        draftStoredRef.current = false;
+        void deleteDraft(draftScope);
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      draftStoredRef.current = true;
+      void writeDraft(draftScope, currentDraft, FIELD_REPORT_DRAFT_VERSION);
+    }, DRAFT_WRITE_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [currentDraft, draftScope]);
+
+  // A backgrounded phone is the common way this screen dies, and it does not
+  // wait out the debounce — so hiding the page, or leaving it, writes at once.
+  useEffect(() => {
+    const flush = () => {
+      if (!draftLoadedRef.current || draftClosedRef.current) return;
+
+      const draft = currentDraftRef.current;
+
+      if (isEmptyFieldReportDraft(draft, todayIsoDate())) return;
+
+      draftStoredRef.current = true;
+      void writeDraft(draftScope, draft, FIELD_REPORT_DRAFT_VERSION);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", flush);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [draftScope]);
+
+  // Opening any visit is as good a moment as any to sweep reports nobody came
+  // back to; this screen is the only thing that writes them.
+  useEffect(() => {
+    void pruneDrafts();
   }, []);
 
   const noOrderReasonLabels = useMemo<Record<NoOrderReason, string>>(
@@ -672,6 +854,13 @@ export function FieldVisitReportForm({
       return;
     }
 
+    // The report is on the server now, so the copy on the phone has nothing
+    // left to protect. Awaited rather than fired off, so the redirect below
+    // cannot cut the delete short and leave a draft behind.
+    draftClosedRef.current = true;
+    draftStoredRef.current = false;
+    await deleteDraft(draftScope);
+
     // Deliberately today's route, not the screen the report was opened from.
     // Confirming ends the visit, so the next thing the rep needs is the next
     // stop — that's a workflow step forward, not the back control's job of
@@ -730,6 +919,11 @@ export function FieldVisitReportForm({
       {transcriptionMessage ? (
         <p className="notice-inline success" role="status">
           {transcriptionMessage}
+        </p>
+      ) : null}
+      {draftRestored ? (
+        <p className="notice-inline" role="status">
+          {t("draftRestoredNotice")}
         </p>
       ) : null}
 
