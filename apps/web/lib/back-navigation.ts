@@ -27,6 +27,7 @@ export type BackLabelKey =
   // routes themselves) and from `planning` (`/field/planning`, the calendar
   // they are scheduled on) — three different destinations.
   | "home"
+  | "announcements"
   | "routes"
   | "planning"
   | "tasks"
@@ -53,6 +54,10 @@ export type BackTarget = {
  */
 const RETURNABLE_SCREENS: { pattern: RegExp; labelKey: BackLabelKey }[] = [
   { pattern: /^\/field$/, labelKey: "home" },
+  // The board is a screen a rep stays on, and the menu hangs off it like every
+  // other field screen — so opening Routes from there has to be able to say
+  // "back to announcements" rather than falling back to the home route.
+  { pattern: /^\/field\/announcements$/, labelKey: "announcements" },
   { pattern: /^\/field\/routes$/, labelKey: "routes" },
   { pattern: /^\/field\/planning$/, labelKey: "planning" },
   { pattern: /^\/field\/tasks$/, labelKey: "tasks" },
@@ -132,7 +137,13 @@ function legacyRoutesTarget(path: string, query: string): string | null {
 }
 
 function parseFrom(from: string | undefined): ParsedFrom | null {
-  if (!from || from.length > MAX_FROM_LENGTH) {
+  // The type says string, Next.js says otherwise: a URL that repeats the param
+  // (`?from=a&from=b`) hands the page an array, and every screen declares this
+  // as `from?: string`. Checked here rather than at each call site — this is
+  // the one place they all funnel through, and without it a hand-crafted link
+  // takes the screen down with a TypeError on .startsWith rather than falling
+  // back to the caller's default like every other unusable value does.
+  if (typeof from !== "string" || !from || from.length > MAX_FROM_LENGTH) {
     return null;
   }
 

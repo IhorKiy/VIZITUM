@@ -31,9 +31,10 @@ type FieldMenuProps = {
 
 /**
  * The representative's menu: everything that isn't one of the four things a
- * working day is made of (route, planning, tasks, history). Those four own the
- * bottom nav; the catalogue screens, help and the session controls live behind
- * this button, which is why the field zone has no fifth tab.
+ * working day is made of (today's route, planning, tasks, history). Those four
+ * own the bottom nav; building the reusable routes themselves, the catalogue
+ * screens, help and the session controls live behind this button, which is why
+ * the field zone has no fifth tab.
  *
  * A native <dialog> rather than a hand-rolled panel: it brings the focus trap,
  * Esc-to-close and inert background that a drawer needs, and its ::backdrop is

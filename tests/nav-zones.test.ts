@@ -29,6 +29,7 @@ const FIELD_REPRESENTATIVE_PERMISSIONS = [
   "tasks.read_own",
   "tasks.create",
   "tasks.update_own",
+  "announcements.read",
   "ai.use_reporting",
 ];
 
@@ -74,7 +75,6 @@ describe("navigation zones", () => {
     const byArea = new Map(items.map((item) => [item.area, item.zone]));
 
     assert.equal(byArea.get("field"), "field");
-    assert.equal(byArea.get("field-routes"), "field");
     assert.equal(byArea.get("field-planning"), "field");
     assert.equal(byArea.get("admin-pilot"), "admin");
     assert.equal(byArea.get("manager-overview"), "manager");
@@ -186,13 +186,63 @@ describe("navigation zones", () => {
       buildFieldMenuLinks("acme", FIELD_REPRESENTATIVE_PERMISSIONS, true).map(
         (link) => link.href,
       ),
-      ["/acme/field/locations", "/acme/field/products", "/acme/field/help"],
+      [
+        "/acme/field/announcements",
+        "/acme/field/routes",
+        "/acme/field/locations",
+        "/acme/field/products",
+        "/acme/field/help",
+      ],
     );
     assert.deepEqual(
       buildFieldMenuLinks("acme", FIELD_REPRESENTATIVE_PERMISSIONS, false).map(
         (link) => link.href,
       ),
-      ["/acme/field/locations", "/acme/field/help"],
+      [
+        "/acme/field/announcements",
+        "/acme/field/routes",
+        "/acme/field/locations",
+        "/acme/field/help",
+      ],
+    );
+  });
+
+  it("the notice board is a menu screen, and reading it never opens the field zone", () => {
+    // The home screen carries only unread notices now, so the full board — read
+    // ones included — is reached from the menu. announcements.read is held by
+    // team_manager too (the manager screen renders a live announcement the way
+    // the field sees it), which is exactly why this is a menu entry and not a
+    // nav item: as a nav item it would hand a manager the field zone.
+    assert.deepEqual(
+      buildFieldMenuLinks("acme", ["announcements.read"]).map(
+        (link) => link.key,
+      ),
+      ["announcements", "help"],
+    );
+    assert.deepEqual(availableZones(["announcements.read"]), []);
+  });
+
+  it("the reusable routes are a menu screen, and moving them left the field zone alone", () => {
+    // Building a round is setup, not the working day, so /field/routes gave up
+    // its bottom-nav slot — the bar keeps today's route, planning, tasks and
+    // history. The move is free for zone availability only because
+    // /field/planning is gated on the same routes.read: a rep (or a manager)
+    // who holds nothing but that permission must still reach the field zone,
+    // which is what would have broken had planning been gated on anything else.
+    assert.ok(
+      !buildTenantNav("acme", undefined).some((item) =>
+        item.href.endsWith("/field/routes"),
+      ),
+    );
+    assert.deepEqual(
+      buildFieldMenuLinks("acme", ["routes.read"]).map((link) => link.key),
+      ["routes", "help"],
+    );
+    assert.deepEqual(availableZones(["routes.read"]), ["field"]);
+    // ...and a rep without it is offered neither the screen nor a dead entry.
+    assert.deepEqual(
+      buildFieldMenuLinks("acme", ["visits.read_own"]).map((link) => link.key),
+      ["help"],
     );
   });
 

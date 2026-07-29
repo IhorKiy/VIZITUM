@@ -24,6 +24,18 @@ const TENANT_SLUG = "e2e-field-revisit";
 const REP_EMAIL = "rep@e2e-field-revisit.local";
 const REP_PASSWORD = "E2eField12345!";
 const LOCATION_NAME = "E2E Revisit Market";
+const ANNOUNCEMENT_UNREAD_TITLE = "E2E notice still unread";
+const ANNOUNCEMENT_READ_TITLE = "E2E notice already read";
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+// The active window is inclusive of both ends against the tenant's today, so a
+// day either side keeps the pair in force regardless of the timezone the API
+// resolves for this tenant.
+const announcementWindowStart = startOfUtcDay(
+  new Date(Date.now() - MILLISECONDS_PER_DAY),
+);
+const announcementWindowEnd = startOfUtcDay(
+  new Date(Date.now() + MILLISECONDS_PER_DAY),
+);
 
 const capabilities = [
   "team.basic_roles",
@@ -202,6 +214,66 @@ try {
       },
       update: { locationId: location.id, status: "planned" },
     });
+
+    // Two notices in force today, one of them already acknowledged — the pair
+    // the announcements spec needs, since the split between them is the whole
+    // behaviour: the home screen shows only the unread one, and the board
+    // screen lists both. Seeded rather than published through the UI so the
+    // spec itself mutates nothing and survives a retry.
+    //
+    // No natural key to upsert on, so they are matched by title and reused;
+    // the receipt's own unique constraint carries the second half.
+    for (const notice of [
+      { title: ANNOUNCEMENT_UNREAD_TITLE, read: false },
+      { title: ANNOUNCEMENT_READ_TITLE, read: true },
+    ]) {
+      const existing = await tx.announcement.findFirst({
+        where: { tenantId: tenant.id, title: notice.title },
+      });
+      const announcement = existing
+        ? await tx.announcement.update({
+            where: { id: existing.id },
+            data: {
+              startsAt: announcementWindowStart,
+              endsAt: announcementWindowEnd,
+              archivedAt: null,
+            },
+          })
+        : await tx.announcement.create({
+            data: {
+              tenantId: tenant.id,
+              title: notice.title,
+              body: `${notice.title} body.`,
+              startsAt: announcementWindowStart,
+              endsAt: announcementWindowEnd,
+              createdByUserId: representative.id,
+            },
+          });
+
+      if (notice.read) {
+        await tx.announcementReadReceipt.upsert({
+          where: {
+            tenantId_announcementId_userId: {
+              tenantId: tenant.id,
+              announcementId: announcement.id,
+              userId: representative.id,
+            },
+          },
+          create: {
+            tenantId: tenant.id,
+            announcementId: announcement.id,
+            userId: representative.id,
+          },
+          update: {},
+        });
+      } else {
+        // A previous run's spec may have acknowledged it; the unread half has
+        // to start unread or the next run asserts against the wrong state.
+        await tx.announcementReadReceipt.deleteMany({
+          where: { tenantId: tenant.id, announcementId: announcement.id },
+        });
+      }
+    }
   });
 
   console.log(JSON.stringify({ status: "ok", tenantSlug: TENANT_SLUG }));

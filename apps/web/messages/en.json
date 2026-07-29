@@ -27,6 +27,7 @@
     "unknown": "Unknown",
     "back": {
       "home": "Back to home",
+      "announcements": "Back to announcements",
       "routes": "Back to routes",
       "planning": "Back to planning",
       "tasks": "Back to tasks",
@@ -82,7 +83,6 @@
       "ariaPrimary": "Primary",
       "ariaPrimaryMobile": "Primary mobile",
       "field": "Home",
-      "field-routes": "Routes",
       "field-planning": "Planning",
       "field-history": "History",
       "field-tasks": "Tasks",
@@ -1109,6 +1109,10 @@
     "menu": {
       "open": "Menu",
       "title": "Menu",
+      "announcements": "Announcements",
+      "announcementsHint": "The board, already-read notices included",
+      "routes": "Routes",
+      "routesHint": "Your reusable rounds",
       "locations": "Locations",
       "locationsHint": "Every outlet in the workspace",
       "products": "Products",
@@ -1119,7 +1123,6 @@
     },
     "help": {
       "title": "Help",
-      "body": "Answers to what comes up most often during a visit.",
       "faq1Question": "What happens to voice notes before I record one?",
       "faq1Answer": "Voice notes may be transcribed and processed by AI for visit reports. Audio and transcripts are temporary processing data; the confirmed report is reviewed before it becomes official.",
       "faq2Question": "What should I do when the AI draft is weak?",
@@ -1180,7 +1183,14 @@
       "endsOn": "In force until {date}",
       "readCount": "Already read ({count})",
       "markFailedTitle": "Could not mark it read",
-      "markFailedBody": "The announcement is still here. Try again."
+      "markFailedBody": "The announcement is still here. Try again.",
+      "permissionBody": "Sign in with a field account to read the notice board.",
+      "permissionStatusAria": "Access status",
+      "permissionRequiredEyebrow": "Access required",
+      "permissionRequiredTitle": "Announcements are not available",
+      "permissionRequiredBody": "Your account does not have access to the notice board.",
+      "emptyTitle": "Nothing on the board",
+      "emptyBody": "Your manager has published no announcement in force today."
     },
     "location": {
       "signedOutTitle": "Location",
@@ -1503,7 +1513,6 @@
     },
     "locations": {
       "title": "Locations",
-      "body": "Browse and filter every location in your workspace.",
       "permissionBody": "Sign in with a field account to browse locations.",
       "permissionStatusAria": "Access status",
       "permissionRequiredEyebrow": "Access required",
@@ -1524,7 +1533,6 @@
     },
     "products": {
       "title": "Products",
-      "body": "Browse and filter every product in your catalogue.",
       "permissionBody": "Sign in with a field account to browse the product catalogue.",
       "permissionStatusAria": "Access status",
       "permissionRequiredEyebrow": "Access required",

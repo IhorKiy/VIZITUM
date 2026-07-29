@@ -1,7 +1,6 @@
 // Areas that own a nav item, and therefore a `common.nav.<area>` label.
 export type NavArea =
   | "field"
-  | "field-routes"
   | "field-planning"
   | "field-history"
   | "field-tasks"
@@ -103,15 +102,9 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     requiredPermissions: ["visits.read_own", "visits.read_team"],
   },
   {
-    // The rep's reusable routes: what a round looks like, independent of any
-    // date. Split from the calendar below, which is where a route meets a day.
-    path: "/field/routes",
-    area: "field-routes",
-    zone: "field",
-    icon: "route",
-    requiredPermissions: ["routes.read"],
-  },
-  {
+    // Where a route meets a day. The reusable routes themselves are one step
+    // further from the working day — they are built once and reused — so they
+    // sit in the field menu instead of holding a slot in the bottom bar.
     path: "/field/planning",
     area: "field-planning",
     zone: "field",
@@ -308,9 +301,9 @@ export function buildTenantNav(
 }
 
 // Screens that belong to a zone but carry no nav item of their own: the
-// representative's locations, product catalogue and help pages are opened from
-// the field menu (components/field-menu.tsx), not from the bottom nav. They
-// still need a zone so the AppShell deep-link guard can place them.
+// representative's routes, locations, product catalogue and help pages are
+// opened from the field menu (components/field-menu.tsx), not from the bottom
+// nav. They still need a zone so the AppShell deep-link guard can place them.
 //
 // Deliberately kept out of NAV_ITEM_DEFS: a nav item's permissions widen its
 // whole zone (availability is an OR across the zone's items), so listing these
@@ -330,7 +323,8 @@ const AREA_ZONE = new Map<RoleArea, Zone>([
 
 // The field menu's own entries. Not nav items (see MENU_ONLY_AREA_ZONE) — this
 // is a plain link list, labelled in the UI via `field.menu.<key>`.
-export type FieldMenuLinkKey = "locations" | "products" | "help";
+export type FieldMenuLinkKey =
+  "announcements" | "routes" | "locations" | "products" | "help";
 
 export type FieldMenuLink = {
   key: FieldMenuLinkKey;
@@ -345,6 +339,28 @@ const FIELD_MENU_LINK_DEFS: {
   /** Same shape as a nav item's, and read the same way: any one of them is enough. */
   requiredPermissions: string[];
 }[] = [
+  {
+    // The whole notice board, acknowledged notices included. The home screen
+    // keeps only what is still unread — and stops rendering the section at all
+    // once nothing is — so this is the way back to a standing rule the rep has
+    // already read. Gated on the same announcements.read the screen enforces.
+    key: "announcements",
+    path: "/field/announcements",
+    icon: "megaphone",
+    requiredPermissions: ["announcements.read"],
+  },
+  {
+    // Building a round is setup, not the working day: a route is written once
+    // and then reused, and the day-of question ("which route runs today") is
+    // the calendar's. Moving it here costs the field zone nothing, unlike the
+    // entries below — /field/planning is gated on the same routes.read, so the
+    // zone's permission union is unchanged by the move (tests/nav-zones.test.ts
+    // and tests/zone-permission-mirror.test.ts both pin that).
+    key: "routes",
+    path: "/field/routes",
+    icon: "route",
+    requiredPermissions: ["routes.read"],
+  },
   {
     key: "locations",
     path: "/field/locations",

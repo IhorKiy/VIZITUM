@@ -38,6 +38,13 @@ type StopItem = {
 type RouteStopDragListProps = {
   tenantSlug: string;
   templateId: string;
+  /**
+   * The origin this screen was opened with, carried down so a stop's location
+   * card returns into the route editor *and* the editor keeps knowing where it
+   * came from — without it the chain ends here and the list's own back control
+   * silently falls back to the home screen.
+   */
+  from: string | undefined;
   stops: StopItem[];
   removeAction: (formData: FormData) => Promise<void>;
   reorderAction: (templateId: string, itemIds: string[]) => Promise<void>;
@@ -46,6 +53,7 @@ type RouteStopDragListProps = {
 export function RouteStopDragList({
   tenantSlug,
   templateId,
+  from,
   stops,
   removeAction,
   reorderAction,
@@ -177,6 +185,7 @@ export function RouteStopDragList({
         <ol className="route-stop-list">
           {order.map((stop, index) => (
             <RouteStopRow
+              from={from}
               index={index}
               key={stop.id}
               onHandleKeyDown={handleHandleKeyDown}
@@ -193,6 +202,7 @@ export function RouteStopDragList({
 }
 
 type RouteStopRowProps = {
+  from: string | undefined;
   index: number;
   onHandleKeyDown: (
     event: React.KeyboardEvent<HTMLButtonElement>,
@@ -205,6 +215,7 @@ type RouteStopRowProps = {
 };
 
 function RouteStopRow({
+  from,
   index,
   onHandleKeyDown,
   removeAction,
@@ -256,8 +267,11 @@ function RouteStopRow({
         href={withBackOrigin(
           `/${tenantSlug}/field/locations/${stop.location.id}`,
           // Back into the route being edited, not the bare list — the editor
-          // is the list screen with a route selected.
-          backOrigin("/field/routes", { route: templateId }),
+          // is the list screen with a route selected. The screen's own origin
+          // rides along inside it, so the editor's back control still names the
+          // screen the menu was opened on rather than falling back home; the
+          // allowlist matches on the path, so the nested value passes through.
+          backOrigin("/field/routes", { route: templateId, from }),
         )}
         aria-label={t("viewLocationAria", { name: stop.location.name })}
       >
