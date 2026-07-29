@@ -166,6 +166,7 @@ try {
 
     // Reset leftovers from a previous run: the repeat visit the spec creates
     // stays in_progress (and would surface as "Continue visit" next time).
+
     await tx.visit.updateMany({
       where: {
         tenantId: tenant.id,
@@ -203,7 +204,7 @@ try {
           },
         });
 
-    await tx.routeItem.upsert({
+    const routeItem = await tx.routeItem.upsert({
       where: {
         tenantId_routePlanId_sequence: {
           tenantId: tenant.id,
@@ -219,6 +220,19 @@ try {
         status: "planned",
       },
       update: { locationId: location.id, status: "planned" },
+    });
+
+    // Release the stop's visit slot. `Visit.routeItemId` is unique across every
+    // status, so a visit left over from a previous run still owns it even after
+    // being cancelled above — and then the next run's "Start visit" dies on that
+    // constraint with ?error=visit, before a single assertion. Resetting the
+    // stop to "planned" without this is a half-reset: the UI offers the visit
+    // and the API refuses it. Matched by the stop rather than by status, because
+    // the status the leftover happens to be in is exactly what a narrower filter
+    // keeps missing.
+    await tx.visit.updateMany({
+      where: { tenantId: tenant.id, routeItemId: routeItem.id },
+      data: { routeItemId: null },
     });
 
     // Two notices in force today, one of them already acknowledged — the pair
