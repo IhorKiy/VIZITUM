@@ -28,9 +28,15 @@ import {
 import { INPUT_LIMITS } from "../lib/input-limits";
 import {
   deleteDraft,
+  deletePendingMedia,
   pruneDrafts,
+  prunePendingMedia,
   readDraft,
+  readPendingMediaBytes,
+  readPendingMediaRegistration,
   writeDraft,
+  writePendingMediaBytes,
+  writePendingMediaRegistration,
   type DraftScope,
 } from "../lib/offline-drafts";
 import {
@@ -184,9 +190,15 @@ const MAX_AUDIO_SIZE_BYTES = 50 * 1024 * 1024;
 // a retry that has one re-signs it rather than registering again, which is what
 // keeps a flaky connection from leaving a trail of storage objects (and, for
 // audio, note rows) behind on the visit.
+//
+// `persisted` is whether the device actually took the bytes. It decides what
+// the rep is told: leaving the screen is safe when they are on the device and
+// loses the recording when they are not, and guessing wrong in either direction
+// is the kind of thing that costs someone an afternoon of work.
 type PendingUpload<TBody> = {
   body: TBody;
   objectId: string | null;
+  persisted: boolean;
 };
 
 export function FieldVisitReportForm({
@@ -466,7 +478,56 @@ export function FieldVisitReportForm({
   // back to; this screen is the only thing that writes them.
   useEffect(() => {
     void pruneDrafts();
+    void prunePendingMedia();
   }, []);
+
+  // Bytes the rep captured on a previous visit to this screen and never managed
+  // to send. Restored straight into the retry panel, with whichever object
+  // registration they had already consumed, so sending again does not register
+  // a second one.
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      const [audio, audioObjectId, photo, photoObjectId] = await Promise.all([
+        readPendingMediaBytes(draftScope, "audio"),
+        readPendingMediaRegistration(draftScope, "audio"),
+        readPendingMediaBytes(draftScope, "photo"),
+        readPendingMediaRegistration(draftScope, "photo"),
+      ]);
+
+      if (cancelled) return;
+
+      if (audio) {
+        setPendingAudio({
+          body: {
+            blob: new Blob([audio.bytes], { type: audio.mimeType }),
+            mimeType: audio.mimeType,
+          },
+          objectId: audioObjectId,
+          persisted: true,
+        });
+      }
+
+      if (photo) {
+        setPendingPhoto({
+          body: new File([photo.bytes], photo.fileName, {
+            type: photo.mimeType,
+          }),
+          objectId: photoObjectId,
+          persisted: true,
+        });
+      }
+
+      // The retry lives on the form, and the capture screen would hide it
+      // behind a mic button.
+      if (audio || photo) setStep("form");
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftScope]);
 
   // Leaving mid-recording — a back tap, or the redirect after confirming —
   // must not leave the microphone live and a cap timer firing into a tree that
@@ -533,14 +594,15 @@ export function FieldVisitReportForm({
   // then the file sits in `pendingPhoto` with the retry.
   async function handlePhotoSelected(
     file: File,
-    registeredObjectId: string | null = null,
+    existing: { objectId: string | null; persisted: boolean } | null = null,
   ) {
     setIsUploadingPhoto(true);
     setError(null);
 
-    let objectId = registeredObjectId;
+    let objectId = existing?.objectId ?? null;
+    let persisted = existing?.persisted ?? false;
     const keepForRetry = (message: string) => {
-      setPendingPhoto({ body: file, objectId });
+      setPendingPhoto({ body: file, objectId, persisted });
       setError(message);
     };
 
@@ -550,8 +612,17 @@ export function FieldVisitReportForm({
         // reject it every time — so say so once, at capture, rather than
         // offering a retry that cannot work.
         setPendingPhoto(null);
+        void deletePendingMedia(draftScope, "photo");
         setError(t("problemPhotoTooLargeNotice"));
         return;
+      }
+
+      if (!persisted) {
+        persisted = await writePendingMediaBytes(draftScope, "photo", {
+          bytes: await file.arrayBuffer(),
+          mimeType: file.type || "image/jpeg",
+          fileName: file.name || "problem-photo.jpg",
+        });
       }
 
       let presigned: PresignedUpload | null = null;
@@ -570,6 +641,10 @@ export function FieldVisitReportForm({
 
         objectId = registerResult.data.storageObject.id;
         presigned = registerResult.data.uploadUrl ?? null;
+
+        if (persisted) {
+          await writePendingMediaRegistration(draftScope, "photo", objectId);
+        }
       }
 
       presigned ??= await resignUpload(objectId);
@@ -580,6 +655,7 @@ export function FieldVisitReportForm({
       }
 
       setPendingPhoto(null);
+      await deletePendingMedia(draftScope, "photo");
       setProblemPhoto({
         objectId,
         fileName: file.name || "problem-photo.jpg",
@@ -598,7 +674,15 @@ export function FieldVisitReportForm({
   function retryPendingPhoto() {
     if (!pendingPhoto) return;
 
-    void handlePhotoSelected(pendingPhoto.body, pendingPhoto.objectId);
+    void handlePhotoSelected(pendingPhoto.body, {
+      objectId: pendingPhoto.objectId,
+      persisted: pendingPhoto.persisted,
+    });
+  }
+
+  function discardPendingPhoto() {
+    setPendingPhoto(null);
+    void deletePendingMedia(draftScope, "photo");
   }
 
   // Collapsing the problem row discards it: the whole point of the exception
@@ -729,7 +813,7 @@ export function FieldVisitReportForm({
   async function handleTranscription(
     blob: Blob,
     mimeType: string,
-    registeredObjectId: string | null = null,
+    existing: { objectId: string | null; persisted: boolean } | null = null,
   ) {
     setIsTranscribing(true);
     setError(null);
@@ -738,9 +822,10 @@ export function FieldVisitReportForm({
     // Whatever happens below, the recording itself is kept until it has
     // actually reached storage, so every failure ends in a retry the rep can
     // take rather than in silence.
-    let objectId = registeredObjectId;
+    let objectId = existing?.objectId ?? null;
+    let persisted = existing?.persisted ?? false;
     const keepForRetry = (message: string) => {
-      setPendingAudio({ body: { blob, mimeType }, objectId });
+      setPendingAudio({ body: { blob, mimeType }, objectId, persisted });
       setError(message);
     };
 
@@ -749,8 +834,20 @@ export function FieldVisitReportForm({
         // Refused here rather than by the server, so it fails once instead of
         // on every retry.
         setPendingAudio(null);
+        void deletePendingMedia(draftScope, "audio");
         setError(t("voiceTooLargeNotice"));
         return;
+      }
+
+      if (!persisted) {
+        // Before any network call: from this line on, the recording survives a
+        // reload, a killed tab and a phone that dies — which is the whole point,
+        // since everything below it is exactly what fails in a dead zone.
+        persisted = await writePendingMediaBytes(draftScope, "audio", {
+          bytes: await blob.arrayBuffer(),
+          mimeType,
+          fileName: buildRecordingFileName(mimeType),
+        });
       }
 
       // The URL registration hands back is good for one immediate upload; a
@@ -771,6 +868,12 @@ export function FieldVisitReportForm({
 
         objectId = registerResult.data.storageObject.id;
         presigned = registerResult.data.uploadUrl ?? null;
+
+        // Recorded next to the bytes so a retry taken after a reload re-signs
+        // this object instead of registering a second one.
+        if (persisted) {
+          await writePendingMediaRegistration(draftScope, "audio", objectId);
+        }
       }
 
       presigned ??= await resignUpload(objectId);
@@ -801,6 +904,9 @@ export function FieldVisitReportForm({
       }
 
       setPendingAudio(null);
+      // The recording is in storage and the form is filled from it, so the copy
+      // on the device has nothing left to protect.
+      await deletePendingMedia(draftScope, "audio");
 
       const filledSections = applyExtractedVisitData(result.data.extractedData);
 
@@ -828,8 +934,16 @@ export function FieldVisitReportForm({
     void handleTranscription(
       pendingAudio.body.blob,
       pendingAudio.body.mimeType,
-      pendingAudio.objectId,
+      {
+        objectId: pendingAudio.objectId,
+        persisted: pendingAudio.persisted,
+      },
     );
+  }
+
+  function discardPendingAudio() {
+    setPendingAudio(null);
+    void deletePendingMedia(draftScope, "audio");
   }
 
   function releaseMicrophone() {
@@ -1061,7 +1175,14 @@ export function FieldVisitReportForm({
     // cannot cut the delete short and leave a draft behind.
     draftClosedRef.current = true;
     draftStoredRef.current = false;
-    await deleteDraft(draftScope);
+    // Anything still pending goes with it: the visit is locked from here, so
+    // the screen that could retry these bytes no longer renders and they would
+    // sit on the device until they aged out, unreachable.
+    await Promise.all([
+      deleteDraft(draftScope),
+      deletePendingMedia(draftScope, "audio"),
+      deletePendingMedia(draftScope, "photo"),
+    ]);
 
     // Deliberately today's route, not the screen the report was opened from.
     // Confirming ends the visit, so the next thing the rep needs is the next
@@ -1133,6 +1254,11 @@ export function FieldVisitReportForm({
           <div>
             <p className="eyebrow">{t("voicePendingEyebrow")}</p>
             <h2>{t("voicePendingTitle")}</h2>
+            <p>
+              {pendingAudio.persisted
+                ? t("pendingSavedOnDevice")
+                : t("pendingNotSavedOnDevice")}
+            </p>
             <p>{t("voicePendingBody")}</p>
             {pendingAudioUrl ? (
               <audio
@@ -1156,7 +1282,7 @@ export function FieldVisitReportForm({
             <button
               className="inline-toggle"
               disabled={isTranscribing}
-              onClick={() => setPendingAudio(null)}
+              onClick={discardPendingAudio}
               type="button"
             >
               {t("voicePendingDiscard")}
@@ -1173,6 +1299,11 @@ export function FieldVisitReportForm({
             <p className="eyebrow">{t("problemPhotoPendingEyebrow")}</p>
             <h2>{t("problemPhotoPendingTitle")}</h2>
             <p>{pendingPhoto.body.name || t("problemPhotoPendingFallback")}</p>
+            <p>
+              {pendingPhoto.persisted
+                ? t("pendingSavedOnDevice")
+                : t("pendingNotSavedOnDevice")}
+            </p>
           </div>
           <div className="notice-actions">
             <button
@@ -1188,7 +1319,7 @@ export function FieldVisitReportForm({
             <button
               className="inline-toggle"
               disabled={isUploadingPhoto}
-              onClick={() => setPendingPhoto(null)}
+              onClick={discardPendingPhoto}
               type="button"
             >
               {t("problemPhotoPendingDiscard")}

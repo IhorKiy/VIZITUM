@@ -20,10 +20,16 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
 
-const TENANT_SLUG = "e2e-field-revisit";
-const REP_EMAIL = "rep@e2e-field-revisit.local";
+// Parameterized so more than one spec can own a tenant shaped like this.
+// Specs that start visits cannot share one: `Visit.routeItemId` is unique, so
+// two of them racing over the same planned stop leaves the loser unable to
+// start a visit at all. Defaults reproduce the original field-revisit tenant
+// exactly, so calling this with no arguments is unchanged.
+const TENANT_SLUG = process.argv[2] ?? "e2e-field-revisit";
+const TENANT_NAME = process.argv[3] ?? "Vizitum E2E Field Revisit";
+const LOCATION_NAME = process.argv[4] ?? "E2E Revisit Market";
+const REP_EMAIL = `rep@${TENANT_SLUG}.local`;
 const REP_PASSWORD = "E2eField12345!";
-const LOCATION_NAME = "E2E Revisit Market";
 const ANNOUNCEMENT_UNREAD_TITLE = "E2E notice still unread";
 const ANNOUNCEMENT_READ_TITLE = "E2E notice already read";
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -52,7 +58,7 @@ try {
     const tenant = await tx.platformTenant.upsert({
       where: { slug: TENANT_SLUG },
       create: {
-        name: "Vizitum E2E Field Revisit",
+        name: TENANT_NAME,
         slug: TENANT_SLUG,
         country: "UA",
         timezone: "Europe/Kiev",
