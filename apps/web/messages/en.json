@@ -1275,6 +1275,7 @@
       "voiceRecordAria": "Record voice note",
       "voiceStopAria": "Stop recording",
       "voiceEmptyNotice": "Speech was recognized, but no structured fields were found.",
+      "draftRestoredNotice": "Restored the report you started on this device.",
       "voiceErrorNotice": "Could not process the recording. Fill in the form manually.",
       "voiceMaxDurationNotice": "Recording stopped automatically after 5 minutes.",
       "visitDateLabel": "Visit date",

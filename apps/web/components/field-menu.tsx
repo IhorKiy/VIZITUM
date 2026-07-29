@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 
 import { withBackOrigin } from "../lib/back-navigation";
 import type { FieldMenuLink, Zone } from "../lib/navigation";
+import { clearDrafts } from "../lib/offline-drafts";
 import { logoutAction } from "../lib/session-actions";
 import { selectZoneAction } from "../lib/zone-actions";
 import { CloseIcon, LogOutIcon, MenuIcon } from "./icons";
@@ -194,7 +195,15 @@ export function FieldMenu({
         ) : null}
 
         {user ? (
-          <form action={logoutAction} className="field-menu-logout">
+          <form
+            action={logoutAction}
+            className="field-menu-logout"
+            // Signing out hands the phone to whoever holds it next, so the
+            // half-typed reports cached on the device go with the session.
+            // Best effort: the sign-out request usually outlasts the delete,
+            // and drafts are swept by age regardless.
+            onSubmit={() => void clearDrafts()}
+          >
             <input name="tenantSlug" type="hidden" value={tenantSlug} />
             <button className="field-menu-logout-button" type="submit">
               <LogOutIcon size={18} />

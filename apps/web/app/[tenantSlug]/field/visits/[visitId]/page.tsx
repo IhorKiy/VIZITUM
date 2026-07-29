@@ -298,6 +298,9 @@ export default async function VisitDetailPage({
             products={productsResult?.ok ? productsResult.data : []}
             shelfProducts={shelfProducts}
             tenantSlug={tenantSlug}
+            // Keys the on-device draft. Only reachable here because the
+            // signed-out branch above already returned.
+            userId={sessionResult.ok ? sessionResult.data.user.id : ""}
             visitId={visitId}
             voiceHint={
               voiceHintResult?.ok ? voiceHintResult.data.voiceHint : null
