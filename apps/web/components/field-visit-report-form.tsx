@@ -627,6 +627,22 @@ export function FieldVisitReportForm({
 
       let presigned: PresignedUpload | null = null;
 
+      if (objectId) {
+        presigned = await resignUpload(objectId);
+
+        if (!presigned) {
+          // The registration died while the bytes waited. An unclaimed problem
+          // photo's storage object is swept 24 h after it was registered, and
+          // the device holds the bytes for days — so re-signing an id from
+          // Friday fails every time on Monday, and without this the capture
+          // would be permanently unsendable while the panel still said it was
+          // safe. Registering again costs one spare storage object; refusing to
+          // is what costs the rep their evidence.
+          objectId = null;
+          await writePendingMediaRegistration(draftScope, "photo", null);
+        }
+      }
+
       if (!objectId) {
         const registerResult = await registerProblemPhotoAction(visitId, {
           fileName: file.name || "problem-photo.jpg",
@@ -853,6 +869,19 @@ export function FieldVisitReportForm({
       // The URL registration hands back is good for one immediate upload; a
       // retry arrives with an object id instead and has to re-sign.
       let presigned: PresignedUpload | null = null;
+
+      if (objectId) {
+        presigned = await resignUpload(objectId);
+
+        if (!presigned) {
+          // Same reasoning as the photo path: a registration the device has
+          // been holding can be gone by the time the rep gets signal back, and
+          // re-signing it then fails on every attempt. Better one spare storage
+          // object than a recording that can never be sent.
+          objectId = null;
+          await writePendingMediaRegistration(draftScope, "audio", null);
+        }
+      }
 
       if (!objectId) {
         const registerResult = await registerFieldReportAudioAction(visitId, {
