@@ -10,16 +10,26 @@ import { expect, test, type Page } from "@playwright/test";
 // stop's own visit slot may already be taken.
 //
 // Seeded by scripts/seed-e2e-field-revisit.mjs: dedicated tenant (en locale),
-// one field rep, one assigned location on today's route as a planned stop.
-// The seed resets route-item status and leftover visits, so the flow below
-// always starts from "planned".
+// one field rep, one assigned location on today's route as a planned stop, and
+// a pair of announcements (one unread, one acknowledged) that
+// field-announcements.spec.ts reads. The seed resets route-item status and
+// leftover visits, so the flow below always starts from "planned".
 //
 // global-setup.ts already runs the seed once per run, but this file re-seeds
 // in beforeAll anyway: the tests below mutate the seeded state, and a CI
 // retry lands in a fresh worker whose beforeAll must reset it back to
-// "planned" or the retry deterministically fails. This is safe under
-// fullyParallel because only this file reads route/visit state — the other
-// specs use the tenant solely to sign in.
+// "planned" or the retry deterministically fails.
+//
+// What makes that safe under fullyParallel is not that this file is the only
+// reader — field-announcements.spec.ts reads the announcement half of the same
+// tenant, and this re-seed rewrites it. It is that the seed converges
+// idempotently on one state, and every other spec only *reads* it: a re-seed
+// landing mid-test hands them the state they already expect. That balance
+// breaks the moment another file mutates seeded state — an announcements test
+// that actually clicks "Got it", say. Such a test needs its own fixture (its
+// own tenant, or a notice nothing else asserts on), not a second re-seed here:
+// two files re-seeding the same rows is how one wipes what the other is
+// halfway through asserting.
 
 const TENANT_SLUG = "e2e-field-revisit";
 const REP_EMAIL = "rep@e2e-field-revisit.local";

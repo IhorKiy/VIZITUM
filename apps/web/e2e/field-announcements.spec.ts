@@ -7,8 +7,12 @@ import { expect, test, type Page } from "@playwright/test";
 // Neither half is unit-testable: the filter lives in the home page's own data
 // handling, and the screen is a server component with a server action behind
 // its "Got it" button. The checks read the pair of notices global-setup.ts
-// seeds (one unread, one already read) and mutate nothing, so a retry sees the
-// same state — acknowledging is left to the seed, which owns that split.
+// seeds (one unread, one already read) and mutate nothing — which is a
+// requirement here, not a convenience: field-revisit.spec.ts re-seeds this
+// tenant in its own beforeAll, and under fullyParallel that can land at any
+// point in this file's run. Reading state the seed converges on is safe;
+// acknowledging a notice from here would race it. A test that needs to click
+// "Got it" needs its own fixture — see the note in field-revisit.spec.ts.
 
 const TENANT_SLUG = "e2e-field-revisit";
 const REP_EMAIL = "rep@e2e-field-revisit.local";
