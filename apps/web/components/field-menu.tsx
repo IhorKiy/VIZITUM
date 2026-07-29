@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -54,9 +54,31 @@ export function FieldMenu({
   const tCommon = useTranslations("common");
   const tZoneSwitcher = useTranslations("common.zone.switcher");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const logoutFormRef = useRef<HTMLFormElement>(null);
+  const draftsClearedRef = useRef(false);
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  // Signing out hands the phone to whoever holds it next, so the half-typed
+  // reports cached on it go with the session. The clear has to finish *before*
+  // the sign-out navigation, not alongside it: firing it off and letting the
+  // request race the delete loses that race, and the next rep to sign in
+  // inherits the previous one's draft.
+  //
+  // Unsent recordings are deliberately left alone — see the note on
+  // `clearDrafts`. They belong to the rep who captured them, are keyed to that
+  // rep, and cannot be recreated from anything.
+  async function handleLogoutSubmit(event: FormEvent<HTMLFormElement>) {
+    if (draftsClearedRef.current) return;
+
+    event.preventDefault();
+    draftsClearedRef.current = true;
+
+    await clearDrafts();
+
+    logoutFormRef.current?.requestSubmit();
+  }
 
   // This menu hangs off every field screen, so a link out of it has no single
   // opener to return to: help opened from tasks must go back to tasks, not to
@@ -199,11 +221,8 @@ export function FieldMenu({
           <form
             action={logoutAction}
             className="field-menu-logout"
-            // Signing out hands the phone to whoever holds it next, so the
-            // half-typed reports cached on the device go with the session.
-            // Best effort: the sign-out request usually outlasts the delete,
-            // and drafts are swept by age regardless.
-            onSubmit={() => void clearDrafts()}
+            onSubmit={handleLogoutSubmit}
+            ref={logoutFormRef}
           >
             <input name="tenantSlug" type="hidden" value={tenantSlug} />
             <button className="field-menu-logout-button" type="submit">
