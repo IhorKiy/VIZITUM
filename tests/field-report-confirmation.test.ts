@@ -14,6 +14,14 @@ const context = {
 
 const createdAt = new Date("2026-07-20T09:00:00.000Z");
 
+// Computed rather than literal: confirmReport rejects a fieldReport.visitDate
+// outside the backdating window relative to the wall clock, so a fixed date
+// would start failing as time moves on. Yesterday (UTC) is always in-window.
+const visitDateIso = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
+const visitDateAt = new Date(`${visitDateIso}T00:00:00.000Z`);
+
 function buildVisit() {
   return {
     id: "visit-a",
@@ -316,7 +324,7 @@ describe("field-report.v1 shelf check write-back", () => {
         summary: "",
         tasksToCreate: [],
         fieldReport: {
-          visitDate: "2026-07-25",
+          visitDate: visitDateIso,
           shelfChecked: true,
           productUpdates: [{ productId: "product-b", status: "out_of_stock" }],
         },
@@ -342,14 +350,11 @@ describe("field-report.v1 shelf check write-back", () => {
       productId: { in: ["product-a"] },
       // Guards against an out-of-order confirmation reinstating an older
       // shelf — see tests/shelf-check-writeback.test.ts.
-      OR: [
-        { lastCheckedAt: null },
-        { lastCheckedAt: { lte: new Date("2026-07-25T00:00:00.000Z") } },
-      ],
+      OR: [{ lastCheckedAt: null }, { lastCheckedAt: { lte: visitDateAt } }],
     });
     assert.deepEqual(updates[0]?.assortmentUpdateMany.data, {
       status: "in_stock",
-      lastCheckedAt: new Date("2026-07-25T00:00:00.000Z"),
+      lastCheckedAt: visitDateAt,
     });
     assert.deepEqual(
       updates[1]?.assortmentUpdateMany.data.status,
@@ -367,7 +372,7 @@ describe("field-report.v1 shelf check write-back", () => {
         tasksToCreate: [],
         // The shelf panel was never opened, so `productUpdates` is empty for
         // the same reason it would be if everything were on the shelf.
-        fieldReport: { visitDate: "2026-07-25", productUpdates: [] },
+        fieldReport: { visitDate: visitDateIso, productUpdates: [] },
       },
       schemaVersion: "field-report.v1",
     });

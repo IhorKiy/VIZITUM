@@ -64,14 +64,30 @@ type FieldVisitReportFormProps = {
   voiceHint: string | null;
 };
 
-function todayIsoDate(): string {
+// Mirrors VISIT_DATE_BACKDATE_WINDOW_DAYS in src/modules/visits/shelf-check.ts
+// (this workspace cannot import from the backend) — keep the two in sync. The
+// backend allows one extra day of slack on both ends for timezone skew, so
+// these stricter local-time bounds never trip it.
+const VISIT_DATE_BACKDATE_WINDOW_DAYS = 3;
+
+function toLocalIsoDate(date: Date): string {
   // Local date, not UTC: new Date().toISOString() would prefill yesterday
   // between 00:00 and ~03:00 Kyiv time (UTC+2/+3).
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
-  return `${now.getFullYear()}-${month}-${day}`;
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function todayIsoDate(): string {
+  return toLocalIsoDate(new Date());
+}
+
+function minVisitIsoDate(): string {
+  const min = new Date();
+  min.setDate(min.getDate() - VISIT_DATE_BACKDATE_WINDOW_DAYS);
+
+  return toLocalIsoDate(min);
 }
 
 function normalizeLookup(value?: string | null): string {
@@ -338,7 +354,16 @@ export function FieldVisitReportForm({
   function applyExtractedVisitData(data: FieldReportExtractedData): string[] {
     const filledSections: string[] = [];
 
-    if (data.visitDate && isIsoDate(data.visitDate)) {
+    // Out-of-window dates are dropped rather than applied: an extracted
+    // future or week-old date is almost always a mis-hearing, and applying
+    // it would silently un-hide the date field with a wrong value. The
+    // collapsed row keeps showing "today", which is what stays true.
+    if (
+      data.visitDate &&
+      isIsoDate(data.visitDate) &&
+      data.visitDate <= todayIsoDate() &&
+      data.visitDate >= minVisitIsoDate()
+    ) {
       setVisitDate(data.visitDate);
       if (data.visitDate !== todayIsoDate())
         filledSections.push(t("sectionDate"));
@@ -1150,8 +1175,22 @@ export function FieldVisitReportForm({
 
           {showDateInput ? (
             <label>
-              <span>{t("visitDateLabel")}</span>
+              <span className="visit-date-row">
+                {t("visitDateLabel")}
+                <button
+                  className="inline-toggle"
+                  onClick={() => {
+                    setVisitDate(todayIsoDate());
+                    setDateEditing(false);
+                  }}
+                  type="button"
+                >
+                  {t("dateResetToday")}
+                </button>
+              </span>
               <input
+                max={todayIsoDate()}
+                min={minVisitIsoDate()}
                 onChange={(event) => setVisitDate(event.target.value)}
                 type="date"
                 value={visitDate}
