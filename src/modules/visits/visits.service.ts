@@ -20,9 +20,15 @@ import type { RequestContext } from "../tenancy/request-context";
 import {
   extractTasksToCreate,
   findReportCreatedTasks,
+  isRecord,
   toReportResponse,
 } from "./report-response.util";
-import { applyShelfCheck, extractShelfCheck } from "./shelf-check";
+import {
+  applyShelfCheck,
+  extractShelfCheck,
+  parseDateOnly,
+  VISIT_DATE_BACKDATE_WINDOW_DAYS,
+} from "./shelf-check";
 import type {
   AddTextVisitNoteRequestBody,
   CancelVisitRequestBody,
@@ -783,6 +789,10 @@ export class VisitsService {
       });
     }
 
+    if (schemaVersion === "field-report.v1") {
+      assertVisitDateInWindow(confirmedData);
+    }
+
     const tenant = await this.prisma.platformTenant.findUnique({
       where: { id: context.tenantId },
       select: { segmentTemplate: true },
@@ -1300,6 +1310,56 @@ function normalizeRequiredString(value: unknown): string | null {
   const normalizedValue = value.trim();
 
   return normalizedValue || null;
+}
+
+// The visit date in a `field-report.v1` confirmation is client-supplied and
+// only meaningful near the confirm: it exists so a rep can log yesterday's
+// forgotten visit, not to reconstruct history. Bounds are checked against the
+// server's UTC date with a ±1 day grace — the widest real timezone offset is
+// under 24h, so the grace absorbs every midnight/timezone skew without a
+// tenant-timezone lookup, and the frontend's stricter local-time bounds mean
+// an honest client never trips this.
+function assertVisitDateInWindow(confirmedData: Prisma.InputJsonObject): void {
+  const fieldReport = (confirmedData as Record<string, unknown>).fieldReport;
+
+  if (!isRecord(fieldReport)) {
+    return;
+  }
+
+  const visitDate = fieldReport.visitDate;
+
+  // Absent stays legal: older clients and drafts never sent one.
+  if (visitDate === undefined || visitDate === null) {
+    return;
+  }
+
+  const rejectVisitDate = (message: string): never => {
+    throw new BadRequestException({
+      code: "REPORT_INVALID",
+      message,
+      fieldErrors: { visitDate: [message] },
+    });
+  };
+
+  const parsed = parseDateOnly(visitDate);
+  const parsedMs = parsed
+    ? parsed.getTime()
+    : rejectVisitDate("Visit date must be a valid YYYY-MM-DD date.");
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  // parseDateOnly pins the date to UTC midnight, so flooring "now" to the
+  // day makes both sides whole days apart.
+  const utcTodayMs = Math.floor(Date.now() / dayMs) * dayMs;
+
+  if (parsedMs > utcTodayMs + dayMs) {
+    rejectVisitDate("Visit date cannot be in the future.");
+  }
+
+  if (parsedMs < utcTodayMs - (VISIT_DATE_BACKDATE_WINDOW_DAYS + 1) * dayMs) {
+    rejectVisitDate(
+      `Visit date cannot be more than ${VISIT_DATE_BACKDATE_WINDOW_DAYS} days ago.`,
+    );
+  }
 }
 
 function normalizeJsonObject(value: unknown): Prisma.InputJsonObject | null {

@@ -1315,6 +1315,8 @@
       "sectionNotes": "нотатки",
       "dateToday": "сьогодні",
       "dateChange": "Змінити",
+      "dateResetToday": "Сьогодні",
+      "confirmedBackdatedHint": "внесено заднім числом",
       "voiceChecklistTitle": "Що проговорити",
       "fillManually": "Заповнити вручну",
       "backToVoice": "Краще розкажу голосом",

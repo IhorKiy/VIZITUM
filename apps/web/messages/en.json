@@ -1315,6 +1315,8 @@
       "sectionNotes": "notes",
       "dateToday": "today",
       "dateChange": "Change",
+      "dateResetToday": "Today",
+      "confirmedBackdatedHint": "entered retroactively",
       "voiceChecklistTitle": "What to mention",
       "fillManually": "Fill in manually",
       "backToVoice": "Record by voice instead",

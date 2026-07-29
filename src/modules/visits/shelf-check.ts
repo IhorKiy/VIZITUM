@@ -110,8 +110,9 @@ export async function applyShelfCheck(
         // confirmed whenever the rep gets to them, not in visit order: a
         // Monday visit confirmed after Wednesday's would otherwise reinstate
         // Monday's shelf and walk `lastCheckedAt` backwards. This also blunts
-        // a back-dated `visitDate` from the form, which is client-supplied
-        // and never checked against the visit's own dates.
+        // a back-dated `visitDate` from the form, which is client-supplied —
+        // confirmReport bounds it to a short window but never compares it
+        // against the visit's own dates.
         // `lte` rather than `lt` so re-confirming the same day's report still
         // applies — a same-day correction is the newest word on that shelf,
         // and a date column cannot resolve finer than that anyway.
@@ -125,7 +126,12 @@ export async function applyShelfCheck(
   }
 }
 
-function parseDateOnly(value: unknown): Date | null {
+// How far back a rep may set the visit date when confirming a field report.
+// Mirrored in apps/web/components/field-visit-report-form.tsx (the frontend
+// cannot import from this workspace) — keep the two in sync.
+export const VISIT_DATE_BACKDATE_WINDOW_DAYS = 3;
+
+export function parseDateOnly(value: unknown): Date | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
   }

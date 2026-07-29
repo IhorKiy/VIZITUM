@@ -59,12 +59,22 @@ export function ConfirmedFieldReportSummary({
   const format = useFormatter();
   const data = normalizeConfirmedData(confirmedData);
   const empty = t("confirmedEmptyValue");
+  const backdatedVisitDate = backdatedVisitDateOf(
+    data.fieldReport.visitDate,
+    confirmedAt,
+  );
 
   return (
     <section className="report-detail-list">
       <div className="panel-title-stack">
         <h2>{t("confirmedTitle")}</h2>
         <p>{t("confirmedAt", { date: formatDateTime(format, confirmedAt) })}</p>
+        {backdatedVisitDate ? (
+          <p>
+            {t("visitDateLabel")}: {formatDate(format, backdatedVisitDate)} ·{" "}
+            {t("confirmedBackdatedHint")}
+          </p>
+        ) : null}
       </div>
 
       <div className="report-detail-section">
@@ -203,6 +213,26 @@ export function ConfirmedFieldReportSummary({
       </div>
     </section>
   );
+}
+
+// The visit date surfaces only when it differs from the confirm — the form
+// defaults it to "today", so on the overwhelming majority of reports a date
+// line would repeat the confirm timestamp one row up. When it does differ,
+// the hint marks the report as entered retroactively, so a reconstructed
+// visit is distinguishable from a live one. The comparison is day-granular
+// against the confirm's UTC date: a late-evening confirm can flag a same-day
+// report spuriously by one day, which is acceptable for an informational
+// marker. The regex guard keeps legacy reports with garbage dates (written
+// before write-time validation existed) from crashing formatDate.
+function backdatedVisitDateOf(
+  visitDate: string | null,
+  confirmedAt: string,
+): string | null {
+  return visitDate &&
+    /^\d{4}-\d{2}-\d{2}$/.test(visitDate) &&
+    visitDate < confirmedAt.slice(0, 10)
+    ? visitDate
+    : null;
 }
 
 // Reports confirmed before the form recorded the order as a fact only carry
