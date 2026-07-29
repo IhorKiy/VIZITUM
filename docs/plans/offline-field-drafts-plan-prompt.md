@@ -27,7 +27,11 @@ The goal is **not** a full offline-first rewrite. The field zone stays server-re
 3. **Restore on open**: when `field-visit-report-form.tsx` mounts and a draft exists for this visit, hydrate the form from it and show a dismissible "draft restored" notice. If a stored audio blob was never successfully uploaded, show it with a replay control and a "retry upload & transcribe" button instead of silently dropping it.
 4. **Failure UX**: on register/PUT/transcribe failure the error notice changes from "it failed" to "saved on this device — retry when you have signal", with an explicit retry button. Same for the photo.
 5. **Cleanup**: delete the visit's records after successful report confirm; also run a sweep on field-home mount deleting records older than 14 days. On logout, clear all records for that tenant+user (shared-device hygiene; document the residual risk — IndexedDB is not encrypted at rest).
-6. **Backend touch is minimal**: bump the temporary-audio TTL so a next-morning retry still has a valid `StorageObject` (24h → 72h; the constant lives in the visits/storage service — keep the presign itself short-lived and re-register instead: prefer **re-register on retry** (a fresh `POST /visits/:id/notes/audio/register`) over extending TTLs, so no backend change is required if re-register is idempotent enough in practice; verify what a second register call creates and dedupe `VisitNote` rows if needed).
+6. **Retry re-signs, it never re-registers** (corrected after reading the backend; the earlier draft of this plan had it backwards). `POST /visits/:id/notes/audio/register` is *not* idempotent: it creates a `StorageObject` **and** a `VisitNote` row per call, with no dedupe and no unique constraint, so retrying through it leaves one more of each on the visit every attempt — plus an R2 key the cleanup worker never sweeps, since it only collects `temporary_audio` whose status is `expired` and nothing in the field-report flow ever sets that. The problem-photo endpoint is no better: it expires its predecessors but still creates a new row, and confirming a report against a *stale* photo id resurrects a dead row pointing at bytes that are gone.
+
+   The retry-safe path needs no backend change: `POST /storage/objects/:id/upload-url` re-signs the PUT for the object registration already created (a field rep passes `assertCanWriteStorageObject` for `temporary_audio`/`visit_attachment` they own). So: register once, keep the object id, and re-sign on every retry. The URL minted at registration cannot be replayed — it expires after 300 s.
+
+   Two consequences to preserve: never put an object id into the persisted draft before its bytes are confirmed in storage (otherwise confirm can reference nothing), and check the server's size caps client-side at capture (audio 50 MB, photo 10 MB) so an oversized file fails once instead of on every retry.
 
 ### Phase 2 — Deferred report send (outbox)
 
@@ -58,12 +62,13 @@ The goal is **not** a full offline-first rewrite. The field zone stays server-re
 Ship as a stacked series of small PRs, one phase boundary = one merged, releasable state:
 
 1. **PR 1 (Phase 1a)**: IndexedDB module + form-draft persist/restore + cleanup + i18n strings. No backend changes.
-2. **PR 2 (Phase 1b)**: audio/photo blob persistence, retry UX, re-register-on-retry (verify/dedupe second-register behavior server-side if needed). Delete dead `field-voice-note-recorder.tsx`.
-3. **PR 3 (Phase 2 backend)**: `clientRequestId` on confirm — migration, service logic, tests. Update `docs/reference/api-reference.md` + `data-model.md` in the same change (hard convention).
-4. **PR 4 (Phase 2 frontend)**: outbox + flusher + pending-send UI + deferred audio attach.
-5. **PR 5 (Phase 3 backend)**: client visit id + `startedAt` + route-item conflict resolution, tests first.
-6. **PR 6 (Phase 3 frontend)**: `startVisit` outbox kind + locally-pending visit screen.
-7. **PR 7 (Phase 3 shell)**: route snapshot + offline fallback render + minimal SW/manifest.
+2. **PR 2 (Phase 1b, part 1 — shipped)**: keep the recorded audio and the picked photo addressable after a failed upload, with a retry that re-signs the same storage object (see item 6 above), client-side size caps, and the recorder-lifecycle fixes that retry UI would otherwise widen (no unmount teardown → live microphone after navigating away; no `error` listener; a double-tap between `stop()` and its async `stop` event clearing the chunk array; a stuck `isRecording` disabling the manual form, which must always stay available). Deletes dead `field-voice-note-recorder.tsx` plus its orphaned `common.recorder` messages and CSS.
+3. **PR 3 (Phase 1b, part 2)**: make those pending bytes survive a reload — a *separate* IndexedDB object store (`report-drafts` is cleared on sign-out and swept by age, and unsent work must not be), storing `ArrayBuffer` + mime rather than a `Blob` (WebKit can purge the file behind a stored Blob, which surfaces only at retry as a zero-length upload), resolving writes on `transaction.oncomplete` rather than request success, and a visible state when IndexedDB is unavailable (private browsing) instead of the silent no-op that is right for a convenience draft and wrong for a queue. Note iOS Safari evicts script-writable storage after 7 days without a Home Screen install — the UI must not promise more retention than that.
+4. **PR 4 (Phase 2 backend)**: `clientRequestId` on confirm — migration, service logic, tests. Update `docs/reference/api-reference.md` + `data-model.md` in the same change (hard convention).
+5. **PR 5 (Phase 2 frontend)**: outbox + flusher + pending-send UI + deferred audio attach.
+6. **PR 6 (Phase 3 backend)**: client visit id + `startedAt` + route-item conflict resolution, tests first.
+7. **PR 7 (Phase 3 frontend)**: `startVisit` outbox kind + locally-pending visit screen.
+8. **PR 8 (Phase 3 shell)**: route snapshot + offline fallback render + minimal SW/manifest.
 
 ## Verification
 

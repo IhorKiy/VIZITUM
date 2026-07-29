@@ -126,12 +126,6 @@
         "body": "Your account doesn't currently have permission to any area of this workspace. Contact your administrator to request access."
       }
     },
-    "recorder": {
-      "record": "Record",
-      "stop": "Stop",
-      "unsupported": "Browser recording is unavailable here. Choose an audio file from this device and upload it instead.",
-      "error": "Microphone access was not available. Allow microphone access, record again or choose an existing audio file."
-    },
     "notice": {
       "connectionRequired": "Connection required",
       "backendNotConnected": "Backend session is not connected",
@@ -1288,6 +1282,20 @@
       "draftRestoredNotice": "Restored the report you started on this device.",
       "voiceErrorNotice": "Could not process the recording. Fill in the form manually.",
       "voiceMaxDurationNotice": "Recording stopped automatically after 5 minutes.",
+      "voiceTooLargeNotice": "This recording is too large to send. Fill in the form manually.",
+      "voicePendingAria": "Recording waiting to be sent",
+      "voicePendingEyebrow": "Not sent",
+      "voicePendingTitle": "The recording is still here",
+      "voicePendingBody": "It is kept on this screen until it is sent. Try again once you have signal, or fill in the form manually.",
+      "voicePendingRetry": "Send again",
+      "voicePendingSending": "Sending…",
+      "voicePendingDiscard": "Delete recording",
+      "problemPhotoTooLargeNotice": "This photo is too large to send. Take a smaller one.",
+      "problemPhotoPendingAria": "Photo waiting to be sent",
+      "problemPhotoPendingEyebrow": "Not sent",
+      "problemPhotoPendingTitle": "The photo is still here",
+      "problemPhotoPendingFallback": "Problem photo",
+      "problemPhotoPendingDiscard": "Delete photo",
       "visitDateLabel": "Visit date",
       "outcomeLabel": "Visit result",
       "outcomePositive": "Positive",

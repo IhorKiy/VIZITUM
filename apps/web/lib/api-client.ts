@@ -696,6 +696,16 @@ export type VisitNote = {
   createdAt: string;
 };
 
+// A short-lived signed PUT the browser uploads bytes to directly. Returned by
+// the register endpoints and, for a retry, by `createStorageObjectUploadUrl`
+// against the object that registration already created.
+export type PresignedUpload = {
+  url: string;
+  method: "PUT";
+  expiresAt: string;
+  headers: Record<string, string>;
+};
+
 export type RegisteredAudioUpload = {
   note: VisitNote;
   storageObject: {
@@ -707,12 +717,7 @@ export type RegisteredAudioUpload = {
     checksum: string | null;
     expiresAt: string;
   };
-  uploadUrl?: {
-    url: string;
-    method: "PUT";
-    expiresAt: string;
-    headers: Record<string, string>;
-  };
+  uploadUrl?: PresignedUpload;
 };
 
 // `code`/`details` mirror the backend's ApiErrorResponse (src/common/api-error.types.ts)
@@ -1949,12 +1954,7 @@ export type RegisteredProblemPhoto = {
     contentType: string;
     sizeBytes: string | null;
   };
-  uploadUrl?: {
-    url: string;
-    method: "PUT";
-    expiresAt: string;
-    headers: Record<string, string>;
-  };
+  uploadUrl?: PresignedUpload;
 };
 
 // Same register-then-PUT dance as the voice note: the image bytes go straight
@@ -1975,6 +1975,20 @@ export async function createStorageObjectDownloadUrl(
 ): Promise<ApiResult<{ url: string; expiresAt: string }>> {
   return apiPost<{ url: string; expiresAt: string }>(
     `/storage/objects/${storageObjectId}/download-url`,
+    {},
+  );
+}
+
+// Re-signs the PUT for an object that was already registered. This is what a
+// failed upload retries against: registering again would mint a second storage
+// object — and, for audio, a second `VisitNote` row on the visit — for bytes
+// that only ever needed one home. The presigned URL from the original
+// registration is only valid five minutes, so a retry can rarely reuse it.
+export async function createStorageObjectUploadUrl(
+  storageObjectId: string,
+): Promise<ApiResult<PresignedUpload>> {
+  return apiPost<PresignedUpload>(
+    `/storage/objects/${storageObjectId}/upload-url`,
     {},
   );
 }

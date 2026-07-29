@@ -1743,17 +1743,8 @@ textarea {
   width: 100%;
 }
 
-.voice-recorder {
-  display: grid;
-  gap: 8px;
-}
-
-.voice-recorder-controls {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
+/* Replay control for a recording that has not reached storage yet, so the rep
+   can hear what is waiting before deciding to send it again. */
 .voice-recorder-player {
   max-width: 100%;
   width: 100%;

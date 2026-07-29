@@ -126,12 +126,6 @@
         "body": "Ваш обліковий запис наразі не має прав доступу до жодної області цього робочого простору. Зверніться до адміністратора, щоб отримати доступ."
       }
     },
-    "recorder": {
-      "record": "Записати",
-      "stop": "Зупинити",
-      "unsupported": "Запис у браузері тут недоступний. Оберіть аудіофайл із цього пристрою та завантажте його.",
-      "error": "Немає доступу до мікрофона. Надайте доступ, запишіть ще раз або оберіть наявний аудіофайл."
-    },
     "notice": {
       "connectionRequired": "Потрібне з'єднання",
       "backendNotConnected": "Сесія з бекендом не підключена",
@@ -1288,6 +1282,20 @@
       "draftRestoredNotice": "Відновлено звіт, який ви почали на цьому пристрої.",
       "voiceErrorNotice": "Не вдалося обробити запис. Заповніть форму вручну.",
       "voiceMaxDurationNotice": "Запис автоматично зупинено через 5 хвилин.",
+      "voiceTooLargeNotice": "Цей запис завеликий, щоб надіслати. Заповніть форму вручну.",
+      "voicePendingAria": "Запис очікує на відправлення",
+      "voicePendingEyebrow": "Не надіслано",
+      "voicePendingTitle": "Запис нікуди не зник",
+      "voicePendingBody": "Він лишається на цьому екрані, доки не буде надісланий. Спробуйте ще раз, коли з'явиться зв'язок, або заповніть форму вручну.",
+      "voicePendingRetry": "Надіслати ще раз",
+      "voicePendingSending": "Надсилаємо…",
+      "voicePendingDiscard": "Видалити запис",
+      "problemPhotoTooLargeNotice": "Це фото завелике, щоб надіслати. Зробіть менше.",
+      "problemPhotoPendingAria": "Фото очікує на відправлення",
+      "problemPhotoPendingEyebrow": "Не надіслано",
+      "problemPhotoPendingTitle": "Фото нікуди не зникло",
+      "problemPhotoPendingFallback": "Фото проблеми",
+      "problemPhotoPendingDiscard": "Видалити фото",
       "visitDateLabel": "Дата візиту",
       "outcomeLabel": "Результат візиту",
       "outcomePositive": "Позитивний",
