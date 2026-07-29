@@ -103,12 +103,13 @@ export default async function FieldProductsPage({
   if (!sessionResult.data.productsEnabled) {
     return (
       <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
-        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">{tField("flowEyebrow")}</p>
-            <h1>{t("title")}</h1>
-          </div>
+        <header className="page-header page-header--compact">
+          <BackLink
+            href={backTarget.href}
+            inline
+            label={tBack(backTarget.labelKey)}
+          />
+          <h1>{t("title")}</h1>
         </header>
 
         <section aria-label={t("disabledAria")} className="notice-panel">
@@ -153,12 +154,13 @@ export default async function FieldProductsPage({
   if (!productsResult.ok) {
     return (
       <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
-        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">{tField("flowEyebrow")}</p>
-            <h1>{t("title")}</h1>
-          </div>
+        <header className="page-header page-header--compact">
+          <BackLink
+            href={backTarget.href}
+            inline
+            label={tBack(backTarget.labelKey)}
+          />
+          <h1>{t("title")}</h1>
         </header>
 
         <section
@@ -189,13 +191,13 @@ export default async function FieldProductsPage({
 
   return (
     <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
-      <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">{tField("flowEyebrow")}</p>
-          <h1>{t("title")}</h1>
-          <p>{t("body")}</p>
-        </div>
+      <header className="page-header page-header--compact">
+        <BackLink
+          href={backTarget.href}
+          inline
+          label={tBack(backTarget.labelKey)}
+        />
+        <h1>{t("title")}</h1>
       </header>
 
       <section aria-label={t("listAria")} className="panel drilldown-panel">

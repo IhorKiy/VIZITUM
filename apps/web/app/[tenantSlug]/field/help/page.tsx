@@ -18,10 +18,9 @@ export default async function FieldHelpPage({
 }: HelpPageProps) {
   const { tenantSlug } = await params;
   const { from } = await searchParams;
-  const [t, tBack, tField] = await Promise.all([
+  const [t, tBack] = await Promise.all([
     getTranslations("field.help"),
     getTranslations("common.back"),
-    getTranslations("field"),
   ]);
 
   // The menu opens this from any field screen, so the opener states itself and
@@ -34,13 +33,13 @@ export default async function FieldHelpPage({
 
   return (
     <AppShell activeArea="field-menu" tenantSlug={tenantSlug}>
-      <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
-      <header className="page-header">
-        <div>
-          <p className="eyebrow">{tField("flowEyebrow")}</p>
-          <h1>{t("title")}</h1>
-          <p>{t("body")}</p>
-        </div>
+      <header className="page-header page-header--compact">
+        <BackLink
+          href={backTarget.href}
+          inline
+          label={tBack(backTarget.labelKey)}
+        />
+        <h1>{t("title")}</h1>
       </header>
 
       <section aria-label={t("title")} className="panel">

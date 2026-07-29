@@ -8,15 +8,33 @@ import { PendingSubmitButton } from "./pending-submit-button";
 type AnnouncementFeedProps = {
   announcements: ActiveAnnouncement[];
   markReadAction: (formData: FormData) => Promise<void>;
+  /**
+   * Off on the dedicated screen, which already carries the board's name in its
+   * own page header — the section sits under the greeting on the home screen,
+   * where it needs to say what it is.
+   */
+  showHeading?: boolean;
+  /**
+   * Whether the acknowledged notices hide behind a disclosure. They do wherever
+   * the board is a guest on someone else's screen; on the screen that exists to
+   * show the board, folding away most of it would be the whole point missed.
+   */
+  foldRead?: boolean;
 };
 
-// What the manager has put on the board and is in force today. Unread notices
-// sit open at the top of the home screen, because the point of the board is
-// that nobody has to go looking for it; the ones already acknowledged fold
-// away so a month of standing rules never buries the day's route.
+// What the manager has put on the board and is in force today. Rendered in two
+// places, and what each one passes in is the difference between them: the home
+// screen hands over only the unread notices, because the point of the board is
+// that nobody has to go looking for what they haven't seen — and the whole
+// section disappears once they are acknowledged, rather than leaving a folded
+// row on top of the day's route. The announcements screen off the field menu
+// (/field/announcements) hands over the full board, where the already-read ones
+// fold away under a disclosure instead of burying the ones still in force.
 export async function AnnouncementFeed({
   announcements,
+  foldRead = true,
   markReadAction,
+  showHeading = true,
 }: AnnouncementFeedProps) {
   const [t, format] = await Promise.all([
     getTranslations("field.announcements"),
@@ -29,15 +47,30 @@ export async function AnnouncementFeed({
 
   const unread = announcements.filter((announcement) => !announcement.isRead);
   const read = announcements.filter((announcement) => announcement.isRead);
+  // Same cards either way — only whether they sit behind a disclosure differs.
+  const readCards = read.map((announcement) => (
+    <AnnouncementCard
+      announcement={announcement}
+      endsLabel={t("endsOn", {
+        date: formatAnnouncementDate(format, announcement.endsAt),
+      })}
+      key={announcement.id}
+      markReadLabel={t("markRead")}
+      markingLabel={t("marking")}
+      newLabel={t("newBadge")}
+    />
+  ));
 
   return (
     <section aria-label={t("sectionAria")} className="announcement-feed">
-      <h2 className="announcement-feed-heading">
-        {t("heading")}
-        {unread.length > 0 ? (
-          <span className="announcement-feed-count">{unread.length}</span>
-        ) : null}
-      </h2>
+      {showHeading ? (
+        <h2 className="announcement-feed-heading">
+          {t("heading")}
+          {unread.length > 0 ? (
+            <span className="announcement-feed-count">{unread.length}</span>
+          ) : null}
+        </h2>
+      ) : null}
 
       {unread.map((announcement) => (
         <AnnouncementCard
@@ -54,21 +87,19 @@ export async function AnnouncementFeed({
       ))}
 
       {read.length > 0 ? (
-        <details className="announcement-feed-read">
-          <summary>{t("readCount", { count: read.length })}</summary>
-          {read.map((announcement) => (
-            <AnnouncementCard
-              announcement={announcement}
-              endsLabel={t("endsOn", {
-                date: formatAnnouncementDate(format, announcement.endsAt),
-              })}
-              key={announcement.id}
-              markReadLabel={t("markRead")}
-              markingLabel={t("marking")}
-              newLabel={t("newBadge")}
-            />
-          ))}
-        </details>
+        foldRead ? (
+          <details className="announcement-feed-read">
+            <summary>{t("readCount", { count: read.length })}</summary>
+            {readCards}
+          </details>
+        ) : (
+          <div className="announcement-feed-read is-open">
+            <p className="announcement-feed-read-label">
+              {t("readCount", { count: read.length })}
+            </p>
+            {readCards}
+          </div>
+        )
       ) : null}
     </section>
   );

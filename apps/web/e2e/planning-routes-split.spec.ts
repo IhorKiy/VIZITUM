@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// The routes list moved off /field/planning onto its own screen and nav entry.
+// The routes list moved off /field/planning onto its own screen, reached from
+// the field menu.
 // Links written for the old combined screen — a bookmark, a `from` origin
 // already handed out, a redirect still in flight from a server action — keep
 // naming the old path, so the planning screen forwards them instead of

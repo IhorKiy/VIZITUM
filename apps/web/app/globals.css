@@ -4357,6 +4357,28 @@ textarea {
   justify-content: space-between;
 }
 
+/* The field menu's screens (routes, locations, products, help) put the back
+   control on the title's own line and carry nothing else — no eyebrow, no
+   description. Each of those screens is a list, and the stacked header spent
+   most of a phone's first screenful restating what the menu entry the reader
+   just tapped already said. Declared after the mobile-only .page-header rule
+   above (and after the shared breakpoint's) so the flex row wins over the
+   grid both there and on a wide viewport. */
+.page-header--compact,
+.app-shell--mobile-only .page-header.page-header--compact {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
+/* Sized against the 40px round control beside it rather than the 32px a
+   stacked header can afford: at 375px "Мої маршрути" wraps to two lines at the
+   larger size and the row stops reading as one line. */
+.page-header--compact h1 {
+  font-size: 24px;
+}
+
 .app-shell--mobile-only .toolbar {
   justify-content: flex-start;
 }
@@ -6644,7 +6666,17 @@ a.metric-card:hover {
   padding: 4px 0;
 }
 
-.announcement-feed-read[open] {
+.announcement-feed-read[open],
+.announcement-feed-read.is-open {
   display: grid;
   gap: 10px;
+}
+
+/* Stands in for the disclosure's summary on the announcements screen, where
+   the read notices are listed rather than folded away. */
+.announcement-feed-read-label {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+  padding: 4px 0;
 }

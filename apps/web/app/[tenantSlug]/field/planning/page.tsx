@@ -22,6 +22,7 @@ import {
   type RoutePlan,
   type RouteTemplate,
 } from "../../../../lib/api-client";
+import { backOrigin, withBackOrigin } from "../../../../lib/back-navigation";
 import type { IntlFormatter } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 
@@ -46,7 +47,8 @@ export default async function PlanningPage({
   const { tenantSlug } = await params;
   const { tab, route, template, month, date, planning } = await searchParams;
 
-  // Routes moved to their own screen and nav entry. Links written for the old
+  // Routes moved to their own screen, now reached from the field menu. Links
+  // written for the old
   // tabbed screen — bookmarks, a `from` origin already handed out, the route
   // editor's own deep links — still name this path, so they are forwarded
   // rather than silently landing on the calendar.
@@ -343,9 +345,19 @@ export default async function PlanningPage({
           <div className="empty-state-panel">
             <h2>{t("emptyRoutesTitle")}</h2>
             <p>{t("noTemplatesForAssignBody")}</p>
+            {/* The routes screen moved into the field menu, so it no longer
+                has a nav slot to come back from: this hand-off states the
+                calendar — on the month and day the rep is looking at — as the
+                origin, and the routes screen resolves it. */}
             <Link
               className="secondary-button"
-              href={`/${tenantSlug}/field/routes`}
+              href={withBackOrigin(
+                `/${tenantSlug}/field/routes`,
+                backOrigin("/field/planning", {
+                  month: currentMonth,
+                  date: selectedDate,
+                }),
+              )}
             >
               {t("goToRoutes")}
             </Link>

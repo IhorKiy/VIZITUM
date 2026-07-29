@@ -23,6 +23,7 @@ import {
   type Location,
   type RouteTemplate,
 } from "../../../../lib/api-client";
+import { resolveBackTarget } from "../../../../lib/back-navigation";
 import type { CommonTranslator } from "../../../../lib/format";
 import { getFormString } from "../../../../lib/form";
 import { INPUT_LIMITS } from "../../../../lib/input-limits";
@@ -31,6 +32,7 @@ import { RouteStopDragList } from "./route-stop-drag-list";
 type RoutesPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    from?: string;
     route?: string;
     template?: string;
   }>;
@@ -41,7 +43,14 @@ export default async function RoutesPage({
   searchParams,
 }: RoutesPageProps) {
   const { tenantSlug } = await params;
-  const { route, template } = await searchParams;
+  const { from, route, template } = await searchParams;
+  // Opened from the field menu, which hangs off every field screen, so where
+  // "back" lands is whatever screen the menu was opened on — and from
+  // planning's "no routes yet" empty state, which is the other way in.
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/field`,
+    labelKey: "home",
+  });
   const [t, tBack, tCommon] = await Promise.all([
     getTranslations("field.routes"),
     getTranslations("common.back"),
@@ -55,7 +64,9 @@ export default async function RoutesPage({
     const sessionResult = await getCurrentSession();
 
     if (!name || !sessionResult.ok) {
-      redirect(routesHref(tenantSlug, "new", "failed"));
+      redirect(
+        routesHref(tenantSlug, { from, routeId: "new", status: "failed" }),
+      );
     }
 
     const result = await createRouteTemplate({
@@ -64,10 +75,18 @@ export default async function RoutesPage({
     });
 
     if (!result.ok) {
-      redirect(routesHref(tenantSlug, "new", "failed"));
+      redirect(
+        routesHref(tenantSlug, { from, routeId: "new", status: "failed" }),
+      );
     }
 
-    redirect(routesHref(tenantSlug, result.data.id, "created"));
+    redirect(
+      routesHref(tenantSlug, {
+        from,
+        routeId: result.data.id,
+        status: "created",
+      }),
+    );
   }
 
   async function deleteRouteTemplateAction(formData: FormData) {
@@ -76,16 +95,18 @@ export default async function RoutesPage({
     const templateId = getFormString(formData, "templateId").trim();
 
     if (!templateId) {
-      redirect(routesHref(tenantSlug, undefined, "failed"));
+      redirect(routesHref(tenantSlug, { from, status: "failed" }));
     }
 
     const result = await deleteRouteTemplate(templateId);
 
     if (!result.ok) {
-      redirect(routesHref(tenantSlug, templateId, "failed"));
+      redirect(
+        routesHref(tenantSlug, { from, routeId: templateId, status: "failed" }),
+      );
     }
 
-    redirect(routesHref(tenantSlug, undefined, "deleted"));
+    redirect(routesHref(tenantSlug, { from, status: "deleted" }));
   }
 
   async function addTemplateStopAction(formData: FormData) {
@@ -95,13 +116,19 @@ export default async function RoutesPage({
     const locationId = getFormString(formData, "locationId").trim();
 
     if (!templateId || !locationId) {
-      redirect(routesHref(tenantSlug, templateId || undefined, "failed"));
+      redirect(
+        routesHref(tenantSlug, {
+          from,
+          routeId: templateId || undefined,
+          status: "failed",
+        }),
+      );
     }
 
     const activeTemplate = await findOwnRouteTemplate(templateId);
 
     if (!activeTemplate) {
-      redirect(routesHref(tenantSlug, undefined, "failed"));
+      redirect(routesHref(tenantSlug, { from, status: "failed" }));
     }
 
     const nextSequence = activeTemplate.items.length
@@ -114,10 +141,18 @@ export default async function RoutesPage({
     });
 
     if (!result.ok) {
-      redirect(routesHref(tenantSlug, templateId, "failed"));
+      redirect(
+        routesHref(tenantSlug, { from, routeId: templateId, status: "failed" }),
+      );
     }
 
-    redirect(routesHref(tenantSlug, templateId, "item-added"));
+    redirect(
+      routesHref(tenantSlug, {
+        from,
+        routeId: templateId,
+        status: "item-added",
+      }),
+    );
   }
 
   async function removeTemplateStopAction(formData: FormData) {
@@ -127,16 +162,30 @@ export default async function RoutesPage({
     const itemId = getFormString(formData, "itemId").trim();
 
     if (!templateId || !itemId) {
-      redirect(routesHref(tenantSlug, templateId || undefined, "failed"));
+      redirect(
+        routesHref(tenantSlug, {
+          from,
+          routeId: templateId || undefined,
+          status: "failed",
+        }),
+      );
     }
 
     const result = await deleteRouteTemplateItem(templateId, itemId);
 
     if (!result.ok) {
-      redirect(routesHref(tenantSlug, templateId, "failed"));
+      redirect(
+        routesHref(tenantSlug, { from, routeId: templateId, status: "failed" }),
+      );
     }
 
-    redirect(routesHref(tenantSlug, templateId, "item-removed"));
+    redirect(
+      routesHref(tenantSlug, {
+        from,
+        routeId: templateId,
+        status: "item-removed",
+      }),
+    );
   }
 
   async function renameRouteTemplateAction(formData: FormData) {
@@ -146,16 +195,26 @@ export default async function RoutesPage({
     const name = getFormString(formData, "name").trim();
 
     if (!templateId || !name) {
-      redirect(routesHref(tenantSlug, templateId || undefined, "failed"));
+      redirect(
+        routesHref(tenantSlug, {
+          from,
+          routeId: templateId || undefined,
+          status: "failed",
+        }),
+      );
     }
 
     const result = await updateRouteTemplate(templateId, { name });
 
     if (!result.ok) {
-      redirect(routesHref(tenantSlug, templateId, "failed"));
+      redirect(
+        routesHref(tenantSlug, { from, routeId: templateId, status: "failed" }),
+      );
     }
 
-    redirect(routesHref(tenantSlug, templateId, "renamed"));
+    redirect(
+      routesHref(tenantSlug, { from, routeId: templateId, status: "renamed" }),
+    );
   }
 
   // Called directly from the client-side drag list (not a <form> submit) once
@@ -168,25 +227,33 @@ export default async function RoutesPage({
     "use server";
 
     if (!templateId || itemIds.length === 0) {
-      redirect(routesHref(tenantSlug, templateId || undefined, "failed"));
+      redirect(
+        routesHref(tenantSlug, {
+          from,
+          routeId: templateId || undefined,
+          status: "failed",
+        }),
+      );
     }
 
     const result = await reorderRouteTemplateItems(templateId, itemIds);
 
     if (!result.ok) {
-      redirect(routesHref(tenantSlug, templateId, "failed"));
+      redirect(
+        routesHref(tenantSlug, { from, routeId: templateId, status: "failed" }),
+      );
     }
 
     // No success notice here — the drag itself (or the arrow-key move) is
     // already the feedback; a banner on top of every reorder would be noise.
-    redirect(routesHref(tenantSlug, templateId));
+    redirect(routesHref(tenantSlug, { from, routeId: templateId }));
   }
 
   const sessionResult = await getCurrentSession();
 
   if (!sessionResult.ok) {
     return (
-      <AppShell tenantSlug={tenantSlug} activeArea="field-routes">
+      <AppShell tenantSlug={tenantSlug} activeArea="field-menu">
         <header className="page-header">
           <div>
             <p className="eyebrow">{t("eyebrow")}</p>
@@ -235,14 +302,19 @@ export default async function RoutesPage({
       : undefined;
 
   return (
-    <AppShell tenantSlug={tenantSlug} activeArea="field-routes">
+    <AppShell tenantSlug={tenantSlug} activeArea="field-menu">
       {/* Drilling into a route replaces the title with the route's own header
-          and a back link, rather than stacking a second navigation layer. */}
+          and a back link, rather than stacking a second navigation layer — so
+          the way out of the screen itself is only offered at the list level,
+          where the route detail's own back link isn't already there. */}
       {!activeTemplate && !isCreatingTemplate && (
-        <header className="page-header">
-          <div>
-            <h1>{t("title")}</h1>
-          </div>
+        <header className="page-header page-header--compact">
+          <BackLink
+            href={backTarget.href}
+            inline
+            label={tBack(backTarget.labelKey)}
+          />
+          <h1>{t("title")}</h1>
         </header>
       )}
 
@@ -251,6 +323,7 @@ export default async function RoutesPage({
         addTemplateStopAction={addTemplateStopAction}
         createRouteTemplateAction={createRouteTemplateAction}
         deleteRouteTemplateAction={deleteRouteTemplateAction}
+        from={from}
         isCreatingTemplate={isCreatingTemplate}
         locations={locations}
         removeTemplateStopAction={removeTemplateStopAction}
@@ -281,6 +354,7 @@ function RoutesView({
   addTemplateStopAction,
   createRouteTemplateAction,
   deleteRouteTemplateAction,
+  from,
   isCreatingTemplate,
   locations,
   removeTemplateStopAction,
@@ -297,6 +371,8 @@ function RoutesView({
   addTemplateStopAction: ServerAction;
   createRouteTemplateAction: ServerAction;
   deleteRouteTemplateAction: ServerAction;
+  /** Tenant-relative origin to carry through this screen's own links. */
+  from: string | undefined;
   isCreatingTemplate: boolean;
   locations: Location[];
   removeTemplateStopAction: ServerAction;
@@ -329,7 +405,10 @@ function RoutesView({
             />
           </label>
           <div className="toolbar">
-            <Link className="secondary-button" href={routesHref(tenantSlug)}>
+            <Link
+              className="secondary-button"
+              href={routesHref(tenantSlug, { from })}
+            >
               {tCommon("cancel")}
             </Link>
             <PendingSubmitButton
@@ -359,7 +438,10 @@ function RoutesView({
       <>
         {statusNotice}
 
-        <BackLink href={routesHref(tenantSlug)} label={tBack("routes")} />
+        <BackLink
+          href={routesHref(tenantSlug, { from })}
+          label={tBack("routes")}
+        />
 
         <div className="route-name-card">
           <div className="route-name-summary">
@@ -455,7 +537,7 @@ function RoutesView({
       <div className="panel">
         <Link
           className="dashed-action-button route-add-trigger"
-          href={routesHref(tenantSlug, "new")}
+          href={routesHref(tenantSlug, { from, routeId: "new" })}
         >
           + {t("addRoute")}
         </Link>
@@ -470,7 +552,10 @@ function RoutesView({
                 <li key={routeTemplate.id}>
                   <Link
                     className="route-card"
-                    href={routesHref(tenantSlug, routeTemplate.id)}
+                    href={routesHref(tenantSlug, {
+                      from,
+                      routeId: routeTemplate.id,
+                    })}
                   >
                     <span className="route-card-icon" aria-hidden="true">
                       <RouteIcon />
@@ -583,8 +668,11 @@ async function findOwnRouteTemplate(
 
 function routesHref(
   tenantSlug: string,
-  routeId?: string,
-  status?: string,
+  {
+    from,
+    routeId,
+    status,
+  }: { from?: string; routeId?: string; status?: string } = {},
 ): string {
   const params = new URLSearchParams();
   if (routeId) {
@@ -592,6 +680,12 @@ function routesHref(
   }
   if (status) {
     params.set("template", status);
+  }
+  // The origin rides along through every link and every server-action redirect
+  // on this screen: opening a route, renaming it or adding a stop must not
+  // quietly repoint the back control at the home screen.
+  if (from) {
+    params.set("from", from);
   }
   const search = params.toString();
 

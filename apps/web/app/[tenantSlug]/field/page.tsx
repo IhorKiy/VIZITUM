@@ -177,9 +177,14 @@ export default async function FieldPage({
   // A failed announcements fetch leaves the board empty rather than taking the
   // whole home screen down: the route is the thing the rep came here for, and
   // it is already loaded.
-  const activeAnnouncements = announcementsResult.ok
-    ? announcementsResult.data.items
-    : [];
+  //
+  // Only the unread ones surface here. An acknowledged notice has already done
+  // its job, and a folded "already read (N)" row on top of the day's route is
+  // still a row: the full board — read included — lives one tap away on
+  // /field/announcements, off the field menu.
+  const unreadAnnouncements = (
+    announcementsResult.ok ? announcementsResult.data.items : []
+  ).filter((announcement) => !announcement.isRead);
 
   // Called directly from the client-side drag list (not a <form> submit)
   // once a drag or arrow-key move settles on a new order — see
@@ -376,9 +381,10 @@ export default async function FieldPage({
 
       {/* Above the route on purpose: what is in force this month frames the
           day's visits, so it has to be read before the first stop, not after
-          scrolling past it. */}
+          scrolling past it. Renders nothing once everything is acknowledged —
+          see unreadAnnouncements above. */}
       <AnnouncementFeed
-        announcements={activeAnnouncements}
+        announcements={unreadAnnouncements}
         markReadAction={markAnnouncementReadAction}
       />
 
