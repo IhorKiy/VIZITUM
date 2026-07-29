@@ -6666,17 +6666,26 @@ a.metric-card:hover {
   padding: 4px 0;
 }
 
-.announcement-feed-read[open],
-.announcement-feed-read.is-open {
+.announcement-feed-read[open] {
   display: grid;
   gap: 10px;
 }
 
-/* Stands in for the disclosure's summary on the announcements screen, where
-   the read notices are listed rather than folded away. */
-.announcement-feed-read-label {
+/* The same group with the fold turned off (the announcements screen lists the
+   acknowledged notices instead of hiding them). Its own class rather than a
+   modifier on .announcement-feed-read, so that one keeps meaning "the
+   <details>" — and its summary rule above keeps having a summary to match. */
+.announcement-feed-read-list {
+  display: grid;
+  gap: 10px;
+}
+
+/* Reads as the disclosure's summary did, but it is a heading: this half of the
+   board is a section of the screen, not a control. */
+.announcement-feed-read-heading {
   color: var(--muted);
   font-size: 13px;
+  font-weight: 400;
   margin: 0;
   padding: 4px 0;
 }

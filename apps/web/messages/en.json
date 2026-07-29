@@ -27,6 +27,7 @@
     "unknown": "Unknown",
     "back": {
       "home": "Back to home",
+      "announcements": "Back to announcements",
       "routes": "Back to routes",
       "planning": "Back to planning",
       "tasks": "Back to tasks",

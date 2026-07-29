@@ -28,8 +28,9 @@ type AnnouncementFeedProps = {
 // that nobody has to go looking for what they haven't seen — and the whole
 // section disappears once they are acknowledged, rather than leaving a folded
 // row on top of the day's route. The announcements screen off the field menu
-// (/field/announcements) hands over the full board, where the already-read ones
-// fold away under a disclosure instead of burying the ones still in force.
+// (/field/announcements) hands over the full board and turns the fold off: it
+// exists to show the board, so the acknowledged notices are listed under the
+// unread ones rather than hidden behind a disclosure.
 export async function AnnouncementFeed({
   announcements,
   foldRead = true,
@@ -93,10 +94,13 @@ export async function AnnouncementFeed({
             {readCards}
           </details>
         ) : (
-          <div className="announcement-feed-read is-open">
-            <p className="announcement-feed-read-label">
+          <div className="announcement-feed-read-list">
+            {/* A heading rather than the disclosure's summary text: on the
+                screen that exists to show the board, the acknowledged half is
+                a real section of the document, not a control. */}
+            <h2 className="announcement-feed-read-heading">
               {t("readCount", { count: read.length })}
-            </p>
+            </h2>
             {readCards}
           </div>
         )

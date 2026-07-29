@@ -517,6 +517,7 @@ function RoutesView({
               </p>
             </div>
             <RouteStopDragList
+              from={from}
               removeAction={removeTemplateStopAction}
               reorderAction={reorderTemplateStopsAction}
               stops={stops}

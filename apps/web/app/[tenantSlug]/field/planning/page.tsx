@@ -48,10 +48,9 @@ export default async function PlanningPage({
   const { tab, route, template, month, date, planning } = await searchParams;
 
   // Routes moved to their own screen, now reached from the field menu. Links
-  // written for the old
-  // tabbed screen — bookmarks, a `from` origin already handed out, the route
-  // editor's own deep links — still name this path, so they are forwarded
-  // rather than silently landing on the calendar.
+  // written for the old tabbed screen — bookmarks, a `from` origin already
+  // handed out, the route editor's own deep links — still name this path, so
+  // they are forwarded rather than silently landing on the calendar.
   //
   // The whole shape travels, not just the path: a redirect landing mid-flight
   // from a server action (`?template=created`) would otherwise swallow the

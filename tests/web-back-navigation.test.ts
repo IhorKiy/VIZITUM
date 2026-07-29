@@ -155,11 +155,43 @@ describe("resolveBackTarget", () => {
       href: "/acme/field",
       labelKey: "home",
     });
+    // The notice board is a menu screen a rep stays on, and the menu is on it
+    // like everywhere else, so it has to be nameable as an opener too.
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/announcements", menuFallback),
+      { href: "/acme/field/announcements", labelKey: "announcements" },
+    );
     // A screen the allowlist doesn't name (the menu is rendered on those too)
     // silently falls back rather than advertising an unnamed destination.
     assert.deepEqual(
       resolveBackTarget("acme", "/field/visits/visit-1", menuFallback),
       menuFallback,
+    );
+  });
+
+  it("keeps the menu's origin nested inside a route-editor origin", () => {
+    // Routes → a stop's location card is a second hop: the card returns into
+    // the route being edited, and the editor still has to know the menu was
+    // opened on Tasks. The inner origin travels as a param of the outer one,
+    // and the allowlist matches on the path, so it passes through untouched
+    // and the editor's own back control unwinds it one screen at a time.
+    const stopOrigin = backOrigin("/field/routes", {
+      route: "tpl-1",
+      from: "/field/tasks",
+    });
+    const backToEditor = resolveBackTarget("acme", stopOrigin, LOCATION_FALLBACK);
+
+    assert.equal(backToEditor.labelKey, "routes");
+    assert.equal(
+      backToEditor.href,
+      "/acme/field/routes?route=tpl-1&from=%2Ffield%2Ftasks",
+    );
+    assert.deepEqual(
+      resolveBackTarget("acme", "/field/tasks", {
+        href: "/acme/field",
+        labelKey: "home",
+      }),
+      { href: "/acme/field/tasks", labelKey: "tasks" },
     );
   });
 
@@ -190,6 +222,21 @@ describe("resolveBackTarget", () => {
     it("newline in the path", () => {
       assert.deepEqual(
         resolveBackTarget("acme", "/field\n/history", LOCATION_FALLBACK),
+        LOCATION_FALLBACK,
+      );
+    });
+
+    it("a repeated ?from= param, which reaches the page as an array", () => {
+      // Every screen declares `from?: string`, but Next.js hands over an array
+      // when the URL names the param twice — so the one unusable value that
+      // isn't a string at all has to fall back like the rest rather than take
+      // the screen down on .startsWith.
+      assert.deepEqual(
+        resolveBackTarget(
+          "acme",
+          ["/field/history", "/field/tasks"] as unknown as string,
+          LOCATION_FALLBACK,
+        ),
         LOCATION_FALLBACK,
       );
     });
