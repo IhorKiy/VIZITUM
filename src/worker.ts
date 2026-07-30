@@ -10,6 +10,7 @@ import { NestFactory } from "@nestjs/core";
 
 import { AppModule } from "./app.module";
 import { JsonLogger } from "./common/json-logger.service";
+import { SentryService } from "./common/sentry.service";
 import { AiService } from "./modules/ai/ai.service";
 import {
   resolvePilotAutoArchiveDays,
@@ -72,6 +73,13 @@ async function bootstrap() {
       error instanceof Error ? error.stack : undefined,
       "Worker",
     );
+    // Awaited so the event is delivered before app.close() ends the process.
+    await new SentryService().captureException({
+      exception: error,
+      requestId: `worker-${task}-${Date.now()}`,
+      module: "worker",
+      operation: task,
+    });
     process.exitCode = 1;
   } finally {
     await app.close();

@@ -67,6 +67,55 @@ describe("Sentry service", () => {
     restoreEnv("SENTRY_DSN", originalDsn);
     restoreEnv("SENTRY_ENVIRONMENT", originalEnvironment);
   });
+
+  it("parses V8 stack lines into structured frames, oldest first", async () => {
+    const originalDsn = process.env.SENTRY_DSN;
+    process.env.SENTRY_DSN = "https://public@sentry.example/42";
+    let body = "";
+    const service = new SentryService(async (input) => {
+      body = input.body;
+    });
+
+    const exception = new Error("boom");
+    exception.stack = [
+      "Error: boom",
+      "    at VisitsService.completeVisit (/app/src/modules/visits/visits.service.ts:120:15)",
+      "    at /app/node_modules/@nestjs/core/router/router-proxy.js:9:17",
+      "    at some opaque native frame",
+    ].join("\n");
+
+    await service.captureException({
+      exception,
+      requestId: "request-a",
+    });
+
+    const [, , eventLine] = body.split("\n");
+    const event = JSON.parse(eventLine) as {
+      exception: {
+        values: Array<{
+          stacktrace: { frames: Array<Record<string, unknown>> };
+        }>;
+      };
+    };
+
+    assert.deepEqual(event.exception.values[0].stacktrace.frames, [
+      { function: "at some opaque native frame" },
+      {
+        function: "<anonymous>",
+        filename: "/app/node_modules/@nestjs/core/router/router-proxy.js",
+        lineno: 9,
+        colno: 17,
+      },
+      {
+        function: "VisitsService.completeVisit",
+        filename: "/app/src/modules/visits/visits.service.ts",
+        lineno: 120,
+        colno: 15,
+      },
+    ]);
+
+    restoreEnv("SENTRY_DSN", originalDsn);
+  });
 });
 
 function restoreEnv(name: string, value: string | undefined): void {
