@@ -17,6 +17,7 @@ import {
   toReportResponse,
 } from "../visits/report-response.util";
 import { applyShelfCheck, extractShelfCheck } from "../visits/shelf-check";
+import { findVisitByEitherId } from "../visits/visit-identity";
 import { JsonLogger } from "../../common/json-logger.service";
 import {
   classifyAiDraftQuality,
@@ -74,13 +75,15 @@ export class AiService {
     inputObjectId: string,
   ): Promise<AiJobResponse> {
     const [visit, inputObject] = await Promise.all([
-      this.prisma.visit.findFirst({
-        where: {
-          id: visitId,
-          tenantId: context.tenantId,
-        },
-        select: { id: true, representativeUserId: true },
-      }),
+      findVisitByEitherId(
+        (where) =>
+          this.prisma.visit.findFirst({
+            where,
+            select: { id: true, representativeUserId: true },
+          }),
+        context.tenantId,
+        visitId,
+      ),
       this.prisma.storageObject.findFirst({
         where: {
           id: inputObjectId,
@@ -263,26 +266,17 @@ export class AiService {
     visitId: string,
     transcriptionJobId: string,
   ): Promise<AiJobResponse> {
-    const [visit, transcriptionJob] = await Promise.all([
-      this.prisma.visit.findFirst({
-        where: {
-          id: visitId,
-          tenantId: context.tenantId,
-        },
-        include: {
-          location: true,
-        },
-      }),
-      this.prisma.aiJob.findFirst({
-        where: {
-          id: transcriptionJobId,
-          tenantId: context.tenantId,
-          visitId,
-          type: "transcription",
-          status: "succeeded",
-        },
-      }),
-    ]);
+    const visit = await findVisitByEitherId(
+      (where) =>
+        this.prisma.visit.findFirst({
+          where,
+          include: {
+            location: true,
+          },
+        }),
+      context.tenantId,
+      visitId,
+    );
 
     if (!visit) {
       throw new NotFoundException({
@@ -300,6 +294,19 @@ export class AiService {
         message: "Extraction jobs can only be created for own visits.",
       });
     }
+
+    // Fetched after the visit rather than beside it, because `AiJob.visitId`
+    // holds the server's own id: matching it against the identifier the caller
+    // sent would find nothing whenever that identifier is a `clientVisitId`.
+    const transcriptionJob = await this.prisma.aiJob.findFirst({
+      where: {
+        id: transcriptionJobId,
+        tenantId: context.tenantId,
+        visitId: visit.id,
+        type: "transcription",
+        status: "succeeded",
+      },
+    });
 
     if (!transcriptionJob) {
       throw new BadRequestException({
@@ -478,11 +485,20 @@ export class AiService {
       });
     }
 
+    // The job is keyed by the visit's server id, so an identifier the device
+    // minted has to be resolved to one first. Left as the caller sent it when
+    // nothing resolves: the job lookup below then matches nothing and answers
+    // `AI_DRAFT_NOT_CONFIRMABLE`, exactly as it did before either id existed.
+    const visit = await findVisitByEitherId(
+      (where) => this.prisma.visit.findFirst({ where, select: { id: true } }),
+      context.tenantId,
+      visitId,
+    );
     const job = await this.prisma.aiJob.findFirst({
       where: {
         id: extractionJobId,
         tenantId: context.tenantId,
-        visitId,
+        visitId: visit?.id ?? visitId,
         type: "extraction",
         status: "succeeded",
       },
@@ -676,10 +692,15 @@ export class AiService {
       products: FieldReportProductCatalogEntry[];
     },
   ): Promise<TranscribeFieldReportResult> {
-    const visit = await this.prisma.visit.findFirst({
-      where: { id: visitId, tenantId: context.tenantId },
-      select: { id: true, representativeUserId: true },
-    });
+    const visit = await findVisitByEitherId(
+      (where) =>
+        this.prisma.visit.findFirst({
+          where,
+          select: { id: true, representativeUserId: true },
+        }),
+      context.tenantId,
+      visitId,
+    );
 
     if (!visit) {
       throw new NotFoundException({
