@@ -7,6 +7,7 @@ import {
   type TenantColorScheme,
 } from "./branding";
 import { tenantDisplayName } from "./navigation";
+import { isTenantSlug } from "./tenant-locale";
 
 export type ResolvedTenantBranding = {
   // Ready to render as-is: the stored tenant name, or the slug-derived
@@ -29,20 +30,30 @@ const defaultBranding = (
 // unknown tenants and API failures fall back to the default branding —
 // branding resolution must never break a page. Wrapped in React cache() so the
 // tenant layout, AppShell and the pre-auth pages share one fetch per request.
+//
+// The slug check lives in here rather than at the call sites on purpose:
+// cache() keys on the argument, so a caller that pre-filtered its slug to null
+// would miss the entry a caller passing the raw slug created, and the request
+// would fetch twice. Trim-and-lowercase mirrors the endpoint's own
+// normalizeSlug, so a link that shouts the slug ("/MG/login") still resolves
+// the workspace instead of rendering an unbranded, unnamed panel.
 export const resolveTenantBranding = cache(
   async (tenantSlug: string | null): Promise<ResolvedTenantBranding> => {
-    if (!tenantSlug) {
-      return defaultBranding(tenantSlug);
+    const normalized = tenantSlug?.trim().toLowerCase() ?? "";
+    const slug = isTenantSlug(normalized) ? normalized : null;
+
+    if (!slug) {
+      return defaultBranding(slug);
     }
 
     try {
       const response = await fetch(
-        buildApiUrl(`/tenants/${encodeURIComponent(tenantSlug)}/branding`),
+        buildApiUrl(`/tenants/${encodeURIComponent(slug)}/branding`),
         { cache: "no-store" },
       );
 
       if (!response.ok) {
-        return defaultBranding(tenantSlug);
+        return defaultBranding(slug);
       }
 
       const payload = (await response.json()) as {
@@ -54,7 +65,7 @@ export const resolveTenantBranding = cache(
       return {
         name: tenantDisplayName(
           typeof payload.name === "string" ? payload.name : null,
-          tenantSlug,
+          slug,
         ),
         colorScheme: toColorScheme(payload.colorScheme),
         logoUrl:
@@ -63,7 +74,7 @@ export const resolveTenantBranding = cache(
             : null,
       };
     } catch {
-      return defaultBranding(tenantSlug);
+      return defaultBranding(slug);
     }
   },
 );

@@ -20,11 +20,15 @@ export default async function AcceptInvitePage({
 }: AcceptInvitePageProps) {
   const { tenantSlug } = await params;
   const { token = "", error } = await searchParams;
-  const t = await getTranslations("invites");
-  const tCommon = await getTranslations("common");
-  const { phoneCountry } = await resolveTenantLocale(tenantSlug);
-  // Cache hit on the tenant layout's branding fetch; here for the name only.
-  const branding = await resolveTenantBranding(tenantSlug);
+  // Branding is a cache hit on the tenant layout's fetch and is here for the
+  // workspace name only; the rest resolve together like on every other
+  // pre-auth screen rather than one await at a time.
+  const [t, tCommon, { phoneCountry }, branding] = await Promise.all([
+    getTranslations("invites"),
+    getTranslations("common"),
+    resolveTenantLocale(tenantSlug),
+    resolveTenantBranding(tenantSlug),
+  ]);
 
   async function acceptInviteAction(formData: FormData) {
     "use server";
