@@ -472,10 +472,25 @@ export function resolveZoneLanding(
   return zone ? { kind: "zone", zone } : { kind: "choose", zones };
 }
 
-export function normalizeTenantName(tenantSlug: string): string {
+// Last-resort display name, derived from the slug ("acme-foods" -> "Acme
+// Foods"). Slugs are lowercase, so this can only ever approximate the name the
+// workspace was created under — never use it when the API answered.
+export function tenantNameFromSlug(tenantSlug: string): string {
   return tenantSlug
     .split("-")
     .filter(Boolean)
     .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
     .join(" ");
+}
+
+// The name a tenant workspace is shown under, everywhere it appears (login,
+// invite accept, zone chooser, sidebar, mobile topbar). `name` is the stored
+// tenant name from the public branding endpoint and is rendered verbatim —
+// a workspace created as "MG" reads "MG", not "Mg". The slug-derived
+// approximation is only for when that lookup failed.
+export function tenantDisplayName(
+  name: string | null | undefined,
+  tenantSlug: string,
+): string {
+  return name?.trim() || tenantNameFromSlug(tenantSlug);
 }
