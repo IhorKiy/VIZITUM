@@ -8,6 +8,7 @@ describe("AI extraction schemas", () => {
   it("defines schemas for all MVP segment templates", () => {
     assert.deepEqual(Object.keys(AI_EXTRACTION_SCHEMAS).sort(), [
       "distribution",
+      "medical",
       "partner_account",
       "service",
     ]);
@@ -45,5 +46,23 @@ describe("AI extraction schemas", () => {
       "postponed",
       "no_decision",
     ]);
+
+    const medicalSchema = service.getExtractionSchema("medical");
+    assert.deepEqual(medicalSchema.properties?.resultStatus?.enum, [
+      "completed",
+      "no_contact",
+      "postponed",
+      "follow_up_required",
+      "objection_received",
+    ]);
+    assert.deepEqual(
+      Object.keys(medicalSchema.properties?.templateSpecific?.properties ?? {}),
+      [
+        "doctorsMet",
+        "keyMessagesDelivered",
+        "samplesOrMaterialsLeft",
+        "prescriptionIntent",
+      ],
+    );
   });
 });

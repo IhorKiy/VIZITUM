@@ -62,16 +62,20 @@ export type AbandonVisitStartDecision =
 //
 // A *rejected* entry counts as abandonable, not as synced: the server refused
 // the create, so there is still no visit anywhere, and the rep is entitled to
-// clear the failure rather than carry it. Only `resolvedVisitId` — set by the
-// flush, and only once every rekey it owns has landed — means a real visit
-// exists.
+// clear the failure rather than carry it. A real visit exists once either
+// `resolvedVisitId` (every rekey the flush owns has landed) or `remoteVisitId`
+// (the server has answered, but that rekey hasn't finished yet — see
+// visit-start-outbox-flush.ts) is set; either one means deleting this entry
+// would strand a real visit rather than abandon a local-only one.
 export function decideAbandonVisitStart(
   entry: VisitStartOutboxEntry | null,
 ): AbandonVisitStartDecision {
   if (!entry) return { kind: "gone" };
 
-  if (entry.resolvedVisitId) {
-    return { kind: "synced", visitId: entry.resolvedVisitId };
+  const syncedVisitId = entry.resolvedVisitId ?? entry.remoteVisitId;
+
+  if (syncedVisitId) {
+    return { kind: "synced", visitId: syncedVisitId };
   }
 
   return { kind: "abandon" };

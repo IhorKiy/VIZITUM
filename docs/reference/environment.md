@@ -39,6 +39,7 @@ Same env as the API (it boots the same Nest application context: `DATABASE_URL`,
 | ----------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `API_BASE_URL`                                              | yes in deploys | Backend base URL **including `/api`** (default `http://127.0.0.1:4000/api`), used server-side in `apps/web/lib/api-client.ts`. |
 | `ENABLE_DEMO_FALLBACK` / `NEXT_PUBLIC_ENABLE_DEMO_FALLBACK` | no             | Enable demo data fallback (`apps/web/lib/demo-mode.ts`); keep disabled in production.                                          |
+| `NEXT_PUBLIC_ENABLE_SERVICE_WORKER`                         | no             | Registers `apps/web/public/sw.js` in a non-production `next dev` session (`apps/web/components/service-worker-registration.tsx`), which otherwise skips registering there — dev's `/_next/static/` chunks aren't immutable by URL the way a production build's are, so the worker's cache-first strategy risks serving a stale one. Set only by `apps/web/playwright.config.ts`'s own web server, for `field-offline-shell.spec.ts` to exercise the real worker; in production the worker always registers regardless of this flag. |
 
 ## Scripts
 

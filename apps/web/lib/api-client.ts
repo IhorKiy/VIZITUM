@@ -1746,7 +1746,7 @@ export async function getOperationsSummary(): Promise<
 }
 
 export type PlatformSegmentTemplate =
-  "distribution" | "service" | "partner_account";
+  "distribution" | "service" | "partner_account" | "medical";
 
 export type PlatformTenantMetrics = {
   companyAdminCount: number;

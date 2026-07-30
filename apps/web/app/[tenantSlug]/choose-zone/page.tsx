@@ -2,11 +2,8 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { getCurrentSession } from "../../../lib/api-client";
-import {
-  normalizeTenantName,
-  resolveZoneLanding,
-  zoneHomePath,
-} from "../../../lib/navigation";
+import { resolveZoneLanding, zoneHomePath } from "../../../lib/navigation";
+import { resolveTenantBranding } from "../../../lib/tenant-branding";
 import { selectZoneAction } from "../../../lib/zone-actions";
 
 type ChooseZonePageProps = {
@@ -39,10 +36,13 @@ export default async function ChooseZonePage({ params }: ChooseZonePageProps) {
     redirect(`/${tenantSlug}/no-access`);
   }
 
-  const [tChooser, tZoneNames, tCommon] = await Promise.all([
+  // The tenant layout already resolved branding for this request, so this is a
+  // cache hit, not a second round-trip — it is here only for the workspace name.
+  const [tChooser, tZoneNames, tCommon, branding] = await Promise.all([
     getTranslations("common.zone.chooser"),
     getTranslations("common.zone.names"),
     getTranslations("common"),
+    resolveTenantBranding(tenantSlug),
   ]);
 
   return (
@@ -52,7 +52,7 @@ export default async function ChooseZonePage({ params }: ChooseZonePageProps) {
           <div className="brand-mark">V</div>
           <div>
             <p className="brand-name">{tCommon("appName")}</p>
-            <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>
+            <p className="tenant-name">{branding.name}</p>
           </div>
         </div>
 

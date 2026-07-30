@@ -5,11 +5,7 @@ import { BrandMark } from "../../../components/brand-mark";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
 import { buildApiUrl, getCurrentSession } from "../../../lib/api-client";
 import { resolveTenantBranding } from "../../../lib/tenant-branding";
-import {
-  normalizeTenantName,
-  resolveZoneLanding,
-  zoneHomePath,
-} from "../../../lib/navigation";
+import { resolveZoneLanding, zoneHomePath } from "../../../lib/navigation";
 import { getFormString } from "../../../lib/form";
 import { INPUT_LIMITS } from "../../../lib/input-limits";
 
@@ -92,7 +88,7 @@ export default async function LoginPage({
           <BrandMark logoUrl={branding.logoUrl} />
           <div>
             <p className="brand-name">Vizitum</p>
-            <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>
+            <p className="tenant-name">{branding.name}</p>
           </div>
         </div>
 

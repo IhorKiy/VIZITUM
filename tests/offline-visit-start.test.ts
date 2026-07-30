@@ -68,12 +68,20 @@ function buildPrisma(options: {
   // The first call is always the pre-create replay lookup, which every race
   // test here means to miss.
   racedVisit?: ReturnType<typeof buildVisitRow> | null;
+  // Thrown from the adopt branch's clientVisitId backfill (updateMany), so a
+  // test can force that specific error-swallowing path.
+  updateManyError?: unknown;
 } = {}) {
   const creates: { data: Record<string, unknown> }[] = [];
+  const updateManyCalls: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }[] = [];
   let findUniqueCalls = 0;
 
   return {
     creates,
+    updateManyCalls,
     prisma: {
       location: { findFirst: async () => ({ id: "location-a" }) },
       user: { findFirst: async () => ({ id: "rep-a" }) },
@@ -100,6 +108,18 @@ function buildPrisma(options: {
             clientVisitId: query.data.clientVisitId ?? null,
             startedAt: query.data.startedAt,
           });
+        },
+        updateMany: async (query: {
+          where: Record<string, unknown>;
+          data: Record<string, unknown>;
+        }) => {
+          updateManyCalls.push(query);
+
+          if (options.updateManyError) {
+            throw options.updateManyError;
+          }
+
+          return { count: 1 };
         },
       },
     },
@@ -233,6 +253,87 @@ describe("offline visit start", () => {
 
     assert.equal(response.id, "visit-open");
     assert.equal(creates.length, 0);
+  });
+
+  it("backfills clientVisitId onto an adopted visit that doesn't have one yet", async () => {
+    // A retry that never learned this same adopt's answer at all (the
+    // response itself got lost, not just the client's own rekey) would
+    // otherwise re-evaluate the route slot from scratch every time, since
+    // adopting has never stored clientVisitId anywhere. Backfilling it here
+    // is what lets the next retry find it through the ordinary replay
+    // lookup instead — even if this adopted visit closes in the meantime.
+    const { prisma, updateManyCalls } = buildPrisma({
+      slotHolder: buildVisitRow({
+        id: "visit-open",
+        status: "in_progress",
+        representativeUserId: "rep-a",
+        clientVisitId: null,
+      }),
+    });
+    const service = new VisitsService(prisma as never);
+
+    await service.createVisit(
+      context as never,
+      baseBody({ clientVisitId: "cv-2", routeItemId: "route-item-a" }) as never,
+    );
+
+    assert.equal(updateManyCalls.length, 1);
+    assert.deepEqual(updateManyCalls[0].where, {
+      id: "visit-open",
+      tenantId: "tenant-a",
+      clientVisitId: null,
+    });
+    assert.deepEqual(updateManyCalls[0].data, { clientVisitId: "cv-2" });
+  });
+
+  it("never overwrites an adopted visit's own clientVisitId", async () => {
+    // A second device (or a second concurrent retry) adopting the same
+    // still-open visit must not steal the id whichever attempt got there
+    // first — the WHERE clause's own clientVisitId: null guard is what makes
+    // this safe under a real race; this pins the same rule from the read
+    // side, when this attempt's own snapshot already saw one set.
+    const { prisma, updateManyCalls } = buildPrisma({
+      slotHolder: buildVisitRow({
+        id: "visit-open",
+        status: "in_progress",
+        representativeUserId: "rep-a",
+        clientVisitId: "cv-first",
+      }),
+    });
+    const service = new VisitsService(prisma as never);
+
+    const response = await service.createVisit(
+      context as never,
+      baseBody({ clientVisitId: "cv-second", routeItemId: "route-item-a" }) as never,
+    );
+
+    assert.equal(response.id, "visit-open");
+    assert.equal(updateManyCalls.length, 0);
+  });
+
+  it("does not fail an adopt when the clientVisitId backfill collides", async () => {
+    // An astronomically unlikely unique collision on the backfill itself
+    // must not turn a successful adopt into a failed request — the rep
+    // already has their visit either way, and the retry logic already
+    // tolerates this path staying unresolved.
+    const { prisma, updateManyCalls } = buildPrisma({
+      slotHolder: buildVisitRow({
+        id: "visit-open",
+        status: "in_progress",
+        representativeUserId: "rep-a",
+        clientVisitId: null,
+      }),
+      updateManyError: p2002(),
+    });
+    const service = new VisitsService(prisma as never);
+
+    const response = await service.createVisit(
+      context as never,
+      baseBody({ clientVisitId: "cv-2", routeItemId: "route-item-a" }) as never,
+    );
+
+    assert.equal(response.id, "visit-open");
+    assert.equal(updateManyCalls.length, 1);
   });
 
   it("creates an unlinked visit when the stop was already finished", async () => {
