@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Browser-tab favicon: same glyph as the PNG icons, but with the
+       rounded corners the in-app .brand-mark tile has - nothing crops a
+       favicon, so the rounding must be baked in here. -->
+  <rect width="100" height="100" rx="22" fill="#176b5f" />
+  <path
+    d="M33 33 L50 70 L67 33"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="12.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
