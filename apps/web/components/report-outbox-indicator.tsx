@@ -11,6 +11,10 @@ import {
   type ReportOutboxState,
 } from "../lib/report-outbox-flush";
 import type { ReportOutboxScope } from "../lib/report-outbox";
+import {
+  flushVisitStartOutbox,
+  readVisitStartOutboxState,
+} from "../lib/visit-start-outbox-flush";
 import { LoaderIcon, SaveIcon } from "./icons";
 
 type ReportOutboxIndicatorProps = {
@@ -48,10 +52,23 @@ export function ReportOutboxIndicator({
       setIsSending(true);
 
       try {
+        // Starts flush first: a queued confirm for a visit that has not
+        // synced yet would otherwise reach the server ahead of its own
+        // visit and just re-queue itself anyway (see report-send-outcome.ts's
+        // VISIT_NOT_FOUND handling) — harmless, but there is no reason to
+        // make it wait a cycle when it does not have to.
+        const beforeStarts = await readVisitStartOutboxState(scope);
+        const afterStarts =
+          beforeStarts.pending === 0 && !options.includeRejected
+            ? beforeStarts
+            : await flushVisitStartOutbox(scope, options);
+        const aVisitSynced = afterStarts.pending < beforeStarts.pending;
+
         const before = await readReportOutboxState(scope);
 
         if (before.pending === 0 && !options.includeRejected) {
           setState(before);
+          if (aVisitSynced) router.refresh();
           return;
         }
 
@@ -59,10 +76,13 @@ export function ReportOutboxIndicator({
 
         setState(after);
 
-        // Something left the queue, so the screens behind this — today's route,
-        // the history, the visit itself — are now describing a world one step
-        // out of date.
-        if (after.pending < before.pending) {
+        // Something left one of the queues, so the screens behind this —
+        // today's route, the history, the visit itself — are now describing
+        // a world one step out of date. No visible chip reflects the start
+        // queue itself (see visit-start-outbox.ts); the visit page's own
+        // "still syncing" state is what the one rep who would care actually
+        // sees, once this refresh reaches it.
+        if (after.pending < before.pending || aVisitSynced) {
           router.refresh();
         }
       } finally {

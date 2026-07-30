@@ -1,29 +1,37 @@
-// The one IndexedDB connection the field zone's three on-device stores share,
-// and the handful of helpers that make raw IndexedDB bearable.
+// The one IndexedDB connection the field zone's on-device stores share, and
+// the handful of helpers that make raw IndexedDB bearable.
 //
 // Deliberately hand-rolled rather than pulling in a wrapper: the surface is
 // get/put/delete/cursor, and every caller has to be able to degrade instead of
 // throwing — private browsing, a quota refusal and an old WebView all fail here,
 // and none of them may take a report screen down with them.
 //
-// The three stores are kept separate because their lifetimes genuinely differ,
-// and conflating them would mean deleting the wrong thing at sign-out:
+// The stores are kept separate because their lifetimes genuinely differ, and
+// conflating them would mean deleting the wrong thing at sign-out:
 //
-//   report-drafts   what the rep typed — retypeable, so cleared on sign-out and
-//                   swept by age
-//   pending-media   recorded or photographed bytes that never reached storage —
-//                   not recreatable, so kept across sign-out, swept by age
-//   report-outbox   confirms the rep has already signed off but the server has
-//                   not seen — kept across sign-out and never swept by age,
-//                   because a report nobody sent is not stale, it is missing
+//   report-drafts     what the rep typed — retypeable, so cleared on sign-out
+//                     and swept by age
+//   pending-media     recorded or photographed bytes that never reached
+//                     storage — not recreatable, so kept across sign-out,
+//                     swept by age
+//   report-outbox     confirms the rep has already signed off but the server
+//                     has not seen — kept across sign-out and never swept by
+//                     age, because a report nobody sent is not stale, it is
+//                     missing
+//   visit-start-outbox visits the rep started with no signal — same
+//                     never-swept stance as report-outbox, and never even
+//                     deleted on success: it is the only durable record of a
+//                     device-minted id the server may have discarded (see
+//                     visit-start-outbox.ts)
 
 const DATABASE_NAME = "vizitum-field";
-// 1: report-drafts. 2: pending-media. 3: report-outbox.
-const DATABASE_VERSION = 3;
+// 1: report-drafts. 2: pending-media. 3: report-outbox. 4: visit-start-outbox.
+const DATABASE_VERSION = 4;
 
 export const DRAFT_STORE = "report-drafts";
 export const MEDIA_STORE = "pending-media";
 export const OUTBOX_STORE = "report-outbox";
+export const VISIT_START_STORE = "visit-start-outbox";
 
 export const UPDATED_AT_INDEX = "updatedAt";
 export const CREATED_AT_INDEX = "createdAt";
@@ -66,6 +74,7 @@ export function openFieldDatabase(): Promise<IDBDatabase | null> {
         [DRAFT_STORE, UPDATED_AT_INDEX],
         [MEDIA_STORE, UPDATED_AT_INDEX],
         [OUTBOX_STORE, CREATED_AT_INDEX],
+        [VISIT_START_STORE, CREATED_AT_INDEX],
       ] as const) {
         if (database.objectStoreNames.contains(name)) continue;
 

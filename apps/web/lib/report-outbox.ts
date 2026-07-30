@@ -155,6 +155,86 @@ export function deleteReportOutboxEntry(key: string): Promise<void> {
   );
 }
 
+// A lightweight existence check — getKey() rather than get() — for callers
+// that only need to know whether a confirm is waiting on this visit, not read
+// its payload. "One queued confirm per visit" (see outboxKey) is what makes
+// this a single lookup instead of a scan of the whole outbox.
+export function hasReportOutboxEntryForVisit(
+  scope: ReportOutboxScope,
+  visitId: string,
+): Promise<boolean> {
+  return runOnFieldDatabase<boolean>(false, async (database) => {
+    const store = database
+      .transaction(OUTBOX_STORE, "readonly")
+      .objectStore(OUTBOX_STORE);
+    const key = await promisifyRequest(store.getKey(outboxKey(scope, visitId)));
+
+    return key !== undefined;
+  });
+}
+
+// Cancelling a visit must not leave its queued confirm behind: unlike a rep
+// standing at the screen when a send is refused, nobody is left to reopen a
+// visit that cancelling is about to lock. Bounded the same as
+// deleteReportOutboxEntry, but the trade-off is worse here if it times out:
+// the entry stays, the next flush hits the visit's now-cancelled status,
+// gets refused, and lands right back in the stuck-forever state this
+// function exists to close — just gated on storage not answering in time
+// rather than happening on every cancel.
+export function deleteReportOutboxEntryForVisit(
+  scope: ReportOutboxScope,
+  visitId: string,
+): Promise<void> {
+  return runOnFieldDatabase<void>(
+    undefined,
+    async (database) => {
+      const transaction = database.transaction(OUTBOX_STORE, "readwrite");
+
+      transaction.objectStore(OUTBOX_STORE).delete(outboxKey(scope, visitId));
+
+      await commitTransaction(transaction);
+    },
+    STORAGE_TEARDOWN_TIMEOUT_MS,
+  );
+}
+
+// Moves a queued confirm from one visit id to another, patching both the
+// record's storage key and its `visitId` field — report-outbox-flush.ts reads
+// `entry.visitId` to build the confirm POST, so rekeying only the key would
+// leave the request pointing at the old id, silently reintroducing the exact
+// "the visit this points at can never be found again" failure this exists to
+// close. One atomic transaction, same shape as offline-drafts.ts's rekey
+// helpers. The one caller is visit-start-outbox-flush.ts, for a rep who
+// confirmed a report before the visit holding it had finished syncing under
+// its real id.
+export function rekeyReportOutboxEntry(
+  scope: ReportOutboxScope,
+  fromVisitId: string,
+  toVisitId: string,
+): Promise<boolean> {
+  return runOnFieldDatabase(false, async (database) => {
+    const transaction = database.transaction(OUTBOX_STORE, "readwrite");
+    const store = transaction.objectStore(OUTBOX_STORE);
+    const fromKey = outboxKey(scope, fromVisitId);
+    const record = await promisifyRequest(
+      store.get(fromKey) as IDBRequest<OutboxRecord | undefined>,
+    );
+
+    if (record) {
+      store.put({
+        ...record,
+        key: outboxKey(scope, toVisitId),
+        visitId: toVisitId,
+      });
+      store.delete(fromKey);
+    }
+
+    await commitTransaction(transaction);
+
+    return true;
+  });
+}
+
 // Records a failed attempt so the count the rep sees is honest about why, and so
 // a permanently-failing item is visible rather than silently retried forever.
 // The attempt counter is diagnostic; losing it does not lose the report.

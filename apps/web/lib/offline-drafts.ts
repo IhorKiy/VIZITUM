@@ -144,6 +144,42 @@ export function deleteDraft(scope: DraftScope): Promise<void> {
   );
 }
 
+// Moves a draft from one visit id to another inside one atomic transaction —
+// get the old record, put it under the new key, delete the old one, commit.
+// IndexedDB transactions are all-or-nothing, so this never leaves a draft
+// under neither key, and nothing here needs a two-phase write-new-then-
+// delete-old choreography.
+//
+// The one caller is a visit started offline that turned out to sync under a
+// different id than the device minted (see visit-start-outbox-flush.ts) —
+// best-effort there, since a draft is retypeable convenience state, unlike
+// the pending media below.
+export function rekeyDraft(
+  scope: DraftScope,
+  toVisitId: string,
+): Promise<boolean> {
+  return runOnFieldDatabase(false, async (database) => {
+    const transaction = database.transaction(DRAFT_STORE, "readwrite");
+    const store = transaction.objectStore(DRAFT_STORE);
+    const fromKey = draftKey(scope);
+    const record = await promisifyRequest(
+      store.get(fromKey) as IDBRequest<DraftRecord | undefined>,
+    );
+
+    if (record) {
+      store.put({
+        ...record,
+        key: draftKey({ ...scope, visitId: toVisitId }),
+      });
+      store.delete(fromKey);
+    }
+
+    await commitTransaction(transaction);
+
+    return true;
+  });
+}
+
 // Sweeps records nobody came back to. Runs off the `updatedAt` index so an
 // untouched device does not walk every record it has ever written.
 //
@@ -256,6 +292,25 @@ export function writePendingMediaBytes(
   });
 }
 
+// A lightweight existence check for callers that only need to know whether
+// bytes are pending, not read them — getKey() skips deserializing the
+// (potentially several-megabyte) ArrayBuffer that get() would materialize.
+export function hasPendingMediaBytes(
+  scope: DraftScope,
+  kind: PendingMediaKind,
+): Promise<boolean> {
+  return runOnFieldDatabase<boolean>(false, async (database) => {
+    const store = database
+      .transaction(MEDIA_STORE, "readonly")
+      .objectStore(MEDIA_STORE);
+    const key = await promisifyRequest(
+      store.getKey(mediaKey(scope, kind, "bytes")),
+    );
+
+    return key !== undefined;
+  });
+}
+
 export function readPendingMediaBytes(
   scope: DraftScope,
   kind: PendingMediaKind,
@@ -325,6 +380,44 @@ export function readPendingMediaRegistration(
     );
 
     return record?.objectId ?? null;
+  });
+}
+
+// Moves both kinds of pending media (bytes + registration, so up to four
+// records) from one visit id to another inside one atomic transaction — same
+// shape and the same caller as rekeyDraft above, one call rather than one per
+// kind so the caller gets a single all-or-nothing answer instead of having to
+// combine two. Unlike the draft, this one is load-bearing rather than
+// best-effort: these bytes cannot be recreated, so
+// visit-start-outbox-flush.ts only marks a start resolved once this lands.
+export function rekeyPendingMedia(
+  scope: DraftScope,
+  toVisitId: string,
+): Promise<boolean> {
+  return runOnFieldDatabase(false, async (database) => {
+    const transaction = database.transaction(MEDIA_STORE, "readwrite");
+    const store = transaction.objectStore(MEDIA_STORE);
+    const toScope = { ...scope, visitId: toVisitId };
+
+    for (const kind of ["audio", "photo"] as const) {
+      for (const part of ["bytes", "registration"] as const) {
+        const fromKey = mediaKey(scope, kind, part);
+        const record = await promisifyRequest(
+          store.get(fromKey) as IDBRequest<
+            MediaBytesRecord | MediaRegistrationRecord | undefined
+          >,
+        );
+
+        if (record) {
+          store.put({ ...record, key: mediaKey(toScope, kind, part) });
+          store.delete(fromKey);
+        }
+      }
+    }
+
+    await commitTransaction(transaction);
+
+    return true;
   });
 }
 

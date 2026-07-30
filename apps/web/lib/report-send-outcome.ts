@@ -54,6 +54,17 @@ export function classifyReportSendResult(
     return { kind: "queue" };
   }
 
+  // A visit started offline can have a confirm queued against it before its
+  // own create has synced — the rep tapped save before the start caught up.
+  // That confirm gets a real, connected 404 here, which would otherwise fall
+  // through to "rejected" below and be deleted and shown to the rep as a
+  // failure for something that was never wrong. Visits have no delete path,
+  // so outside that one race this code should be unreachable — a genuine
+  // "this visit doesn't exist" is not a case a real client can hit.
+  if (result.code === "VISIT_NOT_FOUND") {
+    return { kind: "queue" };
+  }
+
   return {
     kind: "rejected",
     message: result.message ?? "",

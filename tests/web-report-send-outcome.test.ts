@@ -85,6 +85,22 @@ describe("classifyReportSendResult", () => {
     }
   });
 
+  it("queues a 404 carrying VISIT_NOT_FOUND, since a visit started offline can outrun its own confirm", () => {
+    // Nothing ever deletes a visit, so this specific code can only mean the
+    // confirm reached the server before the visit's own create had synced —
+    // not a genuine rejection. A bare 404 with no code (the ordinary shape of
+    // a real rejection) still falls through to "rejected", per the case above.
+    assert.deepEqual(
+      classifyReportSendResult({
+        ok: false,
+        status: 404,
+        code: "VISIT_NOT_FOUND",
+        message: "Visit was not found.",
+      }),
+      { kind: "queue" },
+    );
+  });
+
   it("carries an empty message rather than inventing one", () => {
     // The screen decides the fallback wording; a placeholder invented here would
     // outrank the translated one the rep should actually see.
