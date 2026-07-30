@@ -65,6 +65,13 @@ Product and roadmap:
 - `docs/specs/ai-quality-spec.md`
 - `docs/specs/pilot-readiness-spec.md`
 
+Multi-PR efforts in progress, each carrying its own status, file map and known gaps - read the matching one before touching that area, and update it in the same change:
+
+- `docs/plans/offline-field-drafts-plan-prompt.md` - field offline resilience (local drafts, deferred sync, offline visit start).
+- `docs/plans/i18n-next-intl-plan-prompt.md` - internationalizing the web frontend with next-intl (tenant-driven locale).
+- `docs/plans/tenant-purge-plan-prompt.md` - two-stage tenant deletion (archive, retention, background purge).
+- `docs/plans/tenant-superadmin-plan-prompt.md` - a tenant Superadmin role and delegated admin management.
+
 Technical design:
 
 - `docs/vizitum-high-level-technical-design.md`
@@ -99,6 +106,7 @@ Staging baseline is validated. The following product flows have been implemented
 - Manager dashboard, CSV export and task assignment.
 - Permission-aware tenant navigation.
 - Platform operations summary token path and `alerts:check` with `OPERATIONS_SUMMARY_URL`.
+- Field offline resilience: drafts, unsent recordings/photos and confirmed reports survive a reload, a killed tab and a dead phone, and send themselves once signal returns; starting a visit no longer needs a connection at the moment of the tap. The exception to the sentence above - verified against the real API and database from a desktop browser, plus unit and Playwright coverage, but never smoked on staging or on a real phone, and the visit-start frontend is still in open PRs. Read `docs/plans/offline-field-drafts-plan-prompt.md` before touching any of it: it carries the current status and the known gaps.
 
 Provider evidence is recorded for Render, Vercel, Cloudflare R2, UptimeRobot and Sentry. Sentry is still partial until an actual staging event/release is visible.
 
