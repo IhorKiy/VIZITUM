@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { AiService } from "../src/modules/ai/ai.service";
 import { VisitsService } from "../src/modules/visits/visits.service";
 
 // Starting a visit is the first thing a rep does at a stop, and it needed signal.
@@ -338,5 +339,99 @@ describe("offline visit start", () => {
 
     assert.equal(response.id, "visit-real");
     assert.equal(clientVisitIdQueried, false);
+  });
+});
+
+// The id is only useful if it works everywhere the rep's phone puts it in a URL,
+// and the AI endpoints sit under the same `/visits/:visitId` prefix. They used
+// to match on `id` alone, so a visit started with no signal transcribed nothing
+// once the rep got signal back — and silently, since the form treats a failed
+// transcription as "fill it in manually" rather than as an error worth showing.
+describe("AI endpoints resolve either visit id", () => {
+  const aiContext = {
+    ...context,
+    permissions: [...context.permissions, "ai.use_reporting"],
+  };
+
+  it("transcribes a field report for a visit addressed by its client id", async () => {
+    // The voice path of the field report form, which is the one a rep reaches
+    // straight after starting a visit offline. Getting past the visit lookup is
+    // the whole assertion — the audio object is deliberately absent, so the
+    // error that does come back proves the visit itself resolved.
+    const queriedWheres: unknown[] = [];
+    const prisma = {
+      visit: {
+        findFirst: async (query: { where: unknown }) => {
+          queriedWheres.push(query.where);
+
+          return queriedWheres.length === 1
+            ? null
+            : { id: "visit-server", representativeUserId: "rep-a" };
+        },
+      },
+      storageObject: { findFirst: async () => null },
+    };
+    const service = new AiService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await assert.rejects(
+      service.transcribeFieldReport(aiContext as never, "cv-6", {
+        audioObjectId: "audio-a",
+        products: [],
+      }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "TRANSCRIPTION_INPUT_INVALID",
+    );
+    assert.deepEqual(queriedWheres, [
+      { tenantId: "tenant-a", id: "cv-6" },
+      { tenantId: "tenant-a", clientVisitId: "cv-6" },
+    ]);
+  });
+
+  it("looks an extraction job up by the visit's server id, not the id the caller sent", async () => {
+    // The subtle half. `AiJob.visitId` holds the server's own id, so resolving
+    // the visit is not enough — the job query has to use what the resolution
+    // returned. Matching it against the client id would find nothing and read
+    // as "no succeeded transcription", for a job sitting right there.
+    let jobWhere: { visitId?: string } | null = null;
+    const prisma = {
+      visit: {
+        findFirst: async (query: { where: { clientVisitId?: string } }) =>
+          query.where.clientVisitId
+            ? {
+                id: "visit-server",
+                representativeUserId: "rep-a",
+                location: { id: "location-a", name: "Location A" },
+              }
+            : null,
+      },
+      aiJob: {
+        findFirst: async (query: { where: { visitId?: string } }) => {
+          jobWhere = query.where;
+
+          return null;
+        },
+      },
+    };
+    const service = new AiService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await assert.rejects(
+      service.createExtractionJob(aiContext as never, "cv-7", "job-a"),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "EXTRACTION_INPUT_INVALID",
+    );
+    assert.equal(
+      (jobWhere as { visitId?: string } | null)?.visitId,
+      "visit-server",
+    );
   });
 });

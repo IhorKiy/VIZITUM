@@ -29,6 +29,7 @@ import {
   parseDateOnly,
   VISIT_DATE_BACKDATE_WINDOW_DAYS,
 } from "./shelf-check";
+import { findVisitByEitherId } from "./visit-identity";
 import type {
   AddTextVisitNoteRequestBody,
   CancelVisitRequestBody,
@@ -1093,26 +1094,13 @@ export class VisitsService {
     tenantId: string,
     visitId: string,
   ): Promise<VisitWithRelations> {
-    // Either identifier resolves the same visit. A visit the rep started with
-    // no signal is opened at its client id — that is the only id their phone
-    // had — and that URL has to keep working after the create syncs, rather
-    // than turning into a dead link the moment the server assigns its own.
-    //
-    // Checked as two separate queries rather than one OR, and in this order.
-    // `clientVisitId` is client-supplied, so a device (or a malicious rep)
-    // can mint one equal to another visit's real server `id` — an OR would
-    // let `findFirst` return either matching row, indeterminately. Trying the
-    // `id` match first and only falling back to `clientVisitId` means a real
-    // server id always wins over a client-minted collision.
-    const visit =
-      (await this.prisma.visit.findFirst({
-        where: { tenantId, id: visitId },
-        include: visitInclude,
-      })) ??
-      (await this.prisma.visit.findFirst({
-        where: { tenantId, clientVisitId: visitId },
-        include: visitInclude,
-      }));
+    // Either identifier resolves the same visit, server id first — see
+    // visit-identity.ts for why that order is not cosmetic.
+    const visit = await findVisitByEitherId(
+      (where) => this.prisma.visit.findFirst({ where, include: visitInclude }),
+      tenantId,
+      visitId,
+    );
 
     if (!visit) {
       throw new NotFoundException({
