@@ -47,7 +47,7 @@ Do not reuse staging secrets, database URLs, Redis URLs, buckets or tokens in pr
 | `S3_ACCESS_KEY_ID` | R2 production API token | Yes | Scope to the production bucket where possible. |
 | `S3_SECRET_ACCESS_KEY` | R2 production API token | Yes | Secret. Do not paste in docs/chat. |
 | `S3_FORCE_PATH_STYLE` | R2 config | Yes | Usually `true`. |
-| `APP_BASE_URL` | Production web URL | Yes | Example shape: `https://app.<domain>`. |
+| `APP_BASE_URL` | Production web URL | Yes | The origin users actually browse — currently `https://www.vizitum.com`. Never the deployment's own `*.vercel.app` alias: invite emails are built from this value and outlive any later domain change. |
 | `API_BASE_URL` | Production API URL | Yes | Example shape: `https://api.<domain>/api`. |
 | `PLATFORM_OPERATIONS_TOKEN_SHA256` | Hash of generated operator token | Yes | Preferred for production operations summary checks. |
 | `PLATFORM_OPERATIONS_TOKEN` | Do not use for production | No | Plaintext fallback is staging-only. |
@@ -83,13 +83,16 @@ Worker-specific checks:
 
 | Variable | Production value source | Required | Notes |
 | --- | --- | --- | --- |
-| `APP_BASE_URL` | Production web URL | Yes | Public web origin. |
 | `API_BASE_URL` | Production API URL | Yes | Must point to production API, not staging. |
 | `ENABLE_DEMO_FALLBACK` | Leave unset or `false` | No | Production must not show demo data for API/auth failures. |
 | `NEXT_PUBLIC_ENABLE_DEMO_FALLBACK` | Leave unset or `false` | No | Do not enable in production. |
 | `SENTRY_DSN` | Sentry web project | Yes | Frontend DSN. |
 | `SENTRY_ENVIRONMENT` | Literal environment name | Yes | Must be `production`. |
 | `SENTRY_RELEASE` | Git SHA or release version | Yes | Use the deployed commit SHA. |
+
+`APP_BASE_URL` is deliberately absent here: only the API reads it, to build absolute invite links. Setting it on the web service has no effect and makes the API's value look already handled when it drifts.
+
+The public origin the web service answers on is a hosting-level setting, not an env var. Point the production domain at this deployment and keep `apps/web/lib/site.ts` naming the same origin — it is what the marketing pages advertise as canonical and what `apps/web/lib/canonical-host.ts` redirects the Vercel alias to.
 
 ## Generated Secrets
 
