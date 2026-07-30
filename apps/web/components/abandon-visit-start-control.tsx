@@ -98,7 +98,17 @@ export function AbandonVisitStartControl({
   async function run() {
     setWorking(true);
 
-    const decision = await abandonVisitStart(scope, clientVisitId);
+    let decision: Awaited<ReturnType<typeof abandonVisitStart>>;
+    try {
+      decision = await abandonVisitStart(scope, clientVisitId);
+    } catch {
+      // The storage layer is built to degrade rather than throw, so this is
+      // for the WebView that breaks that promise: without it the buttons stay
+      // disabled on "Cancelling..." forever. Re-arm them and keep the prompt
+      // open, so the tap can simply be repeated.
+      setWorking(false);
+      return;
+    }
 
     if (decision.kind === "synced") {
       // It reached the server while the rep was reading the prompt. Nothing
@@ -127,7 +137,11 @@ export function AbandonVisitStartControl({
 
   return (
     <div className="confirm-action confirming">
-      <span className="confirm-action-prompt">
+      {/* role="alert": focus lands on the confirm button when the prompt
+          opens, so without an announcement a screen reader hears only the
+          button's label and never the sentence explaining what a tap will
+          discard — which arrives in two parts, the impact clause async. */}
+      <span className="confirm-action-prompt" role="alert">
         {t("abandonPendingPrompt")}
         {impact?.report
           ? ` ${t("abandonPendingUnsentReport")}`
