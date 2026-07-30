@@ -1,9 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { canonicalRedirectUrl } from "./lib/canonical-host";
+
 // next-intl resolves the locale per request in i18n/request.ts, which runs
 // outside the routing tree and cannot see the URL. The proxy forwards the
 // pathname as a request header so the tenant slug can be extracted there.
 export default function proxy(request: NextRequest) {
+  const canonicalUrl = canonicalRedirectUrl(
+    request.headers.get("host"),
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
+
+  if (canonicalUrl) {
+    // Temporary (307), not permanent: a 308 is cached for the life of the
+    // browser profile, which would strand everyone on the alias if the custom
+    // domain ever had to be bypassed. Crawlers are steered by the canonical
+    // tags in lib/landing-metadata.ts, so nothing here needs the permanent
+    // variant. 307 also preserves method and body, so a server action that
+    // somehow posts to the alias is replayed rather than downgraded to a GET.
+    return NextResponse.redirect(canonicalUrl, 307);
+  }
+
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
