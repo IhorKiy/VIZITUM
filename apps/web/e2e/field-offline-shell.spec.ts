@@ -45,7 +45,30 @@ test("a cold reload with no signal shows today's route from the last snapshot", 
   // landed, rather than assuming a fixed delay; by the time it resolves,
   // sw.js's own install step has already cached offline.html (install fully
   // completes, including that cache write, before activate can even run).
-  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  //
+  // Bounded, and checked before anything else: registration only happens at
+  // all when NEXT_PUBLIC_ENABLE_SERVICE_WORKER is set, which playwright.config.ts
+  // sets on its own web server — but reuseExistingServer (true outside CI)
+  // means a dev server left running from before that env var existed, or
+  // started by hand without it, gets silently reused with no registration
+  // ever attempted. Without this check that reads as an unbounded hang on
+  // the line below with no indication why; skipping with a specific reason
+  // turns it into something actionable instead. Never happens in CI, where
+  // reuseExistingServer is always false and every run gets a fresh server.
+  const registered = await page
+    .waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
+      timeout: 5_000,
+    })
+    .then(() => true)
+    .catch(() => false);
+
+  test.skip(
+    !registered,
+    "Service worker never registered within 5s — the dev server behind this " +
+      "run was likely reused (reuseExistingServer) from before it, or " +
+      "started by hand, without NEXT_PUBLIC_ENABLE_SERVICE_WORKER set. Stop " +
+      "it and re-run so Playwright starts its own.",
+  );
 
   await context.setOffline(true);
   await page.reload();

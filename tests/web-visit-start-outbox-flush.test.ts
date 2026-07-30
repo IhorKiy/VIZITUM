@@ -65,6 +65,24 @@ describe("decideVisitStartFlushAction", () => {
     );
   });
 
+  it("skips a resolved entry even when remoteVisitId was never set", () => {
+    // markVisitStartOutboxResolved backfills remoteVisitId whenever it's
+    // still null, but that's a write-time guarantee — it says nothing about
+    // a record already resolved before this backfill existed, which reads
+    // back with resolvedVisitId set and remoteVisitId genuinely null. This
+    // must still skip, not fall through to "send": resolvedVisitId alone is
+    // enough to know the start already succeeded.
+    assert.deepEqual(
+      decideVisitStartFlushAction(
+        entry({
+          resolvedVisitId: "visit-real-1",
+          resolvedAt: 1_753_800_200_000,
+        }),
+      ),
+      { kind: "skip" },
+    );
+  });
+
   it("skips a rejected entry by default", () => {
     assert.deepEqual(
       decideVisitStartFlushAction(

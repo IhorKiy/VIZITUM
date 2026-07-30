@@ -51,13 +51,17 @@ export type VisitStartOutboxEntry = {
   attempts: number;
   lastError: string | null;
   rejectedAt: number | null;
-  // Set the moment `POST /visits` first answers — independent of, and always
-  // set no later than, `resolvedVisitId` below. Durable proof a real visit
-  // already exists even when the local rekey (pending media, queued confirm)
-  // hasn't landed yet, which is what stops a resolved-but-not-yet-rekeyed
-  // adopt from being replayed into a second, unwanted visit: see
-  // visit-start-outbox-flush.ts for why re-sending the create is not safe for
-  // that outcome the way it is for a plain one.
+  // Set the moment `POST /visits` first answers — independent of, and
+  // always set no later than, `resolvedVisitId` below. Two different
+  // writers keep that true: `recordVisitStartOutboxRemoteVisitId`, for a
+  // queued start the background flush resolves, and `markVisitStartOutboxResolved`
+  // itself backfills it too, for the eager online-start path
+  // (start-visit-control.tsx) that only ever calls the latter. Durable
+  // proof a real visit already exists even when the local rekey (pending
+  // media, queued confirm) hasn't landed yet, which is what stops a
+  // resolved-but-not-yet-rekeyed adopt from being replayed into a second,
+  // unwanted visit: see visit-start-outbox-flush.ts for why re-sending the
+  // create is not safe for that outcome the way it is for a plain one.
   remoteVisitId: string | null;
   // Set once the create has reached the server and every rekey that matters
   // has landed. Distinct from "deleted" — see the file header for why this
@@ -278,7 +282,11 @@ export function recordVisitStartOutboxRemoteVisitId(
 // Clears rejectedAt/lastError too: a resolved entry is not also a failed one,
 // and a stale rejection would otherwise keep it out of
 // findPendingVisitStartForLocation's "still pending" filter forever after
-// having briefly failed on the way to eventually succeeding.
+// having briefly failed on the way to eventually succeeding. Also backfills
+// remoteVisitId when it's still null, in the same write — see that field's
+// own comment for why this is the only place that guarantee can be kept for
+// the eager, online-start path, which never calls
+// recordVisitStartOutboxRemoteVisitId at all.
 export function markVisitStartOutboxResolved(
   key: string,
   resolvedVisitId: string,
@@ -293,6 +301,14 @@ export function markVisitStartOutboxResolved(
     if (existing) {
       store.put({
         ...existing,
+        // Also backfills remoteVisitId when it's still null — the eager,
+        // online-start path (start-visit-control.tsx) calls only this
+        // function, never recordVisitStartOutboxRemoteVisitId, so without
+        // this every visit started *with* signal — the common case — would
+        // otherwise reach "resolved" with remoteVisitId permanently null,
+        // contradicting this field's own "always set no later than
+        // resolvedVisitId" guarantee.
+        remoteVisitId: existing.remoteVisitId ?? resolvedVisitId,
         resolvedVisitId,
         resolvedAt: Date.now(),
         rejectedAt: null,

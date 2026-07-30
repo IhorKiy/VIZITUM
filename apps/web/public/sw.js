@@ -34,7 +34,18 @@ const OFFLINE_URL = "/offline.html";
 // cannot be recreated — a quota eviction triggered by static assets
 // accumulating forever, across every past deploy, is a worse outcome than
 // occasionally re-fetching one that got trimmed.
-const MAX_STATIC_CACHE_ENTRIES = 80;
+//
+// Eviction is still oldest-by-insertion-order (see trimStaticCache), not
+// LRU — the worker's scope is the whole origin, so this cache also holds
+// admin/manager/platform chunks, and insertion order alone would evict the
+// shared framework bundles every zone re-fetches first, keeping only
+// whichever page happened to load last. Rather than touching entries on a
+// hit to approximate LRU, the limit is sized so trimming essentially never
+// fires in normal use: a full production build of every zone in this app is
+// ~50 static files (`find apps/web/.next/static -type f | wc -l` after
+// `npm run web:build`), so 200 comfortably covers several overlapping
+// deploys' worth of chunks before the wrong-order eviction could ever bite.
+const MAX_STATIC_CACHE_ENTRIES = 200;
 
 // Matches /{tenantSlug}/field, /{tenantSlug}/field/anything — never
 // /platform, the marketing pages, or /{tenantSlug}/admin|manager|operations,
@@ -55,6 +66,14 @@ function fallbackOfflineResponse() {
   );
 }
 
+// Called once per cache miss that succeeds (see the fetch handler below),
+// never on a hit — so its O(n) cache.keys() listing runs at most once per
+// distinct static asset URL this device ever requests through the worker,
+// not per request. Deliberately not gated behind a counter or an "only
+// every Nth miss" check: distinct-URL misses are already rare relative to
+// hits (a given URL is fetched at most once for as long as it stays
+// cached), and the cap above is sized so the listing is usually a no-op
+// anyway.
 async function trimStaticCache(cache) {
   const keys = await cache.keys();
   const excess = keys.length - MAX_STATIC_CACHE_ENTRIES;

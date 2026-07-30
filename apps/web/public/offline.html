@@ -97,29 +97,39 @@
         request.onerror = renderNoData;
         request.onblocked = renderNoData;
         request.onsuccess = function () {
-          var database = request.result;
+          // A second guard, not the same one as below: this runs inside an
+          // event callback, after the outer try already returned, so a throw
+          // here (transaction() can raise InvalidStateError on a closing or
+          // version-changing connection) would otherwise reach nothing and
+          // leave the page blank — the exact failure the outer try exists to
+          // avoid, just on a different call.
+          try {
+            var database = request.result;
 
-          if (!database.objectStoreNames.contains(ROUTE_SNAPSHOT_STORE)) {
-            renderNoData();
-            return;
-          }
-
-          var store = database
-            .transaction(ROUTE_SNAPSHOT_STORE, "readonly")
-            .objectStore(ROUTE_SNAPSHOT_STORE);
-          var getRequest = store.get(tenantSlug);
-
-          getRequest.onerror = renderNoData;
-          getRequest.onsuccess = function () {
-            var snapshot = getRequest.result;
-
-            if (!snapshot) {
+            if (!database.objectStoreNames.contains(ROUTE_SNAPSHOT_STORE)) {
               renderNoData();
               return;
             }
 
-            render(snapshot);
-          };
+            var store = database
+              .transaction(ROUTE_SNAPSHOT_STORE, "readonly")
+              .objectStore(ROUTE_SNAPSHOT_STORE);
+            var getRequest = store.get(tenantSlug);
+
+            getRequest.onerror = renderNoData;
+            getRequest.onsuccess = function () {
+              var snapshot = getRequest.result;
+
+              if (!snapshot) {
+                renderNoData();
+                return;
+              }
+
+              render(snapshot);
+            };
+          } catch (error) {
+            renderNoData();
+          }
         };
       } catch (error) {
         renderNoData();
@@ -136,7 +146,14 @@
         if (snapshot.stops.length === 0) {
           var empty = document.createElement("p");
           empty.className = "empty";
-          empty.textContent = snapshot.labels.emptyRoute;
+          // Falls back to a hardcoded English default — same narrow
+          // exception as renderNoData below — for a snapshot written before
+          // this label existed. textContent = undefined would otherwise
+          // render the literal string "undefined", unlike the empty string
+          // a missing field gives everywhere else here.
+          empty.textContent =
+            snapshot.labels.emptyRoute ||
+            "No route was planned for today, as of this snapshot.";
           list.replaceWith(empty);
           return;
         }
