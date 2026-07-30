@@ -38,6 +38,14 @@ export function classifyReportSendResult(
     return { kind: "signInRequired" };
   }
 
+  // 408 (request timeout) and 429 (rate limited) are the same "no real answer"
+  // case as no response at all — the server never got far enough to judge the
+  // report, and both are exactly what a retry outlives. Shown instead, a rep
+  // standing in a shop cannot act on either, and the token makes the retry free.
+  if (result.status === 408 || result.status === 429) {
+    return { kind: "queue" };
+  }
+
   // 5xx is the awkward middle: the server answered, so it is reachable, but it
   // failed for a reason a retry might genuinely outlive (a restart, a saturated
   // pool). Queued rather than shown, because a rep standing in a shop cannot act

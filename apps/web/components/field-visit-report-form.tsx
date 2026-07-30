@@ -1229,10 +1229,17 @@ export function FieldVisitReportForm({
     // Anything still pending goes with it: the visit is finished from here, so
     // the screen that could retry these bytes no longer renders and they would
     // sit on the device until they aged out, unreachable.
+    //
+    // A `sent` outcome also clears the outbox entry queued above: the server
+    // has already taken the report, so replaying it on the next app open would
+    // only ask the server to redo idempotent work for nothing.
     await Promise.all([
       draft.close(),
       deletePendingMedia(draftScope, "audio"),
       deletePendingMedia(draftScope, "photo"),
+      ...(sendOutcome.kind === "sent" && queuedKey
+        ? [deleteReportOutboxEntry(queuedKey)]
+        : []),
     ]);
 
     // Deliberately today's route, not the screen the report was opened from.

@@ -870,10 +870,6 @@ export class VisitsService {
       });
     }
 
-    if (schemaVersion === "field-report.v1") {
-      assertVisitDateInWindow(confirmedData);
-    }
-
     const clientRequestId = normalizeClientRequestId(body.clientRequestId);
 
     // A replay of a confirm whose answer the device never heard — the ordinary
@@ -883,6 +879,13 @@ export class VisitsService {
     // when they actually finished the visit) and replace this report's tasks
     // with fresh rows, discarding whatever a manager had already done with the
     // originals.
+    //
+    // Checked before any payload re-validation below, including the visit-date
+    // window: a replay is answering "what did the first attempt do", not
+    // re-judging a payload the server already accepted once. A queue flushed
+    // days later would otherwise fail `assertVisitDateInWindow` on a report
+    // that already exists, and the rep would be told to fix a visit that is
+    // completed and locked.
     if (clientRequestId) {
       const replayed = await this.findReportByClientRequestId(
         context.tenantId,
@@ -901,6 +904,10 @@ export class VisitsService {
           ),
         );
       }
+    }
+
+    if (schemaVersion === "field-report.v1") {
+      assertVisitDateInWindow(confirmedData);
     }
 
     const tenant = await this.prisma.platformTenant.findUnique({
