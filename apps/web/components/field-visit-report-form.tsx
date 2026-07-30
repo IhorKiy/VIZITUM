@@ -11,9 +11,6 @@ import type {
   Product,
 } from "../lib/api-client";
 import {
-  FIELD_REPORT_DRAFT_VERSION,
-  isEmptyFieldReportDraft,
-  parseFieldReportDraft,
   PROBLEM_TYPES,
   resolveDraftVisitDate,
   type FieldReportDraft,
@@ -36,19 +33,16 @@ import {
   outcomeForThrownSend,
 } from "../lib/report-send-outcome";
 import {
-  deleteDraft,
   deletePendingMedia,
-  pruneDrafts,
-  prunePendingMedia,
-  readDraft,
-  readPendingMediaBytes,
-  readPendingMediaRegistration,
-  writeDraft,
   writePendingMediaBytes,
   writePendingMediaRegistration,
   type DraftScope,
 } from "../lib/offline-drafts";
 import { isStorageObjectGone } from "../lib/storage-retry";
+import {
+  useFieldReportDraft,
+  usePendingCaptures,
+} from "../lib/use-field-report-persistence";
 import {
   deriveVisitOutcome,
   isNoOrderReason,
@@ -204,10 +198,6 @@ function resolveMediaRecorderMimeType(): string | undefined {
   return undefined;
 }
 
-// Long enough that a burst of typing is one write, short enough that what the
-// rep loses to a phone dying mid-sentence is the sentence, not the report.
-const DRAFT_WRITE_DEBOUNCE_MS = 500;
-
 // The server's own caps (MAX_PROBLEM_PHOTO_SIZE_BYTES and
 // MAX_TEMPORARY_AUDIO_SIZE_BYTES in src/modules/visits/visits.service.ts).
 // Checked here as well so an oversized file is refused at capture, while the
@@ -344,21 +334,9 @@ export function FieldVisitReportForm({
   }, []);
 
   // --- On-device draft -----------------------------------------------------
-  // Everything below keeps an unconfirmed report on the phone. A rep works
-  // through stops with no signal, and until this existed a reload, a killed
-  // tab or the OS reclaiming a backgrounded browser took the whole report with
-  // it. Storage failures are silent by design: a draft is a safety net, and a
-  // net that throws is worse than no net.
-
-  const [draftRestored, setDraftRestored] = useState(false);
-  // Nothing may be written before the stored draft has been read, or an empty
-  // first render would delete the very report we are about to restore.
-  const draftLoadedRef = useRef(false);
-  const draftStoredRef = useRef(false);
-  // Set once the report is confirmed. Without it the flush that runs when this
-  // screen unmounts would write the draft straight back after the delete, and
-  // the redirect makes that unmount immediate.
-  const draftClosedRef = useRef(false);
+  // The rules live in lib/use-field-report-persistence.ts; what stays here is
+  // the form's half of the contract — the state gathered into draft shape, and
+  // how a restored draft is applied back onto the fields.
 
   const draftScope = useMemo<DraftScope>(
     () => ({ tenantSlug, userId, visitId }),
@@ -402,146 +380,52 @@ export function FieldVisitReportForm({
     ],
   );
 
-  const currentDraftRef = useRef(currentDraft);
-  currentDraftRef.current = currentDraft;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const stored = await readDraft(draftScope, FIELD_REPORT_DRAFT_VERSION);
-      const draft = stored ? parseFieldReportDraft(stored) : null;
-
-      if (cancelled) return;
-
-      // The read is a single indexed lookup, but a rep who started typing
-      // before it landed owns the form — restoring over them would be the very
-      // data loss this exists to prevent.
-      const untouched = isEmptyFieldReportDraft(
-        currentDraftRef.current,
-        todayIsoDate(),
+  const draft = useFieldReportDraft({
+    scope: draftScope,
+    draft: currentDraft,
+    today: todayIsoDate,
+    onRestore: (stored) => {
+      setVisitDate(
+        resolveDraftVisitDate(
+          stored.visitDate,
+          todayIsoDate(),
+          minVisitIsoDate(),
+        ),
       );
-
-      if (
-        draft &&
-        untouched &&
-        !isEmptyFieldReportDraft(draft, todayIsoDate())
-      ) {
-        setVisitDate(
-          resolveDraftVisitDate(
-            draft.visitDate,
-            todayIsoDate(),
-            minVisitIsoDate(),
-          ),
-        );
-        setOrderPlaced(draft.orderPlaced);
-        setNoOrderReason(draft.noOrderReason);
-        setMissingProductIds(draft.missingProductIds);
-        setShelfChecked(draft.shelfChecked);
-        setShelfCheckedTouched(draft.shelfCheckedTouched);
-        setShelfOpen(draft.shelfOpen);
-        setProblemOpen(draft.problemOpen);
-        setProblemType(draft.problemType);
-        setProblemNote(draft.problemNote);
-        setProblemPhoto(draft.problemPhoto);
-        setNotesOpen(draft.notesOpen);
-        setNotes(draft.notes);
-        setNextAction(draft.nextAction);
-        setNextActionDueDate(draft.nextActionDueDate);
-        // Straight to the form: the voice screen would hide the work being
-        // restored behind a mic button.
-        setStep("form");
-        draftStoredRef.current = true;
-        setDraftRestored(true);
-      }
-
-      draftLoadedRef.current = true;
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [draftScope]);
-
-  useEffect(() => {
-    if (!draftLoadedRef.current || draftClosedRef.current) return;
-
-    if (isEmptyFieldReportDraft(currentDraft, todayIsoDate())) {
-      // The rep cleared the form back to nothing — leaving the old draft would
-      // resurrect it on the next open.
-      if (draftStoredRef.current) {
-        draftStoredRef.current = false;
-        void deleteDraft(draftScope);
-      }
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      draftStoredRef.current = true;
-      void writeDraft(draftScope, currentDraft, FIELD_REPORT_DRAFT_VERSION);
-    }, DRAFT_WRITE_DEBOUNCE_MS);
-
-    return () => clearTimeout(timer);
-  }, [currentDraft, draftScope]);
-
-  // A backgrounded phone is the common way this screen dies, and it does not
-  // wait out the debounce — so hiding the page, or leaving it, writes at once.
-  useEffect(() => {
-    const flush = () => {
-      if (!draftLoadedRef.current || draftClosedRef.current) return;
-
-      const draft = currentDraftRef.current;
-
-      if (isEmptyFieldReportDraft(draft, todayIsoDate())) return;
-
-      draftStoredRef.current = true;
-      void writeDraft(draftScope, draft, FIELD_REPORT_DRAFT_VERSION);
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") flush();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("pagehide", flush);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("pagehide", flush);
-      flush();
-    };
-  }, [draftScope]);
-
-  // Opening any visit is as good a moment as any to sweep reports nobody came
-  // back to; this screen is the only thing that writes them.
-  useEffect(() => {
-    void pruneDrafts();
-    void prunePendingMedia();
-  }, []);
+      setOrderPlaced(stored.orderPlaced);
+      setNoOrderReason(stored.noOrderReason);
+      setMissingProductIds(stored.missingProductIds);
+      setShelfChecked(stored.shelfChecked);
+      setShelfCheckedTouched(stored.shelfCheckedTouched);
+      setShelfOpen(stored.shelfOpen);
+      setProblemOpen(stored.problemOpen);
+      setProblemType(stored.problemType);
+      setProblemNote(stored.problemNote);
+      setProblemPhoto(stored.problemPhoto);
+      setNotesOpen(stored.notesOpen);
+      setNotes(stored.notes);
+      setNextAction(stored.nextAction);
+      setNextActionDueDate(stored.nextActionDueDate);
+      // Straight to the form: the voice screen would hide the work being
+      // restored behind a mic button.
+      setStep("form");
+    },
+  });
 
   // Bytes the rep captured on a previous visit to this screen and never managed
-  // to send. Restored straight into the retry panel, with whichever object
-  // registration they had already consumed, so sending again does not register
-  // a second one.
-  useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      const [audio, audioObjectId, photo, photoObjectId] = await Promise.all([
-        readPendingMediaBytes(draftScope, "audio"),
-        readPendingMediaRegistration(draftScope, "audio"),
-        readPendingMediaBytes(draftScope, "photo"),
-        readPendingMediaRegistration(draftScope, "photo"),
-      ]);
-
-      if (cancelled) return;
-
+  // to send, put back into the retry panel with whichever object registration
+  // they had already consumed — so sending again re-signs that object rather
+  // than registering a second one.
+  usePendingCaptures({
+    scope: draftScope,
+    onRestore: ({ audio, photo }) => {
       if (audio) {
         setPendingAudio({
           body: {
             blob: new Blob([audio.bytes], { type: audio.mimeType }),
             mimeType: audio.mimeType,
           },
-          objectId: audioObjectId,
+          objectId: audio.objectId,
           persisted: true,
         });
       }
@@ -551,20 +435,16 @@ export function FieldVisitReportForm({
           body: new File([photo.bytes], photo.fileName, {
             type: photo.mimeType,
           }),
-          objectId: photoObjectId,
+          objectId: photo.objectId,
           persisted: true,
         });
       }
 
       // The retry lives on the form, and the capture screen would hide it
       // behind a mic button.
-      if (audio || photo) setStep("form");
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [draftScope]);
+      setStep("form");
+    },
+  });
 
   // Leaving mid-recording — a back tap, or the redirect after confirming —
   // must not leave the microphone live and a cap timer firing into a tree that
@@ -1340,19 +1220,17 @@ export function FieldVisitReportForm({
       return;
     }
 
-    // The report is on the server now, so the copy on the phone has nothing
-    // left to protect. Awaited rather than fired off, so the redirect below
-    // cannot cut the delete short and leave a draft behind — and bounded on the
-    // storage side, so a device that stopped answering costs the rep a second
-    // before their next stop rather than leaving them on a spinner after a
-    // report that is already filed.
-    draftClosedRef.current = true;
-    draftStoredRef.current = false;
-    // Anything still pending goes with it: the visit is locked from here, so
+    // The report is either on the server or in the outbox, so the draft it came
+    // from has nothing left to protect either way. Awaited rather than fired
+    // off, so the redirect below cannot cut the delete short and leave a draft
+    // behind — and bounded on the storage side, so a device that stopped
+    // answering costs the rep a second before their next stop rather than
+    // leaving them on a spinner after a report they have already signed off.
+    // Anything still pending goes with it: the visit is finished from here, so
     // the screen that could retry these bytes no longer renders and they would
     // sit on the device until they aged out, unreachable.
     await Promise.all([
-      deleteDraft(draftScope),
+      draft.close(),
       deletePendingMedia(draftScope, "audio"),
       deletePendingMedia(draftScope, "photo"),
     ]);
@@ -1423,7 +1301,7 @@ export function FieldVisitReportForm({
           {transcriptionMessage}
         </p>
       ) : null}
-      {draftRestored ? (
+      {draft.restored ? (
         <p className="notice-inline" role="status">
           {t("draftRestoredNotice")}
         </p>

@@ -5,28 +5,28 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { PENDING_MEDIA_SEED_ARGS } from "./global-setup";
 
-// End-to-end contract for the one thing a rep cannot get back: bytes they
-// captured that never reached storage. A visit in a dead zone fails at exactly
-// this point, and before the pending-media store existed the recording (or
-// photo) was dropped on the floor with an error message.
+// End-to-end contract for everything a visit leaves on the phone: the typed
+// report, and the captures — a photo, a recording — that never reached storage.
+// A visit in a dead zone fails at exactly this point, and before this store
+// existed the recording was dropped on the floor with an error message.
 //
-// The guarantee under test is that the bytes survive the page going away —
+// The guarantee under test is that all three survive the page going away —
 // which is what a reload, a killed tab, or an OS reclaiming a backgrounded
 // browser all look like from here. It cannot be unit-tested: it lives in
 // IndexedDB, and the only honest check is to reload a real browser and see the
-// capture come back with its retry still offered.
+// work come back, with its retry still offered where there is one.
 //
 // Owns its own tenant, seeded by global-setup.ts from the same parameterized
 // script field-revisit uses. It cannot share that spec's tenant: both start a
 // visit on the seeded stop, `Visit.routeItemId` is unique, and under
 // fullyParallel the loser cannot start a visit at all. Re-seeded before each
-// test here as well, for the same reason turned inward — both tests below start
+// test here as well, for the same reason turned inward — every test below starts
 // a visit on that one stop, so each needs it handed back — and because a CI
 // retry lands in a fresh worker that needs it at "planned" too.
 //
 // Serial for the same reason, and it has to be stated: `fullyParallel` spreads
-// the tests within a file across workers, which would have these two racing over
-// one planned stop and re-seeding underneath each other.
+// the tests within a file across workers, which would have these racing over one
+// planned stop and re-seeding underneath each other.
 //
 // Every PUT is aborted so the upload cannot succeed. That covers both
 // environments deliberately: CI has no S3 configuration at all, so the
@@ -190,6 +190,47 @@ test("a photo that never reached storage survives the page going away", async ({
   await expect(
     page.getByRole("region", { name: "Photo waiting to be sent" }),
   ).toBeHidden();
+});
+
+test("a report typed and left behind comes back on the next open", async ({
+  page,
+}) => {
+  // The other half of what the phone keeps, and the half with no coverage until
+  // now: the typed report itself. Its rules only work in one order — nothing may
+  // be written before the stored draft has been read back, or an empty first
+  // render deletes the very report about to be restored — so it is worth a real
+  // browser doing a real reload rather than a unit test of the parts.
+  const visitUrl = await startVisit(page);
+
+  await page.getByRole("button", { name: "Fill in manually" }).click();
+  await page.getByRole("button", { name: "No order", exact: true }).click();
+  await page.getByRole("button", { name: "No money" }).click();
+
+  const agreement = page.getByLabel("Agreement for the next visit");
+  await agreement.fill("bring the new price list");
+
+  // Past the write debounce, so the reload lands after the record exists rather
+  // than testing the flush on unload by accident.
+  await page.waitForTimeout(1000);
+  await page.reload();
+
+  await expect(
+    page.getByText("Restored the report you started on this device."),
+  ).toBeVisible();
+  // Restored onto the form, not the voice screen, and every field the rep
+  // touched is back — including the reason chip, which only exists underneath
+  // the "no order" result it was stored with.
+  await expect(page.getByLabel("Agreement for the next visit")).toHaveValue(
+    "bring the new price list",
+  );
+  await expect(
+    page.getByRole("button", { name: "No order", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "No money" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(page.url()).toBe(visitUrl);
 });
 
 test("a recording that never reached storage survives the page going away", async ({
