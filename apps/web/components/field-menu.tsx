@@ -100,8 +100,12 @@ export function FieldMenu({
 
     await Promise.all([clearDrafts(), deleteRouteSnapshot(tenantSlug)]);
 
-    setClearingDrafts(false);
+    // Submit first, then drop the flag: releasing it beforehand leaves a frame
+    // where the clear is done but the form has not started, and the button
+    // flicks back to "Sign out" mid-sign-out. Ordered this way both updates
+    // land in the same batch and the spinner never breaks.
     logoutFormRef.current?.requestSubmit();
+    setClearingDrafts(false);
   }
 
   // This menu hangs off every field screen, so a link out of it has no single
@@ -257,6 +261,7 @@ export function FieldMenu({
                 that stretch, or the first (and on a slow phone the longer)
                 half of signing out would look like nothing happened. */}
             <PendingSubmitButton
+              aria-busy={clearingDrafts}
               className={`field-menu-logout-button${
                 clearingDrafts ? " is-pending" : ""
               }`}

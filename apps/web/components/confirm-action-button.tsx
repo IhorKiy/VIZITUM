@@ -89,6 +89,7 @@ export function ConfirmActionButton({
       </span>
       <div className="confirm-action-buttons">
         <button
+          aria-busy={pending}
           className={`secondary-button danger${pending ? " is-pending" : ""}`}
           disabled={pending}
           onClick={run}

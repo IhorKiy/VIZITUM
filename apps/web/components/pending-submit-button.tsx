@@ -16,6 +16,7 @@ type PendingSubmitButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function PendingSubmitButton({
+  "aria-busy": ariaBusy,
   children,
   className,
   disabled,
@@ -29,10 +30,17 @@ export function PendingSubmitButton({
   const resolvedPendingLabel =
     pendingLabel === undefined ? t("saving") : pendingLabel;
   const isDisabled = disabled || pending;
+  // The spinner is aria-hidden and several callers deliberately keep the same
+  // label while pending, so without this a screen reader hears only that the
+  // button went disabled — "unavailable", not "working". A caller that does
+  // its own pre-submit work (the field menu clears drafts before submitting)
+  // passes `aria-busy` for that stretch; `pending` covers the rest.
+  const isBusy = pending || ariaBusy === true || ariaBusy === "true";
 
   return (
     <button
       {...props}
+      aria-busy={isBusy}
       aria-disabled={isDisabled}
       // A busy button and an unavailable one are both `disabled`, and they
       // should not look alike: `is-pending` keeps this one in its own colours
