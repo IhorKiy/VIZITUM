@@ -336,9 +336,17 @@ model PlatformOperationEvent {
 }
 
 model User {
-  id                   String     @id @default(cuid())
-  tenantId             String
-  email                String
+  id       String @id @default(cuid())
+  tenantId String
+  email    String
+  // Given name and family name are the source of truth. `lastName` is nullable
+  // because the backfill splits legacy single-string names on the first space
+  // and a one-word name leaves nothing to put here — new writes always supply
+  // both. `name` is a derived display value, composed by
+  // `composeUserDisplayName` and never written on its own; it stays so the many
+  // read sites that only ever show a full name keep working unchanged.
+  firstName            String
+  lastName             String?
   name                 String
   phone                String?
   status               UserStatus @default(invited)

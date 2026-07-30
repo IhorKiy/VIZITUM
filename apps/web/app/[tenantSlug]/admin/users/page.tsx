@@ -186,13 +186,14 @@ export default async function AdminUsersPage({
     "use server";
 
     const userId = getFormString(formData, "userId").trim();
-    const name = getFormString(formData, "name").trim();
+    const firstName = getFormString(formData, "firstName").trim();
+    const lastName = getFormString(formData, "lastName").trim();
 
-    if (!userId || !name) {
+    if (!userId || !firstName || !lastName) {
       redirect(`/${tenantSlug}/admin/users?error=status`);
     }
 
-    const result = await updateAdminUser(userId, { name });
+    const result = await updateAdminUser(userId, { firstName, lastName });
 
     if (!result.ok) {
       redirect(
@@ -596,7 +597,9 @@ function UserRow({
           <div className="admin-user-name-row">
             <UserNameField
               canEdit={!actionsLocked}
-              name={user.name}
+              displayName={user.name}
+              firstName={user.firstName}
+              lastName={user.lastName}
               updateNameAction={updateUserNameAction}
               userId={user.id}
             />

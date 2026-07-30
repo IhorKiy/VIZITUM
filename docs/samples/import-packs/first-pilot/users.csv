@@ -1,6 +1,6 @@
-email,name,roles,phone,external_code
-admin.pilot@example.com,Pilot Company Admin,company_admin,+380000000001,USR-ADMIN-001
-manager.pilot@example.com,Pilot Team Manager,team_manager,+380000000002,USR-MGR-001
-rep.north@example.com,North Field Representative,field_representative,+380000000003,USR-REP-001
-rep.south@example.com,South Field Representative,field_representative,+380000000004,USR-REP-002
+email,first_name,last_name,roles,phone,external_code
+admin.pilot@example.com,Pilot,Company Admin,company_admin,+380000000001,USR-ADMIN-001
+manager.pilot@example.com,Pilot,Team Manager,team_manager,+380000000002,USR-MGR-001
+rep.north@example.com,North,Field Representative,field_representative,+380000000003,USR-REP-001
+rep.south@example.com,South,Field Representative,field_representative,+380000000004,USR-REP-002
 

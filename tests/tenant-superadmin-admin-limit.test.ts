@@ -242,7 +242,8 @@ describe("tenant superadmin admin limit", () => {
         authService.acceptInvite(
           {
             token: "invite-token",
-            name: "Admin Two",
+            firstName: "Admin",
+            lastName: "Two",
             password: "password123",
           },
           createRequest(),

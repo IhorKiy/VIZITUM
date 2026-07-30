@@ -95,7 +95,8 @@ describe("tenant superadmin replacement", () => {
     const result = await authService.acceptInvite(
       {
         token: "invite-token",
-        name: "Super Two",
+        firstName: "Super",
+        lastName: "Two",
         password: "password123",
       },
       createRequest() as never,
@@ -193,7 +194,12 @@ describe("tenant superadmin replacement", () => {
     );
 
     await authService.acceptInvite(
-      { token: "invite-token", name: "Super One", password: "password123" },
+      {
+        token: "invite-token",
+        firstName: "Super",
+        lastName: "One",
+        password: "password123",
+      },
       createRequest() as never,
       createResponse() as never,
     );

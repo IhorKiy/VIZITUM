@@ -8,26 +8,35 @@ describe("import csv parser", () => {
   it("parses an approved users CSV into normalized rows", () => {
     const service = new ImportsService();
     const csv = [
-      "\ufeffemail,name,roles,phone,external_code",
-      '"Admin@Example.com","Ada, Lovelace","company_admin","+380501112233","EXT-1"',
-      '"rep@example.com","Field ""Alpha"" Rep","field_representative",,',
+      "\ufeffemail,first_name,last_name,roles,phone,external_code",
+      '"Admin@Example.com","Ada","Lovelace","company_admin","+380501112233","EXT-1"',
+      '"rep@example.com","Field","""Alpha"" Rep","field_representative",,',
       "",
     ].join("\r\n");
 
     assert.deepEqual(service.parseApprovedCsvTemplate("users", csv), {
       templateType: "users",
-      columns: ["email", "name", "roles", "phone", "external_code"],
+      columns: [
+        "email",
+        "first_name",
+        "last_name",
+        "roles",
+        "phone",
+        "external_code",
+      ],
       rows: [
         {
           email: "Admin@Example.com",
-          name: "Ada, Lovelace",
+          first_name: "Ada",
+          last_name: "Lovelace",
           roles: "company_admin",
           phone: "+380501112233",
           external_code: "EXT-1",
         },
         {
           email: "rep@example.com",
-          name: 'Field "Alpha" Rep',
+          first_name: "Field",
+          last_name: '"Alpha" Rep',
           roles: "field_representative",
           phone: "",
           external_code: "",

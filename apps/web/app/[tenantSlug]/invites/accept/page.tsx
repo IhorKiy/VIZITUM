@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
-import { PhoneInput } from "../../../../components/phone-input";
+import { PasswordFields } from "../../../../components/password-fields";
 import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
 import { getFormString } from "../../../../lib/form";
 import { INPUT_LIMITS } from "../../../../lib/input-limits";
 import { resolveTenantBranding } from "../../../../lib/tenant-branding";
-import { resolveTenantLocale } from "../../../../lib/tenant-locale";
 
 type AcceptInvitePageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -23,10 +22,9 @@ export default async function AcceptInvitePage({
   // Branding is a cache hit on the tenant layout's fetch and is here for the
   // workspace name only; the rest resolve together like on every other
   // pre-auth screen rather than one await at a time.
-  const [t, tCommon, { phoneCountry }, branding] = await Promise.all([
+  const [t, tCommon, branding] = await Promise.all([
     getTranslations("invites"),
     getTranslations("common"),
-    resolveTenantLocale(tenantSlug),
     resolveTenantBranding(tenantSlug),
   ]);
 
@@ -42,9 +40,9 @@ export default async function AcceptInvitePage({
       body: JSON.stringify({
         token: getFormString(formData, "token"),
         tenantSlug,
-        name: getFormString(formData, "name"),
+        firstName: getFormString(formData, "firstName"),
+        lastName: getFormString(formData, "lastName"),
         password: getFormString(formData, "password"),
-        phone: getFormString(formData, "phone"),
       }),
     });
 
@@ -92,38 +90,38 @@ export default async function AcceptInvitePage({
                 required
                 type="text"
               />
+              <span className="form-hint">{t("tokenHint")}</span>
             </label>
           )}
           <label>
-            {t("fullName")}
+            {t("firstName")}
             <input
-              autoComplete="name"
+              autoComplete="given-name"
               maxLength={INPUT_LIMITS.name}
-              name="name"
+              name="firstName"
               required
               type="text"
             />
           </label>
           <label>
-            {t("phone")}
-            <PhoneInput
-              countryRequiredMessage={tCommon("phoneInternationalRequired")}
-              invalidMessage={tCommon("phoneInvalid")}
-              name="phone"
-              phoneCountry={phoneCountry}
-            />
-          </label>
-          <label>
-            {t("password")}
+            {t("lastName")}
             <input
-              autoComplete="new-password"
-              maxLength={INPUT_LIMITS.password}
-              minLength={8}
-              name="password"
+              autoComplete="family-name"
+              maxLength={INPUT_LIMITS.name}
+              name="lastName"
               required
-              type="password"
+              type="text"
             />
           </label>
+          <PasswordFields
+            confirmLabel={t("passwordConfirm")}
+            hideLabel={tCommon("hidePassword")}
+            label={t("password")}
+            minLength={8}
+            mismatchMessage={t("passwordMismatch")}
+            name="password"
+            showLabel={tCommon("showPassword")}
+          />
           <button className="primary-button" type="submit">
             {t("accept")}
           </button>

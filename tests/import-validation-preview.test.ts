@@ -25,21 +25,24 @@ describe("import validation preview", () => {
 
     const preview = await service.validateImportPreview(context as never, {
       templateType: "users",
-      columns: ["email", "name", "roles"],
+      columns: ["email", "first_name", "last_name", "roles"],
       rows: [
         {
           email: "new@example.com",
-          name: "New User",
+          first_name: "New",
+          last_name: "User",
           roles: "company_admin",
         },
         {
           email: "new@example.com",
-          name: "Duplicate User",
+          first_name: "Duplicate",
+          last_name: "User",
           roles: "unknown_role",
         },
         {
           email: "existing@example.com",
-          name: "Existing User",
+          first_name: "Existing",
+          last_name: "User",
           roles: "field_representative",
         },
       ],
@@ -72,29 +75,33 @@ describe("import validation preview", () => {
 
     const preview = await service.validateImportPreview(context as never, {
       templateType: "users",
-      columns: ["email", "name", "roles", "phone"],
+      columns: ["email", "first_name", "last_name", "roles", "phone"],
       rows: [
         {
           email: "national@example.com",
-          name: "National Phone",
+          first_name: "National",
+          last_name: "Phone",
           roles: "field_representative",
           phone: "067 123 45 67",
         },
         {
           email: "international@example.com",
-          name: "International Phone",
+          first_name: "International",
+          last_name: "Phone",
           roles: "field_representative",
           phone: "+49 30 901820",
         },
         {
           email: "bad@example.com",
-          name: "Bad Phone",
+          first_name: "Bad",
+          last_name: "Phone",
           roles: "field_representative",
           phone: "not a phone",
         },
         {
           email: "empty@example.com",
-          name: "No Phone",
+          first_name: "No",
+          last_name: "Phone",
           roles: "field_representative",
           phone: "",
         },
@@ -121,11 +128,12 @@ describe("import validation preview", () => {
 
     const preview = await service.validateImportPreview(context as never, {
       templateType: "users",
-      columns: ["email", "name", "roles", "phone"],
+      columns: ["email", "first_name", "last_name", "roles", "phone"],
       rows: [
         {
           email: "national@example.com",
-          name: "National Phone",
+          first_name: "National",
+          last_name: "Phone",
           roles: "field_representative",
           phone: "067 123 45 67",
         },
@@ -229,16 +237,18 @@ describe("import validation preview", () => {
       context as never,
       {
         templateType: "users",
-        columns: ["email", "name", "roles"],
+        columns: ["email", "first_name", "last_name", "roles"],
         rows: [
           {
             email: "",
-            name: "Missing Email",
+            first_name: "Missing",
+            last_name: "Email",
             roles: "company_admin",
           },
           {
             email: "valid@example.com",
-            name: "Valid User",
+            first_name: "Valid",
+            last_name: "User",
             roles: "field_representative",
           },
         ],

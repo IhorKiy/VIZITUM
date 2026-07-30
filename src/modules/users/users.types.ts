@@ -43,6 +43,10 @@ export function resolveAdminCap(tenant: {
 export type UserResponse = {
   id: string;
   email: string;
+  firstName: string;
+  // Null only on rows backfilled from a legacy one-word name.
+  lastName: string | null;
+  // Display value composed from the two above; see src/common/person-name.ts.
   name: string;
   phone: string | null;
   status: UserStatus;
@@ -90,7 +94,8 @@ export type InviteHistoryItem = {
 };
 
 export type UpdateUserRequestBody = {
-  name?: unknown;
+  firstName?: unknown;
+  lastName?: unknown;
   phone?: unknown;
   status?: unknown;
 };
