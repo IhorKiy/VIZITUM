@@ -90,7 +90,7 @@ export class TenancyService {
     const tenant = normalizedSlug
       ? await this.prisma.platformTenant.findUnique({
           where: { slug: normalizedSlug },
-          select: { id: true, slug: true },
+          select: { id: true, slug: true, name: true },
         })
       : null;
 
@@ -105,6 +105,7 @@ export class TenancyService {
 
     return {
       slug: tenant.slug,
+      name: tenant.name,
       colorScheme: branding.colorScheme,
       logoUrl: await this.buildPublicLogoUrl(tenant.id, branding.logoObjectId),
     };

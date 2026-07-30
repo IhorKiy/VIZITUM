@@ -3,7 +3,12 @@ import { describe, it } from "node:test";
 
 import { TenancyService } from "../src/modules/tenancy/tenancy.service";
 
-type FakeTenant = { id: string; slug: string; status?: string };
+type FakeTenant = {
+  id: string;
+  slug: string;
+  name?: string;
+  status?: string;
+};
 
 function buildService(options?: {
   tenants?: FakeTenant[];
@@ -12,7 +17,7 @@ function buildService(options?: {
   presignedCalls?: unknown[];
 }) {
   const tenants = options?.tenants ?? [
-    { id: "tenant-a", slug: "acme", status: "pilot" },
+    { id: "tenant-a", slug: "acme", name: "Acme", status: "pilot" },
   ];
   const presignedCalls = options?.presignedCalls ?? [];
 
@@ -82,9 +87,23 @@ describe("public tenant branding endpoint", () => {
 
     assert.deepEqual(branding, {
       slug: "acme",
+      name: "Acme",
       colorScheme: "emerald",
       logoUrl: null,
     });
+  });
+
+  it("returns the stored tenant name with its case untouched", async () => {
+    // The slug is lowercase by construction, so the name has to come off the
+    // tenant row: deriving it from the slug turned "MG" into "Mg" on every
+    // screen that names the workspace.
+    const { service } = buildService({
+      tenants: [{ id: "tenant-a", slug: "mg", name: "MG", status: "pilot" }],
+    });
+
+    const branding = await service.getPublicTenantBranding("mg");
+
+    assert.equal(branding.name, "MG");
   });
 
   it("returns the stored color scheme", async () => {
@@ -132,7 +151,9 @@ describe("public tenant branding endpoint", () => {
 
   it("serves branding for suspended and archived tenants (login page must render)", async () => {
     const { service } = buildService({
-      tenants: [{ id: "tenant-a", slug: "acme", status: "archived" }],
+      tenants: [
+        { id: "tenant-a", slug: "acme", name: "Acme", status: "archived" },
+      ],
     });
 
     const branding = await service.getPublicTenantBranding("acme");

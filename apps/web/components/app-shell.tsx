@@ -15,7 +15,6 @@ import {
   availableZones,
   buildFieldMenuLinks,
   buildTenantNav,
-  normalizeTenantName,
   resolveZoneLanding,
   zoneForArea,
   zoneHomePath,
@@ -185,9 +184,7 @@ export async function AppShell({
           <div className="brand-block">
             <BrandMark logoUrl={branding.logoUrl} />
             <div>
-              <p className="topbar-company-name">
-                {normalizeTenantName(tenantSlug)}
-              </p>
+              <p className="topbar-company-name">{branding.name}</p>
               <p className="topbar-app-name">{tCommon("appName")}</p>
             </div>
           </div>
@@ -196,7 +193,7 @@ export async function AppShell({
             {currentZone === "field" ? (
               <FieldMenu
                 active={activeArea === "field-menu"}
-                companyName={normalizeTenantName(tenantSlug)}
+                companyName={branding.name}
                 links={fieldMenuLinks}
                 otherZones={otherZones}
                 tenantSlug={tenantSlug}
@@ -242,7 +239,7 @@ export async function AppShell({
           <BrandMark logoUrl={branding.logoUrl} />
           <div>
             <p className="brand-name">{tCommon("appName")}</p>
-            <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>
+            <p className="tenant-name">{branding.name}</p>
           </div>
         </div>
 

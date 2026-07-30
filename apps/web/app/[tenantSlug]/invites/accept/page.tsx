@@ -4,9 +4,9 @@ import { getTranslations } from "next-intl/server";
 import { PhoneInput } from "../../../../components/phone-input";
 import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
-import { normalizeTenantName } from "../../../../lib/navigation";
 import { getFormString } from "../../../../lib/form";
 import { INPUT_LIMITS } from "../../../../lib/input-limits";
+import { resolveTenantBranding } from "../../../../lib/tenant-branding";
 import { resolveTenantLocale } from "../../../../lib/tenant-locale";
 
 type AcceptInvitePageProps = {
@@ -23,6 +23,8 @@ export default async function AcceptInvitePage({
   const t = await getTranslations("invites");
   const tCommon = await getTranslations("common");
   const { phoneCountry } = await resolveTenantLocale(tenantSlug);
+  // Cache hit on the tenant layout's branding fetch; here for the name only.
+  const branding = await resolveTenantBranding(tenantSlug);
 
   async function acceptInviteAction(formData: FormData) {
     "use server";
@@ -57,7 +59,7 @@ export default async function AcceptInvitePage({
           <div className="brand-mark">V</div>
           <div>
             <p className="brand-name">Vizitum</p>
-            <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>
+            <p className="tenant-name">{branding.name}</p>
           </div>
         </div>
 
