@@ -47,6 +47,7 @@ import {
   writePendingMediaRegistration,
   type DraftScope,
 } from "../lib/offline-drafts";
+import { isStorageObjectGone } from "../lib/storage-retry";
 import {
   deriveVisitOutcome,
   isNoOrderReason,
@@ -631,21 +632,40 @@ export function FieldVisitReportForm({
           mimeType: file.type || "image/jpeg",
           fileName: file.name || "problem-photo.jpg",
         });
+
+        // Storing bytes drops the registration record beside them, because
+        // fresh bytes normally mean a different capture. This branch is the one
+        // case where they do not: a retry finally storing bytes the device
+        // refused the first time, whose registration we are still holding.
+        if (persisted && objectId) {
+          await writePendingMediaRegistration(draftScope, "photo", objectId);
+        }
       }
 
       let presigned: PresignedUpload | null = null;
 
       if (objectId) {
-        presigned = await resignUpload(objectId);
+        const attempt = await resignUpload(objectId);
+
+        presigned = attempt.presigned;
+
+        if (!presigned && !attempt.objectGone) {
+          // No verdict on the object — no signal, a 5xx, a session that
+          // expired while the bytes waited. The registration is still good, so
+          // it stays and the next attempt re-signs this same object. Treating
+          // this as "gone" is what would register a second one.
+          keepForRetry(t("problemPhotoErrorNotice"));
+          return;
+        }
 
         if (!presigned) {
-          // The registration died while the bytes waited. An unclaimed problem
-          // photo's storage object is swept 24 h after it was registered, and
-          // the device holds the bytes for days — so re-signing an id from
-          // Friday fails every time on Monday, and without this the capture
-          // would be permanently unsendable while the panel still said it was
-          // safe. Registering again costs one spare storage object; refusing to
-          // is what costs the rep their evidence.
+          // The registration really is gone. An unclaimed problem photo's
+          // storage object is swept 24 h after it was registered, and the
+          // device holds the bytes for days — so re-signing an id from Friday
+          // fails every time on Monday, and without this the capture would be
+          // permanently unsendable while the panel still said it was safe.
+          // Registering again costs one spare storage object; refusing to is
+          // what costs the rep their evidence.
           objectId = null;
           await writePendingMediaRegistration(draftScope, "photo", null);
         }
@@ -671,7 +691,7 @@ export function FieldVisitReportForm({
         }
       }
 
-      presigned ??= await resignUpload(objectId);
+      presigned ??= (await resignUpload(objectId)).presigned;
 
       if (!presigned || !(await putBytes(presigned, file))) {
         keepForRetry(t("problemPhotoErrorNotice"));
@@ -826,12 +846,18 @@ export function FieldVisitReportForm({
   // retrying that way would leave one more of each behind on every attempt.
   // The URL minted at registration cannot be reused either: it expires after
   // five minutes, and a rep waiting to get back into signal is usually past it.
-  async function resignUpload(
-    objectId: string,
-  ): Promise<PresignedUpload | null> {
+  //
+  // The verdict comes back alongside the URL because the two ways this fails
+  // must not be confused: see `isStorageObjectGone`.
+  async function resignUpload(objectId: string): Promise<{
+    presigned: PresignedUpload | null;
+    objectGone: boolean;
+  }> {
     const signed = await createUploadUrlAction(objectId);
 
-    return signed.ok ? signed.data : null;
+    if (signed.ok) return { presigned: signed.data, objectGone: false };
+
+    return { presigned: null, objectGone: isStorageObjectGone(signed) };
   }
 
   async function handleTranscription(
@@ -872,6 +898,13 @@ export function FieldVisitReportForm({
           mimeType,
           fileName: buildRecordingFileName(mimeType),
         });
+
+        // See the photo path: the write drops the registration beside the bytes,
+        // and this is the one branch where the id it dropped is still the right
+        // one for the bytes being stored.
+        if (persisted && objectId) {
+          await writePendingMediaRegistration(draftScope, "audio", objectId);
+        }
       }
 
       // The URL registration hands back is good for one immediate upload; a
@@ -879,7 +912,20 @@ export function FieldVisitReportForm({
       let presigned: PresignedUpload | null = null;
 
       if (objectId) {
-        presigned = await resignUpload(objectId);
+        const attempt = await resignUpload(objectId);
+
+        presigned = attempt.presigned;
+
+        if (!presigned && !attempt.objectGone) {
+          // The re-sign never got an answer, which in a dead zone is the
+          // ordinary outcome. Registering again here is what would leave a
+          // second `VisitNote` on the visit and an R2 key nothing collects —
+          // `temporary_audio` is only swept once something marks it expired, and
+          // only the AI job's own object is ever marked. So the id stays and the
+          // next attempt re-signs it.
+          keepForRetry(t("voiceErrorNotice"));
+          return;
+        }
 
         if (!presigned) {
           // Same reasoning as the photo path: a registration the device has
@@ -913,7 +959,7 @@ export function FieldVisitReportForm({
         }
       }
 
-      presigned ??= await resignUpload(objectId);
+      presigned ??= (await resignUpload(objectId)).presigned;
 
       if (!presigned || !(await putBytes(presigned, blob))) {
         keepForRetry(t("voiceErrorNotice"));

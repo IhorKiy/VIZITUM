@@ -253,8 +253,17 @@ export async function writePendingMediaBytes(
       updatedAt: Date.now(),
       ...media,
     };
+    const store = transaction.objectStore(MEDIA_STORE);
 
-    transaction.objectStore(MEDIA_STORE).put(record);
+    store.put(record);
+    // Fresh bytes invalidate whatever registration the capture they replace
+    // had consumed, and the two are separate records, so nothing else would
+    // clear it: a second recording written over the first would be paired with
+    // the first one's storage object and uploaded into it. Dropped in this same
+    // transaction rather than afterwards, because the caller's next step is a
+    // network call — exactly the one that fails here — and a half-applied
+    // replacement is the state that produces the mismatch.
+    store.delete(mediaKey(scope, kind, "registration"));
 
     await commitTransaction(transaction);
 
