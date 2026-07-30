@@ -15,6 +15,7 @@ import {
   isEmptyFieldReportDraft,
   parseFieldReportDraft,
   PROBLEM_TYPES,
+  resolveDraftVisitDate,
   type FieldReportDraft,
   type ProblemType,
 } from "../lib/field-report-draft";
@@ -405,7 +406,13 @@ export function FieldVisitReportForm({
         untouched &&
         !isEmptyFieldReportDraft(draft, todayIsoDate())
       ) {
-        setVisitDate(draft.visitDate || todayIsoDate());
+        setVisitDate(
+          resolveDraftVisitDate(
+            draft.visitDate,
+            todayIsoDate(),
+            minVisitIsoDate(),
+          ),
+        );
         setOrderPlaced(draft.orderPlaced);
         setNoOrderReason(draft.noOrderReason);
         setMissingProductIds(draft.missingProductIds);
@@ -731,11 +738,19 @@ export function FieldVisitReportForm({
 
   // Collapsing the problem row discards it: the whole point of the exception
   // is that a visit without a problem carries no problem record.
+  //
+  // A photo still waiting to upload goes with it. Its retry panel sits above the
+  // form and does not belong to the problem row, so leaving it behind meant a
+  // later successful retry called `setProblemPhoto` and rebuilt the record the
+  // rep had just discarded — a problem on the confirmed report with no type, no
+  // note and a photo. Unlike a recording, a photo can be taken again, so
+  // discarding is the honest reading of the rep closing the row.
   function closeProblem() {
     setProblemOpen(false);
     setProblemType(null);
     setProblemNote("");
     setProblemPhoto(null);
+    discardPendingPhoto();
   }
 
   function toggleMissingProduct(productId: string) {
@@ -880,6 +895,19 @@ export function FieldVisitReportForm({
     };
 
     try {
+      if (blob.size === 0) {
+        // A recorder that died before handing over a single chunk — a revoked
+        // permission, a headset pulled out — still fires "stop", and there is
+        // nothing here to send. Registering it anyway would put an empty note
+        // row on the visit and fail opaquely at transcription a minute later.
+        // `readPendingMediaBytes` already refuses a zero-length record on the
+        // way back in; this is the same rule on the way out.
+        setPendingAudio(null);
+        void deletePendingMedia(draftScope, "audio");
+        setError(t("voiceEmptyRecordingNotice"));
+        return;
+      }
+
       if (blob.size > MAX_AUDIO_SIZE_BYTES) {
         // Refused here rather than by the server, so it fails once instead of
         // on every retry.
@@ -1936,8 +1964,17 @@ export function FieldVisitReportForm({
           <div className="field-report-submit-bar">
             <button
               className="primary-button field-report-submit"
+              // `isUploadingPhoto` belongs here for the same reason as the
+              // others, and its absence was quiet: `problemPhoto` is only set
+              // once the bytes are actually stored, so confirming while the
+              // upload was still in flight wrote the report without the photo
+              // the rep had just taken, with nothing said about it.
               disabled={
-                isSubmitting || isRecording || isStopping || isTranscribing
+                isSubmitting ||
+                isRecording ||
+                isStopping ||
+                isTranscribing ||
+                isUploadingPhoto
               }
               type="submit"
             >

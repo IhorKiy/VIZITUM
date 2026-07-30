@@ -1285,6 +1285,7 @@
       "draftRestoredNotice": "Restored the report you started on this device.",
       "voiceErrorNotice": "Could not process the recording. Fill in the form manually.",
       "voiceMaxDurationNotice": "Recording stopped automatically after 5 minutes.",
+      "voiceEmptyRecordingNotice": "The recording came through empty. Record again, or fill in the form manually.",
       "voiceTooLargeNotice": "This recording is too large to send. Fill in the form manually.",
       "voicePendingAria": "Recording waiting to be sent",
       "voicePendingEyebrow": "Not sent",
