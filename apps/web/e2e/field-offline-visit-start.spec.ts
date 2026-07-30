@@ -20,14 +20,23 @@ import { OFFLINE_VISIT_START_SEED_ARGS } from "./global-setup";
 // exercises the actual userId the enqueue call used — nothing here needs to
 // know or guess it.
 //
+// Also covers taking that start back — cancelling a visit that only ever
+// existed on this device, from both places it can be reached (the report
+// screen it opened, and the location card's "still syncing" state). That path
+// deletes rather than sends, so it is checked against the stores directly,
+// the way field-cancel-visit.spec.ts checks its own delete.
+//
 // What this file does not cover: the visit actually resolving once signal
-// returns, and the adopt case specifically (the rep's own already-open visit
-// on the same stop, where the server discards the client-minted id — see
-// visit-start-outbox.ts). Both need controlling exactly what the create
-// response contains, which page.route() could technically fulfill, but
-// reaching that with confidence needs a real backend round trip; verified by
-// hand against the demo tenant instead, same limitation the plan doc already
-// documents for the queued-confirm-cancel case.
+// returns, the adopt case specifically (the rep's own already-open visit on
+// the same stop, where the server discards the client-minted id — see
+// visit-start-outbox.ts), and the one branch of cancelling that depends on
+// resolution — a start that syncs while the rep reads the prompt, which sends
+// them to the real visit instead of deleting anything. All three need control
+// over exactly what the create response contains, which page.route() could
+// technically fulfill, but reaching that with confidence needs a real backend
+// round trip; verified by hand against the demo tenant instead, same
+// limitation the plan doc already documents for the queued-confirm-cancel
+// case.
 //
 // Owns its own tenant for the reason every spec starting a visit does:
 // `Visit.routeItemId` is unique, so two specs racing to start a visit on the
@@ -41,8 +50,8 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CUID_PATTERN = /^c[a-z0-9]{20,}$/i;
 
-// Both tests start a visit on the one seeded planned stop; under
-// fullyParallel that races two attempts over `Visit.routeItemId`'s
+// Every test here starts a visit on the one seeded planned stop; under
+// fullyParallel that races several attempts over `Visit.routeItemId`'s
 // uniqueness, same reasoning as field-pending-media.spec.ts.
 test.describe.configure({ mode: "serial" });
 
@@ -121,20 +130,50 @@ async function visitStartOutboxEntries(
   );
 }
 
-test("starting a visit with no signal still opens a working report screen, and the location card remembers it", async ({
-  page,
-}) => {
-  const locationUrl = await openLocation(page);
+// Counts what a cancel has to have discarded. Same duplication note as
+// above.
+async function pendingMediaCount(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      new Promise<number>((resolve, reject) => {
+        const request = indexedDB.open("vizitum-field");
 
-  // Every Server Action invocation is a POST carrying this header, regardless
-  // of what it does — the eager attempt in start-visit-control.tsx throws
-  // exactly the way it would with no signal, which is the whole point: this
-  // is not a special-cased test double, it is the real "no network" path.
+        request.onerror = () =>
+          reject(request.error ?? new Error("IndexedDB open failed"));
+        request.onsuccess = () => {
+          const database = request.result;
+          const countRequest = database
+            .transaction("pending-media", "readonly")
+            .objectStore("pending-media")
+            .count();
+
+          countRequest.onsuccess = () => resolve(countRequest.result);
+          countRequest.onerror = () =>
+            reject(countRequest.error ?? new Error("IndexedDB count failed"));
+        };
+      }),
+  );
+}
+
+// Every Server Action invocation is a POST carrying this header, regardless of
+// what it does — so aborting exactly those makes the eager create attempt in
+// start-visit-control.tsx throw the way it would with no signal at all, while
+// leaving plain navigations alone. Not a special-cased test double: it is the
+// real "no network" path.
+async function goOffline(page: Page): Promise<void> {
   await page.route("**/*", async (route) => {
     const headers = route.request().headers();
 
     return "next-action" in headers ? route.abort() : route.fallback();
   });
+}
+
+test("starting a visit with no signal still opens a working report screen, and the location card remembers it", async ({
+  page,
+}) => {
+  const locationUrl = await openLocation(page);
+
+  await goOffline(page);
 
   await page.getByRole("button", { name: "Start visit", exact: true }).click();
   await page.waitForURL("**/field/visits/**");
@@ -181,6 +220,102 @@ test("starting a visit with no signal still opens a working report screen, and t
   await expect(
     page.getByRole("heading", { name: "Visit in progress" }),
   ).toBeVisible();
+});
+
+// The other half of "a visit can be started with no signal": being able to
+// take it back. Without this the offline start is a one-way door — the queued
+// start syncs the moment signal returns and becomes a real `in_progress`
+// visit that nobody ever confirms or cancels, because the rep who decided not
+// to visit has no affordance anywhere that would stop it.
+test("a visit started with no signal can be cancelled before it ever syncs", async ({
+  page,
+}) => {
+  const locationUrl = await openLocation(page);
+
+  await goOffline(page);
+
+  await page.getByRole("button", { name: "Start visit", exact: true }).click();
+  await page.waitForURL("**/field/visits/**");
+  expect(await visitStartOutboxEntries(page)).toHaveLength(1);
+
+  // Something for the prompt to warn about, captured the way a rep in a
+  // basement would: the bytes reach pending-media, the registration that
+  // would send them cannot go anywhere.
+  await page.getByRole("button", { name: "Fill in manually" }).click();
+  await page.getByRole("button", { name: /^Problem/ }).click();
+  await page.getByLabel(/Add a photo|Uploading/).setInputFiles({
+    name: "shelf-problem.png",
+    mimeType: "image/png",
+    buffer: Buffer.alloc(2048, 7),
+  });
+  await expect(
+    page.getByRole("region", { name: "Photo waiting to be sent" }),
+  ).toBeVisible();
+  expect(await pendingMediaCount(page)).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Cancel visit", exact: true }).click();
+
+  // No reason select and no dialog, unlike a real visit's cancel: there is no
+  // visit on the server to record a cancellation against.
+  await expect(
+    page.getByText(
+      "This visit hasn't reached the server yet, so cancelling it just removes it from this phone",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "The recording or photo taken for it hasn't been sent yet and will be discarded.",
+    ),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel visit", exact: true }).click();
+  await page.waitForURL("**/field/locations/**");
+
+  // Back to a stop the rep can simply start again — and nothing left queued
+  // to sync a visit they just cancelled.
+  await expect(
+    page.getByRole("button", { name: "Start visit", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue visit" })).toBeHidden();
+  expect(await visitStartOutboxEntries(page)).toHaveLength(0);
+  expect(await pendingMediaCount(page)).toBe(0);
+
+  // Still gone after a real reload, not just in the state this tab happens to
+  // be holding.
+  await page.goto(locationUrl);
+  await expect(
+    page.getByRole("button", { name: "Start visit", exact: true }),
+  ).toBeVisible();
+});
+
+test("the location card can cancel a queued start without opening it", async ({
+  page,
+}) => {
+  const locationUrl = await openLocation(page);
+
+  await goOffline(page);
+
+  await page.getByRole("button", { name: "Start visit", exact: true }).click();
+  await page.waitForURL("**/field/visits/**");
+
+  // The gap this closes was written up against this screen specifically: the
+  // card offered "continue, still syncing" and no way out of it at all.
+  await page.goto(locationUrl);
+  await expect(
+    page.getByRole("link", { name: "Continue visit" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel visit", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel visit", exact: true }).click();
+
+  // No navigation and no refresh here — the server's own render of this stop
+  // never knew about this visit, so dropping the local state is the whole
+  // update.
+  await expect(
+    page.getByRole("button", { name: "Start visit", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Continue visit" })).toBeHidden();
+  expect(await visitStartOutboxEntries(page)).toHaveLength(0);
 });
 
 test("starting a visit with a live connection is unchanged", async ({

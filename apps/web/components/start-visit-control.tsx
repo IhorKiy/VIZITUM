@@ -20,6 +20,7 @@ import {
   type VisitStartOutboxEntry,
   type VisitStartOutboxScope,
 } from "../lib/visit-start-outbox";
+import { AbandonVisitStartControl } from "./abandon-visit-start-control";
 
 // Returning both together, rather than assigning an outer `let` from inside
 // the try block, is deliberate — not just style. classifyReportSendResult's
@@ -223,6 +224,18 @@ export function StartVisitControl({
           <span aria-hidden="true">▶</span> {t("continueVisit")}
         </a>
         <p className="form-hint">{t("continueVisitPendingHint")}</p>
+        {/* The way back out of a start nobody wants after all. Without it this
+            state is a one-way door: the rep can only navigate away, and the
+            queued start syncs into a real visit nobody ever confirms or
+            cancels. Dropping the local state is enough to restore the card —
+            no router.refresh(), since the server's own render of this stop
+            never knew about this visit and does not change. */}
+        <AbandonVisitStartControl
+          clientVisitId={pendingLocal.clientVisitId}
+          onAbandoned={() => setPendingLocal(null)}
+          scope={scope}
+          tenantSlug={tenantSlug}
+        />
       </>
     );
   }

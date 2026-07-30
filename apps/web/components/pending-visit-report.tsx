@@ -15,6 +15,7 @@ import {
   type VisitStartOutboxScope,
 } from "../lib/visit-start-outbox";
 import { flushVisitStartOutbox } from "../lib/visit-start-outbox-flush";
+import { AbandonVisitStartControl } from "./abandon-visit-start-control";
 import { BackLink } from "./back-link";
 import { FieldVisitReportForm } from "./field-visit-report-form";
 
@@ -244,6 +245,22 @@ export function PendingVisitReport({
         visitId={visitId}
         voiceHint={state.voiceHint}
       />
+      {/* Where a real visit's page puts CancelVisitModal, and for the same
+          reason: a rep who decides not to do this visit should not have to
+          find their way back to the location card first. Sends them there
+          afterwards with replace() rather than push() — this URL resolves to
+          nothing at all now, so leaving it in history behind a back gesture
+          would strand them on the not-found panel. */}
+      <div className="visit-cancel-action">
+        <AbandonVisitStartControl
+          clientVisitId={visitId}
+          onAbandoned={() =>
+            router.replace(`/${tenantSlug}/field/locations/${state.locationId}`)
+          }
+          scope={scope}
+          tenantSlug={tenantSlug}
+        />
+      </div>
     </>
   );
 }

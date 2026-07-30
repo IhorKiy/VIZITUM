@@ -79,7 +79,12 @@ export function ConfirmActionButton({
         .filter(Boolean)
         .join(" ")}
     >
-      <span className="confirm-action-prompt">{promptText}</span>
+      {/* role="alert": focus lands on the confirm button when the prompt
+          opens, so without an announcement a screen reader hears only the
+          button's label, never the sentence saying what confirming does. */}
+      <span className="confirm-action-prompt" role="alert">
+        {promptText}
+      </span>
       <div className="confirm-action-buttons">
         <button
           className="secondary-button danger"

@@ -1,15 +1,16 @@
 # Task: Offline resilience for the field zone — local drafts, deferred sync, offline visit start
 
-## Status (updated after phases 1–2, phase 3, and the cancel-visit gap fix)
+## Status (updated after phases 1–2, phase 3, and both cancel-visit gap fixes)
 
 **Done and merged into `main`**: nothing a rep produces offline is lost, a
 confirmed report or a started visit is safe to retry, cancelling a visit no
 longer strands whatever was queued for it, and a visit can now be started
-with no signal at all and worked on before it ever syncs. That is phases 1,
-2 and 3 in full, plus the cancel-visit gap fix. See "What's already built"
-below for the exact file map — read it before touching anything, several of
-the plans in the sections further down are now **stale** (kept for
-historical context, not as instructions).
+with no signal at all, worked on before it ever syncs, and cancelled again
+without ever having reached the server. That is phases 1, 2 and 3 in full,
+plus both cancel-visit gap fixes. See "What's already built" below for the
+exact file map — read it before touching anything, several of the plans in
+the sections further down are now **stale** (kept for historical context,
+not as instructions).
 
 **Not done**: the cached-route-shell/service-worker piece that would let the
 field zone's *pages themselves* load with zero connectivity, not just the
@@ -26,20 +27,7 @@ order a next session should pick them up:
    a visit in airplane mode on an actual iOS Safari. Do this before calling
    the offline story release-ready — iOS is exactly where the emulated
    checks lie.
-2. **Cancelling a visit that exists only as a queued, never-synced local
-   start has no UI.** `CancelVisitModal` stays wired only to a real,
-   server-known `activeVisit` — the location card's "continue, still
-   syncing" state (`start-visit-control.tsx`) renders no cancel affordance
-   at all. A rep who taps "start" and then decides not to visit can only
-   navigate away; the queued start sits in `visit-start-outbox.ts` forever
-   (never swept, by the same "the record is the only mapping" reasoning
-   that keeps a *resolved* one around — see the file's own header) and,
-   once signal returns, syncs as a real `in_progress` visit nobody ever
-   confirms or cancels. Needs a genuinely different flow than the existing
-   modal: a pure local delete (the outbox entry plus any draft/pending-media
-   keyed to that `clientVisitId`), no server call, no reason collection,
-   since the server has never heard of the visit.
-3. **A rep who stays on the "still syncing" screen while the adopt case
+2. **A rep who stays on the "still syncing" screen while the adopt case
    resolves can leave a harmless orphaned draft behind.** Confirmed once by
    hand while verifying the adopt case (see the "Also fixed"/"Phase 3"
    entries below): `visit-start-outbox-flush.ts`'s rekey moves the draft to
@@ -58,8 +46,15 @@ order a next session should pick them up:
    learn its underlying visit id changed mid-flight, which today's
    props-down, one-way data flow into `FieldVisitReportForm` doesn't
    support; not attempted here as disproportionate to a self-healing,
-   no-data-loss quirk — noted for whoever next touches this path.
-4. **An outbox entry left unresolved can misfire on retry if the world
+   no-data-loss quirk — noted for whoever next touches this path. The
+   abandon flow added since has a smaller sibling of exactly this shape,
+   documented in `abandon-visit-start.ts` and for the same structural
+   reason: cancelling a never-synced visit *from the report screen* deletes
+   the draft, and that screen's own unmount flush can write one final copy
+   back under an id nothing will ever navigate to again. Same non-
+   consequence, same 14-day sweep; only reachable if the rep typed something
+   before cancelling, since an empty draft is not written back at all.
+3. **An outbox entry left unresolved can misfire on retry if the world
    changed underneath it while it waited.** Two narrow variants, both found
    by review rather than by hitting them:
    - **Phantom replay after an unresolved adopt.** Every flush of an
@@ -116,13 +111,16 @@ Everything below is real, merged, and documented in `docs/reference/module-map.m
 
 **Also fixed: cancelling a visit no longer strands unsent work** (closes known gap #1 from the previous version of this doc): `CancelVisitModal` now checks, each time it opens, whether the visit has pending media or a queued outbox entry, and shows an inline notice naming which before the rep commits — a report already confirmed offline outranks a bare recording/photo in that notice, since losing a finished report costs more. On submit it awaits deleting the visit's pending media (both kinds) and its outbox entry before the cancel request goes out — same shape as `field-menu.tsx`'s sign-out handler, and for the same reason: firing it and not waiting loses the race with the redirect. Deliberately does **not** touch the draft (what the rep typed but never confirmed): the report form mounted beside the modal owns it through its own hook, which rewrites the draft on its own unmount regardless of what deleted it in the meantime, so deleting it from the modal would just lose that race and resurrect it (see `use-field-report-persistence.ts`'s entry in `module-map.md`). New in `offline-drafts.ts` / `report-outbox.ts`: `hasPendingMediaBytes`, `hasReportOutboxEntryForVisit`, `deleteReportOutboxEntryForVisit` — `module-map.md` has the detail. Verified two ways: `apps/web/e2e/field-cancel-visit.spec.ts` (Playwright, own seeded tenant, PUT aborted the same way `field-pending-media.spec.ts` does) covers the pending-photo case end to end; the queued-outbox case doesn't script reliably the same way — the outbox's own auto-flush is eager enough that reaching "confirmed offline, not yet flushed, visit still open" needs request interception on a Next.js Server Action's own fetch, which nothing in this repo's E2E harness does yet — so that case was checked by hand against the demo tenant instead: a real outbox record seeded directly into IndexedDB for an open visit, then cancelled, confirming both the notice and the delete.
 
+**Also fixed: a visit started with no signal can be cancelled again before it ever syncs** (closes what was known gap #2 in the previous version of this doc): `apps/web/components/abandon-visit-start-control.tsx` renders wherever that visit can be reached — the location card's "continue, still syncing" state and the pending report screen itself, matching where `CancelVisitModal` sits for a real visit. Without it that state was a one-way door: the rep could only navigate away, and the queued start synced into a real `in_progress` visit nobody ever confirmed or cancelled. Deliberately not a variant of `CancelVisitModal` — there is no visit on the server to cancel, so nothing is sent, no reason is collected, and the whole operation is `apps/web/lib/abandon-visit-start.ts` deleting the queue entry plus the draft, both pending-media kinds and any queued confirm under that `clientVisitId`. The queue entry goes first and alone: it is the only one of them that can still become a visit on the server, so a device that stops answering halfway through has already done the half that mattered. The one thing making this more than a delete is that the background flush can resolve the very start being cancelled between the render that offered the control and the tap that takes it — so the entry is re-read rather than trusted, and a start that synced in the meantime hands the rep to the real visit instead of deleting a real visit's work (`decideAbandonVisitStart`, pure, pinned by `tests/web-abandon-visit-start.test.ts`). The narrower window, a create already in flight when the delete lands, needs no tombstone: `resolveVisitStart` only ever patches an existing record, finds nothing to write back, and the visit the server did create reappears on the location card as an ordinary "Continue visit", cancellable the normal way. Two new tests in `apps/web/e2e/field-offline-visit-start.spec.ts` cover both entry points end to end, reading the stores directly the way `field-cancel-visit.spec.ts` does — a delete has no screen that would show its absence.
+
+**And a pre-existing layout bug found by putting that control on the report screen**, fixed in the same change because the new affordance inherits it: `.capture-manual-bar` ("Fill in manually") is `position: fixed` on the reasoning, in its own comment, that "the capture screen is short and never scrolls". True of the step, not of the page — anything rendered *below* the report form ends up behind that bar on a phone, at partial scroll and at full scroll alike. That already applied to the real visit page's own "Cancel visit" control, which was therefore untappable on the capture step of every in-progress visit; confirmed by hit-testing both screens at max scroll in a 375px viewport, before and after. Fixed by reserving the bar's height (`--capture-manual-bar-height`) under `.visit-cancel-action`, scoped with `:has()` so the other steps — where the bar is gone and a sticky save bar takes its place — do not grow an empty strip.
+
 ## What's next
 
 In priority order:
 
-1. **Real-phone pass** (known gap #1 above) — do this before anything else on this list. It may surface problems in the already-shipped stores that are cheaper to fix now than after building more on top of them.
-2. **Cancel a visit that only exists as a queued local start** (known gap #2 above) — small and self-contained, same shape as the cancel-visit gap fix earlier in this doc: a client-side delete of the outbox entry plus any draft/pending-media under that `clientVisitId`, no server call. Worth doing before the route snapshot since it closes a real rep-facing dead end rather than adding a new surface.
-3. **Route snapshot + minimal service worker** — the one piece left that starts touching infrastructure (a `manifest.json`, an SW scope) rather than just a screen's data flow. See "Target design" below for the shape. Don't start this until 1–2 are done; a real-device pass may change what it needs to account for, and it depends on the visit screen's offline story already being complete.
+1. **Real-phone pass** (known gap #1 above) — do this before anything else on this list. It may surface problems in the already-shipped stores that are cheaper to fix now than after building more on top of them. It is also the only remaining item on this list that a coding session cannot do on its own: everything else here has been buildable and verifiable from a desktop browser against the real API, and this one needs an actual iOS device in an actual dead zone.
+2. **Route snapshot + minimal service worker** — the one piece left that starts touching infrastructure (a `manifest.json`, an SW scope) rather than just a screen's data flow. See "Target design" below for the shape. Don't start this until 1 is done; a real-device pass may change what it needs to account for, and it depends on the visit screen's offline story already being complete — which, as of the abandon fix, it now is.
 
 ## Target design (original plan — much of phases 1–3 shipped differently than described here; treat as historical context, not instructions)
 
@@ -144,7 +142,7 @@ the outbox entry to survive success rather than being deleted). What's left:
 ## Non-goals (still true)
 
 - Full offline-first data layer / generic sync engine / conflict resolution beyond the `routeItemId` case.
-- Offline support for manager/admin/operations zones, tasks, planning, assortment, insights, cancel-visit (cancelling a real, server-known visit stays online-only — no queue for the cancel request itself; only its interaction with already-queued work needed fixing, see "What's already built". Abandoning a visit that only exists as a queued local start is a different, purely-local operation with no server request to make offline in the first place — see known gap #2 above, not a case this non-goal covers).
+- Offline support for manager/admin/operations zones, tasks, planning, assortment, insights, cancel-visit (cancelling a real, server-known visit stays online-only — no queue for the cancel request itself; only its interaction with already-queued work needed fixing, see "What's already built". Cancelling a visit that only exists as a queued local start is a different, purely-local operation with no server request to make offline in the first place — shipped, see "Also fixed" above, and never a case this non-goal covered).
 - Encrypting IndexedDB contents at rest (accepted risk, documented in `module-map.md`).
 - Push notifications, periodic background sync (unsupported on iOS anyway).
 - Native app wrappers.
