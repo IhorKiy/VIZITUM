@@ -175,6 +175,27 @@ function buildRecordingFileName(mimeType: string): string {
 // and an opaque transport failure much later.
 const MAX_RECORDING_DURATION_MS = 5 * 60 * 1000;
 
+// What to tell a rep whose recording would not start. The two cases have
+// opposite next steps — a permission they can grant right now, or a browser that
+// will never record here and a manual form to use instead — and everything used
+// to land on "this browser cannot record audio". For the common case, a rep who
+// once tapped "Don't allow" (or whose phone remembers that they did), that is
+// both wrong and impossible to act on.
+//
+// `NotAllowedError` is a denial or a dismissed prompt; `SecurityError` is the
+// same answer given to the page rather than by the rep. A missing or busy
+// microphone keeps the original message: recording is not going to happen here,
+// and the form is the way forward either way.
+function resolveRecordingErrorKey(
+  cause: unknown,
+): "voiceDeniedNotice" | "voiceUnsupported" {
+  const name = cause instanceof DOMException ? cause.name : "";
+
+  return name === "NotAllowedError" || name === "SecurityError"
+    ? "voiceDeniedNotice"
+    : "voiceUnsupported";
+}
+
 function resolveMediaRecorderMimeType(): string | undefined {
   if (typeof MediaRecorder === "undefined") return undefined;
   if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus"))
@@ -1135,10 +1156,10 @@ export function FieldVisitReportForm({
         setRecordingCapNotice(t("voiceMaxDurationNotice"));
         stopRecording();
       }, MAX_RECORDING_DURATION_MS);
-    } catch {
+    } catch (cause) {
       releaseMicrophone();
       setIsRecording(false);
-      setError(t("voiceUnsupported"));
+      setError(t(resolveRecordingErrorKey(cause)));
     }
   }
 

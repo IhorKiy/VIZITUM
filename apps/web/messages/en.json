@@ -1279,6 +1279,7 @@
       "voiceHintRecording": "Recording... describe the visit.",
       "voiceProcessing": "Processing voice...",
       "voiceUnsupported": "This browser cannot record audio. Fill in the form manually.",
+      "voiceDeniedNotice": "Microphone access is blocked. Allow it in your browser settings, or fill in the form manually.",
       "voiceRecordAria": "Record voice note",
       "voiceStopAria": "Stop recording",
       "voiceEmptyNotice": "Speech was recognized, but no structured fields were found.",
