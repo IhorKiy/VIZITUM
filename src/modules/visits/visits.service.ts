@@ -63,6 +63,14 @@ const VISIT_CANCELLATION_REASONS: readonly VisitCancellationReason[] = [
 // token cannot be used to smuggle a payload into an index.
 const MAX_CLIENT_REQUEST_ID_LENGTH = 128;
 
+// How stale a device-supplied visit start may be. Matches the on-device retention
+// for unsent work (PENDING_MEDIA_MAX_AGE_MS in apps/web/lib/field-db.ts): a start
+// older than the queue that holds it cannot be a real deferred send.
+const MAX_DEFERRED_VISIT_START_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// Phone clocks drift, and a start a few minutes "in the future" is skew rather
+// than a lie worth rejecting a rep's visit over.
+const CLOCK_SKEW_SLACK_MS = 60 * 60 * 1000;
+
 const TEMPORARY_AUDIO_TTL_HOURS = 24;
 const MAX_TEMPORARY_AUDIO_SIZE_BYTES = 50 * 1024 * 1024;
 const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
@@ -387,20 +395,89 @@ export class VisitsService {
       );
     }
 
+    const clientVisitId = normalizeClientVisitId(body.clientVisitId);
+
+    // A replay of a start the device could not hear the answer to. Returned as
+    // it stands: creating a second visit would give the rep two records for one
+    // stop, and the one they have been filling in is this one.
+    if (clientVisitId) {
+      const replayed = await this.prisma.visit.findUnique({
+        where: {
+          tenantId_clientVisitId: { tenantId: context.tenantId, clientVisitId },
+        },
+        include: visitInclude,
+      });
+
+      if (replayed) {
+        return toVisitResponse(replayed);
+      }
+    }
+
+    // The stop's visit slot may already be taken — `Visit.routeItemId` is unique
+    // across every status — and a deferred start is exactly how that happens: the
+    // rep starts the stop offline while the same stop was already started
+    // somewhere the server knew about.
+    //
+    // Which visit the rep meant depends on what is sitting there. An unfinished
+    // visit of their own *is* the work they were starting, so it is handed back
+    // and their local records re-key onto it. A finished or cancelled one is not,
+    // and adopting it would attach a fresh report to a closed visit — so the new
+    // visit is created without the route link instead, the same shape the
+    // "start another visit" flow already produces for a revisited stop.
+    const routeItemLink = routeItemId
+      ? await this.resolveRouteItemLink(
+          context.tenantId,
+          routeItemId,
+          representativeUserId,
+        )
+      : { adopt: null, link: null };
+
+    if (routeItemLink.adopt) {
+      return toVisitResponse(routeItemLink.adopt);
+    }
+
     const visit = await this.prisma.visit.create({
       data: {
         tenantId: context.tenantId,
         locationId,
         representativeUserId,
-        routeItemId,
+        routeItemId: routeItemLink.link,
         visitType,
         status: "in_progress",
-        startedAt: parseOptionalDateTime(body.startedAt) ?? new Date(),
+        // Sent by the device for a deferred start, so the visit is placed at the
+        // moment the rep walked in rather than the moment their signal came back.
+        startedAt: parseVisitStartedAt(body.startedAt),
+        clientVisitId,
       },
       include: visitInclude,
     });
 
     return toVisitResponse(visit);
+  }
+
+  // Decides what a route-linked create should do about the stop's single visit
+  // slot. Returns either a visit to hand back instead of creating one, or the
+  // link the new visit may take (null meaning "create it unlinked").
+  private async resolveRouteItemLink(
+    tenantId: string,
+    routeItemId: string,
+    representativeUserId: string,
+  ): Promise<{ adopt: VisitWithRelations | null; link: string | null }> {
+    const existing = await this.prisma.visit.findFirst({
+      where: { tenantId, routeItemId },
+      include: visitInclude,
+    });
+
+    if (!existing) {
+      return { adopt: null, link: routeItemId };
+    }
+
+    const isOpen =
+      existing.status === "draft" || existing.status === "in_progress";
+
+    return isOpen && existing.representativeUserId === representativeUserId
+      ? { adopt: existing, link: null }
+      : { adopt: null, link: null };
   }
 
   async updateVisit(
@@ -1018,8 +1095,13 @@ export class VisitsService {
   ): Promise<VisitWithRelations> {
     const visit = await this.prisma.visit.findFirst({
       where: {
-        id: visitId,
         tenantId,
+        // Either identifier resolves the same visit. A visit the rep started with
+        // no signal is opened at its client id — that is the only id their phone
+        // had — and that URL has to keep working after the create syncs, rather
+        // than turning into a dead link the moment the server assigns its own.
+        // Both are unique within a tenant, so at most one row can match.
+        OR: [{ id: visitId }, { clientVisitId: visitId }],
       },
       include: visitInclude,
     });
@@ -1378,6 +1460,64 @@ function normalizeOptionalId(value: unknown): string | null {
   }
 
   return normalizeId(value);
+}
+
+// Same rules as the report's confirmation token: opaque, non-empty, short enough
+// to index. Shares the constant because both are the same kind of thing — an id
+// a device minted for work it may have to send twice.
+function normalizeClientVisitId(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalizedValue = typeof value === "string" ? value.trim() : "";
+
+  if (
+    !normalizedValue ||
+    normalizedValue.length > MAX_CLIENT_REQUEST_ID_LENGTH
+  ) {
+    throw new BadRequestException({
+      code: "VISIT_CLIENT_ID_INVALID",
+      message: "Client visit id must be a short non-empty string.",
+      fieldErrors: {
+        clientVisitId: [
+          `Client visit id must be a non-empty string of at most ${MAX_CLIENT_REQUEST_ID_LENGTH} characters.`,
+        ],
+      },
+    });
+  }
+
+  return normalizedValue;
+}
+
+// A deferred start carries the time the rep actually walked in, which is the
+// point — a visit synced at 21:00 that claims 21:00 has lost the only fact this
+// field records. Bounded rather than trusted: a clock that is days out would
+// place the visit outside any period a manager looks at, and silently clamping it
+// would be a quieter version of the same lie.
+function parseVisitStartedAt(value: unknown): Date {
+  const startedAt = parseOptionalDateTime(value);
+
+  if (!startedAt) {
+    return new Date();
+  }
+
+  const now = Date.now();
+  const age = now - startedAt.getTime();
+
+  if (age > MAX_DEFERRED_VISIT_START_AGE_MS || age < -CLOCK_SKEW_SLACK_MS) {
+    throw new BadRequestException({
+      code: "VISIT_STARTED_AT_OUT_OF_RANGE",
+      message: "Visit start time is too far from now.",
+      fieldErrors: {
+        startedAt: [
+          "Visit start time must be within the last 7 days and not in the future.",
+        ],
+      },
+    });
+  }
+
+  return startedAt;
 }
 
 // An idempotency token is opaque — the server never parses it, only matches it —

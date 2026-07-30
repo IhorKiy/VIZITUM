@@ -816,6 +816,17 @@ model Visit {
   cancelledAt          DateTime?
   cancellationReason   VisitCancellationReason?
   cancellationComment  String?
+  /// Identifier the device minted when the rep started this visit, which they can
+  /// do with no signal at all. It is the idempotency key for the deferred create
+  /// — the phone cannot tell a request that was lost from one whose answer was —
+  /// and it is also how a locally-started visit keeps a stable URL: the visit
+  /// screen resolves either this or the server's own id.
+  ///
+  /// Deliberately NOT the primary key. The server keeps minting its own cuid, so
+  /// nothing about row identity moves into client hands; this is a correlation
+  /// key beside it. Null for every visit started before this existed and for any
+  /// caller that does not send one.
+  clientVisitId        String?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
 
@@ -828,6 +839,7 @@ model Visit {
   aiJobs         AiJob[]
 
   @@unique([routeItemId])
+  @@unique([tenantId, clientVisitId])
   // Placing a visit in time means COALESCE(startedAt, createdAt), and that
   // reaches the database in two different shapes. The *day summary* sends the
   // COALESCE literally, which only an expression index can serve — those two
