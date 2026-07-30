@@ -16,6 +16,7 @@ import {
   deleteVisitStartOutboxEntry,
   enqueueVisitStart,
   findPendingVisitStartForLocation,
+  markVisitStartOutboxResolved,
   type VisitStartOutboxEntry,
   type VisitStartOutboxScope,
 } from "../lib/visit-start-outbox";
@@ -89,8 +90,14 @@ export function StartVisitControl({
   const t = useTranslations("field.location");
   const router = useRouter();
   const [isStarting, setIsStarting] = useState(false);
-  const [pendingLocal, setPendingLocal] =
-    useState<VisitStartOutboxEntry | null>(null);
+  // undefined = the local check hasn't resolved yet, distinct from null
+  // (checked, nothing pending) — the button below is disabled for exactly
+  // the undefined state, so a double-tap in the brief window before this
+  // resolves can't mint a second clientVisitId for the same unlinked start,
+  // which is precisely what this check exists to prevent in the first place.
+  const [pendingLocal, setPendingLocal] = useState<
+    VisitStartOutboxEntry | null | undefined
+  >(undefined);
 
   const scope = useMemo<VisitStartOutboxScope>(
     () => ({ tenantSlug, userId }),
@@ -158,6 +165,17 @@ export function StartVisitControl({
     }
 
     if (outcome.kind === "sent" && result?.ok) {
+      // The rep is sent straight to the real id and never sees clientVisitId,
+      // so there is nothing to rekey — but leaving the entry unresolved would
+      // still leave it visible to findPendingVisitStartForLocation until the
+      // next background flush happens to run. Within one SPA session that can
+      // be a long wait: mark it resolved now, or a rep who starts online,
+      // finishes the whole visit, and comes back to this same location card
+      // without a hard reload sees "Continue visit — hasn't reached the
+      // server yet" for a visit that has been done for a while.
+      if (queuedKey)
+        await markVisitStartOutboxResolved(queuedKey, result.data.id);
+
       router.push(
         withBackOrigin(
           `/${tenantSlug}/field/visits/${result.data.id}`,
@@ -216,7 +234,7 @@ export function StartVisitControl({
         className={
           repeat ? "secondary-button" : "primary-button location-start-visit"
         }
-        disabled={isStarting}
+        disabled={isStarting || pendingLocal === undefined}
         onClick={() => void handleStart()}
         type="button"
       >

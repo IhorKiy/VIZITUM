@@ -80,6 +80,47 @@ function visitIdFrom(url: string): string {
   return new URL(url).pathname.split("/").pop() ?? "";
 }
 
+// "vizitum-field" and "visit-start-outbox" are field-db.ts's DATABASE_NAME
+// and VISIT_START_STORE, duplicated here rather than imported — this runs in
+// the browser via page.evaluate, not the app's module graph.
+type VisitStartOutboxEntryShape = {
+  clientVisitId: string;
+  resolvedVisitId: string | null;
+};
+
+async function visitStartOutboxEntries(
+  page: Page,
+): Promise<VisitStartOutboxEntryShape[]> {
+  return page.evaluate(
+    () =>
+      new Promise<VisitStartOutboxEntryShape[]>((resolve, reject) => {
+        const request = indexedDB.open("vizitum-field");
+
+        request.onerror = () =>
+          reject(request.error ?? new Error("IndexedDB open failed"));
+        request.onsuccess = () => {
+          const database = request.result;
+          const store = database
+            .transaction("visit-start-outbox", "readonly")
+            .objectStore("visit-start-outbox");
+          const allRequest = store.getAll() as IDBRequest<
+            VisitStartOutboxEntryShape[]
+          >;
+
+          allRequest.onsuccess = () =>
+            resolve(
+              allRequest.result.map((entry) => ({
+                clientVisitId: entry.clientVisitId,
+                resolvedVisitId: entry.resolvedVisitId,
+              })),
+            );
+          allRequest.onerror = () =>
+            reject(allRequest.error ?? new Error("IndexedDB read failed"));
+        };
+      }),
+  );
+}
+
 test("starting a visit with no signal still opens a working report screen, and the location card remembers it", async ({
   page,
 }) => {
@@ -162,4 +203,15 @@ test("starting a visit with a live connection is unchanged", async ({
   await expect(
     page.getByRole("button", { name: "Fill in manually" }),
   ).toBeVisible();
+
+  // The eager attempt marks its own outbox entry resolved on the spot rather
+  // than leaving that to the next background flush — otherwise a rep who
+  // starts online, finishes the whole visit, and returns to this same
+  // location card without a hard reload (so the layout never remounts to
+  // flush anything) would see "Continue visit, still syncing" for a visit
+  // that has been done for a while, since findPendingVisitStartForLocation
+  // would still find the unresolved record.
+  const entries = await visitStartOutboxEntries(page);
+  expect(entries).toHaveLength(1);
+  expect(entries[0].resolvedVisitId).toBe(visitId);
 });

@@ -59,12 +59,32 @@ order a next session should pick them up:
    props-down, one-way data flow into `FieldVisitReportForm` doesn't
    support; not attempted here as disproportionate to a self-healing,
    no-data-loss quirk — noted for whoever next touches this path.
-4. **Narrower still, essentially unreachable**: a queued start that gets a
-   genuine *rejection* (not just queued) after a confirm has already been
-   queued against it would leave that confirm stuck — it needs a real 400 on
-   the start itself, which a UUID `clientVisitId` and a same-cycle
-   `startedAt` make very hard to hit in practice. Flagged in case a
-   real-phone pass (item 1) proves otherwise.
+4. **An outbox entry left unresolved can misfire on retry if the world
+   changed underneath it while it waited.** Two narrow variants, both found
+   by review rather than by hitting them:
+   - **Phantom replay after an unresolved adopt.** Every flush of an
+     unresolved entry re-attempts `POST /visits` with the same
+     `clientVisitId`. For the adopt outcome specifically the server never
+     stores that id anywhere (see "What's already built" above), so the
+     replay never short-circuits the way it does for a plain create — it
+     re-evaluates `resolveRouteItemLink` fresh each time. If the adopted
+     visit closes between two retries (most likely if `resolveVisitStart`'s
+     rekey keeps failing, since that is the only thing standing between
+     "just adopted" and "marked resolved"), the next retry finds the stop's
+     slot no longer held by an open visit and creates a new, unwanted,
+     unlinked `in_progress` visit instead of recognizing the one it already
+     adopted. Marking an entry resolved the moment an eager attempt
+     succeeds (see "Phase 3" above) narrows how often *any* entry sits
+     unresolved long enough to matter, but does not close this specific
+     loop for the adopt case's own retries.
+   - A queued start that gets a genuine *rejection* (not just queued) after
+     a confirm has already been queued against it would leave that confirm
+     stuck — it needs a real 400 on the start itself, which a UUID
+     `clientVisitId` and a same-cycle `startedAt` make very hard to hit in
+     practice.
+
+   Both flagged in case a real-phone pass (item 1) proves otherwise; neither
+   attempted here as disproportionate to how narrow the window is.
 
 ## Context
 
@@ -90,7 +110,7 @@ Everything below is real, merged, and documented in `docs/reference/module-map.m
 - `Visit.clientVisitId` (nullable, `@@unique([tenantId, clientVisitId])`) — a device-minted id that makes `POST /visits` safe to retry and doubles as a resolvable id (every visit lookup matches either `id` or `clientVisitId`, so a URL built offline keeps working after sync).
 - The route-slot conflict rule in `VisitsService.createVisit`/`resolveRouteItemLink`: `Visit.routeItemId` is unique across every status, so a deferred start can arrive to find the stop's slot already taken. Four cases handled: replay of the same client id → return that visit; the rep's own still-open visit on that stop → adopt it (the response comes back under that visit's own id — the client-minted id is never written anywhere); a `completed`/`cancelled` visit on that stop → create a new, unlinked visit (adopting would attach a report to a closed visit); another rep's open visit → same, unlinked (never adopt a colleague's visit).
 - `startedAt` is bounded (7 days back, 1 hour of clock-skew slack ahead) rather than trusted verbatim.
-- Frontend: `apps/web/components/start-visit-control.tsx` replaced the plain `<form action={startVisitAction}>` — mints the client id, queues the create (`apps/web/lib/visit-start-outbox.ts`, a fourth IndexedDB store), attempts it eagerly, and navigates to the server's real id if that resolves now or the client id if it has to queue (self-healing forever after via the dual-id lookup above, for three of the four backend outcomes). `apps/web/app/[tenantSlug]/field/visits/[visitId]/page.tsx` renders `apps/web/components/pending-visit-report.tsx` instead of a flat "not found" when the server does not know the id yet — real products and the voice hint fetched fresh (tenant-scoped, neither needs the visit to exist), the shelf-check matrix stays empty until the route-snapshot piece below exists. `apps/web/lib/visit-start-outbox-flush.ts` resolves a queued start by rekeying the draft, pending media and any already-queued confirm from the client id to the real one — load-bearing specifically for the adopt outcome, which is why `visit-start-outbox.ts`'s entries are never deleted on success, only marked resolved (`module-map.md` has the full reasoning and the file map). The location card also checks that same queue before offering "Start visit" again, so backing out and re-tapping while still offline can't mint a second id for an unlinked visit (the route-linked case self-corrects server-side either way, via the same adopt rule).
+- Frontend: `apps/web/components/start-visit-control.tsx` replaced the plain `<form action={startVisitAction}>` — mints the client id, queues the create (`apps/web/lib/visit-start-outbox.ts`, a fourth IndexedDB store), attempts it eagerly, and navigates to the server's real id if that resolves now or the client id if it has to queue (self-healing forever after via the dual-id lookup above, for three of the four backend outcomes). `apps/web/app/[tenantSlug]/field/visits/[visitId]/page.tsx` renders `apps/web/components/pending-visit-report.tsx` instead of a flat "not found" when the server does not know the id yet — real products and the voice hint fetched fresh (tenant-scoped, neither needs the visit to exist), the shelf-check matrix stays empty until the route-snapshot piece below exists. `apps/web/lib/visit-start-outbox-flush.ts` resolves a queued start by rekeying the draft, pending media and any already-queued confirm from the client id to the real one — load-bearing specifically for the adopt outcome, which is why `visit-start-outbox.ts`'s entries are never deleted on success, only marked resolved (`module-map.md` has the full reasoning and the file map). The location card also checks that same queue before offering "Start visit" again, so backing out and re-tapping while still offline can't mint a second id for an unlinked visit (the route-linked case self-corrects server-side either way, via the same adopt rule) — the "Start visit" button stays disabled for the brief window before that local check itself resolves, so a rapid double-tap can't slip through before the check has an answer. An eager attempt that succeeds immediately also marks its own outbox entry resolved on the spot rather than leaving that to the next background flush (found by review: without this, a rep who starts online, finishes the whole visit and returns to the same location card without a hard reload — so the layout never remounts to flush anything — could see "Continue visit, still syncing" for a visit that has been done for a while).
 
 **Separately, a real production bug** (PR #148, unrelated to the offline effort but found while investigating it): `temporary_audio`/`temporary_transcript` storage objects were never actually deleted from R2 by any code path — the cleanup sweep required `status: "expired"`, which the field-report flow never set, and the two writers that did set it also stamped `deletedAt` in the same update, which excluded them from the sweep's own filter. Fixed: one rule for all three temporary purposes (past `expiresAt`, `deletedAt: null`, any status), and `deletedAt` now means exactly one thing — the sweep actually deleted the bytes.
 
