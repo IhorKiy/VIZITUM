@@ -2,10 +2,12 @@
 
 import {
   confirmFieldVisitReport,
+  createStorageObjectUploadUrl,
   registerFieldReportAudioUpload,
   registerVisitProblemPhoto,
   transcribeFieldVisitReport,
   type ApiResult,
+  type PresignedUpload,
   type RegisteredAudioUpload,
   type RegisteredProblemPhoto,
   type Report,
@@ -40,6 +42,16 @@ export async function registerProblemPhotoAction(
   input: { fileName: string; contentType: string; sizeBytes: number },
 ): Promise<ApiResult<RegisteredProblemPhoto>> {
   return registerVisitProblemPhoto(visitId, input);
+}
+
+// Re-signs the PUT for audio or a photo that was already registered, so a
+// retry after a failed upload sends the same bytes to the same place. Retrying
+// by registering again would leave a second storage object behind — and, for
+// audio, a second note row on the visit — every attempt.
+export async function createUploadUrlAction(
+  storageObjectId: string,
+): Promise<ApiResult<PresignedUpload>> {
+  return createStorageObjectUploadUrl(storageObjectId);
 }
 
 export async function transcribeFieldReportAction(

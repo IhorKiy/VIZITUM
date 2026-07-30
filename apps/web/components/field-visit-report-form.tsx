@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type {
   FieldReportExtractedData,
   NoOrderReason,
+  PresignedUpload,
   Product,
 } from "../lib/api-client";
 import {
@@ -19,6 +20,7 @@ import {
 } from "../lib/field-report-draft";
 import {
   confirmFieldReportAction,
+  createUploadUrlAction,
   registerFieldReportAudioAction,
   registerProblemPhotoAction,
   transcribeFieldReportAction,
@@ -169,6 +171,24 @@ function resolveMediaRecorderMimeType(): string | undefined {
 // rep loses to a phone dying mid-sentence is the sentence, not the report.
 const DRAFT_WRITE_DEBOUNCE_MS = 500;
 
+// The server's own caps (MAX_PROBLEM_PHOTO_SIZE_BYTES and
+// MAX_TEMPORARY_AUDIO_SIZE_BYTES in src/modules/visits/visits.service.ts).
+// Checked here as well so an oversized file is refused at capture, while the
+// rep can still do something about it, instead of becoming a retry that can
+// never succeed.
+const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_AUDIO_SIZE_BYTES = 50 * 1024 * 1024;
+
+// Bytes waiting to reach storage, with the object registration they already
+// consumed. `objectId` is null only when the registration itself never landed;
+// a retry that has one re-signs it rather than registering again, which is what
+// keeps a flaky connection from leaving a trail of storage objects (and, for
+// audio, note rows) behind on the visit.
+type PendingUpload<TBody> = {
+  body: TBody;
+  objectId: string | null;
+};
+
 export function FieldVisitReportForm({
   tenantSlug,
   userId,
@@ -232,7 +252,24 @@ export function FieldVisitReportForm({
   >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  // `stop()` is synchronous but the recorder's own "stop" event is not, and the
+  // blob is only assembled once it fires. Without a state of its own for that
+  // gap the mic button re-enables, and a second tap clears the chunk array the
+  // pending listener is about to read — uploading an empty recording.
+  const [isStopping, setIsStopping] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  // Bytes that were recorded or picked but never reached storage. Holding them
+  // is the difference between "the upload failed" and "the recording is gone":
+  // before this, a failed upload dropped the blob and the rep retyped what they
+  // had already said out loud.
+  const [pendingAudio, setPendingAudio] = useState<PendingUpload<{
+    blob: Blob;
+    mimeType: string;
+  }> | null>(null);
+  const [pendingPhoto, setPendingPhoto] = useState<PendingUpload<File> | null>(
+    null,
+  );
+  const [pendingAudioUrl, setPendingAudioUrl] = useState<string | null>(null);
 
   const [recordingCapNotice, setRecordingCapNotice] = useState<string | null>(
     null,
@@ -245,6 +282,9 @@ export function FieldVisitReportForm({
     null,
   );
   const productDropdownRef = useRef<HTMLDivElement>(null);
+  // Set when this screen goes away, so the recorder's async "stop" event stops
+  // driving a component that is no longer mounted.
+  const unmountedRef = useRef(false);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -428,6 +468,36 @@ export function FieldVisitReportForm({
     void pruneDrafts();
   }, []);
 
+  // Leaving mid-recording — a back tap, or the redirect after confirming —
+  // must not leave the microphone live and a cap timer firing into a tree that
+  // is no longer mounted.
+  useEffect(() => {
+    unmountedRef.current = false;
+
+    return () => {
+      unmountedRef.current = true;
+      clearRecordingTimeout();
+      releaseMicrophone();
+    };
+    // Mount/unmount only: the callbacks it uses read refs, not state.
+  }, []);
+
+  // Lets the rep hear what is waiting to be sent before deciding to retry it.
+  // Revoked when the recording is replaced or the screen closes, since this can
+  // happen several times in one visit.
+  useEffect(() => {
+    if (!pendingAudio) {
+      setPendingAudioUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(pendingAudio.body.blob);
+
+    setPendingAudioUrl(url);
+
+    return () => URL.revokeObjectURL(url);
+  }, [pendingAudio]);
+
   const noOrderReasonLabels = useMemo<Record<NoOrderReason, string>>(
     () => ({
       closed: t("noOrderReasonClosed"),
@@ -457,53 +527,78 @@ export function FieldVisitReportForm({
   // Register the object, then PUT the image straight to storage from the
   // browser, same as the voice note: a Server Action would cap the body at
   // ~1 MB, which a phone photo clears on its own.
-  async function handlePhotoSelected(file: File) {
+  //
+  // `problemPhoto` is only ever set once the bytes are actually in storage, so
+  // the report can never be confirmed against an id pointing at nothing. Until
+  // then the file sits in `pendingPhoto` with the retry.
+  async function handlePhotoSelected(
+    file: File,
+    registeredObjectId: string | null = null,
+  ) {
     setIsUploadingPhoto(true);
     setError(null);
 
+    let objectId = registeredObjectId;
+    const keepForRetry = (message: string) => {
+      setPendingPhoto({ body: file, objectId });
+      setError(message);
+    };
+
     try {
-      const registerResult = await registerProblemPhotoAction(visitId, {
-        fileName: file.name || "problem-photo.jpg",
-        contentType: file.type || "image/jpeg",
-        sizeBytes: file.size,
-      });
-
-      if (!registerResult.ok) {
-        setError(registerResult.message);
+      if (file.size > MAX_PHOTO_SIZE_BYTES) {
+        // A modern phone camera clears 10 MB on its own, and the server would
+        // reject it every time — so say so once, at capture, rather than
+        // offering a retry that cannot work.
+        setPendingPhoto(null);
+        setError(t("problemPhotoTooLargeNotice"));
         return;
       }
 
-      const uploadUrl = registerResult.data.uploadUrl;
+      let presigned: PresignedUpload | null = null;
 
-      if (!uploadUrl) {
-        setError(t("problemPhotoErrorNotice"));
+      if (!objectId) {
+        const registerResult = await registerProblemPhotoAction(visitId, {
+          fileName: file.name || "problem-photo.jpg",
+          contentType: file.type || "image/jpeg",
+          sizeBytes: file.size,
+        });
+
+        if (!registerResult.ok) {
+          keepForRetry(registerResult.message);
+          return;
+        }
+
+        objectId = registerResult.data.storageObject.id;
+        presigned = registerResult.data.uploadUrl ?? null;
+      }
+
+      presigned ??= await resignUpload(objectId);
+
+      if (!presigned || !(await putBytes(presigned, file))) {
+        keepForRetry(t("problemPhotoErrorNotice"));
         return;
       }
 
-      const uploadResponse = await fetch(uploadUrl.url, {
-        method: uploadUrl.method,
-        headers: uploadUrl.headers,
-        body: file,
-      });
-
-      if (!uploadResponse.ok) {
-        setError(t("problemPhotoErrorNotice"));
-        return;
-      }
-
+      setPendingPhoto(null);
       setProblemPhoto({
-        objectId: registerResult.data.storageObject.id,
+        objectId,
         fileName: file.name || "problem-photo.jpg",
         // The backend accepts HEIC (what an iPhone shoots by default), which
         // only Safari can render — the summary needs the type to decide
         // between an <img> and a plain link.
-        contentType: registerResult.data.storageObject.contentType,
+        contentType: file.type || "image/jpeg",
       });
     } catch {
-      setError(t("problemPhotoErrorNotice"));
+      keepForRetry(t("problemPhotoErrorNotice"));
     } finally {
       setIsUploadingPhoto(false);
     }
+  }
+
+  function retryPendingPhoto() {
+    if (!pendingPhoto) return;
+
+    void handlePhotoSelected(pendingPhoto.body, pendingPhoto.objectId);
   }
 
   // Collapsing the problem row discards it: the whole point of the exception
@@ -600,48 +695,93 @@ export function FieldVisitReportForm({
     return filledSections;
   }
 
-  async function handleTranscription(blob: Blob, mimeType: string) {
+  // Uploads bytes over a presigned PUT. The bytes never pass through a Next.js
+  // Server Action, which caps request bodies at ~1 MB regardless of encoding —
+  // only the small JSON register/re-sign calls go through
+  // field-report-actions.ts.
+  async function putBytes(
+    presigned: PresignedUpload,
+    body: Blob,
+  ): Promise<boolean> {
+    const uploadResponse = await fetch(presigned.url, {
+      method: presigned.method,
+      headers: presigned.headers,
+      body,
+    });
+
+    return uploadResponse.ok;
+  }
+
+  // Re-signs the PUT for an object registration already created. A retry goes
+  // through here rather than through registration, because registering is what
+  // creates the storage object — and, for audio, the visit's note row — so
+  // retrying that way would leave one more of each behind on every attempt.
+  // The URL minted at registration cannot be reused either: it expires after
+  // five minutes, and a rep waiting to get back into signal is usually past it.
+  async function resignUpload(
+    objectId: string,
+  ): Promise<PresignedUpload | null> {
+    const signed = await createUploadUrlAction(objectId);
+
+    return signed.ok ? signed.data : null;
+  }
+
+  async function handleTranscription(
+    blob: Blob,
+    mimeType: string,
+    registeredObjectId: string | null = null,
+  ) {
     setIsTranscribing(true);
     setError(null);
     setTranscriptionMessage(null);
 
+    // Whatever happens below, the recording itself is kept until it has
+    // actually reached storage, so every failure ends in a retry the rep can
+    // take rather than in silence.
+    let objectId = registeredObjectId;
+    const keepForRetry = (message: string) => {
+      setPendingAudio({ body: { blob, mimeType }, objectId });
+      setError(message);
+    };
+
     try {
-      // Register the object, then PUT the recording straight from the
-      // browser to storage using the presigned URL that comes back — the
-      // bytes never pass through a Next.js Server Action, which caps request
-      // bodies at ~1 MB by default regardless of encoding. Only the small
-      // JSON register/transcribe calls go through field-report-actions.ts.
-      const registerResult = await registerFieldReportAudioAction(visitId, {
-        fileName: buildRecordingFileName(mimeType),
-        contentType: mimeType,
-        sizeBytes: blob.size,
-      });
-
-      if (!registerResult.ok) {
-        setError(registerResult.message);
+      if (blob.size > MAX_AUDIO_SIZE_BYTES) {
+        // Refused here rather than by the server, so it fails once instead of
+        // on every retry.
+        setPendingAudio(null);
+        setError(t("voiceTooLargeNotice"));
         return;
       }
 
-      const uploadUrl = registerResult.data.uploadUrl;
+      // The URL registration hands back is good for one immediate upload; a
+      // retry arrives with an object id instead and has to re-sign.
+      let presigned: PresignedUpload | null = null;
 
-      if (!uploadUrl) {
-        setError(t("voiceErrorNotice"));
-        return;
+      if (!objectId) {
+        const registerResult = await registerFieldReportAudioAction(visitId, {
+          fileName: buildRecordingFileName(mimeType),
+          contentType: mimeType,
+          sizeBytes: blob.size,
+        });
+
+        if (!registerResult.ok) {
+          keepForRetry(registerResult.message);
+          return;
+        }
+
+        objectId = registerResult.data.storageObject.id;
+        presigned = registerResult.data.uploadUrl ?? null;
       }
 
-      const uploadResponse = await fetch(uploadUrl.url, {
-        method: uploadUrl.method,
-        headers: uploadUrl.headers,
-        body: blob,
-      });
+      presigned ??= await resignUpload(objectId);
 
-      if (!uploadResponse.ok) {
-        setError(t("voiceErrorNotice"));
+      if (!presigned || !(await putBytes(presigned, blob))) {
+        keepForRetry(t("voiceErrorNotice"));
         return;
       }
 
       const result = await transcribeFieldReportAction(visitId, {
-        audioObjectId: registerResult.data.storageObject.id,
+        audioObjectId: objectId,
         products: products.map((product) => ({
           id: product.id,
           name: product.name,
@@ -651,9 +791,16 @@ export function FieldVisitReportForm({
       });
 
       if (!result.ok) {
-        setError(result.message);
+        // Only the transcription failed — the bytes are already in storage.
+        // Carrying the object id means the retry overwrites that same key
+        // rather than registering a second one; re-sending the bytes is a
+        // little wasteful, but it keeps one path instead of two and the rep is
+        // usually retrying because the connection dropped anyway.
+        keepForRetry(result.message);
         return;
       }
+
+      setPendingAudio(null);
 
       const filledSections = applyExtractedVisitData(result.data.extractedData);
 
@@ -665,13 +812,35 @@ export function FieldVisitReportForm({
         setTranscriptionMessage(t("voiceEmptyNotice"));
       }
     } catch {
-      setError(t("voiceErrorNotice"));
+      keepForRetry(t("voiceErrorNotice"));
     } finally {
       setIsTranscribing(false);
       // Whatever happened to the audio, the rep lands on the manual form:
       // on success to review what was extracted, on failure as the always-
-      // available fallback path.
+      // available fallback path — which is also where the retry lives.
       setStep("form");
+    }
+  }
+
+  function retryPendingAudio() {
+    if (!pendingAudio) return;
+
+    void handleTranscription(
+      pendingAudio.body.blob,
+      pendingAudio.body.mimeType,
+      pendingAudio.objectId,
+    );
+  }
+
+  function releaseMicrophone() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }
+
+  function clearRecordingTimeout() {
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
   }
 
@@ -685,14 +854,20 @@ export function FieldVisitReportForm({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+      // Held before anything below can throw: a MediaRecorder the browser
+      // refuses to construct would otherwise leave the microphone open with
+      // nothing holding a reference to close it.
+      streamRef.current = stream;
+
       const mimeType = resolveMediaRecorderMimeType();
       const mediaRecorder = new MediaRecorder(
         stream,
         mimeType ? { mimeType } : undefined,
       );
       mediaRecorderRef.current = mediaRecorder;
-      streamRef.current = stream;
       chunksRef.current = [];
 
       mediaRecorder.addEventListener("dataavailable", (event) => {
@@ -704,9 +879,26 @@ export function FieldVisitReportForm({
         const audioBlob = new Blob(chunksRef.current, {
           type: recordedMimeType,
         });
-        stream.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
+
+        releaseMicrophone();
+        setIsStopping(false);
+
+        // The screen is gone — the rep navigated away or confirmed the report.
+        // Driving state from here would only warn into an unmounted tree.
+        if (unmountedRef.current) return;
+
         void handleTranscription(audioBlob, recordedMimeType);
+      });
+
+      // Without this a recorder that dies mid-capture (a revoked permission, a
+      // disconnected headset) never fires "stop", leaving the rep on a stop
+      // button that does nothing and a disabled manual form.
+      mediaRecorder.addEventListener("error", () => {
+        clearRecordingTimeout();
+        releaseMicrophone();
+        setIsRecording(false);
+        setIsStopping(false);
+        setError(t("voiceErrorNotice"));
       });
 
       mediaRecorder.start();
@@ -719,19 +911,29 @@ export function FieldVisitReportForm({
         stopRecording();
       }, MAX_RECORDING_DURATION_MS);
     } catch {
+      releaseMicrophone();
+      setIsRecording(false);
       setError(t("voiceUnsupported"));
     }
   }
 
   function stopRecording() {
-    if (recordingTimeoutRef.current) {
-      clearTimeout(recordingTimeoutRef.current);
-      recordingTimeoutRef.current = null;
-    }
+    clearRecordingTimeout();
+
     if (mediaRecorderRef.current?.state === "recording") {
+      // Cleared again by the "stop" listener once the blob exists; until then
+      // the capture button stays disabled so a second tap cannot reset the
+      // chunk array the listener is about to read.
+      setIsStopping(true);
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
+    } else {
+      // The recorder is already inactive — released mid-recording, or errored.
+      // Leaving `isRecording` set here would disable both the capture button
+      // and the manual form, which has to stay available at all times.
+      releaseMicrophone();
     }
+
+    setIsRecording(false);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -926,6 +1128,74 @@ export function FieldVisitReportForm({
           {t("draftRestoredNotice")}
         </p>
       ) : null}
+      {pendingAudio ? (
+        <section className="notice-panel" aria-label={t("voicePendingAria")}>
+          <div>
+            <p className="eyebrow">{t("voicePendingEyebrow")}</p>
+            <h2>{t("voicePendingTitle")}</h2>
+            <p>{t("voicePendingBody")}</p>
+            {pendingAudioUrl ? (
+              <audio
+                className="voice-recorder-player"
+                controls
+                src={pendingAudioUrl}
+              />
+            ) : null}
+          </div>
+          <div className="notice-actions">
+            <button
+              className="secondary-button"
+              disabled={isTranscribing}
+              onClick={retryPendingAudio}
+              type="button"
+            >
+              {isTranscribing
+                ? t("voicePendingSending")
+                : t("voicePendingRetry")}
+            </button>
+            <button
+              className="inline-toggle"
+              disabled={isTranscribing}
+              onClick={() => setPendingAudio(null)}
+              type="button"
+            >
+              {t("voicePendingDiscard")}
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {pendingPhoto ? (
+        <section
+          className="notice-panel"
+          aria-label={t("problemPhotoPendingAria")}
+        >
+          <div>
+            <p className="eyebrow">{t("problemPhotoPendingEyebrow")}</p>
+            <h2>{t("problemPhotoPendingTitle")}</h2>
+            <p>{pendingPhoto.body.name || t("problemPhotoPendingFallback")}</p>
+          </div>
+          <div className="notice-actions">
+            <button
+              className="secondary-button"
+              disabled={isUploadingPhoto}
+              onClick={retryPendingPhoto}
+              type="button"
+            >
+              {isUploadingPhoto
+                ? t("problemPhotoUploading")
+                : t("voicePendingRetry")}
+            </button>
+            <button
+              className="inline-toggle"
+              disabled={isUploadingPhoto}
+              onClick={() => setPendingPhoto(null)}
+              type="button"
+            >
+              {t("problemPhotoPendingDiscard")}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {step === "capture" ? (
         <div className="visit-form">
@@ -952,7 +1222,7 @@ export function FieldVisitReportForm({
                 isRecording ? t("voiceStopAria") : t("voiceRecordAria")
               }
               className={`voice-capture-button${isRecording ? " recording" : ""}`}
-              disabled={isTranscribing}
+              disabled={isTranscribing || isStopping}
               onClick={
                 isRecording ? stopRecording : () => void startRecording()
               }
@@ -977,7 +1247,7 @@ export function FieldVisitReportForm({
           <div className="capture-manual-bar">
             <button
               className="secondary-button"
-              disabled={isRecording || isTranscribing}
+              disabled={isRecording || isStopping || isTranscribing}
               onClick={() => setStep("form")}
               type="button"
             >
@@ -1408,7 +1678,9 @@ export function FieldVisitReportForm({
           <div className="field-report-submit-bar">
             <button
               className="primary-button field-report-submit"
-              disabled={isSubmitting || isRecording || isTranscribing}
+              disabled={
+                isSubmitting || isRecording || isStopping || isTranscribing
+              }
               type="submit"
             >
               {isSubmitting ? <LoaderIcon /> : <SaveIcon />}
