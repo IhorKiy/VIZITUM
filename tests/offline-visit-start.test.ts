@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { Prisma } from "@prisma/client";
+
+import { AiService } from "../src/modules/ai/ai.service";
 import { VisitsService } from "../src/modules/visits/visits.service";
 
 // Starting a visit is the first thing a rep does at a stop, and it needed signal.
@@ -57,8 +60,17 @@ function buildVisitRow(overrides: Record<string, unknown> = {}) {
 function buildPrisma(options: {
   replayed?: ReturnType<typeof buildVisitRow> | null;
   slotHolder?: ReturnType<typeof buildVisitRow> | null;
+  // Thrown from `create`, so a test can force the race branch. Real callers
+  // never see the raced lookup unless this is a P2002 with a clientVisitId
+  // in play — see the two `findUnique` calls below.
+  createError?: unknown;
+  // What the *second* `findUnique` call (the post-P2002 raced lookup) finds.
+  // The first call is always the pre-create replay lookup, which every race
+  // test here means to miss.
+  racedVisit?: ReturnType<typeof buildVisitRow> | null;
 } = {}) {
   const creates: { data: Record<string, unknown> }[] = [];
+  let findUniqueCalls = 0;
 
   return {
     creates,
@@ -67,10 +79,20 @@ function buildPrisma(options: {
       user: { findFirst: async () => ({ id: "rep-a" }) },
       routeItem: { findFirst: async () => ({ id: "route-item-a" }) },
       visit: {
-        findUnique: async () => options.replayed ?? null,
+        findUnique: async () => {
+          findUniqueCalls += 1;
+
+          return findUniqueCalls === 1
+            ? (options.replayed ?? null)
+            : (options.racedVisit ?? null);
+        },
         findFirst: async () => options.slotHolder ?? null,
         create: async (query: { data: Record<string, unknown> }) => {
           creates.push({ data: query.data });
+
+          if (options.createError) {
+            throw options.createError;
+          }
 
           return buildVisitRow({
             id: "visit-new",
@@ -82,6 +104,13 @@ function buildPrisma(options: {
       },
     },
   };
+}
+
+function p2002(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+    code: "P2002",
+    clientVersion: "test",
+  });
 }
 
 function baseBody(overrides: Record<string, unknown> = {}) {
@@ -109,6 +138,80 @@ describe("offline visit start", () => {
     // Two visits for one stop is the failure this prevents: the rep has been
     // filling in the first one.
     assert.equal(creates.length, 0);
+  });
+
+  it("hands the winner's visit to the loser of a clientVisitId race", async () => {
+    // The replay lookup and the create are not atomic: two concurrent
+    // deferred starts with the same clientVisitId can both miss the lookup
+    // and race the unique index. The loser must not get a 500 it would only
+    // retry into.
+    const { prisma, creates } = buildPrisma({
+      slotHolder: null,
+      createError: p2002(),
+      racedVisit: buildVisitRow({
+        id: "visit-winner",
+        clientVisitId: "cv-race",
+      }),
+    });
+    const service = new VisitsService(prisma as never);
+
+    const response = await service.createVisit(
+      context as never,
+      baseBody({
+        clientVisitId: "cv-race",
+        routeItemId: "route-item-a",
+      }) as never,
+    );
+
+    assert.equal(response.id, "visit-winner");
+    assert.equal(creates.length, 1);
+  });
+
+  it("still surfaces a P2002 that is not the client id's", async () => {
+    // Without a client id in play there is nothing to replay, so a P2002 from
+    // anywhere in the create — including the separate routeItemId unique
+    // constraint — must keep propagating instead of being swallowed.
+    const { prisma } = buildPrisma({
+      slotHolder: null,
+      createError: p2002(),
+    });
+    const service = new VisitsService(prisma as never);
+
+    await assert.rejects(
+      service.createVisit(
+        context as never,
+        baseBody({ routeItemId: "route-item-a" }) as never,
+      ),
+      (error: unknown) =>
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002",
+    );
+  });
+
+  it("also surfaces the P2002 when a client id is in play but did not cause it", async () => {
+    // The route-slot race (both callers saw the stop's slot free) raises the
+    // same P2002 code as a clientVisitId collision. With a client id in play
+    // the raced lookup does run, but finds nothing to replay — so this must
+    // still rethrow rather than silently swallow a real error.
+    const { prisma } = buildPrisma({
+      slotHolder: null,
+      createError: p2002(),
+      racedVisit: null,
+    });
+    const service = new VisitsService(prisma as never);
+
+    await assert.rejects(
+      service.createVisit(
+        context as never,
+        baseBody({
+          clientVisitId: "cv-not-the-cause",
+          routeItemId: "route-item-a",
+        }) as never,
+      ),
+      (error: unknown) =>
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002",
+    );
   });
 
   it("adopts the rep's own unfinished visit when the stop's slot is taken", async () => {
@@ -338,5 +441,99 @@ describe("offline visit start", () => {
 
     assert.equal(response.id, "visit-real");
     assert.equal(clientVisitIdQueried, false);
+  });
+});
+
+// The id is only useful if it works everywhere the rep's phone puts it in a URL,
+// and the AI endpoints sit under the same `/visits/:visitId` prefix. They used
+// to match on `id` alone, so a visit started with no signal transcribed nothing
+// once the rep got signal back — and silently, since the form treats a failed
+// transcription as "fill it in manually" rather than as an error worth showing.
+describe("AI endpoints resolve either visit id", () => {
+  const aiContext = {
+    ...context,
+    permissions: [...context.permissions, "ai.use_reporting"],
+  };
+
+  it("transcribes a field report for a visit addressed by its client id", async () => {
+    // The voice path of the field report form, which is the one a rep reaches
+    // straight after starting a visit offline. Getting past the visit lookup is
+    // the whole assertion — the audio object is deliberately absent, so the
+    // error that does come back proves the visit itself resolved.
+    const queriedWheres: unknown[] = [];
+    const prisma = {
+      visit: {
+        findFirst: async (query: { where: unknown }) => {
+          queriedWheres.push(query.where);
+
+          return queriedWheres.length === 1
+            ? null
+            : { id: "visit-server", representativeUserId: "rep-a" };
+        },
+      },
+      storageObject: { findFirst: async () => null },
+    };
+    const service = new AiService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await assert.rejects(
+      service.transcribeFieldReport(aiContext as never, "cv-6", {
+        audioObjectId: "audio-a",
+        products: [],
+      }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "TRANSCRIPTION_INPUT_INVALID",
+    );
+    assert.deepEqual(queriedWheres, [
+      { tenantId: "tenant-a", id: "cv-6" },
+      { tenantId: "tenant-a", clientVisitId: "cv-6" },
+    ]);
+  });
+
+  it("looks an extraction job up by the visit's server id, not the id the caller sent", async () => {
+    // The subtle half. `AiJob.visitId` holds the server's own id, so resolving
+    // the visit is not enough — the job query has to use what the resolution
+    // returned. Matching it against the client id would find nothing and read
+    // as "no succeeded transcription", for a job sitting right there.
+    let jobWhere: { visitId?: string } | null = null;
+    const prisma = {
+      visit: {
+        findFirst: async (query: { where: { clientVisitId?: string } }) =>
+          query.where.clientVisitId
+            ? {
+                id: "visit-server",
+                representativeUserId: "rep-a",
+                location: { id: "location-a", name: "Location A" },
+              }
+            : null,
+      },
+      aiJob: {
+        findFirst: async (query: { where: { visitId?: string } }) => {
+          jobWhere = query.where;
+
+          return null;
+        },
+      },
+    };
+    const service = new AiService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await assert.rejects(
+      service.createExtractionJob(aiContext as never, "cv-7", "job-a"),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "EXTRACTION_INPUT_INVALID",
+    );
+    assert.equal(
+      (jobWhere as { visitId?: string } | null)?.visitId,
+      "visit-server",
+    );
   });
 });

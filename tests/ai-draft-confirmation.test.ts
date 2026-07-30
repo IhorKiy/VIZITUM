@@ -97,6 +97,12 @@ describe("AI draft confirmation", () => {
       updatedAt: createdAt,
     };
     const prisma = {
+      // Confirming resolves the visit identifier before looking the job up, so
+      // that `POST /visits/:visitId/ai/drafts/confirm` answers to a
+      // `clientVisitId` too — the job itself is keyed by the server's own id.
+      visit: {
+        findFirst: async () => ({ id: "visit-a" }),
+      },
       aiJob: {
         findFirst: async () => baseJob,
       },

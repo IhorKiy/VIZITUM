@@ -29,6 +29,7 @@ import {
   parseDateOnly,
   VISIT_DATE_BACKDATE_WINDOW_DAYS,
 } from "./shelf-check";
+import { findVisitByEitherId } from "./visit-identity";
 import type {
   AddTextVisitNoteRequestBody,
   CancelVisitRequestBody,
@@ -436,21 +437,60 @@ export class VisitsService {
       return toVisitResponse(routeItemLink.adopt);
     }
 
-    const visit = await this.prisma.visit.create({
-      data: {
-        tenantId: context.tenantId,
-        locationId,
-        representativeUserId,
-        routeItemId: routeItemLink.link,
-        visitType,
-        status: "in_progress",
-        // Sent by the device for a deferred start, so the visit is placed at the
-        // moment the rep walked in rather than the moment their signal came back.
-        startedAt: parseVisitStartedAt(body.startedAt),
-        clientVisitId,
-      },
-      include: visitInclude,
-    });
+    let visit: VisitWithRelations;
+
+    try {
+      visit = await this.prisma.visit.create({
+        data: {
+          tenantId: context.tenantId,
+          locationId,
+          representativeUserId,
+          routeItemId: routeItemLink.link,
+          visitType,
+          status: "in_progress",
+          // Sent by the device for a deferred start, so the visit is placed at
+          // the moment the rep walked in rather than the moment their signal
+          // came back.
+          startedAt: parseVisitStartedAt(body.startedAt),
+          clientVisitId,
+        },
+        include: visitInclude,
+      });
+    } catch (error) {
+      // The replay lookup above and this create are not atomic, so two
+      // concurrent deferred starts with the same clientVisitId can both miss
+      // it and race to the unique index. Same pattern as confirmReport's
+      // confirmOnce: the loser is handed the winner's visit rather than a 500
+      // it would only retry into.
+      //
+      // routeItemId is also unique (the stop's single visit slot), so a P2002
+      // here can come from either constraint. When it is the route-slot race
+      // (both callers saw the slot free), this lookup finds nothing and the
+      // original error is rethrown as-is below — handling that race is left
+      // for later: unlike the clientVisitId race, the loser here has no
+      // stored result to hand back, only the choice to retry
+      // resolveRouteItemLink() once against the now-occupied slot.
+      const raced =
+        clientVisitId &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+          ? await this.prisma.visit.findUnique({
+              where: {
+                tenantId_clientVisitId: {
+                  tenantId: context.tenantId,
+                  clientVisitId,
+                },
+              },
+              include: visitInclude,
+            })
+          : null;
+
+      if (!raced) {
+        throw error;
+      }
+
+      visit = raced;
+    }
 
     return toVisitResponse(visit);
   }
@@ -1100,26 +1140,13 @@ export class VisitsService {
     tenantId: string,
     visitId: string,
   ): Promise<VisitWithRelations> {
-    // Either identifier resolves the same visit. A visit the rep started with
-    // no signal is opened at its client id — that is the only id their phone
-    // had — and that URL has to keep working after the create syncs, rather
-    // than turning into a dead link the moment the server assigns its own.
-    //
-    // Checked as two separate queries rather than one OR, and in this order.
-    // `clientVisitId` is client-supplied, so a device (or a malicious rep)
-    // can mint one equal to another visit's real server `id` — an OR would
-    // let `findFirst` return either matching row, indeterminately. Trying the
-    // `id` match first and only falling back to `clientVisitId` means a real
-    // server id always wins over a client-minted collision.
-    const visit =
-      (await this.prisma.visit.findFirst({
-        where: { tenantId, id: visitId },
-        include: visitInclude,
-      })) ??
-      (await this.prisma.visit.findFirst({
-        where: { tenantId, clientVisitId: visitId },
-        include: visitInclude,
-      }));
+    // Either identifier resolves the same visit, server id first — see
+    // visit-identity.ts for why that order is not cosmetic.
+    const visit = await findVisitByEitherId(
+      (where) => this.prisma.visit.findFirst({ where, include: visitInclude }),
+      tenantId,
+      visitId,
+    );
 
     if (!visit) {
       throw new NotFoundException({

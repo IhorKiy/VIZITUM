@@ -307,6 +307,12 @@ describe("visit cancellation", () => {
   it("refuses to confirm an AI draft on a cancelled visit", async () => {
     const operations: unknown[] = [];
     const prisma = {
+      // Resolved before the job lookup so the endpoint answers to a
+      // `clientVisitId` as well; the guard under test sits on the job's own
+      // visit either way.
+      visit: {
+        findFirst: async () => ({ id: "visit-a" }),
+      },
       aiJob: {
         findFirst: async () => ({
           id: "extraction-job-a",
