@@ -5,6 +5,7 @@ import { BackLink } from "../../../../../components/back-link";
 import { CancelVisitModal } from "../../../../../components/cancel-visit-modal";
 import { ConfirmedFieldReportSummary } from "../../../../../components/confirmed-field-report-summary";
 import { FieldVisitReportForm } from "../../../../../components/field-visit-report-form";
+import { PendingVisitReport } from "../../../../../components/pending-visit-report";
 import {
   createStorageObjectDownloadUrl,
   getCurrentSession,
@@ -116,35 +117,20 @@ export default async function VisitDetailPage({
   }
 
   if (!visitResult.ok) {
-    // No visit means no location to fall back to — today's route is the only
-    // destination this branch can name.
-    const notFoundBackTarget = resolveBackTarget(tenantSlug, from, {
-      href: `/${tenantSlug}/field`,
-      labelKey: "home",
-    });
-
+    // The server not knowing this id no longer only means a bad link — it is
+    // also what a visit started with no signal looks like until it syncs.
+    // PendingVisitReport checks the on-device start queue for this exact id
+    // and falls back to the same not-found panel this branch always rendered
+    // when nothing local matches either.
     return (
       <AppShell tenantSlug={tenantSlug} activeArea="field">
-        <BackLink
-          href={notFoundBackTarget.href}
-          label={tBack(notFoundBackTarget.labelKey)}
+        <PendingVisitReport
+          from={from}
+          notFoundMessage={visitResult.message}
+          tenantSlug={tenantSlug}
+          userId={sessionResult.ok ? sessionResult.data.user.id : ""}
+          visitId={visitId}
         />
-        <header className="page-header">
-          <div>
-            <p className="eyebrow">{tField("flowEyebrow")}</p>
-            <h1>{t("notFoundTitle")}</h1>
-          </div>
-        </header>
-        <section
-          className="notice-panel danger"
-          aria-label={t("visitErrorAria")}
-        >
-          <div>
-            <p className="eyebrow">{tCommon("notice.connectionRequired")}</p>
-            <h2>{t("loadErrorTitle")}</h2>
-            <p>{visitResult.message}</p>
-          </div>
-        </section>
       </AppShell>
     );
   }
@@ -311,6 +297,9 @@ export default async function VisitDetailPage({
               <CancelVisitModal
                 action={cancelAction}
                 locationName={visit.location.name}
+                tenantSlug={tenantSlug}
+                userId={visit.representativeUserId}
+                visitId={visitId}
               />
             </div>
           ) : null}

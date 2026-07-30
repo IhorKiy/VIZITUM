@@ -16,8 +16,8 @@ import { LocationAssignmentPill } from "../../../../../components/location-assig
 import { LocationContactsModal } from "../../../../../components/location-contacts-modal";
 import { LocationNotesModal } from "../../../../../components/location-notes-modal";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
+import { StartVisitControl } from "../../../../../components/start-visit-control";
 import {
-  createVisit,
   getCurrentSession,
   getLocation,
   listLocationAssortment,
@@ -105,39 +105,6 @@ export default async function LocationDetailPage({
   // route stop and still carrying where *this* card was opened from.
   const selfOrigin = backOrigin(selfPath, selfState);
 
-  async function startVisitAction(formData: FormData) {
-    "use server";
-
-    const actionSessionResult = await getCurrentSession();
-    const formRouteItemId = getFormString(formData, "routeItemId").trim();
-
-    if (!actionSessionResult.ok) {
-      redirect(
-        `/${tenantSlug}${backOrigin(selfPath, { ...selfState, error: "visit" })}`,
-      );
-    }
-
-    const result = await createVisit(
-      locationId,
-      actionSessionResult.data.user.id,
-      "field_visit",
-      formRouteItemId || undefined,
-    );
-
-    if (!result.ok) {
-      redirect(
-        `/${tenantSlug}${backOrigin(selfPath, { ...selfState, error: "visit" })}`,
-      );
-    }
-
-    redirect(
-      withBackOrigin(
-        `/${tenantSlug}/field/visits/${result.data.id}`,
-        selfOrigin,
-      ),
-    );
-  }
-
   async function markVisitedAction(formData: FormData) {
     "use server";
 
@@ -201,6 +168,10 @@ export default async function LocationDetailPage({
   if (from) {
     cancelExtraParams.push(["from", from]);
   }
+  // Where StartVisitControl sends the rep on a genuine rejection — the exact
+  // href the old server-action redirect used, so that already-rare path looks
+  // unchanged.
+  const startErrorHref = `/${tenantSlug}${backOrigin(selfPath, { ...selfState, error: "visit" })}`;
   // The sub-pages get this card as their origin rather than a copy of its
   // params: their back control resolves it the same way every other screen
   // does, so the whole chain unwinds one screen at a time.
@@ -577,18 +548,26 @@ export default async function LocationDetailPage({
             >
               <span aria-hidden="true">▶</span> {t("location.startVisitDemo")}
             </a>
-          ) : activeVisit ? (
+          ) : !activeVisit && isArchivedLocation ? (
+            <p className="empty-state">{t("location.archivedNoVisit")}</p>
+          ) : (
             <>
-              <a
-                className="primary-button location-start-visit"
-                href={withBackOrigin(
-                  `/${tenantSlug}/field/visits/${activeVisit.id}`,
-                  selfOrigin,
-                )}
-              >
-                <span aria-hidden="true">▶</span> {t("location.continueVisit")}
-              </a>
-              {sessionResult.ok &&
+              <StartVisitControl
+                activeVisit={activeVisit ? { id: activeVisit.id } : null}
+                errorHref={startErrorHref}
+                locationId={locationId}
+                repeat={stopAlreadyVisited}
+                // No routeItemId for a repeat visit: a route item can carry
+                // only one visit (visits.routeItemId is unique), so a repeat
+                // visit on an already-visited stop is created without a
+                // route-item link.
+                routeItemId={stopAlreadyVisited ? null : routeItemId || null}
+                selfOrigin={selfOrigin}
+                tenantSlug={tenantSlug}
+                userId={representativeUserId ?? ""}
+              />
+              {activeVisit &&
+              sessionResult.ok &&
               sessionResult.data.permissions.includes("visits.cancel_own") ? (
                 <CancelVisitModal
                   action={cancelVisitAction.bind(
@@ -598,41 +577,12 @@ export default async function LocationDetailPage({
                     cancelExtraParams,
                   )}
                   locationName={locationName}
+                  tenantSlug={tenantSlug}
+                  userId={sessionResult.data.user.id}
+                  visitId={activeVisit.id}
                 />
               ) : null}
             </>
-          ) : isArchivedLocation ? (
-            <p className="empty-state">{t("location.archivedNoVisit")}</p>
-          ) : stopAlreadyVisited ? (
-            <>
-              <p className="empty-state">{t("location.alreadyVisited")}</p>
-              {/* No routeItemId here: a route item can carry only one visit
-                  (visits.routeItemId is unique), so a repeat visit on an
-                  already-visited stop is created without a route-item link. */}
-              <form action={startVisitAction}>
-                <PendingSubmitButton
-                  className="secondary-button"
-                  pendingLabel={t("location.starting")}
-                >
-                  <span aria-hidden="true">▶</span>{" "}
-                  {t("location.startRepeatVisit")}
-                </PendingSubmitButton>
-              </form>
-            </>
-          ) : (
-            <form action={startVisitAction}>
-              <input
-                name="routeItemId"
-                type="hidden"
-                value={routeItemId ?? ""}
-              />
-              <PendingSubmitButton
-                className="primary-button location-start-visit"
-                pendingLabel={t("location.starting")}
-              >
-                <span aria-hidden="true">▶</span> {t("location.startVisit")}
-              </PendingSubmitButton>
-            </form>
           )}
 
           {!isDemoLocation &&

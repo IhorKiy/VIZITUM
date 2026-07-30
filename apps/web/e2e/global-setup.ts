@@ -18,11 +18,12 @@ import path from "node:path";
 //   through asserting. The same rule bounds what those files may do — read the
 //   seeded state, never mutate it, since field-revisit's re-seed can land at
 //   any point in their run.
-// - the same script again, for a SECOND tenant used by field-pending-media.
-//   Two specs that start visits cannot share one tenant: `Visit.routeItemId`
-//   is unique, so whichever of them reaches the planned stop second cannot
-//   start a visit at all — which is exactly how they failed together while
-//   passing alone.
+// - the same script again, for a SECOND tenant used by field-pending-media, a
+//   THIRD used by field-cancel-visit, and a FOURTH used by
+//   field-offline-visit-start. Two specs that start visits cannot share one
+//   tenant: `Visit.routeItemId` is unique, so whichever of them reaches the
+//   planned stop second cannot start a visit at all — which is exactly how
+//   they failed together while passing alone.
 //
 // All seeds are idempotent upserts, so re-running against the shared local
 // database is safe.
@@ -32,6 +33,18 @@ export const PENDING_MEDIA_SEED_ARGS = [
   "E2E Media Market",
 ];
 
+export const CANCEL_VISIT_SEED_ARGS = [
+  "e2e-field-cancel",
+  "Vizitum E2E Field Cancel",
+  "E2E Cancel Market",
+];
+
+export const OFFLINE_VISIT_START_SEED_ARGS = [
+  "e2e-field-offline-start",
+  "Vizitum E2E Offline Start",
+  "E2E Offline Start Market",
+];
+
 export default function globalSetup(): void {
   const repoRoot = path.resolve(__dirname, "..", "..", "..");
 
@@ -39,6 +52,8 @@ export default function globalSetup(): void {
     ["scripts/seed-platform-owner.mjs"],
     ["scripts/seed-e2e-field-revisit.mjs"],
     ["scripts/seed-e2e-field-revisit.mjs", ...PENDING_MEDIA_SEED_ARGS],
+    ["scripts/seed-e2e-field-revisit.mjs", ...CANCEL_VISIT_SEED_ARGS],
+    ["scripts/seed-e2e-field-revisit.mjs", ...OFFLINE_VISIT_START_SEED_ARGS],
   ]) {
     execFileSync("node", script, {
       cwd: repoRoot,

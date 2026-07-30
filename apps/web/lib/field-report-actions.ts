@@ -3,11 +3,14 @@
 import {
   confirmFieldVisitReport,
   createStorageObjectUploadUrl,
+  getFieldReportVoiceHint,
+  listAllProducts,
   registerFieldReportAudioUpload,
   registerVisitProblemPhoto,
   transcribeFieldVisitReport,
   type ApiResult,
   type PresignedUpload,
+  type Product,
   type RegisteredAudioUpload,
   type RegisteredProblemPhoto,
   type Report,
@@ -67,6 +70,23 @@ export async function transcribeFieldReportAction(
   },
 ): Promise<ApiResult<TranscribeFieldReportResult>> {
   return transcribeFieldVisitReport(visitId, input);
+}
+
+// The two report-form inputs that do not depend on the visit existing
+// server-side at all — pending-visit-report.tsx's fallback for a visit
+// started offline and not yet synced calls these directly, since a rep who
+// is genuinely reachable enough to have hit a real 404 (not a network
+// failure) can still have the product catalog and the voice hint. Only the
+// shelf-check matrix genuinely needs a resolved location and stays empty
+// there.
+export async function listAllProductsAction(): Promise<ApiResult<Product[]>> {
+  return listAllProducts();
+}
+
+export async function getFieldReportVoiceHintAction(): Promise<
+  ApiResult<{ voiceHint: string | null }>
+> {
+  return getFieldReportVoiceHint();
 }
 
 export async function confirmFieldReportAction(

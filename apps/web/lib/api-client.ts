@@ -819,17 +819,28 @@ export async function getVisitReport(
   return apiGet<Report>(`/visits/${visitId}/report`);
 }
 
-export async function createVisit(
-  locationId: string,
-  representativeUserId: string,
-  visitType: string,
-  routeItemId?: string,
-): Promise<ApiResult<Visit>> {
+export async function createVisit(input: {
+  locationId: string;
+  representativeUserId: string;
+  visitType: string;
+  routeItemId?: string;
+  // Both optional, both part of making a deferred start safe to retry: a
+  // device-minted id the server treats as an idempotency key (a replay
+  // returns the first attempt's visit rather than a second one), and when the
+  // rep actually walked in, bounded server-side against a request that lands
+  // long after it was made. Omitted entirely on an ordinary online start,
+  // where the request lands the moment it is made and the server's own
+  // clock is exactly as good.
+  startedAt?: string;
+  clientVisitId?: string;
+}): Promise<ApiResult<Visit>> {
   return apiPost<Visit>("/visits", {
-    locationId,
-    representativeUserId,
-    visitType,
-    ...(routeItemId ? { routeItemId } : {}),
+    locationId: input.locationId,
+    representativeUserId: input.representativeUserId,
+    visitType: input.visitType,
+    ...(input.routeItemId ? { routeItemId: input.routeItemId } : {}),
+    ...(input.startedAt ? { startedAt: input.startedAt } : {}),
+    ...(input.clientVisitId ? { clientVisitId: input.clientVisitId } : {}),
   });
 }
 
