@@ -436,21 +436,60 @@ export class VisitsService {
       return toVisitResponse(routeItemLink.adopt);
     }
 
-    const visit = await this.prisma.visit.create({
-      data: {
-        tenantId: context.tenantId,
-        locationId,
-        representativeUserId,
-        routeItemId: routeItemLink.link,
-        visitType,
-        status: "in_progress",
-        // Sent by the device for a deferred start, so the visit is placed at the
-        // moment the rep walked in rather than the moment their signal came back.
-        startedAt: parseVisitStartedAt(body.startedAt),
-        clientVisitId,
-      },
-      include: visitInclude,
-    });
+    let visit: VisitWithRelations;
+
+    try {
+      visit = await this.prisma.visit.create({
+        data: {
+          tenantId: context.tenantId,
+          locationId,
+          representativeUserId,
+          routeItemId: routeItemLink.link,
+          visitType,
+          status: "in_progress",
+          // Sent by the device for a deferred start, so the visit is placed at
+          // the moment the rep walked in rather than the moment their signal
+          // came back.
+          startedAt: parseVisitStartedAt(body.startedAt),
+          clientVisitId,
+        },
+        include: visitInclude,
+      });
+    } catch (error) {
+      // The replay lookup above and this create are not atomic, so two
+      // concurrent deferred starts with the same clientVisitId can both miss
+      // it and race to the unique index. Same pattern as confirmReport's
+      // confirmOnce: the loser is handed the winner's visit rather than a 500
+      // it would only retry into.
+      //
+      // routeItemId is also unique (the stop's single visit slot), so a P2002
+      // here can come from either constraint. When it is the route-slot race
+      // (both callers saw the slot free), this lookup finds nothing and the
+      // original error is rethrown as-is below — handling that race is left
+      // for later: unlike the clientVisitId race, the loser here has no
+      // stored result to hand back, only the choice to retry
+      // resolveRouteItemLink() once against the now-occupied slot.
+      const raced =
+        clientVisitId &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+          ? await this.prisma.visit.findUnique({
+              where: {
+                tenantId_clientVisitId: {
+                  tenantId: context.tenantId,
+                  clientVisitId,
+                },
+              },
+              include: visitInclude,
+            })
+          : null;
+
+      if (!raced) {
+        throw error;
+      }
+
+      visit = raced;
+    }
 
     return toVisitResponse(visit);
   }
