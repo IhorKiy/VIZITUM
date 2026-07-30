@@ -64,7 +64,7 @@ Reference for the implemented database schema. Source of truth: `prisma/schema.p
 
 ### Retention rule (product requirement)
 
-Audio, transcript, and AI draft are **temporary processing data only**. After the report is confirmed, only the confirmed report plus minimal processing metadata (`Report.aiMetadata`) is retained. Temporary objects carry `expiresAt` and are removed by the cleanup worker (`src/worker.ts`).
+Audio, transcript, and AI draft are **temporary processing data only**. After the report is confirmed, only the confirmed report plus minimal processing metadata (`Report.aiMetadata`) is retained. Temporary objects carry `expiresAt` and are removed by the cleanup worker (`src/worker.ts`). The sweep collects every temporary purpose (`temporary_audio`, `temporary_transcript`, `visit_attachment`) whose `expiresAt` has passed and whose bytes have not already been removed (`deletedAt: null`), regardless of `status` — a row can be `active` (an abandoned registration, or the field-report flow, which marks nothing) or `expired` (a writer done processing it) and either is collectable once past its expiry. Only the sweep itself may set `deletedAt`, and only after the R2 delete succeeds; a writer that stamps it without deleting anything would make the row permanently unsweepable.
 
 ## Imports group
 

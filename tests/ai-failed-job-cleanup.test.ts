@@ -33,7 +33,9 @@ describe("AI failed job cleanup", () => {
       },
       $transaction: async (
         callback: (transaction: {
-          storageObject: { updateMany: (query: unknown) => Promise<{ count: number }> };
+          storageObject: {
+            updateMany: (query: unknown) => Promise<{ count: number }>;
+          };
           aiJob: { updateMany: (query: unknown) => Promise<{ count: number }> };
         }) => Promise<unknown>,
       ) =>
@@ -72,6 +74,19 @@ describe("AI failed job cleanup", () => {
         status: "failed",
       },
     );
+
+    // Only "done with", never "deleted". `deletedAt` is the cleanup sweep's own
+    // record that it actually removed the bytes from R2, and this writer never
+    // touches R2 at all — stamping it here used to record a deletion that never
+    // happened, and the sweep's own `deletedAt: null` filter then skipped the
+    // row forever. That is the bug this test exists to catch a regression of: no
+    // audio object was ever deleted from R2 by any code path.
+    const storageUpdate = (
+      operations[0] as { storageObjectUpdateMany: { data: unknown } }
+    ).storageObjectUpdateMany.data as Record<string, unknown>;
+
+    assert.deepEqual(storageUpdate, { status: "expired" });
+    assert.equal("deletedAt" in storageUpdate, false);
   });
 
   it("returns zero counts when no failed jobs are expired", async () => {

@@ -121,25 +121,38 @@ export class StorageService {
   ): Promise<StorageCleanupResult> {
     const expiredObjects = await this.prisma.storageObject.findMany({
       where: {
+        // Only rows whose bytes are still there. `deletedAt` is stamped by this
+        // sweep, and only after the R2 delete below succeeds, so it means
+        // exactly "the bytes are gone" — nothing else may set it.
         deletedAt: null,
+        // The expiry is the whole contract. A temporary object past it has
+        // outlived its purpose whatever its status says, which is what
+        // data-model.md has always promised: audio, transcripts and drafts are
+        // processing data, and the cleanup worker removes them.
         expiresAt: { lte: now },
-        OR: [
-          // Unchanged: transcription marks these `expired` when it is done
-          // with them, and only then are they swept.
-          {
-            status: "expired",
-            purpose: { in: ["temporary_audio", "temporary_transcript"] },
-          },
-          // A problem photo keeps its expiry until a confirmed report claims
-          // it (`VisitsService.confirmReport` clears it). Reaching the expiry
-          // means no report ever referenced it — an abandoned form (still
-          // `active`) or a photo the rep replaced, which registration expires
-          // on the spot (`expired`). Both are collectable.
-          {
-            status: { in: ["active", "expired"] },
-            purpose: "visit_attachment",
-          },
-        ],
+        // Every temporary purpose is collected on the same rule now. It used to
+        // read `status: "expired"` for audio and transcripts, which meant they
+        // were never collected at all: the field-report flow leaves them
+        // `active` forever (it creates no AiJob and nothing else expires them),
+        // and the two AiJob writers that did mark them `expired` stamped
+        // `deletedAt` in the same update — excluding themselves from the line
+        // above. So no audio was ever deleted from R2 by any path, and the
+        // product went on saying it was.
+        //
+        // A registration whose bytes never arrived (an abandoned form, a presign
+        // that failed after the row was committed) is collected by this too, and
+        // only by this: nothing marks those anything.
+        status: { in: ["active", "expired"] },
+        purpose: {
+          in: [
+            "temporary_audio",
+            "temporary_transcript",
+            // A problem photo keeps its expiry until a confirmed report claims
+            // it (`VisitsService.confirmReport` clears it), so reaching the
+            // expiry means no report ever referenced it.
+            "visit_attachment",
+          ],
+        },
       },
       orderBy: { expiresAt: "asc" },
       take: CLEANUP_BATCH_SIZE,
