@@ -105,6 +105,10 @@ export type CreateVisitRequestBody = {
   routeItemId?: unknown;
   visitType?: unknown;
   startedAt?: unknown;
+  // Identifier the device minted when the rep pressed "start visit", which they
+  // can do with no signal. Makes the create safe to repeat and gives the
+  // locally-started visit a URL that keeps working after it syncs.
+  clientVisitId?: unknown;
 };
 
 // Cancelling is deliberately NOT part of this body: `status: "cancelled"` is
