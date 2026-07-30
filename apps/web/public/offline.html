@@ -118,14 +118,24 @@
 
             getRequest.onerror = renderNoData;
             getRequest.onsuccess = function () {
-              var snapshot = getRequest.result;
+              // A third guard, same reason as the second: this callback also
+              // runs after its own enclosing try already returned, and
+              // render() below does enough DOM work (and enough reading of
+              // snapshot.labels) that a throw here must not reach nothing —
+              // it would otherwise leave the page blank, mid-render, with no
+              // fallback.
+              try {
+                var snapshot = getRequest.result;
 
-              if (!snapshot) {
+                if (!snapshot) {
+                  renderNoData();
+                  return;
+                }
+
+                render(snapshot);
+              } catch (error) {
                 renderNoData();
-                return;
               }
-
-              render(snapshot);
             };
           } catch (error) {
             renderNoData();

@@ -39,36 +39,47 @@ test("a cold reload with no signal shows today's route from the last snapshot", 
 }) => {
   await signIn(page);
 
-  // Registration happens in a mount-time effect, after this first load has
-  // already rendered — this load itself is never worker-controlled. Waiting
-  // for `controller` is what proves activation + clients.claim() actually
-  // landed, rather than assuming a fixed delay; by the time it resolves,
-  // sw.js's own install step has already cached offline.html (install fully
-  // completes, including that cache write, before activate can even run).
-  //
-  // Bounded, and checked before anything else: registration only happens at
-  // all when NEXT_PUBLIC_ENABLE_SERVICE_WORKER is set, which playwright.config.ts
-  // sets on its own web server — but reuseExistingServer (true outside CI)
+  // Two different questions, checked separately rather than by one timing
+  // guess: "was registration ever attempted" (an environment problem, worth
+  // skipping) and "has it finished activating yet" (a real failure, worth
+  // failing loud). A single bounded wait on `controller` conflates them —
+  // register() only happens at all when NEXT_PUBLIC_ENABLE_SERVICE_WORKER
+  // is set (see service-worker-registration.tsx), which playwright.config.ts
+  // sets on its own web server, but reuseExistingServer (true outside CI)
   // means a dev server left running from before that env var existed, or
   // started by hand without it, gets silently reused with no registration
-  // ever attempted. Without this check that reads as an unbounded hang on
-  // the line below with no indication why; skipping with a specific reason
-  // turns it into something actionable instead. Never happens in CI, where
-  // reuseExistingServer is always false and every run gets a fresh server.
-  const registered = await page
-    .waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
-      timeout: 5_000,
-    })
+  // ever attempted — genuinely un-skippable, and a short timeout here would
+  // be right to skip on. But the same short timeout would also fire on a
+  // loaded CI machine where registration *did* happen and is just slow to
+  // finish activating, silently skipping a run that should have failed.
+  //
+  // getRegistrations() answers the first question precisely: register()
+  // resolves near-instantly once called, well before install/activate/claim
+  // run, so a non-empty list means the attempt happened regardless of how
+  // slow the rest of the lifecycle is.
+  const attempted = await page
+    .waitForFunction(
+      async () => (await navigator.serviceWorker.getRegistrations()).length > 0,
+      null,
+      { timeout: 2_000 },
+    )
     .then(() => true)
     .catch(() => false);
 
   test.skip(
-    !registered,
-    "Service worker never registered within 5s — the dev server behind this " +
-      "run was likely reused (reuseExistingServer) from before it, or " +
-      "started by hand, without NEXT_PUBLIC_ENABLE_SERVICE_WORKER set. Stop " +
-      "it and re-run so Playwright starts its own.",
+    !attempted,
+    "Service worker registration was never attempted — the dev server " +
+      "behind this run was likely reused (reuseExistingServer) from before " +
+      "NEXT_PUBLIC_ENABLE_SERVICE_WORKER existed, or started by hand " +
+      "without it. Stop it and re-run so Playwright starts its own.",
   );
+
+  // Registration is confirmed attempted, so from here a timeout is a real
+  // failure, not an environment problem — no short-circuit skip, just
+  // Playwright's own default timeout. By the time this resolves, sw.js's own
+  // install step has already cached offline.html (install fully completes,
+  // including that cache write, before activate can even run).
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
 
   await context.setOffline(true);
   await page.reload();
