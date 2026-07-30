@@ -25,6 +25,10 @@
   /* Fixed .mobile-nav height (8px paddings + 48px link + 1px border) —
      everything pinned above the nav offsets by this. */
   --mobile-nav-height: 65px;
+  /* Fixed .capture-manual-bar height (8px paddings + 48px button) — anything
+     rendered *below* the report form has to reserve this much, or the bar
+     covers it at full scroll. */
+  --capture-manual-bar-height: 64px;
   interpolate-size: allow-keywords;
 }
 
@@ -421,6 +425,18 @@ textarea {
   justify-content: center;
   margin: 20px auto 0;
   max-width: 1180px;
+}
+
+/* .capture-manual-bar is fixed, on the reasoning that the capture step "is
+   short and never scrolls" — true of the step itself, but not of the page,
+   which carries this control below it. On a phone the page then bottoms out
+   with the last 64px behind that bar, and the rep cannot reach the control at
+   all: not at partial scroll, not at full scroll. Reserving the bar's height
+   is what lets the tail scroll clear of it. Scoped with :has() so the other
+   steps, where the bar is gone and a sticky save bar takes its place, do not
+   grow an empty strip they have no use for. */
+.visit-card:has(.capture-manual-bar) ~ .visit-cancel-action {
+  margin-bottom: var(--capture-manual-bar-height);
 }
 
 .toolbar {
@@ -5861,7 +5877,9 @@ a.metric-card:hover {
    the admin's line breaks survive without allowing arbitrary markup. */
 /* Pins "Fill in manually" just above the fixed .mobile-nav (65px) on the
    capture step, mirroring the sticky save bar of the form step. Fixed (not
-   sticky) because the capture screen is short and never scrolls. */
+   sticky) because the capture screen is short and never scrolls — but the
+   page around it does, so anything rendered below the form reserves this
+   bar's height (see .visit-cancel-action). */
 .capture-manual-bar {
   bottom: var(--mobile-nav-height);
   left: 50%;
