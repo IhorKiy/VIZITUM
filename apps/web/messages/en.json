@@ -223,6 +223,11 @@
       "archivedAria": "Not available for archived locations",
       "archivedTitle": "Not tracked while archived",
       "archivedBody": "Potential and assortment are not tracked for archived locations. Restore the location to view or edit them again."
+    },
+    "globalError": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Please reload the page and try again.",
+      "reload": "Reload page"
     }
   },
   "auth": {

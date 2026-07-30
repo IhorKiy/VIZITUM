@@ -144,13 +144,44 @@ function buildEnvelope(
   ].join("\n");
 }
 
+// V8 stack lines come as "at fn (file:line:col)" or "at file:line:col";
+// Sentry wants structured frames ordered oldest-first.
+const FRAME_WITH_FUNCTION = /^at (.+?) \((.+):(\d+):(\d+)\)$/;
+const FRAME_WITHOUT_FUNCTION = /^at (.+):(\d+):(\d+)$/;
+
 function parseStackFrames(stack: string): Array<Record<string, unknown>> {
   return stack
     .split("\n")
     .slice(1, 21)
     .map((line) => line.trim())
-    .map((line) => ({ function: line }))
+    .map((line) => parseStackFrame(line))
     .reverse();
+}
+
+function parseStackFrame(line: string): Record<string, unknown> {
+  const withFunction = FRAME_WITH_FUNCTION.exec(line);
+
+  if (withFunction) {
+    return {
+      function: withFunction[1],
+      filename: withFunction[2],
+      lineno: Number(withFunction[3]),
+      colno: Number(withFunction[4]),
+    };
+  }
+
+  const withoutFunction = FRAME_WITHOUT_FUNCTION.exec(line);
+
+  if (withoutFunction) {
+    return {
+      function: "<anonymous>",
+      filename: withoutFunction[1],
+      lineno: Number(withoutFunction[2]),
+      colno: Number(withoutFunction[3]),
+    };
+  }
+
+  return { function: line };
 }
 
 async function sendEnvelope(input: {
