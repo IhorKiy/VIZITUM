@@ -152,7 +152,18 @@ export function PendingVisitReport({
     let cancelled = false;
 
     const check = () => {
-      void flushVisitStartOutbox(scope)
+      // navigator.onLine === false is the one definitive answer it gives —
+      // skip the flush's real POST replay then (a rep parked on this screen
+      // in a dead spot would otherwise fire one every 15s straight into a
+      // failed fetch) but still do the local read, since another flusher
+      // (the layout indicator, another tab) may have resolved the entry in
+      // the meantime. true is *not* definitive, so it still attempts.
+      const maybeFlush =
+        navigator.onLine === false
+          ? Promise.resolve()
+          : flushVisitStartOutbox(scope).then(() => undefined);
+
+      void maybeFlush
         .then(() => getVisitStartOutboxEntry(scope, visitId))
         .then((entry) => {
           if (!cancelled && entry?.resolvedVisitId) {
