@@ -272,11 +272,21 @@ export class StorageService {
     // `visit_attachment` is the field report's problem photo: same
     // owner-scoped rule as the voice note it sits beside, since both are
     // uploaded by the rep while filling in one visit.
+    //
+    // A creator is required, not merely matched. An object with none used to be
+    // writable by every rep in the tenant, on the reading that nobody owns it so
+    // nobody is wronged — but `temporary_transcript` rows are created by the AI
+    // worker with no creator, which made every one of them in the tenant a
+    // presigned PUT any rep could ask for. That was reachable only from the
+    // server until the field form's retry needed the endpoint from the browser.
+    // Nothing legitimate lands here without a creator: both register endpoints
+    // stamp `context.userId` on the object and mint the first URL through this
+    // same check, so the only writers are the rep who captured the bytes.
     const canUpdateOwnVisitArtifact =
       VISIT_ARTIFACT_PURPOSES.includes(storageObject.purpose) &&
       context.permissions.includes(PERMISSIONS.VISITS_UPDATE_OWN) &&
-      (!storageObject.createdByUserId ||
-        storageObject.createdByUserId === context.userId);
+      Boolean(storageObject.createdByUserId) &&
+      storageObject.createdByUserId === context.userId;
     const canManageBrandingLogo =
       storageObject.purpose === "branding_logo" &&
       context.permissions.includes(PERMISSIONS.TENANT_SETTINGS_MANAGE);

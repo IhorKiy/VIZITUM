@@ -326,7 +326,9 @@ Admin-management actions — inviting, suspending/reactivating, deleting or role
 | `POST /storage/objects/:storageObjectId/upload-url`   | any: `visits.update_own`, `imports.upload`                 | `{ expiresInSeconds? }` | `{ url, method: "PUT", expiresAt, headers }` |
 | `POST /storage/objects/:storageObjectId/download-url` | any: `visits.read_own`, `visits.read_team`, `imports.read` | `{ expiresInSeconds? }` | `{ url, method: "GET", expiresAt, headers }` |
 
-Purpose-level access checks inside `StorageService` are stricter than the guard-level permission union: `import_file` needs `imports.*`, `temporary_audio`/`temporary_transcript` need `visits.*` (+ ownership for own-scope), and `branding_logo` needs `tenant.settings.manage` to write / `tenant.settings.read` to read.
+Purpose-level access checks inside `StorageService` are stricter than the guard-level permission union: `import_file` needs `imports.*`, `temporary_audio`/`temporary_transcript`/`visit_attachment` need `visits.*` (+ ownership for own-scope), and `branding_logo` needs `tenant.settings.manage` to write / `tenant.settings.read` to read.
+
+Writing a visit artifact requires a matching creator, not merely a non-conflicting one: an object whose `createdByUserId` is null is writable by nobody. `temporary_transcript` rows are written by the AI worker with no request context and so carry no creator, and while an absent creator counted as unowned, every transcript in the tenant was a presigned PUT any rep could ask for. The register endpoints stamp the caller on the object and mint the first URL through the same check, so nothing legitimate reaches this path without one. Reads stay deliberately wider — `visits.read_team` lets a manager reach any artifact on a visit they can see, which is how a report's problem photo renders for them.
 
 ## Endpoint count
 

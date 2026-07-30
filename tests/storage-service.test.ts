@@ -63,6 +63,51 @@ describe("storage service", () => {
     assert.deepEqual(response.headers, { "content-type": "audio/webm" });
   });
 
+  it("refuses an upload URL for a visit artifact with no creator", async () => {
+    // `temporary_transcript` rows are written by the AI worker, which has no
+    // request context and therefore stamps no creator. While an absent creator
+    // read as "unowned, so writable", any rep in the tenant could ask for a
+    // presigned PUT over any transcript in it — and once the field form's retry
+    // reached this endpoint from the browser, that was one client call away
+    // rather than server-side only.
+    const ownerlessTranscript = {
+      id: "storage-transcript",
+      tenantId: "tenant-a",
+      bucket: "vizitum",
+      objectKey: "tenants/tenant-a/visits/visit-b/transcript/uuid.json",
+      purpose: "temporary_transcript",
+      contentType: "application/json",
+      sizeBytes: BigInt(512),
+      checksum: null,
+      status: "active",
+      expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+      createdByUserId: null,
+      createdAt,
+      deletedAt: null,
+    };
+    const service = new StorageService(
+      {
+        storageObject: { findFirst: async () => ownerlessTranscript },
+      } as never,
+      { getDefaultBucket: () => "vizitum" } as never,
+      {
+        createPresignedObjectUrl: () => {
+          throw new Error("must not be signed");
+        },
+      } as never,
+    );
+
+    await assert.rejects(
+      () =>
+        service.createPresignedUploadUrl(
+          context as never,
+          "storage-transcript",
+        ),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "MISSING_PERMISSION",
+    );
+  });
+
   it("physically deletes expired temporary objects and marks them deleted", async () => {
     const deletedObjects: string[] = [];
     const updates: unknown[] = [];
