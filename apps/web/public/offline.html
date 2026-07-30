@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Offline</title>
+<style>
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #f2f3f5;
+  }
+  h1 { font-size: 1.25rem; margin: 0 0 8px; }
+  p.banner { color: #9aa1ac; margin: 0 0 24px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li {
+    border: 1px solid #2a2d34;
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+  li a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .stop-name { font-weight: 600; }
+  .stop-address { color: #9aa1ac; font-size: 0.85rem; display: block; }
+  .badge {
+    flex: none;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #2a2d34;
+    color: #c7cad1;
+    white-space: nowrap;
+  }
+  .badge.visited { background: #1f3d2b; color: #7fd99a; }
+</style>
+</head>
+<body>
+<h1 id="heading"></h1>
+<p class="banner" id="banner"></p>
+<ul id="stops"></ul>
+
+<script>
+  // This runs entirely outside the Next.js app's module graph — the service
+  // worker (sw.js) substitutes this file's bytes for a failed navigation into
+  // the field zone, so nothing here can import from apps/web/lib. The
+  // database and store name are field-db.ts's DATABASE_NAME/ROUTE_SNAPSHOT_STORE,
+  // duplicated as literal strings on purpose — same trick this repo's own
+  // Playwright specs already use to read this database from outside the
+  // module graph (see field-offline-visit-start.spec.ts).
+  var DATABASE_NAME = "vizitum-field";
+  var ROUTE_SNAPSHOT_STORE = "route-snapshot";
+
+  // Opened with no version: this script does not own the schema and must
+  // never be the one to run an upgrade — only field-db.ts's openFieldDatabase
+  // does that, from inside the real app, which is the only way this database
+  // could contain anything by the time a service worker exists to serve this
+  // file at all.
+  var tenantSlug = location.pathname.split("/")[1] || "";
+  var request = indexedDB.open(DATABASE_NAME);
+
+  request.onerror = renderNoData;
+  request.onsuccess = function () {
+    var database = request.result;
+
+    if (!database.objectStoreNames.contains(ROUTE_SNAPSHOT_STORE)) {
+      renderNoData();
+      return;
+    }
+
+    var store = database
+      .transaction(ROUTE_SNAPSHOT_STORE, "readonly")
+      .objectStore(ROUTE_SNAPSHOT_STORE);
+    var getRequest = store.get(tenantSlug);
+
+    getRequest.onerror = renderNoData;
+    getRequest.onsuccess = function () {
+      var snapshot = getRequest.result;
+
+      if (!snapshot) {
+        renderNoData();
+        return;
+      }
+
+      render(snapshot);
+    };
+  };
+
+  function render(snapshot) {
+    document.getElementById("heading").textContent = snapshot.labels.heading;
+    document.getElementById("banner").textContent = snapshot.labels.offlineBanner;
+
+    var list = document.getElementById("stops");
+
+    snapshot.stops.forEach(function (stop) {
+      var item = document.createElement("li");
+      var link = document.createElement("a");
+      link.href = "/" + tenantSlug + "/field/locations/" + stop.locationId;
+
+      var text = document.createElement("span");
+      var name = document.createElement("span");
+      name.className = "stop-name";
+      name.textContent = stop.name;
+      var address = document.createElement("span");
+      address.className = "stop-address";
+      address.textContent = stop.address;
+      text.appendChild(name);
+      text.appendChild(address);
+
+      var badge = document.createElement("span");
+      badge.className = stop.visited ? "badge visited" : "badge";
+      badge.textContent = stop.visited
+        ? snapshot.labels.visitedBadge
+        : snapshot.labels.notVisitedBadge;
+
+      link.appendChild(text);
+      link.appendChild(badge);
+      item.appendChild(link);
+      list.appendChild(item);
+    });
+  }
+
+  // No snapshot exists yet for this tenant on this device — this device has
+  // never rendered the field home page online, so there is nothing to show.
+  // Hardcoded English rather than routed through next-intl: this file sits
+  // outside the Next.js app entirely and has no tenant-language context of
+  // its own to draw on, the same narrow, documented exception this repo
+  // already makes for platform/* and the marketing landing page.
+  function renderNoData() {
+    document.getElementById("heading").textContent = "Offline";
+    document.getElementById("banner").textContent =
+      "No offline data yet for this tenant on this device — open the app once with a connection to see today's route offline.";
+  }
+</script>
+</body>
+</html>

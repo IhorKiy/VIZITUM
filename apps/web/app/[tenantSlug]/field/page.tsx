@@ -17,6 +17,7 @@ import {
   updateRouteItem,
   type RoutePlan,
 } from "../../../lib/api-client";
+import { RouteSnapshotWriter } from "../../../components/route-snapshot-writer";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 import { getFormString } from "../../../lib/form";
 import { TodayRouteDragList } from "./today-route-drag-list";
@@ -405,6 +406,24 @@ export default async function FieldPage({
       />
 
       <section className="route-section" aria-label={t("home.todayRouteAria")}>
+        {/* Not written in demo mode: routeStops there is the fabricated
+            fallback array, and persisting it would show a fake route offline
+            later, under the tenant's real slug, indistinguishable from data
+            that actually came from the server. */}
+        {sessionResult.ok && !isDemoMode ? (
+          <RouteSnapshotWriter
+            labels={{
+              heading: t("home.todayRoute"),
+              offlineBanner: t("home.offlineBanner", {
+                time: format.dateTime(new Date(), { timeStyle: "short" }),
+              }),
+              visitedBadge: t("home.offlineVisitedBadge"),
+              notVisitedBadge: t("home.offlineNotVisitedBadge"),
+            }}
+            stops={routeStops}
+            tenantSlug={tenantSlug}
+          />
+        ) : null}
         {routeStops.length > 0 ? (
           <>
             <article className="route-progress-card">
