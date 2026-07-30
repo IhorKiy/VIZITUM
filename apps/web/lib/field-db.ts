@@ -23,15 +23,23 @@
 //                     deleted on success: it is the only durable record of a
 //                     device-minted id the server may have discarded (see
 //                     visit-start-outbox.ts)
+//   route-snapshot    today's route, refreshed on every successful field-home
+//                     render — not scoped by user like the four above (see
+//                     route-snapshot.ts): it has to be readable by
+//                     public/offline.html, a plain script with no session of
+//                     its own, and its content (which stops are on today's
+//                     route) is reference data, not authored work
 
 const DATABASE_NAME = "vizitum-field";
 // 1: report-drafts. 2: pending-media. 3: report-outbox. 4: visit-start-outbox.
-const DATABASE_VERSION = 4;
+// 5: route-snapshot.
+const DATABASE_VERSION = 5;
 
 export const DRAFT_STORE = "report-drafts";
 export const MEDIA_STORE = "pending-media";
 export const OUTBOX_STORE = "report-outbox";
 export const VISIT_START_STORE = "visit-start-outbox";
+export const ROUTE_SNAPSHOT_STORE = "route-snapshot";
 
 export const UPDATED_AT_INDEX = "updatedAt";
 export const CREATED_AT_INDEX = "createdAt";
@@ -75,6 +83,7 @@ export function openFieldDatabase(): Promise<IDBDatabase | null> {
         [MEDIA_STORE, UPDATED_AT_INDEX],
         [OUTBOX_STORE, CREATED_AT_INDEX],
         [VISIT_START_STORE, CREATED_AT_INDEX],
+        [ROUTE_SNAPSHOT_STORE, UPDATED_AT_INDEX],
       ] as const) {
         if (database.objectStoreNames.contains(name)) continue;
 

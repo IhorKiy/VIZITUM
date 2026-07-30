@@ -12,6 +12,10 @@ export default tseslint.config(
       "eslint.config.mjs",
       "apps/web/.next/**",
       "apps/web/next-env.d.ts",
+      // Static assets served as-is (the service worker, its offline shell) —
+      // not TypeScript, not part of the app's module graph, and sw.js runs in
+      // the ServiceWorkerGlobalScope this config has no globals for.
+      "apps/web/public/**",
     ],
   },
   eslint.configs.recommended,

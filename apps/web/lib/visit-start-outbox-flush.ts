@@ -18,6 +18,7 @@ import {
   listVisitStartOutbox,
   markVisitStartOutboxResolved,
   recordVisitStartOutboxFailure,
+  recordVisitStartOutboxRemoteVisitId,
   type VisitStartOutboxEntry,
   type VisitStartOutboxScope,
 } from "./visit-start-outbox";
@@ -85,15 +86,33 @@ async function sendOne(entry: VisitStartOutboxEntry): Promise<{
 // id to the server's real one, and only then marks the start resolved. The
 // draft is best-effort (convenience state); the pending media and any
 // already-queued confirm are load-bearing — if either did not land, the entry
-// is left exactly as it was, and the next flush cycle replays createVisit
-// with the same clientVisitId, hits the backend's own idempotent replay
-// branch, gets the identical result at zero cost, and tries the rekey again.
-// Retry-until-success for free, rather than a new counter/backoff.
+// is left exactly as it was, and the next flush cycle retries only this rekey
+// (see decideVisitStartFlushAction below) rather than resending the create.
+//
+// `remoteVisitId` is recorded first and durably, before any rekey is
+// attempted, so even a crash mid-rekey leaves the next cycle already knowing
+// the server has answered. That ordering is what stops this specific device
+// from ever re-sending createVisit for an entry it already got an answer
+// for — re-sending is free for a plain create (the backend's own
+// clientVisitId lookup returns the identical row) and, since VisitsService
+// backfills clientVisitId onto an adopted visit that doesn't have one yet,
+// usually free for an adopt outcome too now. What this client-side field
+// still guards against is this device never having heard the answer at all
+// (a lost response, not a slow rekey) racing a *second* device or retry that
+// adopts the same still-open visit first and claims the id slot before this
+// one's own backfill can — a second call would then re-derive the route
+// slot's state fresh, and finding the adopted visit closed in the meantime
+// would mint a new, unwanted, unlinked visit instead of recognizing the one
+// already adopted.
 async function resolveVisitStart(
   scope: VisitStartOutboxScope,
   entry: VisitStartOutboxEntry,
   resolvedVisitId: string,
 ): Promise<void> {
+  if (entry.remoteVisitId === null) {
+    await recordVisitStartOutboxRemoteVisitId(entry.key, resolvedVisitId);
+  }
+
   const draftScope: DraftScope = {
     tenantSlug: scope.tenantSlug,
     userId: scope.userId,
@@ -116,6 +135,30 @@ async function resolveVisitStart(
   }
 }
 
+// Pure, so the rule is unit-testable without mocking IndexedDB or the
+// network — same split as classifyReportSendResult. This is the whole guard
+// against the phantom-replay bug: once the server has answered an entry
+// once (`remoteVisitId` set), every later cycle retries only the local rekey
+// and never calls createVisit again for it.
+export type VisitStartFlushAction =
+  | { kind: "send" }
+  | { kind: "rekeyOnly"; remoteVisitId: string }
+  | { kind: "skip" };
+
+export function decideVisitStartFlushAction(
+  entry: VisitStartOutboxEntry,
+  { includeRejected = false }: { includeRejected?: boolean } = {},
+): VisitStartFlushAction {
+  if (entry.resolvedVisitId !== null) return { kind: "skip" };
+  if (entry.rejectedAt !== null && !includeRejected) return { kind: "skip" };
+
+  if (entry.remoteVisitId !== null) {
+    return { kind: "rekeyOnly", remoteVisitId: entry.remoteVisitId };
+  }
+
+  return { kind: "send" };
+}
+
 // Drains the queue oldest first, one at a time — same reasoning as
 // flushReportOutbox: a handful of stops at most, and firing them together on
 // the thin signal that just came back is how one recovered connection turns
@@ -133,8 +176,14 @@ export async function flushVisitStartOutbox(
   let signInRequired = false;
 
   for (const entry of queued) {
-    if (entry.resolvedVisitId !== null) continue;
-    if (entry.rejectedAt !== null && !includeRejected) continue;
+    const action = decideVisitStartFlushAction(entry, { includeRejected });
+
+    if (action.kind === "skip") continue;
+
+    if (action.kind === "rekeyOnly") {
+      await resolveVisitStart(scope, entry, action.remoteVisitId);
+      continue;
+    }
 
     const { outcome, result } = await sendOne(entry);
 
