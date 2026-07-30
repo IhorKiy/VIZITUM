@@ -39,6 +39,7 @@ describe("auth tenant isolation", () => {
       rolesService,
       createSessionService(session) as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -73,6 +74,7 @@ describe("auth tenant isolation", () => {
       new RolesService(),
       createSessionService(session) as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -239,6 +241,7 @@ describe("auth tenant isolation", () => {
           };
         },
       } as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -293,6 +296,7 @@ describe("auth tenant isolation", () => {
       new RolesService(),
       createSessionService(createSession()) as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(

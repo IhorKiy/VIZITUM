@@ -74,6 +74,7 @@ function createService(phoneCountry: string | null) {
       revokeUserSessions: async () => {},
     } as never,
     {} as never,
+    { assertValidToken: async () => {} } as never,
   );
 
   return { service, upserts };

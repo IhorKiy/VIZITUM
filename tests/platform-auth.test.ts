@@ -35,6 +35,7 @@ describe("platform auth", () => {
           return { token: "platform-token", session: { id: "session-1" } };
         },
       } as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     const result = await service.login(
@@ -68,6 +69,7 @@ describe("platform auth", () => {
       { platformUser: { findUnique: async () => null } } as never,
       { verifyPassword: async () => true } as never,
       { createSession: async () => ({ token: "t", session: {} }) } as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -96,6 +98,7 @@ describe("platform auth", () => {
       } as never,
       { verifyPassword: async () => true } as never,
       { createSession: async () => ({ token: "t", session: {} }) } as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -130,6 +133,7 @@ describe("platform auth", () => {
           return { token: "t", session: {} };
         },
       } as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -149,6 +153,7 @@ describe("platform auth", () => {
       { platformUser: { findUnique: async () => null } } as never,
       { verifyPassword: async () => true } as never,
       { findActiveSessionByToken: async () => null } as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(

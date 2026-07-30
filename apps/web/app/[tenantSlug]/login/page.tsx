@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { BrandMark } from "../../../components/brand-mark";
+import { TurnstileWidget } from "../../../components/turnstile-widget";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
 import { buildApiUrl, getCurrentSession } from "../../../lib/api-client";
 import { resolveTenantBranding } from "../../../lib/tenant-branding";
@@ -20,11 +21,15 @@ export default async function LoginPage({
 }: LoginPageProps) {
   const { tenantSlug } = await params;
   const { error } = await searchParams;
-  const [t, tCommon, branding] = await Promise.all([
+  const [t, tCommon, locale, branding] = await Promise.all([
     getTranslations("auth"),
     getTranslations("common"),
+    getLocale(),
     resolveTenantBranding(tenantSlug),
   ]);
+  // Read per request (not NEXT_PUBLIC_*), so staging/production can differ
+  // without a rebuild; unset means the captcha is off for this deployment.
+  const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY?.trim() || null;
 
   async function loginAction(formData: FormData) {
     "use server";
@@ -44,6 +49,9 @@ export default async function LoginPage({
           email,
           password,
           tenantSlug,
+          // Hidden input injected by the Turnstile widget; empty when the
+          // captcha is disabled for this deployment.
+          captchaToken: getFormString(formData, "cf-turnstile-response"),
         }),
       });
     } catch {
@@ -51,7 +59,19 @@ export default async function LoginPage({
     }
 
     if (!response.ok) {
-      redirect(`/${tenantSlug}/login?error=invalid`);
+      let code: string | undefined;
+
+      try {
+        code = ((await response.json()) as { code?: string }).code;
+      } catch {
+        // Non-JSON error body; fall through to the generic message.
+      }
+
+      redirect(
+        `/${tenantSlug}/login?error=${
+          code === "CAPTCHA_INVALID" ? "captcha" : "invalid"
+        }`,
+      );
     }
 
     await forwardSetCookies(response.headers);
@@ -100,7 +120,11 @@ export default async function LoginPage({
 
         {error ? (
           <div className="form-error" role="alert">
-            {error === "network" ? t("errorNetwork") : t("errorInvalid")}
+            {error === "network"
+              ? t("errorNetwork")
+              : error === "captcha"
+                ? t("errorCaptcha")
+                : t("errorInvalid")}
           </div>
         ) : null}
 
@@ -125,6 +149,9 @@ export default async function LoginPage({
               type="password"
             />
           </label>
+          {turnstileSiteKey ? (
+            <TurnstileWidget language={locale} siteKey={turnstileSiteKey} />
+          ) : null}
           <button className="primary-button" type="submit">
             {tCommon("signIn")}
           </button>
