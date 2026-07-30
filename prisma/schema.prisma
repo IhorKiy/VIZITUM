@@ -891,6 +891,16 @@ model Report {
   confirmedByUserId    String
   confirmedAt          DateTime
   aiMetadata           Json?
+  /// Idempotency token minted by the device, so a confirm the client could not
+  /// hear the answer to can be retried without doing the work twice. Null for
+  /// every report confirmed before this existed, and for any caller that does
+  /// not send one — which is why the uniqueness is a partial index (Postgres
+  /// admits unlimited NULLs, so old rows and non-queued confirms coexist).
+  ///
+  /// It is an opaque token, never a tenant or user identifier: the tenant still
+  /// comes from the request context, and a token from another tenant simply
+  /// does not match anything here.
+  clientRequestId      String?
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
 
@@ -900,6 +910,7 @@ model Report {
   confirmedBy    User     @relation("ConfirmedReports", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
   tasks          Task[]
 
+  @@unique([tenantId, clientRequestId])
   @@index([tenantId, confirmedAt])
   @@index([tenantId, templateCode])
   @@index([tenantId, representativeUserId, confirmedAt])
