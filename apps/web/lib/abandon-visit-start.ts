@@ -27,8 +27,8 @@
 // ordinary "Continue visit" on the next render, cancellable the normal way.
 
 import {
-  deleteDraft,
   deletePendingMedia,
+  discardDraft,
   hasPendingMediaBytes,
   type DraftScope,
 } from "./offline-drafts";
@@ -128,17 +128,19 @@ export async function abandonVisitStart(
   // sign-out clear would. All four are independent transactions, so they run
   // together rather than in sequence.
   //
-  // The draft delete is the one best-effort member of the batch. Abandoning
-  // from the location card lands cleanly — nothing has the draft open there.
-  // Abandoning from the report screen races that screen's own unmount flush
+  // The draft is discarded rather than deleted, which is what makes this
+  // survive the screen it is usually taken from. Abandoning from the location
+  // card lands cleanly — nothing has the draft open there. Abandoning from the
+  // report screen races that screen's own unmount flush
   // (use-field-report-persistence.ts writes the draft back as the form goes
-  // away, and cannot be told from outside that its visit just stopped
-  // existing), so a rep who typed something before abandoning can leave one
-  // inert copy behind under an id nothing will ever navigate to again —
-  // swept after 14 days like any other stale draft. Same structural cause as
-  // the rekey-orphan noted in the plan doc, and the same non-consequence.
+  // away, and cannot be told from out here that its visit just stopped
+  // existing), and a plain delete loses that race whenever the rep typed
+  // something before deciding not to do this visit at all. `discardDraft`
+  // leaves a dead-end forwarding address in the record's place instead, so
+  // that last write is dropped rather than resurrecting a draft under an id
+  // nothing will ever navigate to again.
   await Promise.all([
-    deleteDraft(draftScope),
+    discardDraft(draftScope),
     deletePendingMedia(draftScope, "audio"),
     deletePendingMedia(draftScope, "photo"),
     deleteReportOutboxEntryForVisit(scope, clientVisitId),

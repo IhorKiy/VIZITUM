@@ -76,6 +76,7 @@ export class AiService {
   ): Promise<AiJobResponse> {
     const [visit, inputObject] = await Promise.all([
       findVisitByEitherId(
+        this.prisma,
         (where) =>
           this.prisma.visit.findFirst({
             where,
@@ -267,6 +268,7 @@ export class AiService {
     transcriptionJobId: string,
   ): Promise<AiJobResponse> {
     const visit = await findVisitByEitherId(
+      this.prisma,
       (where) =>
         this.prisma.visit.findFirst({
           where,
@@ -490,6 +492,7 @@ export class AiService {
     // nothing resolves: the job lookup below then matches nothing and answers
     // `AI_DRAFT_NOT_CONFIRMABLE`, exactly as it did before either id existed.
     const visit = await findVisitByEitherId(
+      this.prisma,
       (where) => this.prisma.visit.findFirst({ where, select: { id: true } }),
       context.tenantId,
       visitId,
@@ -693,6 +696,7 @@ export class AiService {
     },
   ): Promise<TranscribeFieldReportResult> {
     const visit = await findVisitByEitherId(
+      this.prisma,
       (where) =>
         this.prisma.visit.findFirst({
           where,

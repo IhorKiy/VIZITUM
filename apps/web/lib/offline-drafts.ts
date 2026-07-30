@@ -54,6 +54,46 @@ type DraftRecord = {
   payload: unknown;
 };
 
+// What a key holds once the draft that lived there has moved somewhere else,
+// or stopped existing: a forwarding address rather than a report.
+//
+// It exists because the rekey below cannot reach the one writer that matters.
+// When a visit started with no signal finally resolves under the server's own
+// id, visit-start-outbox-flush.ts moves this draft onto that id — but the
+// report form is still mounted on the *old* one, and cannot be told from out
+// here that the id under its feet just changed (props-down, one way, and its
+// debounced write is already scheduled). Its next write, and the one its
+// unmount always performs, would otherwise land back under an id nothing will
+// ever navigate to again. So the old key keeps a note saying where writes go
+// now, and every operation below honours it: the keystroke lands on the real
+// visit instead of being orphaned beside it.
+//
+// `redirectTo: null` is the same mechanism turned off rather than redirected —
+// abandon-visit-start.ts throwing away the work of a visit that will never
+// exist anywhere, from a screen that performs that same unmount write on its
+// way out. A late write there is dropped, not forwarded.
+//
+// One hop only, deliberately: a client-minted id forwards to a server id, and
+// a server id is never rekeyed again, so a chain cannot form.
+//
+// `updatedAt` is stamped once, when the address is written, and deliberately
+// not refreshed by the writes that pass through it — so the 14-day sweep can
+// in principle collect an address still in use, after which a write to the old
+// key would start a fresh draft there and the orphan would be back. It takes a
+// report form staying mounted on one id for a fortnight to reach, which is why
+// this is left alone rather than paid for with a second `put` on every save.
+type DraftRedirectRecord = {
+  key: string;
+  updatedAt: number;
+  redirectTo: string | null;
+};
+
+type StoredDraftRecord = DraftRecord | DraftRedirectRecord;
+
+function isRedirect(record: StoredDraftRecord): record is DraftRedirectRecord {
+  return "redirectTo" in record;
+}
+
 // The bytes and the registration they have already consumed are two records
 // rather than one. Bytes are written once, at capture; the registration id
 // arrives later and changes on its own schedule, and IndexedDB can only replace
@@ -85,9 +125,45 @@ function mediaKey(
   return [draftKey(scope), kind, part].join(KEY_SEPARATOR);
 }
 
+// Where a scope's draft actually lives, following at most one forwarding
+// address, plus whatever is stored there. `null` means writes for this scope
+// are meant to be dropped rather than stored anywhere.
+//
+// Takes an already-open store rather than opening its own, so a caller's
+// lookup and its write stay inside one transaction — which is what makes
+// "read the forwarding address, then write through it" atomic rather than a
+// race against the next rekey.
+async function resolveDraftKey(
+  store: IDBObjectStore,
+  scope: DraftScope,
+): Promise<{ key: string; record: DraftRecord | null } | null> {
+  const key = draftKey(scope);
+  const record = await promisifyRequest(
+    store.get(key) as IDBRequest<StoredDraftRecord | undefined>,
+  );
+
+  if (!record) return { key, record: null };
+  if (!isRedirect(record)) return { key, record };
+  if (record.redirectTo === null) return null;
+
+  const movedKey = draftKey({ ...scope, visitId: record.redirectTo });
+  const moved = await promisifyRequest(
+    store.get(movedKey) as IDBRequest<StoredDraftRecord | undefined>,
+  );
+
+  // A forwarding address pointing at another one cannot happen (see
+  // DraftRedirectRecord), so one is read as "nothing stored there" rather
+  // than followed a second time.
+  return { key: movedKey, record: moved && !isRedirect(moved) ? moved : null };
+}
+
 // `version` belongs to the caller's payload shape, not to this store: a record
 // written under a different one is dropped rather than half-read, which is what
 // keeps a future change to the draft shape from having to migrate anything.
+//
+// Reads through a forwarding address as well as writing through one: a rep who
+// comes back to the pre-rekey URL should find their report where they left it,
+// not an empty form beside it.
 export function readDraft(
   scope: DraftScope,
   version: number,
@@ -96,13 +172,11 @@ export function readDraft(
     const store = database
       .transaction(DRAFT_STORE, "readonly")
       .objectStore(DRAFT_STORE);
-    const record = await promisifyRequest(
-      store.get(draftKey(scope)) as IDBRequest<DraftRecord | undefined>,
-    );
+    const resolved = await resolveDraftKey(store, scope);
 
-    if (!record || record.version !== version) return null;
+    if (!resolved?.record || resolved.record.version !== version) return null;
 
-    return record.payload;
+    return resolved.record.payload;
   });
 }
 
@@ -113,14 +187,26 @@ export function writeDraft(
 ): Promise<boolean> {
   return runOnFieldDatabase(false, async (database) => {
     const transaction = database.transaction(DRAFT_STORE, "readwrite");
+    const store = transaction.objectStore(DRAFT_STORE);
+    const resolved = await resolveDraftKey(store, scope);
+
+    // Dropped rather than stored: this scope belongs to a visit that was
+    // abandoned before it ever existed, and the only thing still writing to
+    // it is a screen on its way out.
+    if (!resolved) {
+      await commitTransaction(transaction);
+
+      return false;
+    }
+
     const record: DraftRecord = {
-      key: draftKey(scope),
+      key: resolved.key,
       updatedAt: Date.now(),
       version,
       payload,
     };
 
-    transaction.objectStore(DRAFT_STORE).put(record);
+    store.put(record);
 
     await commitTransaction(transaction);
 
@@ -130,30 +216,70 @@ export function writeDraft(
 
 // A draft that outlives its report is swept by age anyway, so a device that
 // cannot delete now is not worth holding the caller for.
+//
+// Deletes through a forwarding address, and leaves the address itself in
+// place: the form that asked for this delete is still mounted on the old id
+// and will write again as it unmounts, and that write has to keep landing
+// where this delete just ran rather than resurrecting a draft under an id
+// nothing will ever navigate to again.
 export function deleteDraft(scope: DraftScope): Promise<void> {
   return runOnFieldDatabase<void>(
     undefined,
     async (database) => {
-      const store = database
-        .transaction(DRAFT_STORE, "readwrite")
-        .objectStore(DRAFT_STORE);
+      const transaction = database.transaction(DRAFT_STORE, "readwrite");
+      const store = transaction.objectStore(DRAFT_STORE);
+      const resolved = await resolveDraftKey(store, scope);
 
-      await promisifyRequest(store.delete(draftKey(scope)));
+      if (resolved) store.delete(resolved.key);
+
+      await commitTransaction(transaction);
+    },
+    STORAGE_TEARDOWN_TIMEOUT_MS,
+  );
+}
+
+// Closes a scope for good: the draft goes, and what stays behind is a
+// forwarding address that leads nowhere, so a write already scheduled against
+// this scope is dropped instead of recreating what was just thrown away.
+//
+// The one caller is abandon-visit-start.ts. Abandoning happens *from* the
+// report screen as often as from the location card, and that screen's own
+// unmount write (use-field-report-persistence.ts) cannot be cancelled from
+// out here — a plain delete loses that race whenever the rep typed something
+// before deciding not to do this visit at all.
+export function discardDraft(scope: DraftScope): Promise<void> {
+  return runOnFieldDatabase<void>(
+    undefined,
+    async (database) => {
+      const transaction = database.transaction(DRAFT_STORE, "readwrite");
+      const record: DraftRedirectRecord = {
+        key: draftKey(scope),
+        updatedAt: Date.now(),
+        redirectTo: null,
+      };
+
+      transaction.objectStore(DRAFT_STORE).put(record);
+
+      await commitTransaction(transaction);
     },
     STORAGE_TEARDOWN_TIMEOUT_MS,
   );
 }
 
 // Moves a draft from one visit id to another inside one atomic transaction —
-// get the old record, put it under the new key, delete the old one, commit.
-// IndexedDB transactions are all-or-nothing, so this never leaves a draft
-// under neither key, and nothing here needs a two-phase write-new-then-
-// delete-old choreography.
+// get the old record, put it under the new key, leave a forwarding address
+// behind, commit. IndexedDB transactions are all-or-nothing, so this never
+// leaves a draft under neither key, and nothing here needs a two-phase
+// write-new-then-delete-old choreography.
 //
 // The one caller is a visit started offline that turned out to sync under a
 // different id than the device minted (see visit-start-outbox-flush.ts) —
-// best-effort there, since a draft is retypeable convenience state, unlike
-// the pending media below.
+// the *draft* is best-effort there, since it is retypeable convenience state
+// unlike the pending media below. The forwarding address is not: it replaces
+// the old record rather than sitting beside it, and it is written whether or
+// not there was a draft to move, because the form still mounted on the old id
+// may not have typed anything yet — and every write it makes from here,
+// including the one its unmount always performs, has to find this.
 export function rekeyDraft(
   scope: DraftScope,
   toVisitId: string,
@@ -163,16 +289,23 @@ export function rekeyDraft(
     const store = transaction.objectStore(DRAFT_STORE);
     const fromKey = draftKey(scope);
     const record = await promisifyRequest(
-      store.get(fromKey) as IDBRequest<DraftRecord | undefined>,
+      store.get(fromKey) as IDBRequest<StoredDraftRecord | undefined>,
     );
 
-    if (record) {
+    if (record && !isRedirect(record)) {
       store.put({
         ...record,
         key: draftKey({ ...scope, visitId: toVisitId }),
       });
-      store.delete(fromKey);
     }
+
+    const forwarding: DraftRedirectRecord = {
+      key: fromKey,
+      updatedAt: Date.now(),
+      redirectTo: toVisitId,
+    };
+
+    store.put(forwarding);
 
     await commitTransaction(transaction);
 
@@ -390,6 +523,16 @@ export function readPendingMediaRegistration(
 // combine two. Unlike the draft, this one is load-bearing rather than
 // best-effort: these bytes cannot be recreated, so
 // visit-start-outbox-flush.ts only marks a start resolved once this lands.
+//
+// No forwarding address here, unlike `rekeyDraft`. The same window exists in
+// principle — a capture written after this ran but before the screen unmounts
+// lands under the old id — but it is a different size: media is written at the
+// moment of capture, not on a debounce and not again at unmount, so reaching
+// it means stopping a recording inside the sub-second gap between this rekey
+// and the redirect that follows it. Left as a known gap in
+// docs/plans/offline-field-drafts-plan-prompt.md rather than closed with a
+// second copy of the mechanism, which would have to thread through all six
+// functions that compose `mediaKey`.
 export function rekeyPendingMedia(
   scope: DraftScope,
   toVisitId: string,

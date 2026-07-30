@@ -350,6 +350,10 @@ export class TenantPurgeService {
       { table: "tasks", delegate: this.prisma.task },
       { table: "visit_notes", delegate: this.prisma.visitNote },
       { table: "reports", delegate: this.prisma.report },
+      {
+        table: "visit_client_aliases",
+        delegate: this.prisma.visitClientAlias,
+      },
       { table: "visits", delegate: this.prisma.visit },
       { table: "route_items", delegate: this.prisma.routeItem },
       { table: "route_plans", delegate: this.prisma.routePlan },

@@ -10,6 +10,7 @@ import {
   type ReportSendOutcome,
 } from "./report-send-outcome";
 import {
+  rejectReportOutboxEntryForVisit,
   rekeyReportOutboxEntry,
   type ReportOutboxScope,
 } from "./report-outbox";
@@ -123,9 +124,16 @@ async function resolveVisitStart(
     userId: scope.userId,
   };
 
-  void rekeyDraft(draftScope, resolvedVisitId);
-
-  const [mediaRekeyed, confirmRekeyed] = await Promise.all([
+  // The draft's own result is still ignored — it is retypeable convenience
+  // state, and holding a start unresolved over one would be the tail wagging
+  // the dog. Waited on all the same, rather than fired and forgotten as it
+  // once was, because the same call now installs the forwarding address that
+  // keeps the report form still mounted on the old id from writing a second
+  // copy back under it (see offline-drafts.ts). That has to be in place
+  // before the start resolves and this screen redirects, which is exactly
+  // when the form unmounts and writes.
+  const [, mediaRekeyed, confirmRekeyed] = await Promise.all([
+    rekeyDraft(draftScope, resolvedVisitId),
     rekeyPendingMedia(draftScope, resolvedVisitId),
     rekeyReportOutboxEntry(outboxScope, entry.clientVisitId, resolvedVisitId),
   ]);
@@ -201,6 +209,33 @@ export async function flushVisitStartOutbox(
     }
 
     if (outcome.kind === "rejected") {
+      // A rep can confirm a report against a visit that has not synced yet —
+      // that confirm sits in the other queue under this same client-minted
+      // id, waiting for a visit this rejection has just ruled out for good.
+      // Left alone it is sent on every cycle forever, answered
+      // `VISIT_NOT_FOUND` every time, and correctly re-queued by
+      // report-send-outcome.ts as "the start hasn't caught up yet" — a
+      // pending count that can never reach zero, with nothing said about why.
+      // Carrying the rejection across makes it say so instead.
+      //
+      // The confirm is marked *first*, and that order is load-bearing. These
+      // are two separate IndexedDB transactions with a real gap between them,
+      // and on iOS a backgrounded tab dying in that gap is ordinary rather
+      // than exotic. Marking the start first would make such a death
+      // permanent: a rejected start is skipped by every later automatic flush
+      // (`decideVisitStartFlushAction`), so nothing would ever carry the
+      // rejection across, and the confirm would be left in precisely the
+      // stuck state this exists to prevent — reachable again only through a
+      // manual "send now". This way round the gap heals itself: the start is
+      // still unrejected, so the next flush re-sends it, is refused the same
+      // way, and marks both. The cost of the crash landing in the other half
+      // of the window is only a confirm that says "needs attention" while its
+      // start is briefly still retrying — the honest reading either way.
+      await rejectReportOutboxEntryForVisit(
+        scope,
+        entry.clientVisitId,
+        outcome.message,
+      );
       await recordVisitStartOutboxFailure(entry.key, outcome.message, true);
       continue;
     }

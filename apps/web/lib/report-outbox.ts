@@ -207,6 +207,13 @@ export function deleteReportOutboxEntryForVisit(
 // helpers. The one caller is visit-start-outbox-flush.ts, for a rep who
 // confirmed a report before the visit holding it had finished syncing under
 // its real id.
+//
+// Clears any rejection in the same move. The only way a confirm still keyed to
+// a client-minted id can carry one is `rejectReportOutboxEntryForVisit` below,
+// which marks it because the start it belonged to was refused — and a start
+// that reaches this function has since succeeded, so the reason that entry was
+// refused no longer exists. Leaving the mark would keep a report the server
+// will now accept out of every automatic flush.
 export function rekeyReportOutboxEntry(
   scope: ReportOutboxScope,
   fromVisitId: string,
@@ -225,6 +232,8 @@ export function rekeyReportOutboxEntry(
         ...record,
         key: outboxKey(scope, toVisitId),
         visitId: toVisitId,
+        rejectedAt: null,
+        lastError: null,
       });
       store.delete(fromKey);
     }
@@ -232,6 +241,43 @@ export function rekeyReportOutboxEntry(
     await commitTransaction(transaction);
 
     return true;
+  });
+}
+
+// Marks a queued confirm refused because the visit it names can never exist:
+// the deferred start that would have created it was itself rejected by the
+// server (see visit-start-outbox-flush.ts).
+//
+// Without this the entry is not wrong so much as unanswerable — every flush
+// sends it, the server replies `VISIT_NOT_FOUND`, and report-send-outcome.ts
+// correctly reads that as "queue, the start hasn't caught up yet" for a start
+// that is never going to catch up. The rep watches a pending count that can
+// never reach zero and is told nothing about why.
+//
+// Marked rather than deleted, like every other rejection here: this is a
+// report the rep already finished and signed off, and the manual "send now"
+// still retries it — which is not futile, because that same tap retries the
+// rejected start first, and a start that succeeds on retry rekeys this entry
+// (clearing the mark) before the confirm queue is drained.
+export function rejectReportOutboxEntryForVisit(
+  scope: ReportOutboxScope,
+  visitId: string,
+  lastError: string,
+): Promise<void> {
+  return runOnFieldDatabase<void>(undefined, async (database) => {
+    const transaction = database.transaction(OUTBOX_STORE, "readwrite");
+    const store = transaction.objectStore(OUTBOX_STORE);
+    const existing = await promisifyRequest(
+      store.get(outboxKey(scope, visitId)) as IDBRequest<
+        OutboxRecord | undefined
+      >,
+    );
+
+    if (existing) {
+      store.put({ ...existing, lastError, rejectedAt: Date.now() });
+    }
+
+    await commitTransaction(transaction);
   });
 }
 

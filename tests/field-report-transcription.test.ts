@@ -34,6 +34,11 @@ function buildPrisma(overrides: {
 
   return {
     visit: { findFirst: async () => visit },
+    // Reached only when the visit resolves to nothing by either of its own
+    // ids — see visit-identity.ts. Empty here: these cases are about a visit
+    // that genuinely does not belong to the caller's tenant, not one an adopt
+    // recorded under a different id.
+    visitClientAlias: { findUnique: async () => null },
     storageObject: { findFirst: async () => storageObject },
     visitNote: { findFirst: async () => visitNote },
   };

@@ -336,9 +336,9 @@ model PlatformOperationEvent {
 }
 
 model User {
-  id       String @id @default(cuid())
-  tenantId String
-  email    String
+  id                   String     @id @default(cuid())
+  tenantId             String
+  email                String
   // Given name and family name are the source of truth. `lastName` is nullable
   // because the backfill splits legacy single-string names on the first space
   // and a one-word name leaves nothing to put here — new writes always supply
@@ -835,17 +835,24 @@ model Visit {
   /// nothing about row identity moves into client hands; this is a correlation
   /// key beside it. Null for every visit started before this existed and for any
   /// caller that does not send one.
+  ///
+  /// Written when this row is *created*, and never after. A deferred start that
+  /// finds the stop's slot already held by the rep's own open visit adopts that
+  /// visit rather than creating one, and the id it minted is recorded in
+  /// `VisitClientAlias` instead — one column cannot hold the several client ids
+  /// that can legitimately resolve to one adopted visit.
   clientVisitId        String?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
 
-  location       Location    @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  representative User        @relation("RepresentativeVisits", fields: [representativeUserId], references: [id], onDelete: Restrict)
-  routeItem      RouteItem?  @relation(fields: [routeItemId], references: [id], onDelete: SetNull)
+  location       Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  representative User               @relation("RepresentativeVisits", fields: [representativeUserId], references: [id], onDelete: Restrict)
+  routeItem      RouteItem?         @relation(fields: [routeItemId], references: [id], onDelete: SetNull)
   notes          VisitNote[]
   report         Report?
   tasks          Task[]
   aiJobs         AiJob[]
+  clientAliases  VisitClientAlias[]
 
   @@unique([routeItemId])
   @@unique([tenantId, clientVisitId])
@@ -877,6 +884,37 @@ model Visit {
   @@index([tenantId, status])
   @@index([tenantId, completedAt])
   @@map("visits")
+}
+
+/// A client-minted id that resolves to a visit it did not create.
+///
+/// `Visit.clientVisitId` covers the ordinary deferred start, where the id the
+/// phone minted becomes the id of the row the server creates. It cannot cover
+/// the adopt outcome: a stop has exactly one visit slot, so a start arriving to
+/// find the rep's own visit already open there is handed that visit instead —
+/// and two devices, or two retries whose responses were both lost, can arrive
+/// at the same open visit with two different minted ids. A single column takes
+/// only the first, and the second is then unrecoverable: its retry finds
+/// nothing to replay onto, re-derives the slot from scratch, and — if the
+/// adopted visit has closed by then — mints a second, unwanted, unlinked visit
+/// for a stop that was already done.
+///
+/// So every adopt records its id here instead, and the two lookups are tried in
+/// a fixed order (server id, then `Visit.clientVisitId`, then this) so a real id
+/// always wins over client input claiming to be one. Rows are only ever added,
+/// never rewritten: a client id maps to one visit for good.
+model VisitClientAlias {
+  id            String   @id @default(cuid())
+  tenantId      String
+  visitId       String
+  clientVisitId String
+  createdAt     DateTime @default(now())
+
+  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, clientVisitId])
+  @@index([visitId])
+  @@map("visit_client_aliases")
 }
 
 model VisitNote {
