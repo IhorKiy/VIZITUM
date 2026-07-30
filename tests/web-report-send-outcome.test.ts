@@ -52,6 +52,20 @@ describe("classifyReportSendResult", () => {
     }
   });
 
+  it("queues a request timeout or rate limit, the same as no answer at all", () => {
+    // Neither means the server judged the report — 408 is the request never
+    // finishing, 429 is the server declining to look at it yet — so both are
+    // exactly the case a retry outlives, and a rep standing in a shop cannot
+    // act on either.
+    for (const status of [408, 429]) {
+      assert.deepEqual(
+        classifyReportSendResult({ ok: false, status }),
+        { kind: "queue" },
+        `expected ${status} to be queued`,
+      );
+    }
+  });
+
   it("surfaces a refusal the server will keep making", () => {
     // Validation, a cancelled visit, a lost permission: retrying cannot change
     // the answer, so it has to reach the rep now, while they still remember the
