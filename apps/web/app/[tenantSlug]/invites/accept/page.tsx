@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { PasswordFields } from "../../../../components/password-fields";
+import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
 import { getFormString } from "../../../../lib/form";
@@ -122,9 +123,15 @@ export default async function AcceptInvitePage({
             name="password"
             showLabel={tCommon("showPassword")}
           />
-          <button className="primary-button" type="submit">
+          {/* The one submit in the product that can only be made once: a
+              second tap re-sends a token the first one already consumed and
+              comes back as "invite is invalid". */}
+          <PendingSubmitButton
+            className="primary-button"
+            pendingLabel={t("accepting")}
+          >
             {t("accept")}
-          </button>
+          </PendingSubmitButton>
         </form>
       </section>
     </main>

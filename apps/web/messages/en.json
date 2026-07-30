@@ -3,6 +3,7 @@
     "appName": "Vizitum",
     "signIn": "Sign in",
     "save": "Save",
+    "signingIn": "Signing in...",
     "saving": "Saving...",
     "cancel": "Cancel",
     "close": "Close",
@@ -254,7 +255,8 @@
     "password": "Password",
     "passwordConfirm": "Confirm password",
     "passwordMismatch": "Passwords do not match.",
-    "accept": "Accept invite"
+    "accept": "Accept invite",
+    "accepting": "Creating your account..."
   },
   "manager": {
     "eyebrow": "Team manager",
@@ -1126,7 +1128,8 @@
       "productsHint": "The product catalogue",
       "help": "Help",
       "helpHint": "Answers about notes, drafts and reports",
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "signingOut": "Signing out..."
     },
     "help": {
       "title": "Help",

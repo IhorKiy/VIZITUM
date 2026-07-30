@@ -297,7 +297,7 @@ function RouteStopRow({
         <PendingSubmitButton
           aria-label={t("removeAria", { name: stop.location.name })}
           className="name-edit-button is-danger"
-          pendingLabel={<TrashIcon />}
+          pendingLabel={null}
         >
           <TrashIcon />
         </PendingSubmitButton>

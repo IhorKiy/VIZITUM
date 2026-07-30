@@ -496,6 +496,61 @@ textarea {
   opacity: 0.72;
 }
 
+/* A button mid-action: the spinner and whatever the button says about the wait
+   read as one label, so the text never shifts away from the moving part. */
+.pending-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* A busy button is not an unavailable one. The disabled palette above drains
+   a button to muted-on-muted, which is the right thing to say about an action
+   you cannot take and the wrong thing to say about one already running — it
+   also washes the spinner down to the point of being missed on a phone in
+   daylight. `is-pending` puts each variant back in its own colours; the
+   spinner, not the fade, carries the state. */
+.is-pending:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+
+.primary-button.is-pending:disabled {
+  background: var(--accent);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.secondary-button.is-pending:disabled,
+.icon-button.is-pending:disabled {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+/* The zone and menu buttons are styled as links, so they miss the disabled
+   rule above — without this a tapped zone stays fully lit while its navigation
+   is still resolving, which is exactly the moment it should look busy. */
+.zone-choice-link:disabled,
+.zone-switcher-link:disabled,
+.field-menu-zone-button:disabled,
+.field-menu-logout-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+/* Those four only ever go disabled because their own action is running, so
+   they get the busy cursor and a lighter fade — the zone being opened has to
+   stay readable, since it is the answer to "which one did I just tap?". */
+.zone-choice-link.is-pending:disabled,
+.zone-switcher-link.is-pending:disabled,
+.field-menu-zone-button.is-pending:disabled,
+.field-menu-logout-button.is-pending:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
 .secondary-button.danger {
   background: var(--danger-surface);
   border-color: var(--danger-line);

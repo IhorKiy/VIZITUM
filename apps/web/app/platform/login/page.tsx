@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { buildApiUrl } from "../../../lib/api-client";
 import { buildRequestHeaders } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
+import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import { TurnstileWidget } from "../../../components/turnstile-widget";
 import { getFormString } from "../../../lib/form";
 import { INPUT_LIMITS } from "../../../lib/input-limits";
@@ -115,9 +116,16 @@ export default async function PlatformLoginPage({
           {turnstileSiteKey ? (
             <TurnstileWidget language="en" siteKey={turnstileSiteKey} />
           ) : null}
-          <button className="primary-button" type="submit">
+          {/* The wait here is a captcha check, a login round trip and the
+              console's own first render, so the button has to hold the whole
+              time — a plain submit looked idle long enough to be tapped
+              again, and the second tap spends a fresh captcha token. */}
+          <PendingSubmitButton
+            className="primary-button"
+            pendingLabel="Signing in..."
+          >
             Sign in
-          </button>
+          </PendingSubmitButton>
         </form>
       </section>
     </main>
