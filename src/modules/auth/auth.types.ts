@@ -6,6 +6,7 @@ export type LoginRequestBody = {
   email?: unknown;
   password?: unknown;
   tenantSlug?: unknown;
+  captchaToken?: unknown;
 };
 
 export type SwitchRoleRequestBody = {

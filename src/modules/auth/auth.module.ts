@@ -7,16 +7,24 @@ import { AuthService } from "./auth.service";
 import { PasswordService } from "./password.service";
 import { PermissionGuard } from "./permission.guard";
 import { SessionService } from "./session.service";
+import { TurnstileService } from "./turnstile.service";
 
 @Module({
   imports: [RolesModule, TenancyModule],
   controllers: [AuthController],
-  providers: [AuthService, PasswordService, PermissionGuard, SessionService],
+  providers: [
+    AuthService,
+    PasswordService,
+    PermissionGuard,
+    SessionService,
+    TurnstileService,
+  ],
   exports: [
     AuthService,
     PasswordService,
     PermissionGuard,
     SessionService,
+    TurnstileService,
     RolesModule,
   ],
 })

@@ -23,6 +23,7 @@ import { CSRF_COOKIE_NAME } from "./auth.constants";
 import { createCsrfToken, writeCsrfCookie } from "./csrf";
 import { readSessionToken, writeSessionCookie } from "./session-cookie";
 import { SessionService } from "./session.service";
+import { TurnstileService } from "./turnstile.service";
 import type {
   AcceptInviteRequestBody,
   LoginRequestBody,
@@ -47,6 +48,7 @@ export class AuthService {
     private readonly rolesService: RolesService,
     private readonly sessionService: SessionService,
     private readonly tenancyService: TenancyService,
+    private readonly turnstileService: TurnstileService,
   ) {}
 
   async login(
@@ -60,6 +62,10 @@ export class AuthService {
     if (!email || !password) {
       throwInvalidCredentials();
     }
+
+    // Captcha comes before any database work: the point is to keep
+    // credential-stuffing traffic away from the password verifier entirely.
+    await this.turnstileService.assertValidToken(body.captchaToken);
 
     const tenantSlug = normalizeTenantSlug(body.tenantSlug);
     const { tenant } = await this.tenancyService.resolveTenant({

@@ -6,6 +6,7 @@ export const PLATFORM_OWNER_ROLE_CODE: PlatformRoleCode = "platform_owner";
 export type PlatformLoginRequestBody = {
   email?: string;
   password?: string;
+  captchaToken?: unknown;
 };
 
 export type PlatformSessionResponse = {

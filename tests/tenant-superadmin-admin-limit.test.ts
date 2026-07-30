@@ -235,6 +235,7 @@ describe("tenant superadmin admin limit", () => {
       new RolesService(),
       {} as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { buildApiUrl } from "../../../lib/api-client";
 import { buildRequestHeaders } from "../../../lib/api-client";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
+import { TurnstileWidget } from "../../../components/turnstile-widget";
 import { getFormString } from "../../../lib/form";
 import { INPUT_LIMITS } from "../../../lib/input-limits";
 
@@ -14,6 +15,7 @@ export default async function PlatformLoginPage({
   searchParams,
 }: PlatformLoginPageProps) {
   const { error } = await searchParams;
+  const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY?.trim() || null;
 
   async function loginAction(formData: FormData) {
     "use server";
@@ -30,14 +32,30 @@ export default async function PlatformLoginPage({
           ...(await buildRequestHeaders("/platform/auth/login")),
           "content-type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          captchaToken: getFormString(formData, "cf-turnstile-response"),
+        }),
       });
     } catch {
       redirect("/platform/login?error=network");
     }
 
     if (!response.ok) {
-      redirect("/platform/login?error=invalid");
+      let code: string | undefined;
+
+      try {
+        code = ((await response.json()) as { code?: string }).code;
+      } catch {
+        // Non-JSON error body; fall through to the generic message.
+      }
+
+      redirect(
+        `/platform/login?error=${
+          code === "CAPTCHA_INVALID" ? "captcha" : "invalid"
+        }`,
+      );
     }
 
     await forwardSetCookies(response.headers);
@@ -67,7 +85,9 @@ export default async function PlatformLoginPage({
           <div className="form-error" role="alert">
             {error === "network"
               ? "Could not reach the API. Check the API URL."
-              : "Invalid email or password."}
+              : error === "captcha"
+                ? "Captcha verification failed. Please try again."
+                : "Invalid email or password."}
           </div>
         ) : null}
 
@@ -92,6 +112,9 @@ export default async function PlatformLoginPage({
               type="password"
             />
           </label>
+          {turnstileSiteKey ? (
+            <TurnstileWidget language="en" siteKey={turnstileSiteKey} />
+          ) : null}
           <button className="primary-button" type="submit">
             Sign in
           </button>

@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import { normalizeEmail } from "../../common/normalize";
 import { createCsrfToken, writeCsrfCookie } from "../auth/csrf";
 import { PasswordService } from "../auth/password.service";
+import { TurnstileService } from "../auth/turnstile.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ROLE_PERMISSION_MATRIX } from "../roles/role-permission.matrix";
 import { PLATFORM_CSRF_COOKIE_NAME } from "./platform-auth.constants";
@@ -22,6 +23,7 @@ export class PlatformAuthService {
     private readonly prisma: PrismaService,
     private readonly passwordService: PasswordService,
     private readonly platformSessionService: PlatformSessionService,
+    private readonly turnstileService: TurnstileService,
   ) {}
 
   async login(
@@ -35,6 +37,10 @@ export class PlatformAuthService {
     if (!email || !password) {
       throwInvalidCredentials();
     }
+
+    // Same ordering rationale as the tenant login: captcha before any
+    // database work.
+    await this.turnstileService.assertValidToken(body.captchaToken);
 
     const platformUser = await this.prisma.platformUser.findUnique({
       where: { email },

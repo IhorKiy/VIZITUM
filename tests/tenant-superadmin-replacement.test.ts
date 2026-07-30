@@ -90,6 +90,7 @@ describe("tenant superadmin replacement", () => {
         },
       } as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     const result = await authService.acceptInvite(
@@ -191,6 +192,7 @@ describe("tenant superadmin replacement", () => {
       new RolesService(),
       { createSession: async () => ({ token: "session-token" }) } as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await authService.acceptInvite(

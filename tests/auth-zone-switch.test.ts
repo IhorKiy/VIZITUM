@@ -14,6 +14,7 @@ describe("auth zone switch", () => {
       new RolesService(),
       { findActiveSessionByToken: async () => null } as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -39,6 +40,7 @@ describe("auth zone switch", () => {
         },
       } as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -76,6 +78,7 @@ describe("auth zone switch", () => {
       new RolesService(),
       createSessionService(session) as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     await assert.rejects(
@@ -121,6 +124,7 @@ describe("auth zone switch", () => {
       new RolesService(),
       createSessionService(session) as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     // field_representative holds no admin-zone permission (see
@@ -172,6 +176,7 @@ describe("auth zone switch", () => {
       new RolesService(),
       createSessionService(session) as never,
       {} as never,
+      { assertValidToken: async () => {} } as never,
     );
 
     const result = await authService.switchZone(
