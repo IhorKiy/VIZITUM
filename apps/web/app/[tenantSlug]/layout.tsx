@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 
 import { buildSchemeStyle } from "../../lib/branding";
 import { resolveTenantBranding } from "../../lib/tenant-branding";
-import { isTenantSlug } from "../../lib/tenant-locale";
 
 type TenantLayoutProps = {
   children: ReactNode;
@@ -21,9 +20,10 @@ export default async function TenantLayout({
   params,
 }: TenantLayoutProps) {
   const { tenantSlug } = await params;
-  const branding = await resolveTenantBranding(
-    isTenantSlug(tenantSlug) ? tenantSlug : null,
-  );
+  // Passed raw, like every other caller: resolveTenantBranding does the
+  // slug-shape check itself, and pre-filtering here would key its cache
+  // entry differently from the pages' and cost the request a second fetch.
+  const branding = await resolveTenantBranding(tenantSlug);
   const schemeStyle = buildSchemeStyle(branding.colorScheme);
 
   return (

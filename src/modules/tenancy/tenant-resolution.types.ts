@@ -23,6 +23,10 @@ export type PublicTenantLocale = {
 
 export type PublicTenantBranding = {
   slug: string;
+  // The tenant name exactly as it was entered at creation, case included. The
+  // frontend renders this verbatim: a workspace named "MG" must not show up as
+  // "Mg", which is what deriving the name from the (lowercase) slug produced.
+  name: string;
   colorScheme: TenantColorScheme;
   logoUrl: string | null;
 };

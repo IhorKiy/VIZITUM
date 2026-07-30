@@ -4,9 +4,9 @@ import { getTranslations } from "next-intl/server";
 import { PhoneInput } from "../../../../components/phone-input";
 import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
-import { normalizeTenantName } from "../../../../lib/navigation";
 import { getFormString } from "../../../../lib/form";
 import { INPUT_LIMITS } from "../../../../lib/input-limits";
+import { resolveTenantBranding } from "../../../../lib/tenant-branding";
 import { resolveTenantLocale } from "../../../../lib/tenant-locale";
 
 type AcceptInvitePageProps = {
@@ -20,9 +20,15 @@ export default async function AcceptInvitePage({
 }: AcceptInvitePageProps) {
   const { tenantSlug } = await params;
   const { token = "", error } = await searchParams;
-  const t = await getTranslations("invites");
-  const tCommon = await getTranslations("common");
-  const { phoneCountry } = await resolveTenantLocale(tenantSlug);
+  // Branding is a cache hit on the tenant layout's fetch and is here for the
+  // workspace name only; the rest resolve together like on every other
+  // pre-auth screen rather than one await at a time.
+  const [t, tCommon, { phoneCountry }, branding] = await Promise.all([
+    getTranslations("invites"),
+    getTranslations("common"),
+    resolveTenantLocale(tenantSlug),
+    resolveTenantBranding(tenantSlug),
+  ]);
 
   async function acceptInviteAction(formData: FormData) {
     "use server";
@@ -57,7 +63,7 @@ export default async function AcceptInvitePage({
           <div className="brand-mark">V</div>
           <div>
             <p className="brand-name">Vizitum</p>
-            <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>
+            <p className="tenant-name">{branding.name}</p>
           </div>
         </div>
 

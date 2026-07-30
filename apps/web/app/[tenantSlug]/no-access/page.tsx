@@ -2,11 +2,8 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { getCurrentSession } from "../../../lib/api-client";
-import {
-  normalizeTenantName,
-  resolveZoneLanding,
-  zoneHomePath,
-} from "../../../lib/navigation";
+import { resolveZoneLanding, zoneHomePath } from "../../../lib/navigation";
+import { resolveTenantBranding } from "../../../lib/tenant-branding";
 
 type NoAccessPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -37,9 +34,11 @@ export default async function NoAccessPage({ params }: NoAccessPageProps) {
     redirect(`/${tenantSlug}/choose-zone`);
   }
 
-  const [t, tCommon] = await Promise.all([
+  // Cache hit on the tenant layout's branding fetch; here for the name only.
+  const [t, tCommon, branding] = await Promise.all([
     getTranslations("common.zone.noAccess"),
     getTranslations("common"),
+    resolveTenantBranding(tenantSlug),
   ]);
 
   return (
@@ -49,7 +48,7 @@ export default async function NoAccessPage({ params }: NoAccessPageProps) {
           <div className="brand-mark">V</div>
           <div>
             <p className="brand-name">{tCommon("appName")}</p>
-            <p className="tenant-name">{normalizeTenantName(tenantSlug)}</p>
+            <p className="tenant-name">{branding.name}</p>
           </div>
         </div>
 
