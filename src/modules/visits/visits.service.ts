@@ -434,6 +434,40 @@ export class VisitsService {
       : { adopt: null, link: null };
 
     if (routeItemLink.adopt) {
+      // A retry that never learned this attempt's answer at all — the
+      // response itself got lost, not just the client's own rekey (see
+      // visit-start-outbox-flush.ts for that half) — would otherwise
+      // re-evaluate this same route slot from scratch every time, since
+      // adopting has never stored `clientVisitId` anywhere. Backfilling it
+      // here, once, only if the row doesn't already carry one, means the
+      // very next retry finds it through the replay lookup above instead of
+      // resolveRouteItemLink again — even if this adopted visit closes in
+      // the meantime. Guarded in the WHERE clause, not just checked before
+      // writing, so a second device adopting the same still-open visit
+      // concurrently can't overwrite whichever client id got there first;
+      // a genuine unique collision (this exact id already used by an
+      // unrelated visit) is swallowed rather than failing an adopt that
+      // has, either way, already succeeded.
+      if (clientVisitId && routeItemLink.adopt.clientVisitId === null) {
+        try {
+          await this.prisma.visit.updateMany({
+            where: {
+              id: routeItemLink.adopt.id,
+              tenantId: context.tenantId,
+              clientVisitId: null,
+            },
+            data: { clientVisitId },
+          });
+        } catch (error) {
+          if (
+            !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+            error.code !== "P2002"
+          ) {
+            throw error;
+          }
+        }
+      }
+
       return toVisitResponse(routeItemLink.adopt);
     }
 

@@ -18,6 +18,7 @@ import {
   promisifyRequest,
   ROUTE_SNAPSHOT_STORE,
   runOnFieldDatabase,
+  STORAGE_TEARDOWN_TIMEOUT_MS,
 } from "./field-db";
 
 export type RouteSnapshotStop = {
@@ -39,6 +40,11 @@ export type RouteSnapshotLabels = {
   offlineBanner: string;
   visitedBadge: string;
   notVisitedBadge: string;
+  // A route with no stops is a real, valid state (nothing planned today),
+  // not an absent snapshot — offline.html tells the two apart by whether a
+  // snapshot exists at all, so this is what fills the otherwise-blank list
+  // rather than reusing the "no snapshot yet" message.
+  emptyRoute: string;
 };
 
 export type RouteSnapshot = {
@@ -89,4 +95,31 @@ export function readRouteSnapshot(
 
     return record ?? null;
   });
+}
+
+// Signing out hands the phone to whoever holds it next — unlike the other
+// four stores in this database, this one has no user in its key at all
+// (offline.html reads it with no session to check), so a stale row here is
+// reachable by *anyone* who opens this tenant's field zone offline next, not
+// just the next person who happens to sign in as this same rep. Called from
+// field-menu.tsx's sign-out handler alongside clearDrafts(), for the same
+// reason and on the same footing: unlike pending-media (deliberately kept,
+// since it is keyed to the rep who captured it and nothing else can reach
+// it), this has no such protection, so it goes with the drafts, not with
+// the recordings.
+export function deleteRouteSnapshot(tenantSlug: string): Promise<void> {
+  return runOnFieldDatabase<void>(
+    undefined,
+    async (database) => {
+      const transaction = database.transaction(
+        ROUTE_SNAPSHOT_STORE,
+        "readwrite",
+      );
+
+      transaction.objectStore(ROUTE_SNAPSHOT_STORE).delete(tenantSlug);
+
+      await commitTransaction(transaction);
+    },
+    STORAGE_TEARDOWN_TIMEOUT_MS,
+  );
 }

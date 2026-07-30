@@ -91,13 +91,19 @@ async function sendOne(entry: VisitStartOutboxEntry): Promise<{
 //
 // `remoteVisitId` is recorded first and durably, before any rekey is
 // attempted, so even a crash mid-rekey leaves the next cycle already knowing
-// the server has answered. That ordering is the fix for a bug this used to
-// have: re-sending createVisit is free for a plain create (the backend's own
-// clientVisitId lookup returns the identical row), but not for an adopt
-// outcome, which never stores clientVisitId anywhere — a second call
-// re-derives the route slot's state fresh, and finding the adopted visit
-// closed in the meantime would have minted a new, unwanted, unlinked visit
-// instead of recognizing the one already adopted.
+// the server has answered. That ordering is what stops this specific device
+// from ever re-sending createVisit for an entry it already got an answer
+// for — re-sending is free for a plain create (the backend's own
+// clientVisitId lookup returns the identical row) and, since VisitsService
+// backfills clientVisitId onto an adopted visit that doesn't have one yet,
+// usually free for an adopt outcome too now. What this client-side field
+// still guards against is this device never having heard the answer at all
+// (a lost response, not a slow rekey) racing a *second* device or retry that
+// adopts the same still-open visit first and claims the id slot before this
+// one's own backfill can — a second call would then re-derive the route
+// slot's state fresh, and finding the adopted visit closed in the meantime
+// would mint a new, unwanted, unlinked visit instead of recognizing the one
+// already adopted.
 async function resolveVisitStart(
   scope: VisitStartOutboxScope,
   entry: VisitStartOutboxEntry,

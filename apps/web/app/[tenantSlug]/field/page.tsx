@@ -414,11 +414,18 @@ export default async function FieldPage({
           <RouteSnapshotWriter
             labels={{
               heading: t("home.todayRoute"),
+              // Full date + time, not just time: a snapshot read back a day
+              // or more later must say so plainly rather than implying it's
+              // still today's data under a "Today's route" heading.
               offlineBanner: t("home.offlineBanner", {
-                time: format.dateTime(new Date(), { timeStyle: "short" }),
+                timestamp: format.dateTime(new Date(), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }),
               }),
               visitedBadge: t("home.offlineVisitedBadge"),
               notVisitedBadge: t("home.offlineNotVisitedBadge"),
+              emptyRoute: t("home.offlineEmptyRoute"),
             }}
             stops={routeStops}
             tenantSlug={tenantSlug}
