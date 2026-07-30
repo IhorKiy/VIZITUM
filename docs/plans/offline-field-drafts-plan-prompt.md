@@ -23,10 +23,10 @@ several of the plans in the sections further down are now **stale** (kept for
 historical context, not as instructions).
 
 **Not done, and not doable by a coding session**: the real-phone pass — the
-one item below. Everything else this doc originally scoped is now shipped,
+first item below. Everything else this doc originally scoped is now shipped,
 pending that real-device confirmation.
 
-**Known gap, not yet fixed:**
+**Known gaps, not yet fixed:**
 
 1. **Real-phone verification has never been done.** Every PR in this series
    was verified against the real API/DB from a desktop browser (no
@@ -36,6 +36,20 @@ pending that real-device confirmation.
    a visit in airplane mode on an actual iOS Safari. Do this before calling
    the offline story release-ready — iOS is exactly where the emulated
    checks lie.
+2. **A capture written in the gap between `rekeyPendingMedia` and the redirect
+   still lands under the old id.** The exact sibling of the draft orphan
+   closed below, in the store that did *not* get a forwarding address, and
+   raised by review of that fix. Much narrower: media is written at the moment
+   of capture, not on a debounce and not again at unmount, so reaching it
+   means stopping a recording inside the sub-second window between the rekey
+   and the redirect that follows it — where the draft version was reachable by
+   any keystroke and *guaranteed* by the unmount write. The consequence is
+   smaller than it first looks, too: the form still holds the Blob in memory
+   and uploads from there, so a stranded copy only costs anything if the app
+   also dies in that same window, and it is swept after 7 days regardless. Not
+   closed because the mechanism would have to thread through all six functions
+   that compose `mediaKey`, for a window an order narrower than the one it
+   came from. Noted in `offline-drafts.ts` beside `rekeyPendingMedia`.
 
 **Closed since**, and recorded here because the reasoning for *why they were
 deferred* is worth keeping beside the reason they stopped being deferrable —
@@ -101,7 +115,7 @@ Everything below is real, merged, and documented in `docs/reference/module-map.m
 **Also fixed: the three residual gaps this doc had deferred** (closing known gaps #2 and #3 of the previous version, and the "one case left genuinely open" in the paragraph above — leaving only the real-phone pass):
 
 - **The orphaned draft, closed in the store rather than in the form.** A draft key whose draft has moved now keeps a *forwarding address* (`offline-drafts.ts`), and `readDraft`/`writeDraft`/`deleteDraft` all follow it — one hop, since a client id forwards to a server id and a server id is never rekeyed again. `rekeyDraft` writes it whether or not there was a draft to move (the rep may not have typed yet), which is what makes the still-mounted form's later writes land on the real visit instead of resurrecting a copy under the dead id. The write is no longer merely un-orphaned but actually *kept*: a keystroke in that window used to be lost to the redirect either way. `discardDraft` is the same mechanism pointing nowhere, for `abandon-visit-start.ts`'s sibling case, where a late write must be dropped rather than forwarded. `visit-start-outbox-flush.ts` now waits on `rekeyDraft` (still ignoring its result — the draft stays convenience state) so the address is in place before the start resolves and the screen redirects, which is exactly when the form unmounts and writes.
-- **The stuck confirm after a rejected start.** `flushVisitStartOutbox` now carries a start's rejection across to any confirm queued under the same `clientVisitId` (`rejectReportOutboxEntryForVisit`), so it surfaces as "needs attention" instead of being re-sent forever against a visit that can never exist. Marked, not deleted — it is work the rep signed off — and `rekeyReportOutboxEntry` clears the mark if a manual retry of the start succeeds, since the reason for it is then gone.
+- **The stuck confirm after a rejected start.** `flushVisitStartOutbox` now carries a start's rejection across to any confirm queued under the same `clientVisitId` (`rejectReportOutboxEntryForVisit`), so it surfaces as "needs attention" instead of being re-sent forever against a visit that can never exist. Marked, not deleted — it is work the rep signed off — and `rekeyReportOutboxEntry` clears the mark if a manual retry of the start succeeds, since the reason for it is then gone. The confirm is marked *before* the start, which review caught as load-bearing rather than arbitrary: they are two separate IndexedDB transactions, and a tab dying between them (ordinary on iOS) with the start already rejected would leave that start skipped by every later automatic flush, the transfer never retried, and the confirm stuck in exactly the state this closes. This way round the next flush re-sends the start, is refused the same way, and marks both.
 - **Two client ids adopting one open visit.** The adopt branch's `Visit.clientVisitId` backfill is replaced by a `VisitClientAlias` row (migration `20260730160000_visit_client_aliases`), so every adopter's id is recorded rather than only the first, and `findVisitByEitherId` resolves through it as a third and last step — after the server id and `Visit.clientVisitId`, preserving the ordering rule that a real id always beats client input. Recording is idempotent by unique index (`createMany` + `skipDuplicates`) rather than by swallowing a P2002, which also means a genuine write failure now fails the request the client will retry, instead of quietly returning an adopt whose id was never recorded — the exact shape of the original bug.
 
 Verified by `tests/web-offline-drafts.test.ts` and `tests/web-report-outbox.test.ts` — the first tests in this repo to run the on-device stores against a real IndexedDB (a new `fake-indexeddb` devDependency) rather than a pure slice of themselves — plus four reworked/new cases in `tests/offline-visit-start.test.ts`. The full suite (913) passes, as do `build`, `web:typecheck`, `lint`, `format:check` and `web:i18n:check`.

@@ -75,6 +75,13 @@ type DraftRecord = {
 //
 // One hop only, deliberately: a client-minted id forwards to a server id, and
 // a server id is never rekeyed again, so a chain cannot form.
+//
+// `updatedAt` is stamped once, when the address is written, and deliberately
+// not refreshed by the writes that pass through it — so the 14-day sweep can
+// in principle collect an address still in use, after which a write to the old
+// key would start a fresh draft there and the orphan would be back. It takes a
+// report form staying mounted on one id for a fortnight to reach, which is why
+// this is left alone rather than paid for with a second `put` on every save.
 type DraftRedirectRecord = {
   key: string;
   updatedAt: number;
@@ -516,6 +523,16 @@ export function readPendingMediaRegistration(
 // combine two. Unlike the draft, this one is load-bearing rather than
 // best-effort: these bytes cannot be recreated, so
 // visit-start-outbox-flush.ts only marks a start resolved once this lands.
+//
+// No forwarding address here, unlike `rekeyDraft`. The same window exists in
+// principle — a capture written after this ran but before the screen unmounts
+// lands under the old id — but it is a different size: media is written at the
+// moment of capture, not on a debounce and not again at unmount, so reaching
+// it means stopping a recording inside the sub-second gap between this rekey
+// and the redirect that follows it. Left as a known gap in
+// docs/plans/offline-field-drafts-plan-prompt.md rather than closed with a
+// second copy of the mechanism, which would have to thread through all six
+// functions that compose `mediaKey`.
 export function rekeyPendingMedia(
   scope: DraftScope,
   toVisitId: string,

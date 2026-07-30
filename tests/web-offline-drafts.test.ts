@@ -36,7 +36,13 @@ const KEY_SEPARATOR = "\u0000";
 
 function rawRecord(scope: DraftScope): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("vizitum-field", 5);
+    // No version: this opens whatever `field-db.ts` already created (every
+    // case below touches the store through the module first). Pinning one
+    // here would duplicate a number that is meant to change, and the next
+    // `DATABASE_VERSION` bump would fail these tests with a `VersionError`
+    // that says nothing about what actually broke. The key layout is the
+    // only thing worth duplicating.
+    const request = indexedDB.open("vizitum-field");
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
