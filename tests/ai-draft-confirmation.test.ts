@@ -9,11 +9,7 @@ const context = {
   tenantSlug: "tenant-a",
   userId: "rep-a",
   roleCodes: ["field_representative"],
-  permissions: [
-    "visits.update_own",
-    "reports.confirm_own",
-    "ai.use_reporting",
-  ],
+  permissions: ["visits.update_own", "reports.confirm_own", "ai.use_reporting"],
 };
 
 const createdAt = new Date("2026-06-29T10:00:00.000Z");
@@ -240,7 +236,10 @@ describe("AI draft confirmation", () => {
       (
         operation,
       ): operation is {
-        storageObjectUpdateMany: { data: { status: string }; where: unknown };
+        storageObjectUpdateMany: {
+          data: { status: string; deletedAt?: unknown };
+          where: unknown;
+        };
       } =>
         typeof operation === "object" &&
         operation !== null &&
@@ -257,7 +256,18 @@ describe("AI draft confirmation", () => {
         "aiJobUpdateMany" in operation,
     );
 
-    assert.equal(storageCleanup?.storageObjectUpdateMany.data.status, "expired");
+    assert.equal(
+      storageCleanup?.storageObjectUpdateMany.data.status,
+      "expired",
+    );
+    // Marks the object done with, not deleted. `deletedAt` is the cleanup
+    // sweep's own record that it removed the bytes from R2 — this transaction
+    // never touches R2 — and the sweep excludes any row that already has it,
+    // so stamping it here used to mean no audio object was ever collected.
+    assert.equal(
+      "deletedAt" in (storageCleanup?.storageObjectUpdateMany.data ?? {}),
+      false,
+    );
     assert.ok(jobCleanup?.aiJobUpdateMany.data.temporaryDraft);
   });
 });

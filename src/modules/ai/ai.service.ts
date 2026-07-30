@@ -862,8 +862,12 @@ export class AiService {
             status: "active",
           },
           data: {
+            // Expired, not deleted. `deletedAt` means the bytes are gone from
+            // R2, and only the cleanup sweep — which is the thing that actually
+            // deletes them — may say so. Stamping it here recorded a deletion
+            // that never happened and, because the sweep skips rows with it set,
+            // guaranteed the deletion never would.
             status: "expired",
-            deletedAt: now,
           },
         });
 
@@ -1039,8 +1043,10 @@ async function cleanupTemporaryAiDataAfterConfirmation(
         purpose: { in: ["temporary_audio", "temporary_transcript"] },
       },
       data: {
+        // Same reason as the failed-job sweep above: this marks the object done
+        // with, not gone. The cleanup worker stamps `deletedAt` once the bytes
+        // are actually removed.
         status: "expired",
-        deletedAt: input.confirmedAt,
       },
     });
   }

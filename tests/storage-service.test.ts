@@ -165,6 +165,63 @@ describe("storage service", () => {
     ]);
   });
 
+  it("selects every temporary purpose whose expiry has passed, whatever its status", async () => {
+    // The filter itself, which nothing pinned before — and which was the bug.
+    // It used to require `status: "expired"` for audio and transcripts, and
+    // nothing ever set that: the field-report flow creates no AiJob, so its
+    // audio stays `active` forever, and the two AiJob writers that did mark it
+    // `expired` stamped `deletedAt` in the same update, which this same filter
+    // excludes. The result was that no audio was ever deleted from R2 by any
+    // path, while data-model.md went on promising the cleanup worker removed it.
+    let where: Record<string, unknown> | null = null;
+    const prisma = {
+      storageObject: {
+        findMany: async (query: { where: Record<string, unknown> }) => {
+          where = query.where;
+
+          return [];
+        },
+        update: async () => ({}),
+      },
+    };
+    const service = new StorageService(
+      prisma as never,
+      { getDefaultBucket: () => "vizitum" } as never,
+      { deleteObject: async () => undefined } as never,
+    );
+    const now = new Date("2026-06-30T11:00:00.000Z");
+
+    await service.cleanupExpiredTemporaryObjects(now);
+
+    assert.ok(where);
+    // Bytes still present. Only this sweep stamps `deletedAt`, and only after
+    // the R2 delete succeeds, so it means exactly "already gone".
+    assert.equal((where as { deletedAt: unknown }).deletedAt, null);
+    // The expiry is the contract, not the status.
+    assert.deepEqual((where as { expiresAt: unknown }).expiresAt, { lte: now });
+    // An abandoned registration is `active` and is collected only by this.
+    assert.deepEqual((where as { status: unknown }).status, {
+      in: ["active", "expired"],
+    });
+    assert.deepEqual((where as { purpose: unknown }).purpose, {
+      in: ["temporary_audio", "temporary_transcript", "visit_attachment"],
+    });
+    // A durable purpose must never be swept by expiry alone.
+    const purposes = (where as { purpose: { in: string[] } }).purpose.in;
+    for (const durable of [
+      "import_file",
+      "export_file",
+      "attachment",
+      "branding_logo",
+    ]) {
+      assert.equal(
+        purposes.includes(durable),
+        false,
+        `${durable} must not be collected by the temporary sweep`,
+      );
+    }
+  });
+
   it("gates branding_logo objects on tenant settings permissions", async () => {
     const brandingLogoRow = {
       id: "storage-logo",

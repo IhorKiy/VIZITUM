@@ -65,19 +65,31 @@ export class OperationsService {
       this.prisma.aiJob.count({
         where: { status: "failed", expiresAt: { lte: now } },
       }),
+      // Deliberately the same filter as StorageService.cleanupExpiredTemporary-
+      // Objects, so this number is the sweep's actual backlog. It used to
+      // require `status: "expired"` while nothing ever set that on audio, so it
+      // read zero no matter how much had piled up — the one metric that could
+      // have surfaced the leak was blind to it in exactly the same way.
       this.prisma.storageObject.count({
         where: {
-          status: "expired",
+          status: { in: ["active", "expired"] },
           deletedAt: null,
           expiresAt: { lte: now },
-          purpose: { in: ["temporary_audio", "temporary_transcript"] },
+          purpose: {
+            in: ["temporary_audio", "temporary_transcript", "visit_attachment"],
+          },
         },
       }),
       this.prisma.storageObject.count({
         where: {
           status: "deleted",
           deletedAt: { gte: windowStart },
-          purpose: { in: ["temporary_audio", "temporary_transcript"] },
+          // Same three purposes as the backlog above. An operator reads these
+          // two numbers together — what is waiting, what has gone — and counting
+          // them over different populations makes that comparison meaningless.
+          purpose: {
+            in: ["temporary_audio", "temporary_transcript", "visit_attachment"],
+          },
         },
       }),
     ]);
