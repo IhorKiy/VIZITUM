@@ -16,9 +16,10 @@ import {
   commitTransaction,
   CREATED_AT_INDEX,
   KEY_SEPARATOR,
-  openFieldDatabase,
   OUTBOX_STORE,
   promisifyRequest,
+  runOnFieldDatabase,
+  STORAGE_TEARDOWN_TIMEOUT_MS,
 } from "./field-db";
 
 // One queued confirm per visit. A rep who reopens a visit whose confirm has not
@@ -76,20 +77,19 @@ function toEntry(record: OutboxRecord): ReportOutboxEntry {
   };
 }
 
-export async function enqueueReportConfirm(
+export function enqueueReportConfirm(
   scope: ReportOutboxScope,
   visitId: string,
   clientRequestId: string,
   payload: Record<string, unknown>,
   // Returns the record's storage key on success, so the caller can address this
   // exact row later, and null when the device would not keep it — which the
-  // caller has to surface rather than swallow.
+  // caller has to surface rather than swallow. A device that did not answer in
+  // time counts as "would not keep it": this is awaited on the way to the
+  // network on every single save, so an unbounded wait here is a save button
+  // that does nothing.
 ): Promise<string | null> {
-  const database = await openFieldDatabase();
-
-  if (!database) return null;
-
-  try {
+  return runOnFieldDatabase<string | null>(null, async (database) => {
     const transaction = database.transaction(OUTBOX_STORE, "readwrite");
     const key = outboxKey(scope, visitId);
     const record: OutboxRecord = {
@@ -113,21 +113,15 @@ export async function enqueueReportConfirm(
     await commitTransaction(transaction);
 
     return key;
-  } catch {
-    return null;
-  }
+  });
 }
 
 // Oldest first: a rep who worked through four dead stops should have them arrive
 // in the order they happened.
-export async function listReportOutbox(
+export function listReportOutbox(
   scope: ReportOutboxScope,
 ): Promise<ReportOutboxEntry[]> {
-  const database = await openFieldDatabase();
-
-  if (!database) return [];
-
-  try {
+  return runOnFieldDatabase<ReportOutboxEntry[]>([], async (database) => {
     const store = database
       .transaction(OUTBOX_STORE, "readonly")
       .objectStore(OUTBOX_STORE);
@@ -142,39 +136,34 @@ export async function listReportOutbox(
           record.userId === scope.userId,
       )
       .map(toEntry);
-  } catch {
-    return [];
-  }
+  });
 }
 
-export async function deleteReportOutboxEntry(key: string): Promise<void> {
-  const database = await openFieldDatabase();
+// Left queued if this does not land, which only costs one more replay the server
+// will recognise — so the confirm flow never waits long on it.
+export function deleteReportOutboxEntry(key: string): Promise<void> {
+  return runOnFieldDatabase<void>(
+    undefined,
+    async (database) => {
+      const transaction = database.transaction(OUTBOX_STORE, "readwrite");
 
-  if (!database) return;
+      transaction.objectStore(OUTBOX_STORE).delete(key);
 
-  try {
-    const transaction = database.transaction(OUTBOX_STORE, "readwrite");
-
-    transaction.objectStore(OUTBOX_STORE).delete(key);
-
-    await commitTransaction(transaction);
-  } catch {
-    // Left queued, which only costs one more replay the server will recognise.
-  }
+      await commitTransaction(transaction);
+    },
+    STORAGE_TEARDOWN_TIMEOUT_MS,
+  );
 }
 
 // Records a failed attempt so the count the rep sees is honest about why, and so
 // a permanently-failing item is visible rather than silently retried forever.
-export async function recordReportOutboxFailure(
+// The attempt counter is diagnostic; losing it does not lose the report.
+export function recordReportOutboxFailure(
   key: string,
   lastError: string,
   rejected = false,
 ): Promise<void> {
-  const database = await openFieldDatabase();
-
-  if (!database) return;
-
-  try {
+  return runOnFieldDatabase<void>(undefined, async (database) => {
     const transaction = database.transaction(OUTBOX_STORE, "readwrite");
     const store = transaction.objectStore(OUTBOX_STORE);
     const existing = await promisifyRequest(
@@ -191,7 +180,5 @@ export async function recordReportOutboxFailure(
     }
 
     await commitTransaction(transaction);
-  } catch {
-    // The attempt counter is diagnostic; losing it does not lose the report.
-  }
+  });
 }

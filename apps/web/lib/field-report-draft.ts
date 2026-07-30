@@ -120,6 +120,29 @@ export function parseFieldReportDraft(value: unknown): FieldReportDraft | null {
   };
 }
 
+// The visit date a restored draft is allowed to show. A draft outlives the
+// window it was written in: drafts are swept after fourteen days, while the
+// visit date only reaches a few days back. Restoring a date from outside that
+// window hands the form a value it cannot display — it fails the date input's
+// own `min`, which turns the submit button into a no-op behind a native
+// validation bubble, and the backend would refuse the report as well. So an
+// out-of-window date, like an unparseable one, degrades to today: the field's
+// default, and what the collapsed date row claims anyway.
+//
+// The bounds are passed in because they are the form's, resolved from the clock
+// at the moment the draft is read. ISO dates compare lexicographically, which is
+// the whole reason this format is stored.
+export function resolveDraftVisitDate(
+  value: string,
+  today: string,
+  earliest: string,
+): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return today;
+  if (value > today || value < earliest) return today;
+
+  return value;
+}
+
 // Whether the rep has actually put anything into this report. Opening a panel
 // is not work: the collapsed/expanded flags are carried along so a restored
 // draft comes back in the shape it was left, but on their own they are not

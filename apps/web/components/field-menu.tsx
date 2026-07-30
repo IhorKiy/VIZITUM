@@ -57,6 +57,7 @@ export function FieldMenu({
   const logoutFormRef = useRef<HTMLFormElement>(null);
   const draftsClearedRef = useRef(false);
   const [open, setOpen] = useState(false);
+  const [clearingDrafts, setClearingDrafts] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -69,14 +70,29 @@ export function FieldMenu({
   // Unsent recordings are deliberately left alone — see the note on
   // `clearDrafts`. They belong to the rep who captured them, are keyed to that
   // rep, and cannot be recreated from anything.
+  //
+  // The ref means "this submit has already had its drafts cleared", and the
+  // pass-through consumes it rather than latching. Sign-out is the one action a
+  // rep with no signal still expects to work, and if the action cannot be
+  // reached they stay on this screen and tap again — a latched flag would let
+  // that second attempt sign out without clearing anything. `clearDrafts`
+  // itself is bounded, so this cannot hold the navigation for long, and the
+  // button is disabled while it runs: without that, a double-tap inside the
+  // clear reaches the action through the same pass-through and re-opens the
+  // exact race the wait exists to close.
   async function handleLogoutSubmit(event: FormEvent<HTMLFormElement>) {
-    if (draftsClearedRef.current) return;
+    if (draftsClearedRef.current) {
+      draftsClearedRef.current = false;
+      return;
+    }
 
     event.preventDefault();
     draftsClearedRef.current = true;
+    setClearingDrafts(true);
 
     await clearDrafts();
 
+    setClearingDrafts(false);
     logoutFormRef.current?.requestSubmit();
   }
 
@@ -225,7 +241,11 @@ export function FieldMenu({
             ref={logoutFormRef}
           >
             <input name="tenantSlug" type="hidden" value={tenantSlug} />
-            <button className="field-menu-logout-button" type="submit">
+            <button
+              className="field-menu-logout-button"
+              disabled={clearingDrafts}
+              type="submit"
+            >
               <LogOutIcon size={18} />
               <span>{t("signOut")}</span>
             </button>

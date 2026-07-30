@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   isEmptyFieldReportDraft,
   parseFieldReportDraft,
+  resolveDraftVisitDate,
   type FieldReportDraft,
 } from "../apps/web/lib/field-report-draft";
 
@@ -184,5 +185,46 @@ describe("parseFieldReportDraft", () => {
       })?.problemPhoto,
       null,
     );
+  });
+});
+
+describe("resolveDraftVisitDate", () => {
+  // The form's own bounds: three days back, nothing ahead of today.
+  const EARLIEST = "2026-07-26";
+
+  it("keeps a date the rep chose inside the window", () => {
+    for (const value of [EARLIEST, "2026-07-27", "2026-07-28", TODAY]) {
+      assert.equal(
+        resolveDraftVisitDate(value, TODAY, EARLIEST),
+        value,
+        `expected ${value} to survive`,
+      );
+    }
+  });
+
+  it("drops a date the draft outlived to today", () => {
+    // Drafts are swept after fourteen days and the window is three, so this is
+    // reachable by nothing more than a phone left in a drawer. Restoring the
+    // old date would fail the date input's own `min`: the submit button stops
+    // doing anything behind a native validation bubble, and the backend would
+    // refuse the report too.
+    assert.equal(resolveDraftVisitDate("2026-07-25", TODAY, EARLIEST), TODAY);
+    assert.equal(resolveDraftVisitDate("2026-07-15", TODAY, EARLIEST), TODAY);
+  });
+
+  it("drops a future date to today", () => {
+    assert.equal(resolveDraftVisitDate("2026-07-30", TODAY, EARLIEST), TODAY);
+  });
+
+  it("drops anything that is not a date to today", () => {
+    // `parseFieldReportDraft` degrades an unrecognized `visitDate` to "", so
+    // this is the ordinary shape of a draft from a different build.
+    for (const value of ["", "not-a-date", "2026-7-2", "20260728"]) {
+      assert.equal(
+        resolveDraftVisitDate(value, TODAY, EARLIEST),
+        TODAY,
+        `expected ${JSON.stringify(value)} to fall back to today`,
+      );
+    }
   });
 });
