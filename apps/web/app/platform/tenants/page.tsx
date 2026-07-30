@@ -48,6 +48,7 @@ const SEGMENT_TEMPLATES: PlatformSegmentTemplate[] = [
   "distribution",
   "service",
   "partner_account",
+  "medical",
 ];
 
 // Status doubles as the plan tier — there is no separate plan field. Statuses
