@@ -171,6 +171,32 @@ describe("report confirm idempotency", () => {
     assert.deepEqual(operations, ["reportLookup"]);
   });
 
+  it("replays a token even when the retried payload's visit date has since fallen outside the window", async () => {
+    // The queue can flush days after the rep confirmed, replaying the exact
+    // payload the first attempt already accepted. Re-validating it against
+    // today's ±window would 400 a report that already exists — the rep would
+    // be told to fix a visit that is completed and locked, a dead end. The
+    // replay lookup has to run before that validation, not after.
+    const { prisma, operations } = buildPrisma({
+      storedByToken: { "token-1": buildStoredReport() },
+    });
+    const service = new VisitsService(prisma as never);
+
+    const response = await service.confirmReport(context as never, "visit-a", {
+      schemaVersion: "field-report.v1",
+      confirmedData: {
+        summary: "Replayed after the window closed",
+        fieldReport: { visitDate: "2020-01-01" },
+      },
+      clientRequestId: "token-1",
+    });
+
+    assert.equal(response.id, "report-a");
+    // No transaction, and — the point of this test — no visit-date rejection
+    // either: the lookup answered before validation ever ran.
+    assert.deepEqual(operations, ["reportLookup"]);
+  });
+
   it("does the work when the token is new", async () => {
     const { prisma, operations } = buildPrisma({ storedByToken: {} });
     const service = new VisitsService(prisma as never);
