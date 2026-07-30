@@ -27,6 +27,14 @@ import {
 } from "../lib/field-report-actions";
 import { INPUT_LIMITS } from "../lib/input-limits";
 import {
+  deleteReportOutboxEntry,
+  enqueueReportConfirm,
+} from "../lib/report-outbox";
+import {
+  classifyReportSendResult,
+  outcomeForThrownSend,
+} from "../lib/report-send-outcome";
+import {
   deleteDraft,
   deletePendingMedia,
   pruneDrafts,
@@ -1191,10 +1199,48 @@ export function FieldVisitReportForm({
       },
     };
 
-    const result = await confirmFieldReportAction(visitId, confirmedData);
+    // Queued before it is sent, not after it fails. The rep pressing save is the
+    // moment the report exists as far as they are concerned, and a confirm that
+    // only lives in this function until the network answers is one a dead zone
+    // can still destroy. The token is minted per press, so a retry of *this*
+    // confirm replays rather than re-stamping the report, while a later
+    // deliberate re-confirm is a new confirm and overwrites.
+    const clientRequestId = crypto.randomUUID();
+    const queuedKey = await enqueueReportConfirm(
+      draftScope,
+      visitId,
+      clientRequestId,
+      confirmedData,
+    );
 
-    if (!result.ok) {
-      setError(result.message || t("saveFailedError"));
+    const sendOutcome = await (async () => {
+      try {
+        return classifyReportSendResult(
+          await confirmFieldReportAction(
+            visitId,
+            confirmedData,
+            clientRequestId,
+          ),
+        );
+      } catch {
+        return outcomeForThrownSend();
+      }
+    })();
+
+    if (sendOutcome.kind === "rejected") {
+      // The server answered and refused, and the rep is standing right here — so
+      // this is theirs to fix now rather than something to leave in a queue that
+      // will only be refused again.
+      if (queuedKey) await deleteReportOutboxEntry(queuedKey);
+      setError(sendOutcome.message || t("saveFailedError"));
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!queuedKey && sendOutcome.kind !== "sent") {
+      // Nothing reached the server and the device would not keep it either. The
+      // one case where the rep must not be told it is on its way.
+      setError(t("saveUnstorableError"));
       setIsSubmitting(false);
       return;
     }
@@ -1220,7 +1266,13 @@ export function FieldVisitReportForm({
     // `/field` is also the only screen that renders the "report confirmed"
     // notice this redirect carries; routing to the opener instead would mean
     // teaching the history and location screens to show it too.
-    router.push(`/${tenantSlug}/field?report=confirmed`);
+    //
+    // A queued report gets its own notice rather than borrowing "confirmed":
+    // telling the rep it is saved when the server has not seen it is exactly the
+    // kind of half-truth that makes them stop believing the other one.
+    router.push(
+      `/${tenantSlug}/field?report=${sendOutcome.kind === "sent" ? "confirmed" : "queued"}`,
+    );
   }
 
   const filteredProducts = products.filter((product) =>

@@ -2014,10 +2014,17 @@ export async function transcribeFieldVisitReport(
 export async function confirmFieldVisitReport(
   visitId: string,
   confirmedData: Record<string, unknown>,
+  // The device's idempotency token. A confirm that is queued and sent later can
+  // be attempted more than once — the rep's phone cannot tell a request that was
+  // lost from one whose answer was — so the token is what lets the server
+  // recognise the second attempt instead of re-stamping the report and replacing
+  // its tasks. Omitted for a plain online confirm that is never retried.
+  clientRequestId?: string,
 ): Promise<ApiResult<Report>> {
   return apiPost<Report>(`/visits/${visitId}/reports/confirm`, {
     schemaVersion: "field-report.v1",
     confirmedData,
+    ...(clientRequestId ? { clientRequestId } : {}),
   });
 }
 
