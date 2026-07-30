@@ -51,6 +51,14 @@ export type VisitStartOutboxEntry = {
   attempts: number;
   lastError: string | null;
   rejectedAt: number | null;
+  // Set the moment `POST /visits` first answers — independent of, and always
+  // set no later than, `resolvedVisitId` below. Durable proof a real visit
+  // already exists even when the local rekey (pending media, queued confirm)
+  // hasn't landed yet, which is what stops a resolved-but-not-yet-rekeyed
+  // adopt from being replayed into a second, unwanted visit: see
+  // visit-start-outbox-flush.ts for why re-sending the create is not safe for
+  // that outcome the way it is for a plain one.
+  remoteVisitId: string | null;
   // Set once the create has reached the server and every rekey that matters
   // has landed. Distinct from "deleted" — see the file header for why this
   // row survives success rather than being cleared like a confirm is.
@@ -67,8 +75,12 @@ function visitStartKey(
   return [scope.tenantSlug, scope.userId, clientVisitId].join(KEY_SEPARATOR);
 }
 
+// `remoteVisitId` is normalized here rather than trusted verbatim: it was
+// added after this store shipped, and IndexedDB object stores are schemaless,
+// so a record written before this field existed reads back `undefined` where
+// null is expected, without any `DATABASE_VERSION` bump needed to fix it.
 function toEntry(record: VisitStartOutboxRecord): VisitStartOutboxEntry {
-  return { ...record };
+  return { ...record, remoteVisitId: record.remoteVisitId ?? null };
 }
 
 export function enqueueVisitStart(
@@ -101,6 +113,7 @@ export function enqueueVisitStart(
       attempts: 0,
       lastError: null,
       rejectedAt: null,
+      remoteVisitId: null,
       resolvedVisitId: null,
       resolvedAt: null,
     };
@@ -229,6 +242,32 @@ export function recordVisitStartOutboxFailure(
         lastError,
         rejectedAt: rejected ? Date.now() : existing.rejectedAt,
       });
+    }
+
+    await commitTransaction(transaction);
+  });
+}
+
+// Records the server's answer the moment it first arrives, before any rekey
+// is attempted — see the field's own comment above for why this has to be
+// durable and separate from `resolvedVisitId`. Never overwritten once set: a
+// visit-start-outbox-flush.ts retry that reaches this entry again always
+// passes the same id back (the server's own dual-id lookup guarantees that
+// for a plain create, and the entry is never asked to re-resolve an adopt
+// once this is set at all), so there is nothing to reconcile.
+export function recordVisitStartOutboxRemoteVisitId(
+  key: string,
+  remoteVisitId: string,
+): Promise<void> {
+  return runOnFieldDatabase<void>(undefined, async (database) => {
+    const transaction = database.transaction(VISIT_START_STORE, "readwrite");
+    const store = transaction.objectStore(VISIT_START_STORE);
+    const existing = await promisifyRequest(
+      store.get(key) as IDBRequest<VisitStartOutboxRecord | undefined>,
+    );
+
+    if (existing) {
+      store.put({ ...existing, remoteVisitId });
     }
 
     await commitTransaction(transaction);

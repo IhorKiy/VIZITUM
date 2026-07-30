@@ -1,16 +1,18 @@
 # Task: Offline resilience for the field zone — local drafts, deferred sync, offline visit start
 
-## Status (updated after phases 1–2, phase 3, and both cancel-visit gap fixes)
+## Status (updated after phases 1–2, phase 3, both cancel-visit gap fixes, and the outbox phantom-replay fix)
 
 **Done and merged into `main`**: nothing a rep produces offline is lost, a
-confirmed report or a started visit is safe to retry, cancelling a visit no
-longer strands whatever was queued for it, and a visit can now be started
-with no signal at all, worked on before it ever syncs, and cancelled again
-without ever having reached the server. That is phases 1, 2 and 3 in full,
-plus both cancel-visit gap fixes. See "What's already built" below for the
-exact file map — read it before touching anything, several of the plans in
-the sections further down are now **stale** (kept for historical context,
-not as instructions).
+confirmed report or a started visit is safe to retry — including, now, a
+queued start whose adopt outcome the server has already answered but whose
+local rekey hasn't landed yet — cancelling a visit no longer strands whatever
+was queued for it, and a visit can now be started with no signal at all,
+worked on before it ever syncs, and cancelled again without ever having
+reached the server. That is phases 1, 2 and 3 in full, plus both cancel-visit
+gap fixes and the outbox phantom-replay fix. See "What's already built" below
+for the exact file map — read it before touching anything, several of the
+plans in the sections further down are now **stale** (kept for historical
+context, not as instructions).
 
 **Not done**: the cached-route-shell/service-worker piece that would let the
 field zone's *pages themselves* load with zero connectivity, not just the
@@ -54,32 +56,17 @@ order a next session should pick them up:
    back under an id nothing will ever navigate to again. Same non-
    consequence, same 14-day sweep; only reachable if the rep typed something
    before cancelling, since an empty draft is not written back at all.
-3. **An outbox entry left unresolved can misfire on retry if the world
-   changed underneath it while it waited.** Two narrow variants, both found
-   by review rather than by hitting them:
-   - **Phantom replay after an unresolved adopt.** Every flush of an
-     unresolved entry re-attempts `POST /visits` with the same
-     `clientVisitId`. For the adopt outcome specifically the server never
-     stores that id anywhere (see "What's already built" above), so the
-     replay never short-circuits the way it does for a plain create — it
-     re-evaluates `resolveRouteItemLink` fresh each time. If the adopted
-     visit closes between two retries (most likely if `resolveVisitStart`'s
-     rekey keeps failing, since that is the only thing standing between
-     "just adopted" and "marked resolved"), the next retry finds the stop's
-     slot no longer held by an open visit and creates a new, unwanted,
-     unlinked `in_progress` visit instead of recognizing the one it already
-     adopted. Marking an entry resolved the moment an eager attempt
-     succeeds (see "Phase 3" above) narrows how often *any* entry sits
-     unresolved long enough to matter, but does not close this specific
-     loop for the adopt case's own retries.
-   - A queued start that gets a genuine *rejection* (not just queued) after
-     a confirm has already been queued against it would leave that confirm
-     stuck — it needs a real 400 on the start itself, which a UUID
-     `clientVisitId` and a same-cycle `startedAt` make very hard to hit in
-     practice.
-
-   Both flagged in case a real-phone pass (item 1) proves otherwise; neither
-   attempted here as disproportionate to how narrow the window is.
+3. **An outbox entry left unresolved can still misfire on retry if the world
+   changed underneath it while it waited.** One narrow variant, found by
+   review rather than by hitting it: a queued start that gets a genuine
+   *rejection* (not just queued) after a confirm has already been queued
+   against it would leave that confirm stuck — it needs a real 400 on the
+   start itself, which a UUID `clientVisitId` and a same-cycle `startedAt`
+   make very hard to hit in practice. Flagged in case a real-phone pass
+   (item 1) proves otherwise; not attempted here as disproportionate to how
+   narrow the window is. (Its sibling variant — a phantom replay after an
+   unresolved adopt minting a second, unwanted visit — was closed; see
+   "Also fixed" below.)
 
 ## Context
 
@@ -114,6 +101,8 @@ Everything below is real, merged, and documented in `docs/reference/module-map.m
 **Also fixed: a visit started with no signal can be cancelled again before it ever syncs** (closes what was known gap #2 in the previous version of this doc): `apps/web/components/abandon-visit-start-control.tsx` renders wherever that visit can be reached — the location card's "continue, still syncing" state and the pending report screen itself, matching where `CancelVisitModal` sits for a real visit. Without it that state was a one-way door: the rep could only navigate away, and the queued start synced into a real `in_progress` visit nobody ever confirmed or cancelled. Deliberately not a variant of `CancelVisitModal` — there is no visit on the server to cancel, so nothing is sent, no reason is collected, and the whole operation is `apps/web/lib/abandon-visit-start.ts` deleting the queue entry plus the draft, both pending-media kinds and any queued confirm under that `clientVisitId`. The queue entry goes first and alone: it is the only one of them that can still become a visit on the server, so a device that stops answering halfway through has already done the half that mattered. The one thing making this more than a delete is that the background flush can resolve the very start being cancelled between the render that offered the control and the tap that takes it — so the entry is re-read rather than trusted, and a start that synced in the meantime hands the rep to the real visit instead of deleting a real visit's work (`decideAbandonVisitStart`, pure, pinned by `tests/web-abandon-visit-start.test.ts`). The narrower window, a create already in flight when the delete lands, needs no tombstone: `resolveVisitStart` only ever patches an existing record, finds nothing to write back, and the visit the server did create reappears on the location card as an ordinary "Continue visit", cancellable the normal way. Two new tests in `apps/web/e2e/field-offline-visit-start.spec.ts` cover both entry points end to end, reading the stores directly the way `field-cancel-visit.spec.ts` does — a delete has no screen that would show its absence.
 
 **And a pre-existing layout bug found by putting that control on the report screen**, fixed in the same change because the new affordance inherits it: `.capture-manual-bar` ("Fill in manually") is `position: fixed` on the reasoning, in its own comment, that "the capture screen is short and never scrolls". True of the step, not of the page — anything rendered *below* the report form ends up behind that bar on a phone, at partial scroll and at full scroll alike. That already applied to the real visit page's own "Cancel visit" control, which was therefore untappable on the capture step of every in-progress visit; confirmed by hit-testing both screens at max scroll in a 375px viewport, before and after. Fixed by reserving the bar's height (`--capture-manual-bar-height`) under `.visit-cancel-action`, scoped with `:has()` so the other steps — where the bar is gone and a sticky save bar takes its place — do not grow an empty strip.
+
+**Also fixed: an outbox entry the server has already answered is never replayed into a duplicate visit** (closes the "phantom replay after an unresolved adopt" variant of what was known gap #3 in the previous version of this doc): `VisitStartOutboxEntry` gained `remoteVisitId`, recorded by `apps/web/lib/visit-start-outbox.ts`'s new `recordVisitStartOutboxRemoteVisitId` the moment `createVisit` first answers — durably, and before any local rekey is attempted, so even a crash mid-rekey leaves the next flush cycle already knowing the server has answered. `apps/web/lib/visit-start-outbox-flush.ts`'s `flushVisitStartOutbox` now decides what to do with each entry through a small pure function, `decideVisitStartFlushAction` (pinned by `tests/web-visit-start-outbox-flush.test.ts`): an entry with `remoteVisitId` set retries only the local rekey and never calls `createVisit` again, no matter how many cycles the rekey keeps failing. That was the whole bug — re-sending `createVisit` is free for a plain create (the backend's own `clientVisitId` lookup returns the identical row) but not for an adopt outcome, which never stores `clientVisitId` anywhere (see "What's already built" above): a second send re-derived the route slot's state fresh, and finding the adopted visit closed in the meantime minted a new, unwanted, unlinked visit instead of recognizing the one already adopted. `apps/web/lib/abandon-visit-start.ts`'s `decideAbandonVisitStart` was updated in the same change to treat `remoteVisitId` the same as `resolvedVisitId` — without that, the new field would have turned a transient in-flight race abandon already tolerated into a durable one, since a real visit can now be known to exist across app restarts even before its rekey finishes. No schema or backend change; entirely within `apps/web/lib`, verified by `npm run web:typecheck`, `format:check` and the two updated/new unit test files — reaching "server already answered, rekey specifically failed" from outside needs IndexedDB failure injection mid-transaction, which nothing in this repo's E2E harness does, so this is checked at the pure-logic layer the same way `decideAbandonVisitStart` and `classifyReportSendResult` already are, rather than end-to-end.
 
 ## What's next
 
