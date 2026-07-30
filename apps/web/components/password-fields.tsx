@@ -25,8 +25,11 @@ type PasswordFieldsProps = {
 // The confirmation is a browser-side guard only: it carries no name, so the
 // server action never receives it, and the mismatch surfaces through
 // constraint validation (setCustomValidity), which blocks submission the same
-// way `required` does. Revealing applies to both fields at once — the point of
-// looking is comparing what was typed.
+// way `required` does.
+//
+// Both fields carry their own toggle, and both drive the same state: whichever
+// field someone is typing in, the control is next to it, and revealing shows
+// the pair — the point of looking is comparing what was typed.
 export function PasswordFields({
   name,
   label,
@@ -104,6 +107,16 @@ export function PasswordFields({
             required
             type={inputType}
           />
+          <button
+            aria-label={toggleLabel}
+            aria-pressed={revealed}
+            className="password-reveal"
+            onClick={() => setRevealed((current) => !current)}
+            title={toggleLabel}
+            type="button"
+          >
+            {revealed ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
         </div>
       </div>
     </>
