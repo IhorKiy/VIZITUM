@@ -1,6 +1,6 @@
 # Task: Offline resilience for the field zone — local drafts, deferred sync, offline visit start
 
-## Status (updated after phases 1–2, phase 3, both cancel-visit gap fixes, the outbox phantom-replay fix, and the route snapshot + service worker)
+## Status (updated after phases 1–2, phase 3, both cancel-visit gap fixes, the outbox phantom-replay fix, the route snapshot + service worker, and the three residual gaps that last one left behind)
 
 **Done and merged into `main`**: nothing a rep produces offline is lost, a
 confirmed report or a started visit is safe to retry — including, now, a
@@ -13,17 +13,20 @@ zone's *pages themselves* now load with zero connectivity, not just the data
 on them: a cold reload with no signal shows today's route from the last
 on-device snapshot instead of the browser's own "no internet" page. That is
 phases 1, 2 and 3 in full, plus both cancel-visit gap fixes, the outbox
-phantom-replay fix, and the route snapshot + service worker. See "What's
-already built" below for the exact file map — read it before touching
-anything, several of the plans in the sections further down are now
-**stale** (kept for historical context, not as instructions).
+phantom-replay fix, the route snapshot + service worker, and — since — the
+three residual gaps that last round had deferred: a rekey no longer leaves an
+orphaned draft behind, a start the server rejects no longer strands the
+confirm queued against it, and every device that adopts the same open visit
+now has its own id recorded rather than only the first. See "What's already
+built" below for the exact file map — read it before touching anything,
+several of the plans in the sections further down are now **stale** (kept for
+historical context, not as instructions).
 
-**Not done, and not doable by a coding session**: known gap #1, the
-real-phone pass — see "Known gaps" below. Everything else this doc originally
-scoped is now shipped, pending that real-device confirmation.
+**Not done, and not doable by a coding session**: the real-phone pass — the
+one item below. Everything else this doc originally scoped is now shipped,
+pending that real-device confirmation.
 
-**Known gaps, not yet fixed** — read these before starting new work, in the
-order a next session should pick them up:
+**Known gap, not yet fixed:**
 
 1. **Real-phone verification has never been done.** Every PR in this series
    was verified against the real API/DB from a desktop browser (no
@@ -33,49 +36,29 @@ order a next session should pick them up:
    a visit in airplane mode on an actual iOS Safari. Do this before calling
    the offline story release-ready — iOS is exactly where the emulated
    checks lie.
-2. **A rep who stays on the "still syncing" screen while the adopt case
-   resolves can leave a harmless orphaned draft behind.** Confirmed once by
-   hand while verifying the adopt case (see the "Also fixed"/"Phase 3"
-   entries below): `visit-start-outbox-flush.ts`'s rekey moves the draft to
-   the resolved visit's real id, but `pending-visit-report.tsx` keeps the
-   report form mounted on the *old* id for as long as the rep stays on that
-   screen, and that form's own debounced write (`use-field-report-persistence.ts`)
-   has no way to know the id it is writing under was just rekeyed out from
-   under it. The 15s poll added after finding this bounds the window — it
-   did not exist when the duplicate was first observed — but does not
-   structurally close it: one more keystroke landing in that window still
-   resurrects the old-key draft moments after the rekey moved it. No data
-   loss either way — the rekeyed copy under the real id is what the rep
-   actually sees once the redirect fires — just an inert, orphaned duplicate
-   under an id nothing will ever navigate to again, swept after 14 days like
-   any other stale draft. Properly closing it needs the mounted form to
-   learn its underlying visit id changed mid-flight, which today's
-   props-down, one-way data flow into `FieldVisitReportForm` doesn't
-   support; not attempted here as disproportionate to a self-healing,
-   no-data-loss quirk — noted for whoever next touches this path. The
-   abandon flow added since has a smaller sibling of exactly this shape,
-   documented in `abandon-visit-start.ts` and for the same structural
-   reason: cancelling a never-synced visit *from the report screen* deletes
-   the draft, and that screen's own unmount flush can write one final copy
-   back under an id nothing will ever navigate to again. Same non-
-   consequence, same 14-day sweep; only reachable if the rep typed something
-   before cancelling, since an empty draft is not written back at all.
-3. **An outbox entry left unresolved can still misfire on retry if the world
-   changed underneath it while it waited.** One narrow variant, found by
-   review rather than by hitting it: a queued start that gets a genuine
-   *rejection* (not just queued) after a confirm has already been queued
-   against it would leave that confirm stuck — it needs a real 400 on the
-   start itself, which a UUID `clientVisitId` and a same-cycle `startedAt`
-   make very hard to hit in practice. Flagged in case a real-phone pass
-   (item 1) proves otherwise; not attempted here as disproportionate to how
-   narrow the window is. (Its sibling variant — a phantom replay after an
-   unresolved adopt minting a second, unwanted visit — was closed for the
-   common case, first client-side then, once review found that fix only
-   covered half of it, server-side too; see "Also fixed" below and its
-   follow-up paragraph. What's left of it: two different client ids adopting
-   the *same* still-open visit before either one's server-side backfill
-   lands — narrower than the original bug by an order of concurrency, and
-   likewise not attempted here.)
+
+**Closed since**, and recorded here because the reasoning for *why they were
+deferred* is worth keeping beside the reason they stopped being deferrable —
+each was judged disproportionate once and then turned out to have a
+proportionate shape after all (see "Also fixed: the three residual gaps"
+below for the implementation):
+
+- The **orphaned draft** a rekey could leave behind. The old framing was
+  "the mounted form has to learn its visit id changed mid-flight", which
+  `FieldVisitReportForm`'s props-down, one-way data flow genuinely does not
+  support. Moving the problem one layer down — the *store* forwards writes
+  for a key that has moved — needs the form to learn nothing at all. Its
+  sibling in the abandon flow closed with the same mechanism.
+- The **stuck confirm** after a start the server genuinely rejects. Still as
+  narrow as it was (it needs a real 400 on a UUID `clientVisitId` with a
+  same-cycle `startedAt`), but the fix is three lines at the point of
+  rejection rather than anything structural, and what it replaces — a
+  pending count that can never reach zero, explaining nothing — is a bad
+  enough failure to be worth closing at that price.
+- **Two client ids adopting the same open visit.** Narrower than the
+  original bug by an order of concurrency, as recorded, and unfixable
+  without somewhere to put the second id — which is what made it look
+  disproportionate. It cost one small table.
 
 ## Context
 
@@ -113,7 +96,15 @@ Everything below is real, merged, and documented in `docs/reference/module-map.m
 
 **Also fixed: an outbox entry the server has already answered is never replayed into a duplicate visit** (closes the "phantom replay after an unresolved adopt" variant of what was known gap #3 in the previous version of this doc): `VisitStartOutboxEntry` gained `remoteVisitId`, recorded by `apps/web/lib/visit-start-outbox.ts`'s new `recordVisitStartOutboxRemoteVisitId` the moment `createVisit` first answers — durably, and before any local rekey is attempted, so even a crash mid-rekey leaves the next flush cycle already knowing the server has answered. `apps/web/lib/visit-start-outbox-flush.ts`'s `flushVisitStartOutbox` now decides what to do with each entry through a small pure function, `decideVisitStartFlushAction` (pinned by `tests/web-visit-start-outbox-flush.test.ts`): an entry with `remoteVisitId` set retries only the local rekey and never calls `createVisit` again, no matter how many cycles the rekey keeps failing. `apps/web/lib/abandon-visit-start.ts`'s `decideAbandonVisitStart` was updated in the same change to treat `remoteVisitId` the same as `resolvedVisitId` — without that, the new field would have turned a transient in-flight race abandon already tolerated into a durable one, since a real visit can now be known to exist across app restarts even before its rekey finishes.
 
-**Follow-up, same session: that client-side fix only closed half the bug.** Review caught it: `remoteVisitId` only helps when this device actually *received* the answer and just failed to finish its own rekey. If the response itself was lost (a timeout, a 5xx after the server had already committed), this device never learns `remoteVisitId` at all, and the next retry calls `createVisit` again regardless — for the adopt outcome specifically, that hit the exact same bug, since adopting had never stored `clientVisitId` anywhere for the client-side fix to have found on replay. The real fix belongs server-side: `VisitsService.createVisit`'s adopt branch now backfills `clientVisitId` onto the adopted row when it doesn't already carry one (`updateMany` guarded on `clientVisitId: null` in the WHERE clause, not just checked beforehand, so a second device or retry adopting the same still-open visit concurrently can't overwrite whichever id got there first; a genuine unique collision on the backfill itself is swallowed rather than failing a request whose adopt has, either way, already succeeded). Pinned by three new cases in `tests/offline-visit-start.test.ts`. This is what actually closes the gap for the common case — a plain retry, having received nothing, now finds the adopted visit through the ordinary replay lookup regardless of how many cycles it takes or whether the adopted visit has since closed. The one case left genuinely open: two different client ids (two devices, or two concurrent retries) adopting the *same* still-open visit before either one's backfill lands — only the first to write wins the single `clientVisitId` column, and the second has nothing to replay onto later. Narrower than the original bug by an order of concurrency, and not attempted here as disproportionate to how rare two genuinely concurrent adopters of the same open visit is.
+**Follow-up, same session: that client-side fix only closed half the bug.** Review caught it: `remoteVisitId` only helps when this device actually *received* the answer and just failed to finish its own rekey. If the response itself was lost (a timeout, a 5xx after the server had already committed), this device never learns `remoteVisitId` at all, and the next retry calls `createVisit` again regardless — for the adopt outcome specifically, that hit the exact same bug, since adopting had never stored `clientVisitId` anywhere for the client-side fix to have found on replay. The real fix belongs server-side: `VisitsService.createVisit`'s adopt branch now backfills `clientVisitId` onto the adopted row when it doesn't already carry one (`updateMany` guarded on `clientVisitId: null` in the WHERE clause, not just checked beforehand, so a second device or retry adopting the same still-open visit concurrently can't overwrite whichever id got there first; a genuine unique collision on the backfill itself is swallowed rather than failing a request whose adopt has, either way, already succeeded). Pinned by three new cases in `tests/offline-visit-start.test.ts`. This is what actually closes the gap for the common case — a plain retry, having received nothing, now finds the adopted visit through the ordinary replay lookup regardless of how many cycles it takes or whether the adopted visit has since closed. The one case left genuinely open: two different client ids (two devices, or two concurrent retries) adopting the *same* still-open visit before either one's backfill lands — only the first to write wins the single `clientVisitId` column, and the second has nothing to replay onto later. Narrower than the original bug by an order of concurrency, and not attempted here as disproportionate to how rare two genuinely concurrent adopters of the same open visit is. (Closed since — see the next entry, which also replaced this backfill outright.)
+
+**Also fixed: the three residual gaps this doc had deferred** (closing known gaps #2 and #3 of the previous version, and the "one case left genuinely open" in the paragraph above — leaving only the real-phone pass):
+
+- **The orphaned draft, closed in the store rather than in the form.** A draft key whose draft has moved now keeps a *forwarding address* (`offline-drafts.ts`), and `readDraft`/`writeDraft`/`deleteDraft` all follow it — one hop, since a client id forwards to a server id and a server id is never rekeyed again. `rekeyDraft` writes it whether or not there was a draft to move (the rep may not have typed yet), which is what makes the still-mounted form's later writes land on the real visit instead of resurrecting a copy under the dead id. The write is no longer merely un-orphaned but actually *kept*: a keystroke in that window used to be lost to the redirect either way. `discardDraft` is the same mechanism pointing nowhere, for `abandon-visit-start.ts`'s sibling case, where a late write must be dropped rather than forwarded. `visit-start-outbox-flush.ts` now waits on `rekeyDraft` (still ignoring its result — the draft stays convenience state) so the address is in place before the start resolves and the screen redirects, which is exactly when the form unmounts and writes.
+- **The stuck confirm after a rejected start.** `flushVisitStartOutbox` now carries a start's rejection across to any confirm queued under the same `clientVisitId` (`rejectReportOutboxEntryForVisit`), so it surfaces as "needs attention" instead of being re-sent forever against a visit that can never exist. Marked, not deleted — it is work the rep signed off — and `rekeyReportOutboxEntry` clears the mark if a manual retry of the start succeeds, since the reason for it is then gone.
+- **Two client ids adopting one open visit.** The adopt branch's `Visit.clientVisitId` backfill is replaced by a `VisitClientAlias` row (migration `20260730160000_visit_client_aliases`), so every adopter's id is recorded rather than only the first, and `findVisitByEitherId` resolves through it as a third and last step — after the server id and `Visit.clientVisitId`, preserving the ordering rule that a real id always beats client input. Recording is idempotent by unique index (`createMany` + `skipDuplicates`) rather than by swallowing a P2002, which also means a genuine write failure now fails the request the client will retry, instead of quietly returning an adopt whose id was never recorded — the exact shape of the original bug.
+
+Verified by `tests/web-offline-drafts.test.ts` and `tests/web-report-outbox.test.ts` — the first tests in this repo to run the on-device stores against a real IndexedDB (a new `fake-indexeddb` devDependency) rather than a pure slice of themselves — plus four reworked/new cases in `tests/offline-visit-start.test.ts`. The full suite (913) passes, as do `build`, `web:typecheck`, `lint`, `format:check` and `web:i18n:check`.
 
 **Also shipped: the route snapshot + minimal service worker** (closes item 2 of the previous version of this doc's "What's next", proceeding without the real-phone pass — see "Status" above for why): `apps/web/lib/route-snapshot.ts` is a fifth `field-db.ts` store, `route-snapshot`, holding today's rendered stops plus pre-resolved, tenant-language display text (`labels`). `apps/web/components/route-snapshot-writer.tsx`, mounted from `field/page.tsx` for a real signed-in, non-demo render, writes it on every mount. `apps/web/public/sw.js` — hand-rolled, no dependency, registered by `apps/web/components/service-worker-registration.tsx` from `field/layout.tsx` — intercepts a failed navigation into any `/field` path and serves the cached `apps/web/public/offline.html` instead of the browser's own offline page; a separate branch cache-first-serves `/_next/static/` assets (content-hashed, so a cached response for a given URL never goes stale). No other response is ever cached — API/JSON/RSC payloads pass through untouched, exactly the non-goal this doc already stated. Verified two ways: manually against the real dev server (registration, cache population, and the fallback all confirmed via DevTools-equivalent JS calls, both for a tenant with a snapshot and one without), and by `apps/web/e2e/field-offline-shell.spec.ts`, using `context.setOffline(true)` rather than this suite's usual `page.route` request-abort trick — the worker's own `fetch(event.request)` has to actually reject for its fallback to fire, which needs the real thing.
 
@@ -174,7 +165,7 @@ actually shipped:
 - Backend: plain `node --test` files instantiating services directly with stubbed Prisma (see `tests/report-confirm-idempotency.test.ts`, `tests/offline-visit-start.test.ts` for the current shape).
 - Frontend: `npm run web:typecheck`, `web:build`, `web:i18n:check`, `format:check` after every change. Every new user-visible string goes through `apps/web/messages/{en,uk}.json` with a real Ukrainian translation, not a stub.
 - E2E: `apps/web/e2e/field-pending-media.spec.ts` is the pattern to extend — it aborts every PUT so the same assertions hold whether the environment has S3 configured or not (CI has none), and it owns a dedicated seeded tenant because two specs starting visits on the same seeded stop collide on `Visit.routeItemId`'s uniqueness. `field-cancel-visit.spec.ts` follows the same shape for the cancel fix, plus reads the on-device store directly (`page.evaluate` against `indexedDB`) for the one thing the UI itself can't show: that a cancelled visit's pending media is actually gone, not just that cancelling "succeeded" — the locked/read-only page a cancelled visit renders never mounts anything that would surface a leftover record either way. `field-offline-visit-start.spec.ts` follows it again for the start fix, aborting every POST carrying a `Next-Action` header instead of PUT — the real shape a Server Action invocation takes with no network, so the eager attempt in `start-visit-control.tsx` throws for real rather than being stubbed. All three specs share the same remaining gap: a scenario that needs controlling a specific network *response's content*, not just whether one arrives at all, doesn't script reliably here yet — the queued-confirm-cancel race, and for the start fix both the visit actually resolving and the adopt case specifically — and gets checked by hand against the demo tenant instead. `field-offline-shell.spec.ts` is a genuinely different pattern from all three: it needs a full navigation's own fetch to fail, not just a specific request method, which `page.route` interception can't produce — `context.setOffline(true)` is the one already-available tool that does, and is now the convention for verifying anything routed through the service worker.
-- Migrations: generate and verify against a **throwaway** database, never the shared dev one (`docker exec -i vizitum-postgres psql -U postgres -c "CREATE DATABASE vizitum_scratch"`, apply, `prisma migrate status` to confirm no drift, drop it after). Render does not run migrations on deploy — every migration in this series needs manual application in production before its code ships. The series' migrations, in order, so nothing has to be reconstructed from the log: `20260730000000_report_client_request_id` (#144), `20260730120000_visit_client_visit_id` (#147), `20260730130000_storage_temporary_deletedat_backfill` (#153 — the one that is *not* a schema change but a data repair; it is what finally lets the cleanup sweep collect the R2 bytes the pre-#148 writers tombstoned, so shipping #148's code without it fixes only new rows and leaves every old one orphaned).
+- Migrations: generate and verify against a **throwaway** database, never the shared dev one (`docker exec -i vizitum-postgres psql -U postgres -c "CREATE DATABASE vizitum_scratch"`, apply, `prisma migrate status` to confirm no drift, drop it after). Render does not run migrations on deploy — every migration in this series needs manual application in production before its code ships. The series' migrations, in order, so nothing has to be reconstructed from the log: `20260730000000_report_client_request_id` (#144), `20260730120000_visit_client_visit_id` (#147), `20260730130000_storage_temporary_deletedat_backfill` (#153 — the one that is *not* a schema change but a data repair; it is what finally lets the cleanup sweep collect the R2 bytes the pre-#148 writers tombstoned, so shipping #148's code without it fixes only new rows and leaves every old one orphaned), `20260730160000_visit_client_aliases` (the residual-gaps fix — a new table, no backfill, and the one in the series with the widest blast radius if it is missed: the new table is read on every visit lookup that misses both direct ids, so without it a plain "visit not found" becomes a 500, and every deferred start that adopts fails outright).
 - Docs: `docs/reference/api-reference.md`, `data-model.md`, `module-map.md`, `executable-spec.md` updated in the same PR as the code — hard project convention, checked by nothing automated, so it's easy to skip by accident.
 
 ## Working notes

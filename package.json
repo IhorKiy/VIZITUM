@@ -76,6 +76,7 @@
     "@types/pg": "^8.20.0",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
+    "fake-indexeddb": "^6.2.5",
     "prettier": "^3.9.1",
     "prisma": "^7.9.1",
     "ts-node": "^10.9.2",

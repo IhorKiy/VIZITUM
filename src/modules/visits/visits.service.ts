@@ -401,13 +401,17 @@ export class VisitsService {
     // A replay of a start the device could not hear the answer to. Returned as
     // it stands: creating a second visit would give the rep two records for one
     // stop, and the one they have been filling in is this one.
+    //
+    // Both places a client id can live are checked, in that order — the column
+    // for a start that created its own visit, the alias table for one that
+    // adopted somebody else's row (see VisitClientAlias in the schema). Missing
+    // the second is what used to let a retry re-derive the route slot from
+    // scratch and mint a duplicate.
     if (clientVisitId) {
-      const replayed = await this.prisma.visit.findUnique({
-        where: {
-          tenantId_clientVisitId: { tenantId: context.tenantId, clientVisitId },
-        },
-        include: visitInclude,
-      });
+      const replayed = await this.findVisitByClientVisitId(
+        context.tenantId,
+        clientVisitId,
+      );
 
       if (replayed) {
         return toVisitResponse(replayed);
@@ -438,34 +442,23 @@ export class VisitsService {
       // response itself got lost, not just the client's own rekey (see
       // visit-start-outbox-flush.ts for that half) — would otherwise
       // re-evaluate this same route slot from scratch every time, since
-      // adopting has never stored `clientVisitId` anywhere. Backfilling it
-      // here, once, only if the row doesn't already carry one, means the
-      // very next retry finds it through the replay lookup above instead of
-      // resolveRouteItemLink again — even if this adopted visit closes in
-      // the meantime. Guarded in the WHERE clause, not just checked before
-      // writing, so a second device adopting the same still-open visit
-      // concurrently can't overwrite whichever client id got there first;
-      // a genuine unique collision (this exact id already used by an
-      // unrelated visit) is swallowed rather than failing an adopt that
-      // has, either way, already succeeded.
-      if (clientVisitId && routeItemLink.adopt.clientVisitId === null) {
-        try {
-          await this.prisma.visit.updateMany({
-            where: {
-              id: routeItemLink.adopt.id,
-              tenantId: context.tenantId,
-              clientVisitId: null,
-            },
-            data: { clientVisitId },
-          });
-        } catch (error) {
-          if (
-            !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-            error.code !== "P2002"
-          ) {
-            throw error;
-          }
-        }
+      // adopting creates no row of its own to carry the id the device minted.
+      // Recording it here, once, means the very next retry finds this visit
+      // through the replay lookup above instead of resolveRouteItemLink again
+      // — even if this adopted visit has closed in the meantime, which is the
+      // case that used to mint a second, unwanted, unlinked visit.
+      //
+      // In a table rather than on the visit row because a single column can
+      // only take the first: two devices, or two retries whose responses were
+      // both lost, can arrive at the same still-open visit carrying two
+      // different minted ids, and each of them has to be able to find its way
+      // back here later. See VisitClientAlias in the schema.
+      if (clientVisitId) {
+        await this.recordVisitClientAlias(
+          context.tenantId,
+          routeItemLink.adopt.id,
+          clientVisitId,
+        );
       }
 
       return toVisitResponse(routeItemLink.adopt);
@@ -527,6 +520,57 @@ export class VisitsService {
     }
 
     return toVisitResponse(visit);
+  }
+
+  // Everything a client-minted id can resolve to, in the order visit-identity.ts
+  // fixes for the same reason: the column a start's own create wrote, then the
+  // alias an adopt recorded. A visit is only reachable through one of them, so
+  // the second query only ever runs for an id no visit answers to directly.
+  private async findVisitByClientVisitId(
+    tenantId: string,
+    clientVisitId: string,
+  ): Promise<VisitWithRelations | null> {
+    const created = await this.prisma.visit.findUnique({
+      where: { tenantId_clientVisitId: { tenantId, clientVisitId } },
+      include: visitInclude,
+    });
+
+    if (created) {
+      return created;
+    }
+
+    const alias = await this.prisma.visitClientAlias.findUnique({
+      where: { tenantId_clientVisitId: { tenantId, clientVisitId } },
+      select: { visitId: true },
+    });
+
+    return alias
+      ? this.prisma.visit.findFirst({
+          where: { id: alias.visitId, tenantId },
+          include: visitInclude,
+        })
+      : null;
+  }
+
+  // Additive and idempotent. The replay lookup has already established that
+  // this id resolves to nothing, so the only way the insert collides is a
+  // concurrent request that recorded the same id first — and whichever visit
+  // that one pointed at is the one every later lookup will agree on, so
+  // skipping it is the correct outcome. Delegated to the unique index
+  // (`skipDuplicates`) rather than caught, which is the difference that
+  // matters: a P2002 swallowed by hand cannot be told apart from any other
+  // write that failed, and answering "adopted" with the id unrecorded is
+  // precisely the bug this table exists to close. Anything else that goes
+  // wrong here now fails the request, and the client retries it.
+  private async recordVisitClientAlias(
+    tenantId: string,
+    visitId: string,
+    clientVisitId: string,
+  ): Promise<void> {
+    await this.prisma.visitClientAlias.createMany({
+      data: [{ tenantId, visitId, clientVisitId }],
+      skipDuplicates: true,
+    });
   }
 
   // Decides what a route-linked create should do about the stop's single visit
@@ -1177,6 +1221,7 @@ export class VisitsService {
     // Either identifier resolves the same visit, server id first — see
     // visit-identity.ts for why that order is not cosmetic.
     const visit = await findVisitByEitherId(
+      this.prisma,
       (where) => this.prisma.visit.findFirst({ where, include: visitInclude }),
       tenantId,
       visitId,

@@ -10,6 +10,7 @@ import {
   type ReportSendOutcome,
 } from "./report-send-outcome";
 import {
+  rejectReportOutboxEntryForVisit,
   rekeyReportOutboxEntry,
   type ReportOutboxScope,
 } from "./report-outbox";
@@ -123,9 +124,16 @@ async function resolveVisitStart(
     userId: scope.userId,
   };
 
-  void rekeyDraft(draftScope, resolvedVisitId);
-
-  const [mediaRekeyed, confirmRekeyed] = await Promise.all([
+  // The draft's own result is still ignored — it is retypeable convenience
+  // state, and holding a start unresolved over one would be the tail wagging
+  // the dog. Waited on all the same, rather than fired and forgotten as it
+  // once was, because the same call now installs the forwarding address that
+  // keeps the report form still mounted on the old id from writing a second
+  // copy back under it (see offline-drafts.ts). That has to be in place
+  // before the start resolves and this screen redirects, which is exactly
+  // when the form unmounts and writes.
+  const [, mediaRekeyed, confirmRekeyed] = await Promise.all([
+    rekeyDraft(draftScope, resolvedVisitId),
     rekeyPendingMedia(draftScope, resolvedVisitId),
     rekeyReportOutboxEntry(outboxScope, entry.clientVisitId, resolvedVisitId),
   ]);
@@ -202,6 +210,19 @@ export async function flushVisitStartOutbox(
 
     if (outcome.kind === "rejected") {
       await recordVisitStartOutboxFailure(entry.key, outcome.message, true);
+      // A rep can confirm a report against a visit that has not synced yet —
+      // that confirm sits in the other queue under this same client-minted
+      // id, waiting for a visit this rejection has just ruled out for good.
+      // Left alone it is sent on every cycle forever, answered
+      // `VISIT_NOT_FOUND` every time, and correctly re-queued by
+      // report-send-outcome.ts as "the start hasn't caught up yet" — a
+      // pending count that can never reach zero, with nothing said about why.
+      // Carrying the rejection across makes it say so instead.
+      await rejectReportOutboxEntryForVisit(
+        scope,
+        entry.clientVisitId,
+        outcome.message,
+      );
       continue;
     }
 

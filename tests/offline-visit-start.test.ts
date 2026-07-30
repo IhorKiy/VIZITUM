@@ -68,24 +68,37 @@ function buildPrisma(options: {
   // The first call is always the pre-create replay lookup, which every race
   // test here means to miss.
   racedVisit?: ReturnType<typeof buildVisitRow> | null;
-  // Thrown from the adopt branch's clientVisitId backfill (updateMany), so a
-  // test can force that specific error-swallowing path.
-  updateManyError?: unknown;
+  // What the alias table answers for the incoming client id, and the visit it
+  // points at — the second half of the replay lookup, for an id recorded by an
+  // adopt rather than written onto a row by a create.
+  alias?: { visitId: string } | null;
+  aliasTarget?: ReturnType<typeof buildVisitRow> | null;
 } = {}) {
   const creates: { data: Record<string, unknown> }[] = [];
-  const updateManyCalls: {
-    where: Record<string, unknown>;
-    data: Record<string, unknown>;
+  const aliasCreates: {
+    data: Record<string, unknown>[];
+    skipDuplicates?: boolean;
   }[] = [];
   let findUniqueCalls = 0;
 
   return {
     creates,
-    updateManyCalls,
+    aliasCreates,
     prisma: {
       location: { findFirst: async () => ({ id: "location-a" }) },
       user: { findFirst: async () => ({ id: "rep-a" }) },
       routeItem: { findFirst: async () => ({ id: "route-item-a" }) },
+      visitClientAlias: {
+        findUnique: async () => options.alias ?? null,
+        createMany: async (query: {
+          data: Record<string, unknown>[];
+          skipDuplicates?: boolean;
+        }) => {
+          aliasCreates.push(query);
+
+          return { count: query.data.length };
+        },
+      },
       visit: {
         findUnique: async () => {
           findUniqueCalls += 1;
@@ -94,7 +107,12 @@ function buildPrisma(options: {
             ? (options.replayed ?? null)
             : (options.racedVisit ?? null);
         },
-        findFirst: async () => options.slotHolder ?? null,
+        // Two different questions reach the same stub: resolving the stop's
+        // slot holder asks by `routeItemId`, resolving an alias asks by `id`.
+        findFirst: async (query: { where: Record<string, unknown> }) =>
+          "id" in query.where
+            ? (options.aliasTarget ?? null)
+            : (options.slotHolder ?? null),
         create: async (query: { data: Record<string, unknown> }) => {
           creates.push({ data: query.data });
 
@@ -108,18 +126,6 @@ function buildPrisma(options: {
             clientVisitId: query.data.clientVisitId ?? null,
             startedAt: query.data.startedAt,
           });
-        },
-        updateMany: async (query: {
-          where: Record<string, unknown>;
-          data: Record<string, unknown>;
-        }) => {
-          updateManyCalls.push(query);
-
-          if (options.updateManyError) {
-            throw options.updateManyError;
-          }
-
-          return { count: 1 };
         },
       },
     },
@@ -255,14 +261,14 @@ describe("offline visit start", () => {
     assert.equal(creates.length, 0);
   });
 
-  it("backfills clientVisitId onto an adopted visit that doesn't have one yet", async () => {
+  it("records the adopting client id so a lost response can find this visit again", async () => {
     // A retry that never learned this same adopt's answer at all (the
     // response itself got lost, not just the client's own rekey) would
     // otherwise re-evaluate the route slot from scratch every time, since
-    // adopting has never stored clientVisitId anywhere. Backfilling it here
-    // is what lets the next retry find it through the ordinary replay
-    // lookup instead — even if this adopted visit closes in the meantime.
-    const { prisma, updateManyCalls } = buildPrisma({
+    // adopting creates no row of its own to carry the id the device minted.
+    // Recording it is what lets the next retry find this visit through the
+    // ordinary replay lookup instead — even if it closes in the meantime.
+    const { prisma, aliasCreates } = buildPrisma({
       slotHolder: buildVisitRow({
         id: "visit-open",
         status: "in_progress",
@@ -277,22 +283,24 @@ describe("offline visit start", () => {
       baseBody({ clientVisitId: "cv-2", routeItemId: "route-item-a" }) as never,
     );
 
-    assert.equal(updateManyCalls.length, 1);
-    assert.deepEqual(updateManyCalls[0].where, {
-      id: "visit-open",
-      tenantId: "tenant-a",
-      clientVisitId: null,
-    });
-    assert.deepEqual(updateManyCalls[0].data, { clientVisitId: "cv-2" });
+    assert.equal(aliasCreates.length, 1);
+    assert.deepEqual(aliasCreates[0].data, [
+      { tenantId: "tenant-a", visitId: "visit-open", clientVisitId: "cv-2" },
+    ]);
+    // The duplicate case is the database's to settle, not a try/catch's: a
+    // concurrent retry recording the same id first is skipped rather than
+    // failing an adopt that has already succeeded.
+    assert.equal(aliasCreates[0].skipDuplicates, true);
   });
 
-  it("never overwrites an adopted visit's own clientVisitId", async () => {
-    // A second device (or a second concurrent retry) adopting the same
-    // still-open visit must not steal the id whichever attempt got there
-    // first — the WHERE clause's own clientVisitId: null guard is what makes
-    // this safe under a real race; this pins the same rule from the read
-    // side, when this attempt's own snapshot already saw one set.
-    const { prisma, updateManyCalls } = buildPrisma({
+  it("records a second adopter's id beside the first rather than dropping it", async () => {
+    // The gap this table exists to close. Two devices, or two retries whose
+    // responses were both lost, can reach the same still-open visit carrying
+    // two different minted ids. A single column on the visit takes only the
+    // first, and the second is then unrecoverable — its own retry finds
+    // nothing to replay onto and, if the visit has closed by then, mints a
+    // duplicate for a stop already done.
+    const { prisma, aliasCreates } = buildPrisma({
       slotHolder: buildVisitRow({
         id: "visit-open",
         status: "in_progress",
@@ -304,26 +312,34 @@ describe("offline visit start", () => {
 
     const response = await service.createVisit(
       context as never,
-      baseBody({ clientVisitId: "cv-second", routeItemId: "route-item-a" }) as never,
+      baseBody({
+        clientVisitId: "cv-second",
+        routeItemId: "route-item-a",
+      }) as never,
     );
 
     assert.equal(response.id, "visit-open");
-    assert.equal(updateManyCalls.length, 0);
+    assert.equal(aliasCreates.length, 1);
+    assert.deepEqual(aliasCreates[0].data, [
+      {
+        tenantId: "tenant-a",
+        visitId: "visit-open",
+        clientVisitId: "cv-second",
+      },
+    ]);
   });
 
-  it("does not fail an adopt when the clientVisitId backfill collides", async () => {
-    // An astronomically unlikely unique collision on the backfill itself
-    // must not turn a successful adopt into a failed request — the rep
-    // already has their visit either way, and the retry logic already
-    // tolerates this path staying unresolved.
-    const { prisma, updateManyCalls } = buildPrisma({
-      slotHolder: buildVisitRow({
-        id: "visit-open",
-        status: "in_progress",
-        representativeUserId: "rep-a",
-        clientVisitId: null,
-      }),
-      updateManyError: p2002(),
+  it("replays a client id an adopt recorded, without re-deriving the route slot", async () => {
+    // The other half of the same fix: the retry. Nothing was created under
+    // this id, so the visit row itself carries no trace of it — the alias is
+    // the only thing that can answer, and answering from it is what keeps
+    // this retry from looking at the stop's slot a second time.
+    const { prisma, creates } = buildPrisma({
+      alias: { visitId: "visit-open" },
+      aliasTarget: buildVisitRow({ id: "visit-open", status: "completed" }),
+      // The slot's own holder is deliberately absent: reaching
+      // resolveRouteItemLink at all would mean the replay lookup missed.
+      slotHolder: null,
     });
     const service = new VisitsService(prisma as never);
 
@@ -333,7 +349,7 @@ describe("offline visit start", () => {
     );
 
     assert.equal(response.id, "visit-open");
-    assert.equal(updateManyCalls.length, 1);
+    assert.equal(creates.length, 0);
   });
 
   it("creates an unlinked visit when the stop was already finished", async () => {
@@ -542,6 +558,41 @@ describe("offline visit start", () => {
 
     assert.equal(response.id, "visit-real");
     assert.equal(clientVisitIdQueried, false);
+  });
+
+  it("resolves a visit by a client id an adopt recorded, once both direct lookups miss", async () => {
+    // The URL a second adopter's phone is standing on. Nothing was created
+    // under that id, so no visit row carries it — without the alias the
+    // screen the rep is looking at is a dead link until their own rekey
+    // lands, which is exactly the window a lost response leaves open.
+    const queriedWheres: unknown[] = [];
+    const prisma = {
+      visit: {
+        findFirst: async (query: { where: Record<string, unknown> }) => {
+          queriedWheres.push(query.where);
+
+          return query.where.id === "visit-open"
+            ? buildVisitRow({ id: "visit-open" })
+            : null;
+        },
+      },
+      visitClientAlias: {
+        findUnique: async () => ({ visitId: "visit-open" }),
+      },
+    };
+    const service = new VisitsService(prisma as never);
+
+    const response = await service.getVisit(context as never, "cv-8");
+
+    assert.equal(response.id, "visit-open");
+    // Tried last, and only ever reached by an id no visit answers to
+    // directly — so a real server id can never be outvoted by client input,
+    // the same ordering rule the two queries above already hold.
+    assert.deepEqual(queriedWheres, [
+      { tenantId: "tenant-a", id: "cv-8" },
+      { tenantId: "tenant-a", clientVisitId: "cv-8" },
+      { tenantId: "tenant-a", id: "visit-open" },
+    ]);
   });
 });
 
