@@ -1250,8 +1250,16 @@ textarea {
   gap: 6px;
 }
 
+/* Two name inputs plus save/cancel don't fit one phone-width row, so the row
+   wraps and the inputs share whatever width is left. */
 .user-name-field.editing {
+  flex-wrap: wrap;
   gap: 4px;
+}
+
+.user-name-field.editing .user-name-input {
+  flex: 1 1 120px;
+  min-width: 0;
 }
 
 .user-name-input {
@@ -4096,6 +4104,13 @@ textarea {
   gap: 7px;
 }
 
+/* Labels here are 800, and a hint is a whole sentence rather than a caption —
+   inheriting that weight makes it compete with the field's own name. */
+.form-stack label .form-hint {
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .form-stack input {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -4103,6 +4118,49 @@ textarea {
   min-height: 42px;
   padding: 0 12px;
   width: 100%;
+}
+
+/* Password entry with a reveal toggle: the label is a sibling of the input
+   rather than its parent, so the toggle button never sits inside a <label>
+   (where a click would also land on the field it covers). */
+.password-field {
+  display: grid;
+  gap: 7px;
+}
+
+.password-field > label {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.password-field-control {
+  position: relative;
+}
+
+.password-field-control input {
+  padding-right: 44px;
+}
+
+.password-reveal {
+  align-items: center;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  min-height: 32px;
+  min-width: 32px;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.password-reveal:hover {
+  color: var(--ink);
 }
 
 .zone-choice-list {

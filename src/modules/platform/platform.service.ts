@@ -1132,6 +1132,8 @@ function formatSuperadminSummary(
       ? {
           id: activeSuperadmin.id,
           email: activeSuperadmin.email,
+          firstName: activeSuperadmin.firstName,
+          lastName: activeSuperadmin.lastName,
           name: activeSuperadmin.name,
           phone: activeSuperadmin.phone,
           status: activeSuperadmin.status,

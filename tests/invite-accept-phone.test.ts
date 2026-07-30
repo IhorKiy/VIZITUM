@@ -45,7 +45,9 @@ function createService(phoneCountry: string | null) {
         return {
           id: "user-1",
           email: "rep@example.com",
-          name: "Rep",
+          firstName: "Rep",
+          lastName: "Alpha",
+          name: "Rep Alpha",
           status: "active",
           lastSelectedRoleCode: "field_representative",
         };
@@ -80,7 +82,8 @@ function createService(phoneCountry: string | null) {
 function acceptBody(phone: string | undefined) {
   return {
     token: "invite-token",
-    name: "Rep",
+    firstName: "Rep",
+    lastName: "Alpha",
     password: "password123",
     phone,
   };

@@ -403,7 +403,8 @@ describe("users service", () => {
     await assert.rejects(
       () =>
         service.updateUser(nonAdminActorContext as never, "user-b", {
-          name: "New Name",
+          firstName: "New",
+          lastName: "Name",
         }),
       (error: { response?: { code?: string } }) =>
         error.response?.code === "ADMIN_MANAGEMENT_FORBIDDEN",
@@ -493,6 +494,8 @@ describe("users service", () => {
         update: async () => ({
           id: "user-a",
           email: "rep@example.com",
+          firstName: "New",
+          lastName: "Name",
           name: "New Name",
           phone: null,
           status: "active",
@@ -518,7 +521,8 @@ describe("users service", () => {
     const service = createService(client);
 
     const updated = await service.updateUser(context as never, "user-a", {
-      name: "New Name",
+      firstName: "New",
+      lastName: "Name",
     });
 
     assert.equal(transactionAttempts, 2);

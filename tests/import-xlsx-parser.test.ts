@@ -12,31 +12,41 @@ describe("import xlsx parser", () => {
   it("parses an approved users workbook into normalized rows", () => {
     const service = new ImportsService();
     const workbookPath = createWorkbook([
-      ["email", "name", "roles", "phone", "external_code"],
+      ["email", "first_name", "last_name", "roles", "phone", "external_code"],
       [
         "Admin@Example.com",
-        "Ada Lovelace",
+        "Ada",
+        "Lovelace",
         "company_admin",
         "+380501112233",
         "EXT-1",
       ],
-      ["rep@example.com", "Field Rep", "field_representative", "", ""],
+      ["rep@example.com", "Field", "Rep", "field_representative", "", ""],
     ]);
 
     assert.deepEqual(service.parseApprovedXlsxTemplate("users", workbookPath), {
       templateType: "users",
-      columns: ["email", "name", "roles", "phone", "external_code"],
+      columns: [
+        "email",
+        "first_name",
+        "last_name",
+        "roles",
+        "phone",
+        "external_code",
+      ],
       rows: [
         {
           email: "Admin@Example.com",
-          name: "Ada Lovelace",
+          first_name: "Ada",
+          last_name: "Lovelace",
           roles: "company_admin",
           phone: "+380501112233",
           external_code: "EXT-1",
         },
         {
           email: "rep@example.com",
-          name: "Field Rep",
+          first_name: "Field",
+          last_name: "Rep",
           roles: "field_representative",
           phone: "",
           external_code: "",

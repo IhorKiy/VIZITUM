@@ -16,6 +16,10 @@ import {
 import { randomBytes } from "node:crypto";
 
 import { normalizeEmail } from "../../common/normalize";
+import {
+  buildUserNameFields,
+  normalizeNamePart,
+} from "../../common/person-name";
 import { normalizePhoneInput } from "../../common/phone";
 import {
   createPaginatedResponse,
@@ -270,6 +274,8 @@ export class UsersService {
     body: UpdateUserRequestBody,
   ): Promise<UserResponse> {
     const status = normalizeUserStatus(body.status);
+    const firstName = normalizeNamePart(body.firstName);
+    const lastName = normalizeNamePart(body.lastName);
 
     // Validated against the tenant's phoneCountry before the transaction so a
     // bad phone never costs a serializable-transaction round trip. An
@@ -357,12 +363,23 @@ export class UsersService {
               statusChangeAudit = { previousStatus: user.status };
             }
 
+            // Either part can be edited alone, so the display name is composed
+            // from the stored row rather than from the request — otherwise
+            // renaming just the surname would leave `name` carrying the old
+            // one. Reading `user` inside the serializable transaction is what
+            // keeps that composition from racing a concurrent rename.
+            const nameFields =
+              firstName || lastName
+                ? buildUserNameFields({
+                    firstName: firstName ?? user.firstName,
+                    lastName: lastName ?? user.lastName,
+                  })
+                : null;
+
             const updated = await tx.user.update({
               where: { id: user.id },
               data: {
-                ...(typeof body.name === "string" && body.name.trim()
-                  ? { name: body.name.trim() }
-                  : {}),
+                ...(nameFields ?? {}),
                 ...(includePhone ? { phone } : {}),
                 ...(status ? { status } : {}),
               },
@@ -1006,6 +1023,8 @@ function toUserResponse(user: UserWithRoles): UserResponse {
   return {
     id: user.id,
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
     name: user.name,
     phone: user.phone,
     status: user.status,

@@ -95,6 +95,8 @@ try {
       create: {
         tenantId: tenant.id,
         email: REP_EMAIL,
+        firstName: "E2E",
+        lastName: "Field Rep",
         name: "E2E Field Rep",
         passwordHash,
         status: "active",

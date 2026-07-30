@@ -34,9 +34,9 @@ describe("import templates", () => {
     assert.equal(
       template.body,
       [
-        "email,name,roles,phone,external_code",
-        '"User email, unique within the tenant.",Full user name.,Comma-separated role codes allowed for this tenant.,Optional phone number.,Optional source-system user identifier.',
-        "required,required,required,optional,optional",
+        "email,first_name,last_name,roles,phone,external_code",
+        '"User email, unique within the tenant.",User given name.,User family name.,Comma-separated role codes allowed for this tenant.,Optional phone number.,Optional source-system user identifier.',
+        "required,required,required,required,optional,optional",
         "",
       ].join("\n"),
     );

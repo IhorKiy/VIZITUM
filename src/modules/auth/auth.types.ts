@@ -19,7 +19,8 @@ export type SwitchZoneRequestBody = {
 export type AcceptInviteRequestBody = {
   token?: unknown;
   tenantSlug?: unknown;
-  name?: unknown;
+  firstName?: unknown;
+  lastName?: unknown;
   password?: unknown;
   phone?: unknown;
 };
@@ -27,6 +28,10 @@ export type AcceptInviteRequestBody = {
 export type AuthUserResponse = {
   id: string;
   email: string;
+  firstName: string;
+  // Null only on rows backfilled from a legacy one-word name.
+  lastName: string | null;
+  // Display value composed from the two above; see src/common/person-name.ts.
   name: string;
   status: string;
   lastSelectedRoleCode: RoleCode | null;

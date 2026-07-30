@@ -33,27 +33,32 @@ const capabilities = [
 const users = [
   {
     email: "superadmin@demo-team.local",
-    name: "Demo Tenant Superadmin",
+    firstName: "Demo",
+    lastName: "Tenant Superadmin",
     roles: ["tenant_superadmin"],
   },
   {
     email: "admin@demo-team.local",
-    name: "Demo Company Admin",
+    firstName: "Demo",
+    lastName: "Company Admin",
     roles: ["company_admin"],
   },
   {
     email: "manager@demo-team.local",
-    name: "Demo Team Manager",
+    firstName: "Demo",
+    lastName: "Team Manager",
     roles: ["team_manager"],
   },
   {
     email: "field@demo-team.local",
-    name: "Demo Field Representative",
+    firstName: "Demo",
+    lastName: "Field Representative",
     roles: ["field_representative"],
   },
   {
     email: "allroles@demo-team.local",
-    name: "Demo All Roles",
+    firstName: "Demo",
+    lastName: "All Roles",
     roles: ["company_admin", "team_manager", "field_representative"],
   },
 ];
@@ -141,6 +146,8 @@ try {
       tenant,
       users: Object.values(seededUsers).map((user) => ({
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
         name: user.name,
       })),
     };
@@ -213,8 +220,17 @@ async function upsertTenant(tx) {
   return tenant;
 }
 
-async function upsertUser(tx, { tenantId, email, name, roles, passwordHash }) {
+async function upsertUser(
+  tx,
+  { tenantId, email, firstName, lastName, roles, passwordHash },
+) {
   const normalizedEmail = normalizeEmail(email);
+  // `name` is derived, never seeded on its own — same rule the services follow.
+  const nameFields = {
+    firstName,
+    lastName,
+    name: lastName ? `${firstName} ${lastName}` : firstName,
+  };
   const user = await tx.user.upsert({
     where: {
       tenantId_email: {
@@ -225,13 +241,13 @@ async function upsertUser(tx, { tenantId, email, name, roles, passwordHash }) {
     create: {
       tenantId,
       email: normalizedEmail,
-      name,
+      ...nameFields,
       passwordHash,
       status: "active",
       lastSelectedRoleCode: roles[0],
     },
     update: {
-      name,
+      ...nameFields,
       passwordHash,
       status: "active",
       lastSelectedRoleCode: roles[0],

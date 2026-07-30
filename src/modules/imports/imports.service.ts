@@ -7,6 +7,7 @@ import {
 import type { Prisma, RoleCode } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
+import { buildUserNameFields } from "../../common/person-name";
 import { normalizePhoneInput } from "../../common/phone";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
@@ -56,7 +57,8 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         required: true,
         description: "User email, unique within the tenant.",
       },
-      { key: "name", required: true, description: "Full user name." },
+      { key: "first_name", required: true, description: "User given name." },
+      { key: "last_name", required: true, description: "User family name." },
       {
         key: "roles",
         required: true,
@@ -71,6 +73,7 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
     ],
     validations: [
       "email must be valid and unique within tenant",
+      "first_name and last_name are both required",
       "roles must be allowed tenant roles",
       "duplicate emails in file are blocking",
       "phone must be a valid national or +international number if provided",
@@ -700,7 +703,10 @@ export class ImportsService {
         data: {
           tenantId: context.tenantId,
           email: normalizeValue(row.email),
-          name: requiredString(row.name),
+          ...buildUserNameFields({
+            firstName: requiredString(row.first_name),
+            lastName: requiredString(row.last_name),
+          }),
           phone: optionalPhone(row.phone, phoneCountry),
           status: "invited",
         },
@@ -1123,7 +1129,12 @@ export class ImportsService {
 
     parsedFile.rows.forEach((row, index) => {
       const rowNumber = index + 2;
-      addRequiredIssues(issues, row, rowNumber, ["email", "name", "roles"]);
+      addRequiredIssues(issues, row, rowNumber, [
+        "email",
+        "first_name",
+        "last_name",
+        "roles",
+      ]);
       addEmailIssue(issues, row, rowNumber, "email");
       addPhoneIssue(issues, row, rowNumber, "phone", phoneCountry);
 

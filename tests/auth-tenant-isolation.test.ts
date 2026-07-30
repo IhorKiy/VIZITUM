@@ -301,7 +301,8 @@ describe("auth tenant isolation", () => {
           {
             token: "invite-token",
             tenantSlug: "tenant-b",
-            name: "New User",
+            firstName: "New",
+            lastName: "User",
             password: "password123",
           },
           createRequest(),

@@ -145,8 +145,7 @@ export default async function FieldPage({
   const visitedStops = routeStops.filter((stop) => stop.visited).length;
   const isDemoMode = !todayRoutesResult.ok && demoFallbackEnabled;
   const firstName = sessionResult.ok
-    ? (sessionResult.data.user.name.split(" ")[0] ??
-      sessionResult.data.user.name)
+    ? sessionResult.data.user.firstName
     : t("home.guestName");
 
   // A rep manages their own plans (routes.manage_own); a team lead may manage

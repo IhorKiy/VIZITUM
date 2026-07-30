@@ -8,14 +8,21 @@ import { CheckIcon, CloseIcon, PencilIcon } from "./icons";
 
 type UserNameFieldProps = {
   userId: string;
-  name: string;
+  firstName: string;
+  // Null on rows backfilled from a legacy one-word name; editing one supplies
+  // the surname the record never had.
+  lastName: string | null;
+  // Composed by the backend — what the row shows when it isn't being edited.
+  displayName: string;
   canEdit: boolean;
   updateNameAction: (formData: FormData) => Promise<void>;
 };
 
 export function UserNameField({
   userId,
-  name,
+  firstName,
+  lastName,
+  displayName,
   canEdit,
   updateNameAction,
 }: UserNameFieldProps) {
@@ -23,21 +30,22 @@ export function UserNameField({
   const tCommon = useTranslations("common");
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const firstNameRef = useRef<HTMLInputElement>(null);
+  const lastNameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editing) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
+      firstNameRef.current?.focus();
+      firstNameRef.current?.select();
     }
   }, [editing]);
 
   // A successful rename redirects and RSC-refreshes the page without
   // remounting this component, so `editing` would otherwise stay true and
-  // leave the input open. Exit edit mode whenever the name prop changes.
+  // leave the inputs open. Exit edit mode whenever the name changes.
   useEffect(() => {
     setEditing(false);
-  }, [name]);
+  }, [displayName]);
 
   // The name sits inside the <summary>, which toggles the disclosure on any
   // click or Space/Enter — so every control here stops the event from reaching
@@ -47,29 +55,47 @@ export function UserNameField({
   }
 
   function save() {
-    const value = inputRef.current?.value.trim() ?? "";
+    const nextFirstName = firstNameRef.current?.value.trim() ?? "";
+    const nextLastName = lastNameRef.current?.value.trim() ?? "";
+    const unchanged =
+      nextFirstName === firstName && nextLastName === (lastName ?? "");
 
-    if (!value || value === name) {
+    // A blank surname would be a silent no-op on the server (it only applies
+    // non-empty parts), so treat it the same as cancelling rather than
+    // pretending the edit saved.
+    if (!nextFirstName || !nextLastName || unchanged) {
       setEditing(false);
       return;
     }
 
     const formData = new FormData();
     formData.set("userId", userId);
-    formData.set("name", value);
+    formData.set("firstName", nextFirstName);
+    formData.set("lastName", nextLastName);
     startTransition(() => {
       void updateNameAction(formData);
     });
   }
 
+  function onFieldKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      save();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setEditing(false);
+    }
+  }
+
   if (!canEdit) {
-    return <h3>{name}</h3>;
+    return <h3>{displayName}</h3>;
   }
 
   if (!editing) {
     return (
       <div className="user-name-field">
-        <h3>{name}</h3>
+        <h3>{displayName}</h3>
         <button
           aria-label={t("editName")}
           className="name-edit-button"
@@ -95,22 +121,25 @@ export function UserNameField({
       onMouseDown={stopToggle}
     >
       <input
-        aria-label={t("editName")}
+        aria-label={t("editFirstName")}
         className="user-name-input"
-        defaultValue={name}
+        defaultValue={firstName}
         disabled={pending}
         maxLength={INPUT_LIMITS.name}
-        onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Enter") {
-            event.preventDefault();
-            save();
-          } else if (event.key === "Escape") {
-            event.preventDefault();
-            setEditing(false);
-          }
-        }}
-        ref={inputRef}
+        onKeyDown={onFieldKeyDown}
+        placeholder={t("editFirstName")}
+        ref={firstNameRef}
+        type="text"
+      />
+      <input
+        aria-label={t("editLastName")}
+        className="user-name-input"
+        defaultValue={lastName ?? ""}
+        disabled={pending}
+        maxLength={INPUT_LIMITS.name}
+        onKeyDown={onFieldKeyDown}
+        placeholder={t("editLastName")}
+        ref={lastNameRef}
         type="text"
       />
       <button

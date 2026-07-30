@@ -30,10 +30,20 @@ const tenantName = normalizeRequired(
 const adminEmail = normalizeEmail(
   normalizeRequired(process.env.SEED_ADMIN_EMAIL, "SEED_ADMIN_EMAIL"),
 );
-const adminName = normalizeRequired(
-  process.env.SEED_ADMIN_NAME || "Vizitum Staging Admin",
-  "SEED_ADMIN_NAME",
+const adminFirstName = normalizeRequired(
+  process.env.SEED_ADMIN_FIRST_NAME || "Vizitum",
+  "SEED_ADMIN_FIRST_NAME",
 );
+const adminLastName = normalizeRequired(
+  process.env.SEED_ADMIN_LAST_NAME || "Staging Admin",
+  "SEED_ADMIN_LAST_NAME",
+);
+// `name` is derived, never seeded on its own — same rule the services follow.
+const adminNameFields = {
+  firstName: adminFirstName,
+  lastName: adminLastName,
+  name: `${adminFirstName} ${adminLastName}`,
+};
 const adminPassword = normalizeRequired(
   process.env.SEED_ADMIN_PASSWORD,
   "SEED_ADMIN_PASSWORD",
@@ -123,13 +133,13 @@ try {
       create: {
         tenantId: tenant.id,
         email: adminEmail,
-        name: adminName,
+        ...adminNameFields,
         passwordHash,
         status: "active",
         lastSelectedRoleCode: adminRoleCodes[0],
       },
       update: {
-        name: adminName,
+        ...adminNameFields,
         passwordHash,
         status: "active",
         lastSelectedRoleCode: adminRoleCodes[0],

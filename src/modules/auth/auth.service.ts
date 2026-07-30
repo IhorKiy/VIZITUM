@@ -8,6 +8,10 @@ import { Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { normalizeEmail } from "../../common/normalize";
+import {
+  buildUserNameFields,
+  normalizeNamePart,
+} from "../../common/person-name";
 import { normalizePhoneInput } from "../../common/phone";
 import { withSerializationRetry } from "../../common/prisma-retry";
 import { PrismaService } from "../prisma/prisma.service";
@@ -110,6 +114,8 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
         name: user.name,
         status: user.status,
         lastSelectedRoleCode: user.lastSelectedRoleCode,
@@ -127,20 +133,25 @@ export class AuthService {
   ): Promise<LoginResponse> {
     const token = normalizeToken(body.token);
     const tenantSlug = normalizeTenantSlug(body.tenantSlug);
-    const name = normalizeName(body.name);
+    const firstName = normalizeNamePart(body.firstName);
+    const lastName = normalizeNamePart(body.lastName);
     const password = normalizeNewPassword(body.password);
 
-    if (!token || !name || !password) {
+    if (!token || !firstName || !lastName || !password) {
       throw new BadRequestException({
         code: "INVITE_ACCEPTANCE_INVALID",
-        message: "Invite token, name and password are required.",
+        message:
+          "Invite token, first name, last name and password are required.",
         fieldErrors: {
           token: token ? [] : ["Invite token is required."],
-          name: name ? [] : ["Name is required."],
+          firstName: firstName ? [] : ["First name is required."],
+          lastName: lastName ? [] : ["Last name is required."],
           password: password ? [] : ["Password must be at least 8 characters."],
         },
       });
     }
+
+    const nameFields = buildUserNameFields({ firstName, lastName });
 
     const invite = await this.prisma.invite.findUnique({
       where: { tokenHash: hashValue(token) },
@@ -245,14 +256,14 @@ export class AuthService {
             create: {
               tenantId: invite.tenantId,
               email: invite.email,
-              name,
+              ...nameFields,
               phone,
               passwordHash,
               status: "active",
               lastSelectedRoleCode: invite.roleCodes[0] ?? null,
             },
             update: {
-              name,
+              ...nameFields,
               phone,
               passwordHash,
               status: "active",
@@ -407,6 +418,8 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
         name: user.name,
         status: user.status,
         lastSelectedRoleCode: user.lastSelectedRoleCode,
@@ -484,6 +497,8 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
         name: user.name,
         status: user.status,
         lastSelectedRoleCode: user.lastSelectedRoleCode,
@@ -555,6 +570,8 @@ export class AuthService {
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
         name: updatedUser.name,
         status: updatedUser.status,
         lastSelectedRoleCode: updatedUser.lastSelectedRoleCode,
@@ -620,6 +637,8 @@ export class AuthService {
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
         name: updatedUser.name,
         status: updatedUser.status,
         lastSelectedRoleCode: updatedUser.lastSelectedRoleCode,
@@ -669,16 +688,6 @@ function normalizeToken(value: unknown): string | null {
   const token = value.trim();
 
   return token || null;
-}
-
-function normalizeName(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const name = value.trim();
-
-  return name || null;
 }
 
 function normalizeNewPassword(value: unknown): string | null {

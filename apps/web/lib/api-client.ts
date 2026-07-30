@@ -4,6 +4,9 @@ export type AuthSession = {
   user: {
     id: string;
     email: string;
+    firstName: string;
+    lastName: string | null;
+    // Display value composed by the backend; see src/common/person-name.ts.
     name: string;
     status: string;
     lastSelectedRoleCode: string | null;
@@ -405,6 +408,9 @@ export type Task = {
 export type TenantUser = {
   id: string;
   email: string;
+  firstName: string;
+  lastName: string | null;
+  // Display value composed by the backend; see src/common/person-name.ts.
   name: string;
   phone: string | null;
   status: TenantUserStatus;
@@ -1630,7 +1636,8 @@ export async function resendAdminInvite(
 export async function updateAdminUser(
   userId: string,
   input: {
-    name?: string;
+    firstName?: string;
+    lastName?: string;
     phone?: string | null;
     status?: TenantUserStatus;
   },
