@@ -72,6 +72,9 @@ export async function transcribeFieldReportAction(
 export async function confirmFieldReportAction(
   visitId: string,
   confirmedData: Record<string, unknown>,
+  // Present when the confirm came off the on-device queue, which can attempt the
+  // same confirm more than once.
+  clientRequestId?: string,
 ): Promise<ApiResult<Report>> {
-  return confirmFieldVisitReport(visitId, confirmedData);
+  return confirmFieldVisitReport(visitId, confirmedData, clientRequestId);
 }

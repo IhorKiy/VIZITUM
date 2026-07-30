@@ -6680,3 +6680,30 @@ a.metric-card:hover {
   margin: 0;
   padding: 4px 0;
 }
+
+/* Unsent-report banner. Lives at the top of every field screen, above the page
+   header, because it is about the rep's whole session rather than the screen they
+   happen to be on. */
+.report-outbox {
+  align-items: center;
+  background: var(--surface-muted);
+  /* A full-width bar rather than a card: it renders above the app frame, and a
+     floating rounded panel out there reads as a mistake. This is a status line
+     for the whole session, so it looks like one. */
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 16px;
+}
+
+.report-outbox-text {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.report-outbox .secondary-button {
+  flex-shrink: 0;
+}

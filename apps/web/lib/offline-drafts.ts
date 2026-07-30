@@ -1,24 +1,17 @@
-// On-device storage for work a rep has started but not sent. Reps lose signal
-// at a couple of stops a day, and until now every piece of a report lived in
-// React state — a reload, a killed tab or a backgrounded phone took the whole
-// thing with it. This is the durable side of the form.
-//
-// Deliberately hand-rolled over IndexedDB rather than pulling in a wrapper: the
-// surface is one object store with get/put/delete/prune, and every call has to
-// degrade to a no-op instead of throwing (private browsing, a storage quota
-// refusal, or an old WebView all fail here and none of them may take the report
-// screen down with them).
+// The two on-device stores the report form itself reads and writes: what the rep
+// typed (a draft) and bytes they captured that never reached storage. The shared
+// connection, the store names and the IndexedDB helpers live in field-db.ts,
+// alongside the reasoning for why these are separate stores at all.
 
-const DATABASE_NAME = "vizitum-field";
-const DATABASE_VERSION = 2;
-// What the rep typed. Cleared on sign-out and swept by age.
-const DRAFT_STORE = "report-drafts";
-// Recorded or photographed bytes that have not reached storage yet. A separate
-// store precisely because sign-out clears the one above: what the rep typed can
-// be retyped, a recording of a conversation that already happened cannot be
-// recovered from anything.
-const MEDIA_STORE = "pending-media";
-const UPDATED_AT_INDEX = "updatedAt";
+import {
+  commitTransaction,
+  DRAFT_STORE,
+  KEY_SEPARATOR,
+  MEDIA_STORE,
+  openFieldDatabase,
+  promisifyRequest,
+  UPDATED_AT_INDEX,
+} from "./field-db";
 
 // A draft outlives a phone left in a drawer over a long weekend but not a
 // forgotten visit: past this the record is swept so the device does not
@@ -80,7 +73,7 @@ type MediaRegistrationRecord = {
 // NUL cannot appear in a slug, a user id or a visit id, so it is the one
 // separator that cannot be smuggled in to collide two scopes.
 function draftKey(scope: DraftScope): string {
-  return [scope.tenantSlug, scope.userId, scope.visitId].join("\u0000");
+  return [scope.tenantSlug, scope.userId, scope.visitId].join(KEY_SEPARATOR);
 }
 
 function mediaKey(
@@ -88,91 +81,7 @@ function mediaKey(
   kind: PendingMediaKind,
   part: "bytes" | "registration",
 ): string {
-  return [draftKey(scope), kind, part].join("\u0000");
-}
-
-let databasePromise: Promise<IDBDatabase | null> | null = null;
-
-function openDatabase(): Promise<IDBDatabase | null> {
-  if (typeof indexedDB === "undefined") return Promise.resolve(null);
-  if (databasePromise) return databasePromise;
-
-  databasePromise = new Promise<IDBDatabase | null>((resolve) => {
-    // A failed open is cached as "unavailable" for this attempt only — a quota
-    // prompt the rep dismisses once should not disable drafts for the session.
-    const giveUp = () => {
-      databasePromise = null;
-      resolve(null);
-    };
-
-    let request: IDBOpenDBRequest;
-
-    try {
-      request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-    } catch {
-      giveUp();
-      return;
-    }
-
-    request.onupgradeneeded = () => {
-      const database = request.result;
-
-      // Guarded per store rather than switched on the old version, so a device
-      // arriving from any earlier version — or from none — ends up with both.
-      for (const name of [DRAFT_STORE, MEDIA_STORE]) {
-        if (database.objectStoreNames.contains(name)) continue;
-
-        const store = database.createObjectStore(name, { keyPath: "key" });
-
-        store.createIndex(UPDATED_AT_INDEX, "updatedAt");
-      }
-    };
-    request.onsuccess = () => {
-      const database = request.result;
-
-      // Another tab upgrading the schema must not be blocked by this one
-      // holding the old version open.
-      database.onversionchange = () => {
-        database.close();
-        databasePromise = null;
-      };
-      database.onclose = () => {
-        databasePromise = null;
-      };
-
-      resolve(database);
-    };
-    request.onerror = giveUp;
-    request.onblocked = giveUp;
-  });
-
-  return databasePromise;
-}
-
-// The rejection reason is never read — every caller swallows it and falls back
-// to "no draft" — but it has to be a real Error for the failure to be legible
-// if one of them ever stops.
-function storageError(error: DOMException | null): Error {
-  return error ?? new Error("IndexedDB request failed");
-}
-
-function promisify<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(storageError(request.error));
-  });
-}
-
-// A successful `put` request is not a successful write: the transaction around
-// it can still abort afterwards — which is exactly what a quota refusal or an
-// iOS-suspended page does. Waiting for the commit is the difference between
-// telling the rep their recording is safe and it actually being safe.
-function committed(transaction: IDBTransaction): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    transaction.oncomplete = () => resolve();
-    transaction.onabort = () => reject(storageError(transaction.error));
-    transaction.onerror = () => reject(storageError(transaction.error));
-  });
+  return [draftKey(scope), kind, part].join(KEY_SEPARATOR);
 }
 
 // `version` belongs to the caller's payload shape, not to this store: a record
@@ -182,7 +91,7 @@ export async function readDraft(
   scope: DraftScope,
   version: number,
 ): Promise<unknown> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return null;
 
@@ -190,7 +99,7 @@ export async function readDraft(
     const store = database
       .transaction(DRAFT_STORE, "readonly")
       .objectStore(DRAFT_STORE);
-    const record = await promisify(
+    const record = await promisifyRequest(
       store.get(draftKey(scope)) as IDBRequest<DraftRecord | undefined>,
     );
 
@@ -207,7 +116,7 @@ export async function writeDraft(
   payload: unknown,
   version: number,
 ): Promise<boolean> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return false;
 
@@ -222,7 +131,7 @@ export async function writeDraft(
 
     transaction.objectStore(DRAFT_STORE).put(record);
 
-    await committed(transaction);
+    await commitTransaction(transaction);
 
     return true;
   } catch {
@@ -231,7 +140,7 @@ export async function writeDraft(
 }
 
 export async function deleteDraft(scope: DraftScope): Promise<void> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return;
 
@@ -240,7 +149,7 @@ export async function deleteDraft(scope: DraftScope): Promise<void> {
       .transaction(DRAFT_STORE, "readwrite")
       .objectStore(DRAFT_STORE);
 
-    await promisify(store.delete(draftKey(scope)));
+    await promisifyRequest(store.delete(draftKey(scope)));
   } catch {
     // A draft that outlives its report is swept by age anyway.
   }
@@ -249,7 +158,7 @@ export async function deleteDraft(scope: DraftScope): Promise<void> {
 // Sweeps records nobody came back to. Runs off the `updatedAt` index so an
 // untouched device does not walk every record it has ever written.
 async function pruneStore(storeName: string, maxAgeMs: number): Promise<void> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return;
 
@@ -272,7 +181,7 @@ async function pruneStore(storeName: string, maxAgeMs: number): Promise<void> {
         cursor.delete();
         cursor.continue();
       };
-      request.onerror = () => reject(storageError(request.error));
+      request.onerror = () => reject(new Error("IndexedDB cursor failed"));
     });
   } catch {
     // Best effort: a device that cannot prune still works, it just keeps a
@@ -305,7 +214,7 @@ export async function prunePendingMedia(
 // and it is accepted deliberately, because losing the recording is the worse
 // outcome for the person doing the work.
 export async function clearDrafts(): Promise<void> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return;
 
@@ -314,7 +223,7 @@ export async function clearDrafts(): Promise<void> {
       .transaction(DRAFT_STORE, "readwrite")
       .objectStore(DRAFT_STORE);
 
-    await promisify(store.clear());
+    await promisifyRequest(store.clear());
   } catch {
     // Nothing actionable: the sweep above is the backstop.
   }
@@ -333,7 +242,7 @@ export async function writePendingMediaBytes(
   kind: PendingMediaKind,
   media: PendingMediaBytes,
 ): Promise<boolean> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return false;
 
@@ -347,7 +256,7 @@ export async function writePendingMediaBytes(
 
     transaction.objectStore(MEDIA_STORE).put(record);
 
-    await committed(transaction);
+    await commitTransaction(transaction);
 
     return true;
   } catch {
@@ -359,7 +268,7 @@ export async function readPendingMediaBytes(
   scope: DraftScope,
   kind: PendingMediaKind,
 ): Promise<PendingMediaBytes | null> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return null;
 
@@ -367,7 +276,7 @@ export async function readPendingMediaBytes(
     const store = database
       .transaction(MEDIA_STORE, "readonly")
       .objectStore(MEDIA_STORE);
-    const record = await promisify(
+    const record = await promisifyRequest(
       store.get(mediaKey(scope, kind, "bytes")) as IDBRequest<
         MediaBytesRecord | undefined
       >,
@@ -395,7 +304,7 @@ export async function writePendingMediaRegistration(
   kind: PendingMediaKind,
   objectId: string | null,
 ): Promise<void> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return;
 
@@ -409,7 +318,7 @@ export async function writePendingMediaRegistration(
 
     transaction.objectStore(MEDIA_STORE).put(record);
 
-    await committed(transaction);
+    await commitTransaction(transaction);
   } catch {
     // The bytes are what matter; losing the id only costs one extra
     // registration on the next attempt.
@@ -420,7 +329,7 @@ export async function readPendingMediaRegistration(
   scope: DraftScope,
   kind: PendingMediaKind,
 ): Promise<string | null> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return null;
 
@@ -428,7 +337,7 @@ export async function readPendingMediaRegistration(
     const store = database
       .transaction(MEDIA_STORE, "readonly")
       .objectStore(MEDIA_STORE);
-    const record = await promisify(
+    const record = await promisifyRequest(
       store.get(mediaKey(scope, kind, "registration")) as IDBRequest<
         MediaRegistrationRecord | undefined
       >,
@@ -444,7 +353,7 @@ export async function deletePendingMedia(
   scope: DraftScope,
   kind: PendingMediaKind,
 ): Promise<void> {
-  const database = await openDatabase();
+  const database = await openFieldDatabase();
 
   if (!database) return;
 
@@ -455,7 +364,7 @@ export async function deletePendingMedia(
     store.delete(mediaKey(scope, kind, "bytes"));
     store.delete(mediaKey(scope, kind, "registration"));
 
-    await committed(transaction);
+    await commitTransaction(transaction);
   } catch {
     // Swept by age otherwise.
   }

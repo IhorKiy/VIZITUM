@@ -1135,6 +1135,9 @@
       "guestName": "Guest",
       "reportConfirmedEyebrow": "Report confirmed",
       "reportConfirmedTitle": "Manual report saved",
+      "reportQueuedEyebrow": "Saved on this device",
+      "reportQueuedTitle": "The report will be sent automatically",
+      "reportQueuedBody": "It is waiting for a connection. You can carry on with the next stop.",
       "reportStatusAria": "Report status",
       "stopStatusAria": "Add stop status",
       "stopAddedTitle": "Stop added to the route",
@@ -1396,7 +1399,17 @@
       "cancelModalCommentPlaceholder": "Optional details",
       "cancelModalPending": "Cancelling…",
       "cancelModalSubmit": "Cancel visit",
-      "cancelledReasonLabel": "Reason"
+      "cancelledReasonLabel": "Reason",
+      "saveUnstorableError": "The report could not be sent and this device could not keep it. Check your connection and save again."
+    },
+    "outbox": {
+      "ariaLabel": "Reports waiting to be sent",
+      "pending": "{count, plural, one {# report is waiting to be sent} other {# reports are waiting to be sent}}",
+      "needsAttention": "{count, plural, one {# report was not accepted — open the visit and save it again} other {# reports were not accepted — open the visits and save them again}}",
+      "signInRequired": "{count, plural, one {# report is waiting to be sent. Sign in to send it.} other {# reports are waiting to be sent. Sign in to send them.}}",
+      "signIn": "Sign in",
+      "sendNow": "Send now",
+      "sending": "Sending…"
     },
     "routes": {
       "eyebrow": "Field flow",

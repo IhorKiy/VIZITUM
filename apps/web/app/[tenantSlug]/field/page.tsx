@@ -315,6 +315,22 @@ export default async function FieldPage({
         />
       ) : null}
 
+      {/* A queued report is not a confirmed one, and saying so plainly is what
+          keeps the confirmed notice worth believing. This one carries a body, so
+          it renders as the full panel and stays put rather than auto-dismissing
+          — the rep should be able to read why nothing has been sent yet. */}
+      {report === "queued" ? (
+        <DismissableNotice
+          ariaLabel={t("home.reportStatusAria")}
+          autoDismiss={false}
+          body={t("home.reportQueuedBody")}
+          clearParams={["report"]}
+          eyebrow={t("home.reportQueuedEyebrow")}
+          title={t("home.reportQueuedTitle")}
+          tone="success"
+        />
+      ) : null}
+
       {stop === "added" ? (
         <DismissableNotice
           ariaLabel={t("home.stopStatusAria")}
