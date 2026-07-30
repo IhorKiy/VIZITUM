@@ -16,8 +16,12 @@ export default function proxy(request: NextRequest) {
     // browser profile, which would strand everyone on the alias if the custom
     // domain ever had to be bypassed. Crawlers are steered by the canonical
     // tags in lib/landing-metadata.ts, so nothing here needs the permanent
-    // variant. 307 also preserves method and body, so a server action that
-    // somehow posts to the alias is replayed rather than downgraded to a GET.
+    // variant. 307 also keeps the method, which a 302 would not: a server
+    // action that somehow posts to the alias is replayed as a POST rather than
+    // arriving as a GET the route cannot answer. The replay does not go
+    // through either — it is cross-origin, so the browser sends `Origin: null`
+    // and Next's server action origin check refuses it — but that is a visible
+    // failure on a request nobody should be making, not a silent downgrade.
     return NextResponse.redirect(canonicalUrl, 307);
   }
 
