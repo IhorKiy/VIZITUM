@@ -1,0 +1,23 @@
+{
+  "id": "medical-example-1",
+  "segmentTemplate": "medical",
+  "description": "Synthetic anonymized medical visit: two clinic conversations, key messages delivered, samples left, follow-up agreed. No real names, addresses, contacts or commercial terms per docs/specs/ai-quality-spec.md.",
+  "expected": {
+    "resultStatus": "follow_up_required",
+    "agreements": ["Doctor agreed to review the clinical materials"],
+    "objections": ["Concern about dosing frequency for elderly patients"],
+    "mentionedProducts": [],
+    "nextActions": [
+      "Bring the updated dosing leaflet next visit",
+      "Schedule a follow-up visit next cycle"
+    ],
+    "templateSpecific": {
+      "doctorsMet": ["Therapist", "Head of department"],
+      "keyMessagesDelivered": [
+        "New dosing schedule reduces daily intake to once per day"
+      ],
+      "samplesOrMaterialsLeft": ["Product leaflets", "Two sample packs"],
+      "prescriptionIntent": "possible"
+    }
+  }
+}

@@ -36,6 +36,7 @@ enum SegmentTemplate {
   distribution
   service
   partner_account
+  medical
 }
 
 enum JobStatus {

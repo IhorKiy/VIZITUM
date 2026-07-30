@@ -260,6 +260,40 @@ export const AI_EXTRACTION_SCHEMAS = {
       },
     },
   ),
+  medical: buildSchema(
+    "Vizitum medical visit extraction",
+    [
+      "completed",
+      "no_contact",
+      "postponed",
+      "follow_up_required",
+      "objection_received",
+    ],
+    {
+      doctorsMet: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Doctors or medical staff spoken to, with role or specialty when stated.",
+      },
+      keyMessagesDelivered: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Key product messages actually delivered during the visit.",
+      },
+      samplesOrMaterialsLeft: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Samples or promotional materials left, with quantities when stated.",
+      },
+      prescriptionIntent: {
+        type: "string",
+        enum: ["none", "possible", "confirmed"],
+      },
+    },
+  ),
 } satisfies Record<SegmentTemplate, AiExtractionSchema>;
 
 export function getAiExtractionSchema(
