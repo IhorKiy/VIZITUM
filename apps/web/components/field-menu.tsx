@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { withBackOrigin } from "../lib/back-navigation";
 import type { FieldMenuLink, Zone } from "../lib/navigation";
 import { clearDrafts } from "../lib/offline-drafts";
+import { deleteRouteSnapshot } from "../lib/route-snapshot";
 import { logoutAction } from "../lib/session-actions";
 import { selectZoneAction } from "../lib/zone-actions";
 import { CloseIcon, LogOutIcon, MenuIcon } from "./icons";
@@ -62,10 +63,15 @@ export function FieldMenu({
   const searchParams = useSearchParams();
 
   // Signing out hands the phone to whoever holds it next, so the half-typed
-  // reports cached on it go with the session. The clear has to finish *before*
-  // the sign-out navigation, not alongside it: firing it off and letting the
-  // request race the delete loses that race, and the next rep to sign in
-  // inherits the previous one's draft.
+  // reports cached on it go with the session, and so does the route snapshot
+  // — see `deleteRouteSnapshot`'s own comment for why that one can't be left
+  // behind the way pending media is: it has no user in its key at all, so a
+  // stale row is reachable by anyone who opens this tenant's field zone
+  // offline next, not just the next person who happens to sign in as this
+  // same rep. The clear has to finish *before* the sign-out navigation, not
+  // alongside it: firing it off and letting the request race the delete
+  // loses that race, and the next person inherits what should have gone with
+  // this session.
   //
   // Unsent recordings are deliberately left alone — see the note on
   // `clearDrafts`. They belong to the rep who captured them, are keyed to that
@@ -90,7 +96,7 @@ export function FieldMenu({
     draftsClearedRef.current = true;
     setClearingDrafts(true);
 
-    await clearDrafts();
+    await Promise.all([clearDrafts(), deleteRouteSnapshot(tenantSlug)]);
 
     setClearingDrafts(false);
     logoutFormRef.current?.requestSubmit();

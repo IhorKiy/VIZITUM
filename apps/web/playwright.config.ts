@@ -39,7 +39,15 @@ export default defineConfig({
     {
       command: `npm run dev -- --port ${WEB_PORT}`,
       url: `http://127.0.0.1:${WEB_PORT}/platform/login`,
-      env: { API_BASE_URL: `http://127.0.0.1:${API_PORT}/api` },
+      env: {
+        API_BASE_URL: `http://127.0.0.1:${API_PORT}/api`,
+        // service-worker-registration.tsx skips registering in an ordinary
+        // dev session (dev's /_next/static/ chunks aren't immutable by URL
+        // the way a production build's are) — this is the explicit,
+        // E2E-only override field-offline-shell.spec.ts needs to exercise
+        // the real worker.
+        NEXT_PUBLIC_ENABLE_SERVICE_WORKER: "true",
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
     },

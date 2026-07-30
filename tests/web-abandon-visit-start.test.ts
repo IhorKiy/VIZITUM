@@ -29,6 +29,7 @@ function entry(
     attempts: 0,
     lastError: null,
     rejectedAt: null,
+    remoteVisitId: null,
     resolvedVisitId: null,
     resolvedAt: null,
     ...overrides,
@@ -63,6 +64,17 @@ describe("decideAbandonVisitStart", () => {
       decideAbandonVisitStart(
         entry({ resolvedVisitId: "visit-real-1", resolvedAt: 1_753_800_200_000 }),
       ),
+      { kind: "synced", visitId: "visit-real-1" },
+    );
+  });
+
+  it("refuses to delete anything once the server has answered, even before the rekey lands", () => {
+    // remoteVisitId is set the moment createVisit first succeeds — before
+    // resolvedVisitId, which waits on the rekey. A real visit already exists
+    // at this point, so this must read the same as the fully-synced case
+    // above, not as abandonable.
+    assert.deepEqual(
+      decideAbandonVisitStart(entry({ remoteVisitId: "visit-real-1" })),
       { kind: "synced", visitId: "visit-real-1" },
     );
   });
