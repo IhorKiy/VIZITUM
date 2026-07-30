@@ -59,6 +59,10 @@ const VISIT_CANCELLATION_REASONS: readonly VisitCancellationReason[] = [
   "other",
 ];
 
+// Long enough for any UUID scheme a client might use, short enough that the
+// token cannot be used to smuggle a payload into an index.
+const MAX_CLIENT_REQUEST_ID_LENGTH = 128;
+
 const TEMPORARY_AUDIO_TTL_HOURS = 24;
 const MAX_TEMPORARY_AUDIO_SIZE_BYTES = 50 * 1024 * 1024;
 const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
@@ -793,6 +797,35 @@ export class VisitsService {
       assertVisitDateInWindow(confirmedData);
     }
 
+    const clientRequestId = normalizeClientRequestId(body.clientRequestId);
+
+    // A replay of a confirm whose answer the device never heard — the ordinary
+    // outcome of confirming a report with no signal. Returned exactly as the
+    // first attempt left it, because re-running the work below is not harmless:
+    // it would stamp a new `confirmedAt` (hours later, for a rep who was offline
+    // when they actually finished the visit) and replace this report's tasks
+    // with fresh rows, discarding whatever a manager had already done with the
+    // originals.
+    if (clientRequestId) {
+      const replayed = await this.findReportByClientRequestId(
+        context.tenantId,
+        clientRequestId,
+      );
+
+      if (replayed) {
+        assertReplayBelongsToVisit(replayed.visitId, visit.id);
+
+        return toReportResponse(
+          replayed,
+          await findReportCreatedTasks(
+            this.prisma,
+            context.tenantId,
+            replayed.id,
+          ),
+        );
+      }
+    }
+
     const tenant = await this.prisma.platformTenant.findUnique({
       where: { id: context.tenantId },
       select: { segmentTemplate: true },
@@ -805,125 +838,159 @@ export class VisitsService {
       });
     }
 
-    const report = await this.prisma.$transaction(async (tx) => {
-      const confirmedAt = new Date();
-      const result = await tx.report.upsert({
-        where: { visitId: visit.id },
-        create: {
-          tenantId: context.tenantId,
-          visitId: visit.id,
-          locationId: visit.locationId,
-          representativeUserId: visit.representativeUserId,
-          templateCode: tenant.segmentTemplate,
-          schemaVersion,
-          status: "confirmed",
-          confirmedData,
-          confirmedByUserId,
-          confirmedAt,
-          aiMetadata: {
-            source: "manual_text",
-          },
-        },
-        update: {
-          schemaVersion,
-          status: "confirmed",
-          confirmedData,
-          confirmedByUserId,
-          confirmedAt,
-          aiMetadata: {
-            source: "manual_text",
-          },
-        },
-      });
-
-      await tx.visit.update({
-        where: { id: visit.id },
-        data: {
-          status: "completed",
-          completedAt: visit.completedAt ?? confirmedAt,
-        },
-      });
-
-      if (visit.routeItemId) {
-        await tx.routeItem.update({
-          where: { id: visit.routeItemId },
-          data: { status: "visited" },
-        });
-      }
-
-      // The shelf check is the only writer of assortment shelf state, so it
-      // rides the confirm transaction: a report that exists and coverage that
-      // ignores it would be worse than either alone.
-      const shelfCheck = extractShelfCheck(confirmedData, confirmedAt);
-
-      if (shelfCheck) {
-        await applyShelfCheck(
-          tx,
-          context.tenantId,
-          visit.locationId,
-          shelfCheck,
-        );
-      }
-
-      // Same `confirmedData.tasksToCreate` contract as the AI-draft confirm
-      // flow (ai.service.ts) — reused so the field-report form's "tasks for
-      // the next visit" block creates real Task rows the same way. Only
-      // touch tasks when the payload actually carries some: this keeps a
-      // resubmit idempotent (old ones tied to this report are replaced)
-      // without deleting anything for schemas that never set this field
-      // (e.g. manual.v1).
-      const tasksToCreate = extractTasksToCreate(confirmedData);
-
-      if (tasksToCreate.length > 0) {
-        await tx.task.deleteMany({
-          where: {
+    const confirmOnce = () =>
+      this.prisma.$transaction(async (tx) => {
+        const confirmedAt = new Date();
+        const result = await tx.report.upsert({
+          where: { visitId: visit.id },
+          create: {
             tenantId: context.tenantId,
-            reportId: result.id,
-          },
-        });
-
-        await tx.task.createMany({
-          data: tasksToCreate.map((task) => ({
-            tenantId: context.tenantId,
-            title: task.title,
-            description: task.description,
-            isPriority: task.isPriority,
-            assignedToUserId:
-              task.assignee === "representative"
-                ? visit.representativeUserId
-                : null,
-            createdByUserId: confirmedByUserId,
-            locationId: visit.locationId,
             visitId: visit.id,
-            reportId: result.id,
-            dueDate: task.dueDate,
-          })),
-        });
-      }
-
-      // The problem photo was registered with an expiry so an abandoned or
-      // re-picked upload gets collected. Confirming the report is what makes
-      // the one object it actually references permanent — scoped to this
-      // tenant and this visit's own prefix so a payload can't adopt someone
-      // else's object by id.
-      const problemPhotoObjectId = problemPhotoObjectIdOf(confirmedData);
-
-      if (problemPhotoObjectId) {
-        await tx.storageObject.updateMany({
-          where: {
-            id: problemPhotoObjectId,
-            tenantId: context.tenantId,
-            purpose: "visit_attachment",
-            objectKey: {
-              startsWith: buildVisitPhotoPrefix(context.tenantId, visit.id),
+            locationId: visit.locationId,
+            representativeUserId: visit.representativeUserId,
+            templateCode: tenant.segmentTemplate,
+            schemaVersion,
+            status: "confirmed",
+            confirmedData,
+            confirmedByUserId,
+            confirmedAt,
+            clientRequestId,
+            aiMetadata: {
+              source: "manual_text",
             },
           },
-          data: { status: "active", expiresAt: null },
+          update: {
+            schemaVersion,
+            status: "confirmed",
+            confirmedData,
+            confirmedByUserId,
+            confirmedAt,
+            // The report carries the token of whichever confirm last wrote it, so
+            // a deliberate re-confirm (a rep correcting a report) becomes the new
+            // owner and a replay of the older token falls through to a normal
+            // confirm — which is what it did before any of this existed.
+            clientRequestId,
+            aiMetadata: {
+              source: "manual_text",
+            },
+          },
         });
+
+        await tx.visit.update({
+          where: { id: visit.id },
+          data: {
+            status: "completed",
+            completedAt: visit.completedAt ?? confirmedAt,
+          },
+        });
+
+        if (visit.routeItemId) {
+          await tx.routeItem.update({
+            where: { id: visit.routeItemId },
+            data: { status: "visited" },
+          });
+        }
+
+        // The shelf check is the only writer of assortment shelf state, so it
+        // rides the confirm transaction: a report that exists and coverage that
+        // ignores it would be worse than either alone.
+        const shelfCheck = extractShelfCheck(confirmedData, confirmedAt);
+
+        if (shelfCheck) {
+          await applyShelfCheck(
+            tx,
+            context.tenantId,
+            visit.locationId,
+            shelfCheck,
+          );
+        }
+
+        // Same `confirmedData.tasksToCreate` contract as the AI-draft confirm
+        // flow (ai.service.ts) — reused so the field-report form's "tasks for
+        // the next visit" block creates real Task rows the same way. Only
+        // touch tasks when the payload actually carries some: this keeps a
+        // resubmit idempotent (old ones tied to this report are replaced)
+        // without deleting anything for schemas that never set this field
+        // (e.g. manual.v1).
+        const tasksToCreate = extractTasksToCreate(confirmedData);
+
+        if (tasksToCreate.length > 0) {
+          await tx.task.deleteMany({
+            where: {
+              tenantId: context.tenantId,
+              reportId: result.id,
+            },
+          });
+
+          await tx.task.createMany({
+            data: tasksToCreate.map((task) => ({
+              tenantId: context.tenantId,
+              title: task.title,
+              description: task.description,
+              isPriority: task.isPriority,
+              assignedToUserId:
+                task.assignee === "representative"
+                  ? visit.representativeUserId
+                  : null,
+              createdByUserId: confirmedByUserId,
+              locationId: visit.locationId,
+              visitId: visit.id,
+              reportId: result.id,
+              dueDate: task.dueDate,
+            })),
+          });
+        }
+
+        // The problem photo was registered with an expiry so an abandoned or
+        // re-picked upload gets collected. Confirming the report is what makes
+        // the one object it actually references permanent — scoped to this
+        // tenant and this visit's own prefix so a payload can't adopt someone
+        // else's object by id.
+        const problemPhotoObjectId = problemPhotoObjectIdOf(confirmedData);
+
+        if (problemPhotoObjectId) {
+          await tx.storageObject.updateMany({
+            where: {
+              id: problemPhotoObjectId,
+              tenantId: context.tenantId,
+              purpose: "visit_attachment",
+              objectKey: {
+                startsWith: buildVisitPhotoPrefix(context.tenantId, visit.id),
+              },
+            },
+            data: { status: "active", expiresAt: null },
+          });
+        }
+
+        return result;
+      });
+
+    let report: Awaited<ReturnType<typeof confirmOnce>>;
+
+    try {
+      report = await confirmOnce();
+    } catch (error) {
+      // Two flushes of the same queued confirm can slip past the replay check
+      // above together; the unique index is what actually decides between them.
+      // The loser should get the winner's report rather than a 500 it would only
+      // retry into.
+      const raced =
+        clientRequestId &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+          ? await this.findReportByClientRequestId(
+              context.tenantId,
+              clientRequestId,
+            )
+          : null;
+
+      if (!raced) {
+        throw error;
       }
 
-      return result;
-    });
+      assertReplayBelongsToVisit(raced.visitId, visit.id);
+      report = raced;
+    }
 
     const createdTasks = await findReportCreatedTasks(
       this.prisma,
@@ -932,6 +999,17 @@ export class VisitsService {
     );
 
     return toReportResponse(report, createdTasks);
+  }
+
+  private async findReportByClientRequestId(
+    tenantId: string,
+    clientRequestId: string,
+  ) {
+    // The token is scoped to the tenant, which comes from the request context —
+    // never from the payload carrying the token.
+    return this.prisma.report.findUnique({
+      where: { tenantId_clientRequestId: { tenantId, clientRequestId } },
+    });
   }
 
   private async findTenantVisit(
@@ -1300,6 +1378,56 @@ function normalizeOptionalId(value: unknown): string | null {
   }
 
   return normalizeId(value);
+}
+
+// An idempotency token is opaque — the server never parses it, only matches it —
+// so the only rules are that it is a non-empty string and short enough to sit in
+// an index. Anything else is a client bug worth reporting rather than silently
+// dropping, since dropping it would quietly turn a safe retry into a duplicate
+// confirm.
+function normalizeClientRequestId(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  // Anything that is not a string fails the emptiness check below rather than
+  // being coerced: a token is matched byte for byte, so a coerced one would
+  // silently become a different token than the client thinks it sent.
+  const normalizedValue = typeof value === "string" ? value.trim() : "";
+
+  if (
+    !normalizedValue ||
+    normalizedValue.length > MAX_CLIENT_REQUEST_ID_LENGTH
+  ) {
+    throw new BadRequestException({
+      code: "REPORT_REQUEST_ID_INVALID",
+      message: "Confirmation token must be a short non-empty string.",
+      fieldErrors: {
+        clientRequestId: [
+          `Confirmation token must be a non-empty string of at most ${MAX_CLIENT_REQUEST_ID_LENGTH} characters.`,
+        ],
+      },
+    });
+  }
+
+  return normalizedValue;
+}
+
+// One token belongs to one confirm of one visit. A token that already produced
+// a report for a different visit means the device is reusing it — replaying that
+// other visit's report as this one's would be worse than any error.
+function assertReplayBelongsToVisit(
+  replayedVisitId: string,
+  visitId: string,
+): void {
+  if (replayedVisitId === visitId) {
+    return;
+  }
+
+  throw new ConflictException({
+    code: "REPORT_REQUEST_ID_REUSED",
+    message: "This confirmation token was already used for another visit.",
+  });
 }
 
 function normalizeRequiredString(value: unknown): string | null {

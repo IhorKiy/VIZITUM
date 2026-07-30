@@ -216,4 +216,9 @@ export type ReportResponse = {
 export type ConfirmReportRequestBody = {
   confirmedData?: unknown;
   schemaVersion?: unknown;
+  // Optional idempotency token minted by the device. A rep who confirms with no
+  // signal never learns whether the request landed, so the queued retry sends
+  // the same token and the server recognises the replay instead of redoing the
+  // work. Omitting it keeps the previous behaviour exactly.
+  clientRequestId?: unknown;
 };
