@@ -382,14 +382,18 @@ describe("offline visit start", () => {
   it("resolves a visit by the client id its URL was built from", async () => {
     // The only id a rep's phone had while offline, so every screen and every
     // write path has to accept it — otherwise the visit they are looking at
-    // becomes a dead link the moment the create syncs.
-    let queriedWhere: unknown = null;
+    // becomes a dead link the moment the create syncs. The `id` lookup tried
+    // first finds nothing for a client-minted id, so this also exercises the
+    // fallback query.
+    const queriedWheres: unknown[] = [];
     const prisma = {
       visit: {
         findFirst: async (query: { where: unknown }) => {
-          queriedWhere = query.where;
+          queriedWheres.push(query.where);
 
-          return buildVisitRow({ id: "visit-server", clientVisitId: "cv-5" });
+          return queriedWheres.length === 1
+            ? null
+            : buildVisitRow({ id: "visit-server", clientVisitId: "cv-5" });
         },
       },
     };
@@ -398,12 +402,43 @@ describe("offline visit start", () => {
     const response = await service.getVisit(context as never, "cv-5");
 
     assert.equal(response.id, "visit-server");
-    assert.deepEqual((queriedWhere as { OR: unknown }).OR, [
-      { id: "cv-5" },
-      { clientVisitId: "cv-5" },
+    // Both queries tenant-scoped: the id is client input, and only the
+    // request context says which tenant it may address. The `id` query runs
+    // first and only the fallback carries `clientVisitId`.
+    assert.deepEqual(queriedWheres, [
+      { tenantId: "tenant-a", id: "cv-5" },
+      { tenantId: "tenant-a", clientVisitId: "cv-5" },
     ]);
-    // Still tenant-scoped: the client id is client input, and only the request
-    // context says which tenant it may address.
-    assert.equal((queriedWhere as { tenantId: string }).tenantId, "tenant-a");
+  });
+
+  it("returns the id match over another visit's clientVisitId collision", async () => {
+    // clientVisitId is client input — a device (or a malicious rep) can mint
+    // one equal to another visit's real server id. The id match must always
+    // win, and the clientVisitId query must never even run once it has.
+    let clientVisitIdQueried = false;
+    const prisma = {
+      visit: {
+        findFirst: async (query: {
+          where: { tenantId: string; id?: string; clientVisitId?: string };
+        }) => {
+          if ("clientVisitId" in query.where) {
+            clientVisitIdQueried = true;
+
+            return buildVisitRow({
+              id: "visit-impostor",
+              clientVisitId: "visit-real",
+            });
+          }
+
+          return buildVisitRow({ id: "visit-real", clientVisitId: null });
+        },
+      },
+    };
+    const service = new VisitsService(prisma as never);
+
+    const response = await service.getVisit(context as never, "visit-real");
+
+    assert.equal(response.id, "visit-real");
+    assert.equal(clientVisitIdQueried, false);
   });
 });
