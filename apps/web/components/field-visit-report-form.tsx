@@ -1321,7 +1321,10 @@ export function FieldVisitReportForm({
 
     // The report is on the server now, so the copy on the phone has nothing
     // left to protect. Awaited rather than fired off, so the redirect below
-    // cannot cut the delete short and leave a draft behind.
+    // cannot cut the delete short and leave a draft behind — and bounded on the
+    // storage side, so a device that stopped answering costs the rep a second
+    // before their next stop rather than leaving them on a spinner after a
+    // report that is already filed.
     draftClosedRef.current = true;
     draftStoredRef.current = false;
     // Anything still pending goes with it: the visit is locked from here, so

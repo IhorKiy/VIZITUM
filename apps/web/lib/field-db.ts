@@ -121,3 +121,66 @@ export function commitTransaction(transaction: IDBTransaction): Promise<void> {
     transaction.onerror = () => reject(storageError(transaction.error));
   });
 }
+
+// Long enough for a several-megabyte recording to reach the disk on a cheap
+// phone, because reporting "this device cannot store it" for a write that was
+// merely slow tells the rep the one thing they must not be told wrongly.
+export const STORAGE_TIMEOUT_MS = 5000;
+// Deletes are small, and the callers waiting behind one are the user leaving:
+// sign-out, and the redirect after a report is confirmed. Bookkeeping does not
+// get to hold either of them up for long.
+export const STORAGE_TEARDOWN_TIMEOUT_MS = 1000;
+
+// Every operation against the stores above goes through here, which owns the
+// three things each of them needs and none of them may get wrong: the database
+// handle, the fallback for a device that will not keep anything, and a deadline.
+//
+// The deadline is the part worth explaining. IndexedDB does not only fail, it
+// can also simply not answer — an `open` that fires no event on a page iOS
+// resumed, a transaction a frozen browser never commits — and there is no way to
+// tell that apart from slow. Three callers wait on a result before the rep is
+// allowed to move on: sign-out, which clears the drafts a shared phone must not
+// keep; the redirect after a report is confirmed; and the outbox enqueue that
+// now happens on every single save, before the network is touched at all. A
+// stall in any of them is a button that does nothing, with nothing said.
+//
+// It also closes a quieter failure in the draft: nothing may be written until
+// the restore has finished reading, so a read that never returns means a form
+// never saved for the rest of the visit — the feature off, silently, in exactly
+// the conditions it exists for.
+//
+// Timing out abandons the wait, not the work: a write that lands late still
+// lands. What the caller gets is the honest answer for a device that did not
+// answer in time.
+export function runOnFieldDatabase<T>(
+  fallback: T,
+  work: (database: IDBDatabase) => Promise<T>,
+  timeoutMs: number = STORAGE_TIMEOUT_MS,
+): Promise<T> {
+  return new Promise<T>((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+
+      settled = true;
+      resolve(fallback);
+    }, timeoutMs);
+    const settle = (value: T) => {
+      if (settled) return;
+
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+
+    void (async () => {
+      try {
+        const database = await openFieldDatabase();
+
+        settle(database ? await work(database) : fallback);
+      } catch {
+        settle(fallback);
+      }
+    })();
+  });
+}

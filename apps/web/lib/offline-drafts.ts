@@ -8,8 +8,9 @@ import {
   DRAFT_STORE,
   KEY_SEPARATOR,
   MEDIA_STORE,
-  openFieldDatabase,
   promisifyRequest,
+  runOnFieldDatabase,
+  STORAGE_TEARDOWN_TIMEOUT_MS,
   UPDATED_AT_INDEX,
 } from "./field-db";
 
@@ -87,15 +88,11 @@ function mediaKey(
 // `version` belongs to the caller's payload shape, not to this store: a record
 // written under a different one is dropped rather than half-read, which is what
 // keeps a future change to the draft shape from having to migrate anything.
-export async function readDraft(
+export function readDraft(
   scope: DraftScope,
   version: number,
 ): Promise<unknown> {
-  const database = await openFieldDatabase();
-
-  if (!database) return null;
-
-  try {
+  return runOnFieldDatabase<unknown>(null, async (database) => {
     const store = database
       .transaction(DRAFT_STORE, "readonly")
       .objectStore(DRAFT_STORE);
@@ -106,21 +103,15 @@ export async function readDraft(
     if (!record || record.version !== version) return null;
 
     return record.payload;
-  } catch {
-    return null;
-  }
+  });
 }
 
-export async function writeDraft(
+export function writeDraft(
   scope: DraftScope,
   payload: unknown,
   version: number,
 ): Promise<boolean> {
-  const database = await openFieldDatabase();
-
-  if (!database) return false;
-
-  try {
+  return runOnFieldDatabase(false, async (database) => {
     const transaction = database.transaction(DRAFT_STORE, "readwrite");
     const record: DraftRecord = {
       key: draftKey(scope),
@@ -134,35 +125,32 @@ export async function writeDraft(
     await commitTransaction(transaction);
 
     return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
-export async function deleteDraft(scope: DraftScope): Promise<void> {
-  const database = await openFieldDatabase();
+// A draft that outlives its report is swept by age anyway, so a device that
+// cannot delete now is not worth holding the caller for.
+export function deleteDraft(scope: DraftScope): Promise<void> {
+  return runOnFieldDatabase<void>(
+    undefined,
+    async (database) => {
+      const store = database
+        .transaction(DRAFT_STORE, "readwrite")
+        .objectStore(DRAFT_STORE);
 
-  if (!database) return;
-
-  try {
-    const store = database
-      .transaction(DRAFT_STORE, "readwrite")
-      .objectStore(DRAFT_STORE);
-
-    await promisifyRequest(store.delete(draftKey(scope)));
-  } catch {
-    // A draft that outlives its report is swept by age anyway.
-  }
+      await promisifyRequest(store.delete(draftKey(scope)));
+    },
+    STORAGE_TEARDOWN_TIMEOUT_MS,
+  );
 }
 
 // Sweeps records nobody came back to. Runs off the `updatedAt` index so an
 // untouched device does not walk every record it has ever written.
-async function pruneStore(storeName: string, maxAgeMs: number): Promise<void> {
-  const database = await openFieldDatabase();
-
-  if (!database) return;
-
-  try {
+//
+// Best effort throughout: a device that cannot prune still works, it just keeps
+// a handful of stale records.
+function pruneStore(storeName: string, maxAgeMs: number): Promise<void> {
+  return runOnFieldDatabase<void>(undefined, async (database) => {
     const store = database
       .transaction(storeName, "readwrite")
       .objectStore(storeName);
@@ -183,10 +171,7 @@ async function pruneStore(storeName: string, maxAgeMs: number): Promise<void> {
       };
       request.onerror = () => reject(new Error("IndexedDB cursor failed"));
     });
-  } catch {
-    // Best effort: a device that cannot prune still works, it just keeps a
-    // handful of stale records.
-  }
+  });
 }
 
 export async function pruneDrafts(
@@ -213,20 +198,24 @@ export async function prunePendingMedia(
 // their own. The residual risk is real — IndexedDB is not encrypted at rest —
 // and it is accepted deliberately, because losing the recording is the worse
 // outcome for the person doing the work.
-export async function clearDrafts(): Promise<void> {
-  const database = await openFieldDatabase();
+//
+// Bounded like everything else here, and this is the caller it was bounded for:
+// the sign-out navigation waits on this one, so a device whose storage has
+// stopped answering must not be able to strand a rep in a session they asked to
+// leave. Nothing else is actionable on failure either — the sweep above is the
+// backstop.
+export function clearDrafts(): Promise<void> {
+  return runOnFieldDatabase<void>(
+    undefined,
+    async (database) => {
+      const store = database
+        .transaction(DRAFT_STORE, "readwrite")
+        .objectStore(DRAFT_STORE);
 
-  if (!database) return;
-
-  try {
-    const store = database
-      .transaction(DRAFT_STORE, "readwrite")
-      .objectStore(DRAFT_STORE);
-
-    await promisifyRequest(store.clear());
-  } catch {
-    // Nothing actionable: the sweep above is the backstop.
-  }
+      await promisifyRequest(store.clear());
+    },
+    STORAGE_TEARDOWN_TIMEOUT_MS,
+  );
 }
 
 // --- Pending media -------------------------------------------------------
@@ -237,16 +226,12 @@ export async function clearDrafts(): Promise<void> {
 // quota refusal, an old WebView — which the caller has to surface rather than
 // swallow: for a convenience draft a silent no-op is right, but here it decides
 // whether the rep can safely leave the screen.
-export async function writePendingMediaBytes(
+export function writePendingMediaBytes(
   scope: DraftScope,
   kind: PendingMediaKind,
   media: PendingMediaBytes,
 ): Promise<boolean> {
-  const database = await openFieldDatabase();
-
-  if (!database) return false;
-
-  try {
+  return runOnFieldDatabase(false, async (database) => {
     const transaction = database.transaction(MEDIA_STORE, "readwrite");
     const record: MediaBytesRecord = {
       key: mediaKey(scope, kind, "bytes"),
@@ -256,10 +241,10 @@ export async function writePendingMediaBytes(
     const store = transaction.objectStore(MEDIA_STORE);
 
     store.put(record);
-    // Fresh bytes invalidate whatever registration the capture they replace
-    // had consumed, and the two are separate records, so nothing else would
-    // clear it: a second recording written over the first would be paired with
-    // the first one's storage object and uploaded into it. Dropped in this same
+    // Fresh bytes invalidate whatever registration the capture they replace had
+    // consumed, and the two are separate records, so nothing else would clear
+    // it: a second recording written over the first would be paired with the
+    // first one's storage object and uploaded into it. Dropped in this same
     // transaction rather than afterwards, because the caller's next step is a
     // network call — exactly the one that fails here — and a half-applied
     // replacement is the state that produces the mismatch.
@@ -268,56 +253,50 @@ export async function writePendingMediaBytes(
     await commitTransaction(transaction);
 
     return true;
-  } catch {
-    return false;
-  }
+  });
 }
 
-export async function readPendingMediaBytes(
+export function readPendingMediaBytes(
   scope: DraftScope,
   kind: PendingMediaKind,
 ): Promise<PendingMediaBytes | null> {
-  const database = await openFieldDatabase();
+  return runOnFieldDatabase<PendingMediaBytes | null>(
+    null,
+    async (database) => {
+      const store = database
+        .transaction(MEDIA_STORE, "readonly")
+        .objectStore(MEDIA_STORE);
+      const record = await promisifyRequest(
+        store.get(mediaKey(scope, kind, "bytes")) as IDBRequest<
+          MediaBytesRecord | undefined
+        >,
+      );
 
-  if (!database) return null;
+      // A record whose bytes did not survive is worse than no record: it would
+      // upload an empty file the server accepts without complaint.
+      if (!record || !(record.bytes instanceof ArrayBuffer)) return null;
+      if (record.bytes.byteLength === 0) return null;
 
-  try {
-    const store = database
-      .transaction(MEDIA_STORE, "readonly")
-      .objectStore(MEDIA_STORE);
-    const record = await promisifyRequest(
-      store.get(mediaKey(scope, kind, "bytes")) as IDBRequest<
-        MediaBytesRecord | undefined
-      >,
-    );
-
-    // A record whose bytes did not survive is worse than no record: it would
-    // upload an empty file the server accepts without complaint.
-    if (!record || !(record.bytes instanceof ArrayBuffer)) return null;
-    if (record.bytes.byteLength === 0) return null;
-
-    return {
-      bytes: record.bytes,
-      mimeType: record.mimeType,
-      fileName: record.fileName,
-    };
-  } catch {
-    return null;
-  }
+      return {
+        bytes: record.bytes,
+        mimeType: record.mimeType,
+        fileName: record.fileName,
+      };
+    },
+  );
 }
 
 // Kept apart from the bytes so recording which registration they consumed costs
 // one small write rather than rewriting the whole recording.
-export async function writePendingMediaRegistration(
+//
+// The bytes are what matter; losing the id only costs one extra registration on
+// the next attempt.
+export function writePendingMediaRegistration(
   scope: DraftScope,
   kind: PendingMediaKind,
   objectId: string | null,
 ): Promise<void> {
-  const database = await openFieldDatabase();
-
-  if (!database) return;
-
-  try {
+  return runOnFieldDatabase<void>(undefined, async (database) => {
     const transaction = database.transaction(MEDIA_STORE, "readwrite");
     const record: MediaRegistrationRecord = {
       key: mediaKey(scope, kind, "registration"),
@@ -328,21 +307,14 @@ export async function writePendingMediaRegistration(
     transaction.objectStore(MEDIA_STORE).put(record);
 
     await commitTransaction(transaction);
-  } catch {
-    // The bytes are what matter; losing the id only costs one extra
-    // registration on the next attempt.
-  }
+  });
 }
 
-export async function readPendingMediaRegistration(
+export function readPendingMediaRegistration(
   scope: DraftScope,
   kind: PendingMediaKind,
 ): Promise<string | null> {
-  const database = await openFieldDatabase();
-
-  if (!database) return null;
-
-  try {
+  return runOnFieldDatabase<string | null>(null, async (database) => {
     const store = database
       .transaction(MEDIA_STORE, "readonly")
       .objectStore(MEDIA_STORE);
@@ -353,28 +325,26 @@ export async function readPendingMediaRegistration(
     );
 
     return record?.objectId ?? null;
-  } catch {
-    return null;
-  }
+  });
 }
 
-export async function deletePendingMedia(
+// Swept by age if this does not land, so the confirm redirect that waits on it
+// is held for the teardown budget at most.
+export function deletePendingMedia(
   scope: DraftScope,
   kind: PendingMediaKind,
 ): Promise<void> {
-  const database = await openFieldDatabase();
+  return runOnFieldDatabase<void>(
+    undefined,
+    async (database) => {
+      const transaction = database.transaction(MEDIA_STORE, "readwrite");
+      const store = transaction.objectStore(MEDIA_STORE);
 
-  if (!database) return;
+      store.delete(mediaKey(scope, kind, "bytes"));
+      store.delete(mediaKey(scope, kind, "registration"));
 
-  try {
-    const transaction = database.transaction(MEDIA_STORE, "readwrite");
-    const store = transaction.objectStore(MEDIA_STORE);
-
-    store.delete(mediaKey(scope, kind, "bytes"));
-    store.delete(mediaKey(scope, kind, "registration"));
-
-    await commitTransaction(transaction);
-  } catch {
-    // Swept by age otherwise.
-  }
+      await commitTransaction(transaction);
+    },
+    STORAGE_TEARDOWN_TIMEOUT_MS,
+  );
 }
