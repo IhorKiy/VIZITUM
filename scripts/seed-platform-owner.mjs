@@ -30,6 +30,13 @@ const ownerPassword = normalizeRequired(
   "PLATFORM_OWNER_PASSWORD",
 );
 
+// Optional, and only meaningful for automated environments: pre-enrol the
+// account against a known TOTP secret so a test suite can act as the
+// authenticator app. Unset (the normal case, including local dev) leaves the
+// account unenrolled, which is what makes the first sign-in walk the real
+// enrolment journey.
+const ownerTotpSecret = process.env.PLATFORM_OWNER_TOTP_SECRET?.trim() || null;
+
 async function main() {
   const passwordHash = await hash(ownerPassword);
 
@@ -37,16 +44,16 @@ async function main() {
   // stale TOTP secret in place would hand the environment an account nobody
   // holds an authenticator for — and there is no administrator above the
   // platform owner to undo that. Re-seeding therefore returns the account to
-  // "must enrol on next sign-in", which is also what makes the e2e suite
-  // deterministic.
+  // "must enrol on next sign-in", unless PLATFORM_OWNER_TOTP_SECRET pins a
+  // known one for an automated environment.
   const owner = await prisma.platformUser.upsert({
     where: { email: ownerEmail },
     update: {
       name: ownerName,
       passwordHash,
       status: "active",
-      totpSecret: null,
-      totpConfirmedAt: null,
+      totpSecret: ownerTotpSecret,
+      totpConfirmedAt: ownerTotpSecret ? new Date() : null,
       totpRecoveryCodeHashes: [],
     },
     create: {
@@ -54,6 +61,8 @@ async function main() {
       name: ownerName,
       passwordHash,
       status: "active",
+      totpSecret: ownerTotpSecret,
+      totpConfirmedAt: ownerTotpSecret ? new Date() : null,
     },
     select: {
       id: true,
