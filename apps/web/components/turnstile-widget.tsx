@@ -12,7 +12,7 @@ const SCRIPT_SRC =
 type TurnstileApi = {
   render: (
     container: HTMLElement,
-    options: { sitekey: string; language?: string },
+    options: { sitekey: string; language?: string; theme?: "light" | "dark" },
   ) => string | undefined;
   remove: (widgetId: string) => void;
 };
@@ -50,6 +50,10 @@ export function TurnstileWidget({ siteKey, language }: TurnstileWidgetProps) {
       widgetId = window.turnstile.render(container, {
         sitekey: siteKey,
         language,
+        // The default "auto" follows the browser's dark-mode preference, but
+        // the app has no dark theme — a dark widget on the light login panel
+        // reads as a foreign element.
+        theme: "light",
       });
     }
 
