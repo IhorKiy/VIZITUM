@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { generateSync } from "otplib";
 
 // End-to-end contract for the platform console auth flow, driven through the
 // real login/logout Server Actions. The logout tests pin the "fake logout"
@@ -14,11 +15,32 @@ const OWNER_PASSWORD = process.env.E2E_PLATFORM_OWNER_PASSWORD ?? "Owner12345!";
 const SESSION_COOKIE_NAME = "vizitum_platform_session";
 const CSRF_COOKIE_NAME = "vizitum_platform_csrf";
 
+// The password is only the first step now: the console requires a second
+// factor, and the seeded owner starts unenrolled (see
+// scripts/seed-platform-owner.mjs), so every run walks the enrolment path.
+// That is deliberate — it is the journey a real owner takes exactly once, and
+// the one where getting it wrong locks them out of every tenant.
 async function signIn(page: Page): Promise<void> {
   await page.goto("/platform/login");
   await page.getByLabel("Email").fill(OWNER_EMAIL);
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
+
+  await page.waitForURL("**/platform/login?step=enroll");
+
+  // The manual-entry key the page offers for "can't scan it?" is the same
+  // secret the QR encodes, so the test can act as the authenticator app.
+  const secret = (await page.locator("code.copyable-value").innerText()).trim();
+
+  await page
+    .getByLabel("Six-digit code")
+    .fill(generateSync({ strategy: "totp", secret }));
+  await page.getByRole("button", { name: "Confirm and sign in" }).click();
+
+  await page.waitForURL("**/platform/recovery-codes");
+  await page
+    .getByRole("button", { name: "I have saved them — continue" })
+    .click();
   await page.waitForURL("**/platform/tenants");
 }
 

@@ -33,12 +33,21 @@ const ownerPassword = normalizeRequired(
 async function main() {
   const passwordHash = await hash(ownerPassword);
 
+  // The second factor is reset alongside the password. A seed that left a
+  // stale TOTP secret in place would hand the environment an account nobody
+  // holds an authenticator for — and there is no administrator above the
+  // platform owner to undo that. Re-seeding therefore returns the account to
+  // "must enrol on next sign-in", which is also what makes the e2e suite
+  // deterministic.
   const owner = await prisma.platformUser.upsert({
     where: { email: ownerEmail },
     update: {
       name: ownerName,
       passwordHash,
       status: "active",
+      totpSecret: null,
+      totpConfirmedAt: null,
+      totpRecoveryCodeHashes: [],
     },
     create: {
       email: ownerEmail,
@@ -46,7 +55,13 @@ async function main() {
       passwordHash,
       status: "active",
     },
-    select: { id: true, email: true, name: true, status: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      status: true,
+      totpConfirmedAt: true,
+    },
   });
 
   console.log(
