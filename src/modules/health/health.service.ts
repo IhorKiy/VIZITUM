@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { isIP } from "node:net";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { resolveTrustProxyHops } from "../../common/trust-proxy";
@@ -35,10 +36,13 @@ export type ReadinessStatus = {
       rateLimitCountersShared: boolean;
       trustProxyHops: number;
       // What `trustProxyHops` actually produced for *this* request, so the
-      // setting can be checked instead of reasoned about. See
-      // describeProxyResolution.
-      clientAddress: string;
-      forwardedHopCount: number;
+      // setting can be checked instead of reasoned about. Present only for a
+      // caller holding the platform operations token — see
+      // describeProxyResolution for why it is not anonymous.
+      proxyResolution?: {
+        clientAddress: string;
+        forwardedHopCount: number;
+      };
     };
   };
 };
@@ -49,6 +53,12 @@ export type ReadinessRequestContext = {
   clientAddress?: string;
   /** Raw `X-Forwarded-For`, used only to count entries. */
   forwardedFor?: string;
+  /**
+   * Whether the caller proved it is an operator. The diagnostic is withheld
+   * from everyone else; readiness itself stays anonymous so uptime monitors
+   * keep working.
+   */
+  isOperator?: boolean;
 };
 
 /**
@@ -62,18 +72,25 @@ export type ReadinessRequestContext = {
  *
  * So this reports the resolved address as well. Curl the endpoint from a
  * machine whose public address you know: if `clientAddress` is that address,
- * the setting is right.
+ * the setting is right. If it is not, `forwardedHopCount` is the answer —
+ * Express counts hops inward from the socket and each `X-Forwarded-For` entry
+ * is one hop, so the correct `TRUST_PROXY_HOPS` is the number of entries.
  *
- * If it is not, `forwardedHopCount` is the answer — Express counts hops
- * inward from the socket, and each `X-Forwarded-For` entry is one hop, so the
- * correct `TRUST_PROXY_HOPS` is exactly the number of entries. That only
- * holds for a caller that sends no `X-Forwarded-For` of its own, which is why
- * this is a diagnostic to run deliberately rather than a number to read off a
- * dashboard: anyone can inflate their own count by sending the header.
+ * **Operator-only, and that is the whole reason for the gate.** In the exact
+ * state this is meant to diagnose — hops set too low — the resolved address
+ * is an intermediate entry, i.e. a piece of internal infrastructure, so an
+ * anonymous caller would be handed it. Worse, the two numbers together are a
+ * forgery recipe: they say precisely how many entries to prepend to make a
+ * chosen address authoritative on a directly reachable API. Both stop being
+ * a concern once the reader already holds the operations token.
  *
- * Only the caller's own address is echoed, never the rest of the chain — the
- * intermediate entries are internal infrastructure and this endpoint is
- * public.
+ * The address is validated as an IP before it is echoed. With a numeric
+ * `trust proxy` Express compiles `(addr, i) => i < n` and never parses the
+ * entries, so `request.ip` is whatever text sat at that position in the
+ * header — `<script>alert(1)</script>` reaches this function intact. Anything
+ * that is not an IP is reported as `invalid`, which also keeps a literal
+ * `X-Forwarded-For: unknown` (a real placeholder the spec allows) from being
+ * mistaken for "no request context".
  */
 function describeProxyResolution(context: ReadinessRequestContext): {
   clientAddress: string;
@@ -83,9 +100,14 @@ function describeProxyResolution(context: ReadinessRequestContext): {
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean);
+  const resolved = context.clientAddress?.trim() ?? "";
 
   return {
-    clientAddress: context.clientAddress?.trim() || "unknown",
+    clientAddress: resolved
+      ? isIP(resolved)
+        ? resolved
+        : "invalid"
+      : "unknown",
     forwardedHopCount: forwardedEntries.length,
   };
 }
@@ -142,7 +164,9 @@ export class HealthService {
           rateLimitEnabled: !isRateLimitDisabled(),
           rateLimitCountersShared: Boolean(process.env.REDIS_URL?.trim()),
           trustProxyHops: resolveTrustProxyHops(),
-          ...describeProxyResolution(requestContext),
+          ...(requestContext.isOperator
+            ? { proxyResolution: describeProxyResolution(requestContext) }
+            : {}),
         },
       },
     };

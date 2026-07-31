@@ -86,70 +86,84 @@ function createPrismaStub(status: "ok" | "failed"): PrismaService {
 }
 
 describe("readiness proxy diagnostic", () => {
-  // `trustProxyHops` alone only says what was configured, and both ways of
-  // getting it wrong are silent: too low and every caller resolves to an
-  // infrastructure address (one shared rate-limit bucket, identical session
-  // ipHash), too high and the value is client-controlled. These fields are
-  // what make the setting checkable from outside — see describeProxyResolution.
-  it("echoes the address Express resolved for this caller", async () => {
-    await withEnv({ DATABASE_URL: "postgresql://example", SESSION_SECRET: "s" }, async () => {
+  const OPERATOR_ENV = {
+    DATABASE_URL: "postgresql://example",
+    SESSION_SECRET: "s",
+  };
+
+  it("is withheld from an anonymous caller", async () => {
+    await withEnv(OPERATOR_ENV, async () => {
       const service = new HealthService(createPrismaStub("ok"));
       const readiness = await service.getReadiness({
-        clientAddress: "203.0.113.10",
-        forwardedFor: "203.0.113.10, 198.51.100.7",
-      });
-
-      assert.equal(
-        readiness.checks.authHardening.clientAddress,
-        "203.0.113.10",
-      );
-    });
-  });
-
-  it("counts the forwarded chain, which is the hop count to configure", async () => {
-    await withEnv({ DATABASE_URL: "postgresql://example", SESSION_SECRET: "s" }, async () => {
-      const service = new HealthService(createPrismaStub("ok"));
-
-      // Express counts hops inward from the socket and each X-Forwarded-For
-      // entry is one hop, so the right TRUST_PROXY_HOPS is exactly this count.
-      // For the deployed shape — client, then the Next server — that is 2.
-      const twoHops = await service.getReadiness({
-        clientAddress: "203.0.113.10",
-        forwardedFor: "203.0.113.10, 198.51.100.7",
-      });
-      assert.equal(twoHops.checks.authHardening.forwardedHopCount, 2);
-
-      const noProxy = await service.getReadiness({
-        clientAddress: "203.0.113.10",
-      });
-      assert.equal(noProxy.checks.authHardening.forwardedHopCount, 0);
-    });
-  });
-
-  it("never echoes the rest of the chain, only the caller's own address", async () => {
-    await withEnv({ DATABASE_URL: "postgresql://example", SESSION_SECRET: "s" }, async () => {
-      const service = new HealthService(createPrismaStub("ok"));
-      const readiness = await service.getReadiness({
-        clientAddress: "203.0.113.10",
+        clientAddress: "10.0.0.4",
         forwardedFor: "203.0.113.10, 10.0.0.4, 10.0.0.9",
       });
 
-      // The intermediate entries are internal infrastructure and this
-      // endpoint is public, so only a count of them leaves the process.
-      const serialized = JSON.stringify(readiness);
-      assert.ok(!serialized.includes("10.0.0.4"));
-      assert.ok(!serialized.includes("10.0.0.9"));
-      assert.equal(readiness.checks.authHardening.forwardedHopCount, 3);
+      // The state this diagnostic exists to catch — hops too low — is
+      // exactly the state where the resolved address is a piece of internal
+      // infrastructure. Handing that to anyone who curls a public endpoint
+      // would be the leak, and the two numbers together also say precisely
+      // how many entries to prepend to forge an address.
+      assert.equal(readiness.checks.authHardening.proxyResolution, undefined);
+      assert.ok(!JSON.stringify(readiness).includes("10.0.0.4"));
+      assert.ok(!JSON.stringify(readiness).includes("10.0.0.9"));
     });
   });
 
-  it("stays answerable when there is no request context at all", async () => {
-    await withEnv({ DATABASE_URL: "postgresql://example", SESSION_SECRET: "s" }, async () => {
+  it("reports the resolved address and chain length to an operator", async () => {
+    await withEnv(OPERATOR_ENV, async () => {
       const service = new HealthService(createPrismaStub("ok"));
-      const readiness = await service.getReadiness();
+      const readiness = await service.getReadiness({
+        clientAddress: "203.0.113.10",
+        forwardedFor: "203.0.113.10, 198.51.100.7",
+        isOperator: true,
+      });
 
-      assert.equal(readiness.checks.authHardening.clientAddress, "unknown");
-      assert.equal(readiness.checks.authHardening.forwardedHopCount, 0);
+      assert.deepEqual(readiness.checks.authHardening.proxyResolution, {
+        clientAddress: "203.0.113.10",
+        forwardedHopCount: 2,
+      });
+    });
+  });
+
+  it("refuses to echo a resolved value that is not an IP", async () => {
+    await withEnv(OPERATOR_ENV, async () => {
+      const service = new HealthService(createPrismaStub("ok"));
+
+      // Not hypothetical: with a numeric `trust proxy` Express never parses
+      // the forwarded entries, so request.ip is whatever text sat at that
+      // position. tests/trust-proxy-resolution.test.ts proves it end to end.
+      for (const hostile of [
+        "<script>alert(1)</script>",
+        "A".repeat(2000),
+        "unknown",
+      ]) {
+        const readiness = await service.getReadiness({
+          clientAddress: hostile,
+          forwardedFor: `${hostile}, 198.51.100.7`,
+          isOperator: true,
+        });
+
+        assert.equal(
+          readiness.checks.authHardening.proxyResolution?.clientAddress,
+          "invalid",
+        );
+      }
+    });
+  });
+
+  it("distinguishes no request context from an unusable one", async () => {
+    await withEnv(OPERATOR_ENV, async () => {
+      const service = new HealthService(createPrismaStub("ok"));
+      const readiness = await service.getReadiness({ isOperator: true });
+
+      // "unknown" here means the caller supplied nothing — it must not
+      // collide with a literal `X-Forwarded-For: unknown`, which the spec
+      // allows and which reports as "invalid" above.
+      assert.deepEqual(readiness.checks.authHardening.proxyResolution, {
+        clientAddress: "unknown",
+        forwardedHopCount: 0,
+      });
     });
   });
 });
