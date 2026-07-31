@@ -71,7 +71,7 @@ All three carry a hard per-IP throttle on top of the finer per-account controls 
 | Method & path           | Returns                                            |
 | ----------------------- | -------------------------------------------------- |
 | `GET /health`           | Liveness info + `requestId`                        |
-| `GET /health/readiness` | Readiness info; HTTP 503 when `status !== "ready"`. `checks.authHardening` reports the controls that degrade silently rather than erroring — `captchaEnabled`, `rateLimitEnabled`, `rateLimitCountersShared` (Redis vs process memory) and `trustProxyHops` — so a misconfiguration is observable rather than merely absent |
+| `GET /health/readiness` | Readiness info; HTTP 503 when `status !== "ready"`. `checks.authHardening` reports the controls that degrade silently rather than erroring — `captchaEnabled`, `rateLimitEnabled`, `rateLimitCountersShared` (Redis vs process memory) and `trustProxyHops` — so a misconfiguration is observable rather than merely absent. It also reports `clientAddress` (what `trust proxy` actually resolved for *this* request) and `forwardedHopCount` (entries in `X-Forwarded-For`), which is how the hop count gets checked instead of reasoned about: curl this from a machine whose public address you know, and if `clientAddress` is not that address, set `TRUST_PROXY_HOPS` to `forwardedHopCount`. Only the caller's own address is echoed — the rest of the chain is internal infrastructure and this endpoint is public |
 
 ### Operations — `/operations` (`operations.controller.ts`)
 

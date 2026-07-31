@@ -22,7 +22,13 @@ export class HealthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const readiness = await this.healthService.getReadiness();
+    // `request.ip` is only meaningful once `trust proxy` has been applied, so
+    // it is read here rather than derived in the service — this is the value
+    // the rate limiter and the session `ipHash` will see for the same caller.
+    const readiness = await this.healthService.getReadiness({
+      clientAddress: request.ip,
+      forwardedFor: request.header("x-forwarded-for"),
+    });
 
     if (readiness.status !== "ready") {
       response.status(503);
