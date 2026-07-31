@@ -277,9 +277,62 @@ model PlatformUser {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
-  sessions PlatformSession[]
+  // Second factor for the platform console. One password controlled every
+  // tenant's data before this; a password alone is one phishing email away
+  // from the whole estate.
+  //
+  // Nullable so an existing owner can still sign in and enrol: the login flow
+  // refuses to issue a session until enrolment completes, so "not enrolled"
+  // is a state you can only pass through, never sit in.
+  totpSecret      String?
+  totpConfirmedAt DateTime?
+
+  // SHA-256 of each single-use recovery code. Hashed for the same reason
+  // session tokens are: a database read must not hand over working
+  // credentials. Codes are struck from the list as they are used.
+  //
+  // These are what stop a lost phone from locking the owner out of every
+  // tenant at once — there is nobody above the platform owner to reset it.
+  totpRecoveryCodeHashes String[] @default([])
+
+  sessions   PlatformSession[]
+  challenges PlatformMfaChallenge[]
 
   @@map("platform_users")
+}
+
+enum PlatformMfaChallengePurpose {
+  // Password accepted, waiting on a code from an already-enrolled owner.
+  login
+  // Password accepted, but no confirmed second factor yet: the owner has to
+  // enrol before a session is issued.
+  enrollment
+}
+
+// The short-lived state between "the password was right" and "a session
+// exists". Kept in the database rather than in a signed cookie so it can be
+// consumed exactly once, revoked, and expired server-side — a replayable
+// half-authenticated token would be a second credential with none of the
+// session's protections.
+model PlatformMfaChallenge {
+  id             String                      @id @default(cuid())
+  platformUserId String
+  tokenHash      String                      @unique
+  purpose        PlatformMfaChallengePurpose
+  // Enrolment only: the candidate secret, held here until a generated code
+  // proves the authenticator actually has it. Committing it to the user row
+  // first would leave an account marked as enrolled against a secret nobody
+  // holds — locked out of the console with no way back.
+  pendingSecret  String?
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  createdAt      DateTime                    @default(now())
+
+  platformUser PlatformUser @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId])
+  @@index([expiresAt])
+  @@map("platform_mfa_challenges")
 }
 
 model PlatformSession {

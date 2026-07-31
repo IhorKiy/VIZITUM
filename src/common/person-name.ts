@@ -8,6 +8,8 @@
 // data we simply never collected. New writes are required to supply both, but
 // that rule belongs to the request validators, not to this module.
 
+import { TEXT_LIMITS } from "./input-limits";
+
 export type PersonNameParts = {
   firstName: string;
   lastName: string | null;
@@ -27,7 +29,14 @@ export function normalizeNamePart(value: unknown): string | null {
 
   const normalized = value.trim().replace(/\s+/g, " ");
 
-  return normalized || null;
+  // Rejected the same way an empty name is: every caller already turns a null
+  // here into a "first/last name is required" field error, and an over-length
+  // one is no more storable than a blank one.
+  if (!normalized || normalized.length > TEXT_LIMITS.name) {
+    return null;
+  }
+
+  return normalized;
 }
 
 export function composeUserDisplayName(

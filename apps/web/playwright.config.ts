@@ -32,7 +32,15 @@ export default defineConfig({
       command: "node --require ts-node/register src/main.ts",
       cwd: REPO_ROOT,
       url: `http://127.0.0.1:${API_PORT}/api/health`,
-      env: { PORT: String(API_PORT) },
+      env: {
+        PORT: String(API_PORT),
+        // Every spec drives its logins from the same loopback address, in
+        // parallel, so the per-IP auth caps would fire on the suite rather
+        // than on anything it is testing. The limits themselves are covered
+        // by tests/auth-rate-limit.test.ts; production refuses to boot with
+        // this set (src/modules/auth/security-config.ts).
+        RATE_LIMIT_DISABLED: "true",
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

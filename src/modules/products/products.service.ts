@@ -11,6 +11,10 @@ import {
   type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
+import {
+  assertTextWithinLimit,
+  type TextLimitKey,
+} from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
@@ -224,7 +228,7 @@ function buildProductWhere(
 function parseCreateProductBody(
   body: CreateProductRequestBody,
 ): ProductCreateData {
-  const name = normalizeRequiredString(body.name);
+  const name = normalizeRequiredString(body.name, "name", "name");
 
   if (!name) {
     throw new BadRequestException({
@@ -238,9 +242,13 @@ function parseCreateProductBody(
 
   return {
     name,
-    externalCode: normalizeOptionalString(body.externalCode),
-    sku: normalizeOptionalString(body.sku),
-    category: normalizeOptionalString(body.category),
+    externalCode: normalizeOptionalString(
+      body.externalCode,
+      "code",
+      "externalCode",
+    ),
+    sku: normalizeOptionalString(body.sku, "code", "sku"),
+    category: normalizeOptionalString(body.category, "name", "category"),
     notApplicable: normalizeBoolean(body.notApplicable, false),
   };
 }
@@ -252,16 +260,22 @@ function parseUpdateProductBody(
 
   return {
     ...(body.name !== undefined
-      ? { name: normalizeRequiredPatchString(body.name, "name") }
+      ? { name: normalizeRequiredPatchString(body.name, "name", "name") }
       : {}),
     ...(body.externalCode !== undefined
-      ? { externalCode: normalizeOptionalString(body.externalCode) }
+      ? {
+          externalCode: normalizeOptionalString(
+            body.externalCode,
+            "code",
+            "externalCode",
+          ),
+        }
       : {}),
     ...(body.sku !== undefined
-      ? { sku: normalizeOptionalString(body.sku) }
+      ? { sku: normalizeOptionalString(body.sku, "code", "sku") }
       : {}),
     ...(body.category !== undefined
-      ? { category: normalizeOptionalString(body.category) }
+      ? { category: normalizeOptionalString(body.category, "name", "category") }
       : {}),
     ...(body.notApplicable !== undefined
       ? { notApplicable: normalizeBoolean(body.notApplicable, false) }
@@ -270,18 +284,39 @@ function parseUpdateProductBody(
   };
 }
 
-function normalizeRequiredString(value: unknown): string | null {
+// Every free-text normalizer takes the cap its column should honour. The
+// columns are unbounded `text`, and the web app's own maxLength is a courtesy
+// to the person typing, not a control — the endpoint is reachable with curl.
+// The keys mirror apps/web/lib/input-limits.ts; keep the two in sync.
+function normalizeRequiredString(
+  value: unknown,
+  limit: TextLimitKey,
+  field: string,
+): string | null {
   if (typeof value !== "string") {
     return null;
   }
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(
+    normalizedValue,
+    limit,
+    field,
+    "PRODUCT_INVALID",
+  );
 }
 
-function normalizeRequiredPatchString(value: unknown, field: string): string {
-  const normalizedValue = normalizeRequiredString(value);
+function normalizeRequiredPatchString(
+  value: unknown,
+  field: string,
+  limit: TextLimitKey,
+): string {
+  const normalizedValue = normalizeRequiredString(value, limit, field);
 
   if (!normalizedValue) {
     throw new BadRequestException({
@@ -296,7 +331,11 @@ function normalizeRequiredPatchString(value: unknown, field: string): string {
   return normalizedValue;
 }
 
-function normalizeOptionalString(value: unknown): string | null {
+function normalizeOptionalString(
+  value: unknown,
+  limit: TextLimitKey,
+  field: string,
+): string | null {
   if (value === undefined || value === null) {
     return null;
   }
@@ -307,7 +346,16 @@ function normalizeOptionalString(value: unknown): string | null {
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(
+    normalizedValue,
+    limit,
+    field,
+    "PRODUCT_INVALID",
+  );
 }
 
 function normalizeBoolean(value: unknown, fallback: boolean): boolean {

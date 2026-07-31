@@ -6,6 +6,7 @@ import { StorageModule } from "../storage/storage.module";
 import { UsersModule } from "../users/users.module";
 import { PlatformAuthController } from "./platform-auth.controller";
 import { PlatformAuthService } from "./platform-auth.service";
+import { PlatformMfaService } from "./platform-mfa.service";
 import { PlatformSessionService } from "./platform-session.service";
 import { PlatformTenantSuperadminController } from "./platform-tenant-superadmin.controller";
 import { PlatformTenantUsersController } from "./platform-tenant-users.controller";
@@ -24,6 +25,7 @@ import { TenantPurgeService } from "./tenant-purge.service";
   providers: [
     PlatformService,
     PlatformAuthService,
+    PlatformMfaService,
     PlatformSessionService,
     TenantPurgeService,
   ],

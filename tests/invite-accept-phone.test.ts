@@ -4,6 +4,7 @@ import { BadRequestException } from "@nestjs/common";
 
 import { AuthService } from "../src/modules/auth/auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
 
 // Invite acceptance parses the optional phone against the invite tenant's
 // phoneCountry and stores E.164 — the same policy as every other phone write
@@ -37,8 +38,12 @@ function createService(phoneCountry: string | null) {
         createdByUserId: null,
       }),
       update: async () => {},
+      updateMany: async () => ({ count: 1 }),
     },
     user: {
+      // acceptInvite refuses a stale invite for an account that is already
+      // live; no such account exists in these fixtures.
+      findUnique: async () => null,
       upsert: async (query: { create: Record<string, unknown> }) => {
         upserts.push(query);
 
@@ -75,6 +80,7 @@ function createService(phoneCountry: string | null) {
     } as never,
     {} as never,
     { assertValidToken: async () => {} } as never,
+    createTestLoginBackoff(),
   );
 
   return { service, upserts };

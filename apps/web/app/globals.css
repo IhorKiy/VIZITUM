@@ -6885,3 +6885,26 @@ a.metric-card:hover {
 .report-outbox .secondary-button {
   flex-shrink: 0;
 }
+
+/* Authenticator enrolment QR. Sized so a phone camera picks it up from a
+   normal viewing distance, centered because it is the whole instruction. */
+.mfa-qr {
+  align-self: center;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  height: auto;
+  max-width: 100%;
+  padding: 8px;
+}
+
+/* The one-time recovery codes. Monospaced and roomy: these get read aloud
+   and written down. */
+.recovery-code-list {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

@@ -14,6 +14,7 @@ import {
 } from "../../common/normalize";
 import { normalizePhoneCountry, normalizePhoneInput } from "../../common/phone";
 import { AuditService } from "../audit/audit.service";
+import { resolveLimit, withinLimit } from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   readProductsEnabledByTenantId,
@@ -473,6 +474,10 @@ export class PlatformService {
 
       if (!name) {
         fieldErrors.name = ["Tenant name cannot be empty."];
+      } else if (!withinLimit(name, "name")) {
+        fieldErrors.name = [
+          `Keep this to ${resolveLimit("name")} characters or fewer.`,
+        ];
       } else {
         data.name = name;
       }
@@ -483,6 +488,10 @@ export class PlatformService {
 
       if (!country) {
         fieldErrors.country = ["Country cannot be empty."];
+      } else if (!withinLimit(country, "country")) {
+        fieldErrors.country = [
+          `Keep this to ${resolveLimit("country")} characters or fewer.`,
+        ];
       } else {
         data.country = country;
       }
@@ -503,6 +512,10 @@ export class PlatformService {
 
       if (!language) {
         fieldErrors.language = ["Language cannot be empty."];
+      } else if (!withinLimit(language, "code")) {
+        fieldErrors.language = [
+          `Keep this to ${resolveLimit("code")} characters or fewer.`,
+        ];
       } else {
         data.language = language;
       }
@@ -513,6 +526,10 @@ export class PlatformService {
 
       if (!contactName) {
         fieldErrors.contactName = ["Contact name cannot be empty."];
+      } else if (!withinLimit(contactName, "name")) {
+        fieldErrors.contactName = [
+          `Keep this to ${resolveLimit("name")} characters or fewer.`,
+        ];
       } else {
         data.contactName = contactName;
       }
@@ -909,8 +926,14 @@ export class PlatformService {
 
     if (!name) {
       fieldErrors.name = ["Tenant name is required."];
+    } else if (!withinLimit(name, "name")) {
+      fieldErrors.name = [
+        `Keep this to ${resolveLimit("name")} characters or fewer.`,
+      ];
     }
 
+    // normalizeSlug returns empty for an over-length slug too, so the
+    // required-field error already covers it.
     if (!slug) {
       fieldErrors.slug = ["Tenant slug is required."];
     }
@@ -938,6 +961,24 @@ export class PlatformService {
     const contactEmail = normalizeEmail(input.contactEmail);
     const rawContactPhone = input.contactPhone?.trim();
     const country = input.country?.trim() || DEFAULT_COUNTRY;
+    const language = input.language?.trim() || DEFAULT_LANGUAGE;
+    const primaryDomain = input.primaryDomain?.trim() || null;
+
+    // Everything below lands in an unbounded `text` column, so each one is
+    // capped against the same table the web app's maxLength attributes use
+    // (apps/web/lib/input-limits.ts).
+    for (const [field, value, limit] of [
+      ["contactName", contactName, "name"],
+      ["country", country, "country"],
+      ["language", language, "code"],
+      ["primaryDomain", primaryDomain, "domain"],
+    ] as const) {
+      if (value && !withinLimit(value, limit)) {
+        fieldErrors[field] = [
+          `Keep this to ${resolveLimit(limit)} characters or fewer.`,
+        ];
+      }
+    }
 
     // The phone country defaults from the tenant's country when that is a
     // valid ISO alpha-2 code; otherwise the owner must pick one explicitly.
@@ -1016,14 +1057,14 @@ export class PlatformService {
           slug,
           country,
           timezone,
-          language: input.language?.trim() || DEFAULT_LANGUAGE,
+          language,
           contactName,
           contactEmail,
           contactPhone,
           phoneCountry,
           segmentTemplate: input.segmentTemplate,
           databaseKey: DEFAULT_DATABASE_KEY,
-          primaryDomain: input.primaryDomain?.trim() || null,
+          primaryDomain,
           // Tenants go live immediately: there is no per-tenant infrastructure
           // step behind draft/provisioning today, so parking new tenants there
           // just added a state a platform owner had to manually push through.
@@ -1075,8 +1116,13 @@ function createPlatformTenantContext(
   };
 }
 
+// Tenant slugs address a tenant in every URL, so an unbounded one would also
+// be an unbounded path segment. Over-length returns empty, which every caller
+// already reports as an invalid slug.
 function normalizeSlug(value: string): string {
-  return value.trim().toLowerCase();
+  const normalized = value.trim().toLowerCase();
+
+  return withinLimit(normalized, "slug") ? normalized : "";
 }
 
 // The persisted `adminLimit` column is the owner's optional override (NULL =

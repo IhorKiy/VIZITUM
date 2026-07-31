@@ -78,6 +78,8 @@ describe("tenant superadmin directional protection", () => {
     const service = createService({
       user: { findUnique: async () => null },
       invite: {
+        // Every new invite revokes any earlier pending one for the address.
+        updateMany: async () => ({ count: 0 }),
         create: async (query: { data: Record<string, unknown> }) => ({
           id: "invite-1",
           email: query.data.email,

@@ -5,6 +5,7 @@ import { BadRequestException } from "@nestjs/common";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
 import { UsersService } from "../src/modules/users/users.service";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
 
 function createRequest() {
   return {
@@ -39,8 +40,12 @@ describe("tenant superadmin replacement", () => {
           createdByUserId: null,
         }),
         update: async () => {},
+        updateMany: async () => ({ count: 1 }),
       },
       user: {
+        // acceptInvite refuses a stale invite for an already-live account;
+        // the invited address has no user row yet here.
+        findUnique: async () => null,
         upsert: async () => ({
           id: "super2-user",
           email: "super2@example.com",
@@ -91,6 +96,7 @@ describe("tenant superadmin replacement", () => {
       } as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     const result = await authService.acceptInvite(
@@ -166,8 +172,10 @@ describe("tenant superadmin replacement", () => {
           createdByUserId: null,
         }),
         update: async () => {},
+        updateMany: async () => ({ count: 1 }),
       },
       user: {
+        findUnique: async () => null,
         upsert: async () => ({
           id: "super1-user",
           email: "super1@example.com",
@@ -193,6 +201,7 @@ describe("tenant superadmin replacement", () => {
       { createSession: async () => ({ token: "session-token" }) } as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await authService.acceptInvite(

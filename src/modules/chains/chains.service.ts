@@ -11,6 +11,10 @@ import {
   type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
+import {
+  assertTextWithinLimit,
+  type TextLimitKey,
+} from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
@@ -216,7 +220,7 @@ function buildChainWhere(
 }
 
 function parseCreateChainBody(body: CreateChainRequestBody): ChainCreateData {
-  const name = normalizeRequiredString(body.name);
+  const name = normalizeRequiredString(body.name, "name", "name");
 
   if (!name) {
     throw new BadRequestException({
@@ -230,8 +234,12 @@ function parseCreateChainBody(body: CreateChainRequestBody): ChainCreateData {
 
   return {
     name,
-    externalCode: normalizeOptionalString(body.externalCode),
-    notes: normalizeOptionalString(body.notes),
+    externalCode: normalizeOptionalString(
+      body.externalCode,
+      "code",
+      "externalCode",
+    ),
+    notes: normalizeOptionalString(body.notes, "notes", "notes"),
   };
 }
 
@@ -240,30 +248,52 @@ function parseUpdateChainBody(body: UpdateChainRequestBody): ChainUpdateData {
 
   return {
     ...(body.name !== undefined
-      ? { name: normalizeRequiredPatchString(body.name, "name") }
+      ? { name: normalizeRequiredPatchString(body.name, "name", "name") }
       : {}),
     ...(body.externalCode !== undefined
-      ? { externalCode: normalizeOptionalString(body.externalCode) }
+      ? {
+          externalCode: normalizeOptionalString(
+            body.externalCode,
+            "code",
+            "externalCode",
+          ),
+        }
       : {}),
     ...(body.notes !== undefined
-      ? { notes: normalizeOptionalString(body.notes) }
+      ? { notes: normalizeOptionalString(body.notes, "notes", "notes") }
       : {}),
     ...(status ? { status } : {}),
   };
 }
 
-function normalizeRequiredString(value: unknown): string | null {
+// Every free-text normalizer takes the cap its column should honour. The
+// columns are unbounded `text`, and the web app's own maxLength is a courtesy
+// to the person typing, not a control — the endpoint is reachable with curl.
+// The keys mirror apps/web/lib/input-limits.ts; keep the two in sync.
+function normalizeRequiredString(
+  value: unknown,
+  limit: TextLimitKey,
+  field: string,
+): string | null {
   if (typeof value !== "string") {
     return null;
   }
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(normalizedValue, limit, field, "CHAIN_INVALID");
 }
 
-function normalizeRequiredPatchString(value: unknown, field: string): string {
-  const normalizedValue = normalizeRequiredString(value);
+function normalizeRequiredPatchString(
+  value: unknown,
+  field: string,
+  limit: TextLimitKey,
+): string {
+  const normalizedValue = normalizeRequiredString(value, limit, field);
 
   if (!normalizedValue) {
     throw new BadRequestException({
@@ -278,7 +308,11 @@ function normalizeRequiredPatchString(value: unknown, field: string): string {
   return normalizedValue;
 }
 
-function normalizeOptionalString(value: unknown): string | null {
+function normalizeOptionalString(
+  value: unknown,
+  limit: TextLimitKey,
+  field: string,
+): string | null {
   if (value === undefined || value === null) {
     return null;
   }
@@ -289,7 +323,11 @@ function normalizeOptionalString(value: unknown): string | null {
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(normalizedValue, limit, field, "CHAIN_INVALID");
 }
 
 function normalizeChainStatus(value: unknown): ChainStatus | null {

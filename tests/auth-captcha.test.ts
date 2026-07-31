@@ -7,6 +7,8 @@ import { AuthService } from "../src/modules/auth/auth.service";
 import { TurnstileService } from "../src/modules/auth/turnstile.service";
 import { PlatformAuthService } from "../src/modules/platform/platform-auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
+import { createTestPlatformMfa } from "./fixtures/platform-mfa";
 
 const originalFetch = globalThis.fetch;
 const originalSecret = process.env.TURNSTILE_SECRET_KEY;
@@ -108,8 +110,97 @@ describe("turnstile verification", () => {
       throw new Error("network down");
     });
 
-    // Cloudflare being down must not lock people out of the product.
+    // A transport failure means no answer arrived at all. Cloudflare being
+    // down must not lock people out of the product — the password check
+    // still stands on its own.
     await new TurnstileService().assertValidToken("token-123");
+  });
+
+  it("fails closed when siteverify answers with a non-2xx status", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "secret-key";
+    stubFetch(async () => new Response("upstream error", { status: 502 }));
+
+    // The opposite direction from a transport failure, and the bug this
+    // replaces: an answer that is not an approval is a rejection. Treating
+    // any non-2xx as "allow" made every response short of success a bypass.
+    await assert.rejects(
+      () => new TurnstileService().assertValidToken("token-123"),
+      assertCaptchaInvalid,
+    );
+  });
+
+  it("fails closed on a 2xx whose body is not the documented JSON", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "secret-key";
+    stubFetch(async () => new Response("not json", { status: 200 }));
+
+    await assert.rejects(
+      () => new TurnstileService().assertValidToken("token-123"),
+      assertCaptchaInvalid,
+    );
+  });
+
+  it("stops calling siteverify for a while after it proves unreachable", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "secret-key";
+    let calls = 0;
+    stubFetch(async () => {
+      calls += 1;
+      throw new Error("network down");
+    });
+
+    const service = new TurnstileService();
+
+    await service.assertValidToken("token-1");
+    await service.assertValidToken("token-2");
+    await service.assertValidToken("token-3");
+
+    // During an outage every login would otherwise pay the full request
+    // timeout before being let through anyway.
+    assert.equal(calls, 1);
+  });
+
+  it("gives up on a siteverify call that never answers", async () => {
+    process.env.TURNSTILE_SECRET_KEY = "secret-key";
+    let signal: AbortSignal | undefined;
+    stubFetch(async (_input, init) => {
+      signal = init?.signal ?? undefined;
+      throw new Error("aborted");
+    });
+
+    await new TurnstileService().assertValidToken("token-123");
+
+    // Without a deadline a hung connection holds the login open until the
+    // hosting platform's own timeout.
+    assert.ok(signal instanceof AbortSignal, "the request carries a deadline");
+  });
+
+  it("resumes verifying once the pause elapses", async (t) => {
+    process.env.TURNSTILE_SECRET_KEY = "secret-key";
+    t.mock.timers.enable({ apis: ["Date"] });
+
+    let reachable = false;
+    stubFetch(async () => {
+      if (!reachable) {
+        throw new Error("network down");
+      }
+
+      return new Response(JSON.stringify({ success: false }), { status: 200 });
+    });
+
+    const service = new TurnstileService();
+
+    await service.assertValidToken("token-1");
+
+    reachable = true;
+    // Still inside the pause: waved through without a round trip.
+    await service.assertValidToken("token-2");
+
+    t.mock.timers.tick(31_000);
+
+    // Past it: verification is back on, and this token is refused.
+    await assert.rejects(
+      () => service.assertValidToken("token-3"),
+      assertCaptchaInvalid,
+    );
   });
 
   it("gates the tenant login before any database work", async () => {
@@ -133,6 +224,7 @@ describe("turnstile verification", () => {
         resolveTenant: async () => ({ tenant: { id: "tenant-a" } }),
       } as never,
       new TurnstileService(),
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -169,6 +261,8 @@ describe("turnstile verification", () => {
       { verifyPassword: async () => true } as never,
       {} as never,
       new TurnstileService(),
+      createTestLoginBackoff(),
+      createTestPlatformMfa(),
     );
 
     await assert.rejects(

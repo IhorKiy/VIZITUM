@@ -4,9 +4,14 @@ import { UnauthorizedException } from "@nestjs/common";
 
 import { PlatformAuthService } from "../src/modules/platform/platform-auth.service";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
+import {
+  createTestPlatformMfa,
+  TEST_CHALLENGE_EXPIRY,
+} from "./fixtures/platform-mfa";
 
 describe("platform auth", () => {
-  it("issues a platform-owner session for valid credentials", async () => {
+  it("answers a correct password with a code challenge, not a session", async () => {
     const owner = {
       id: "owner-1",
       email: "owner@vizitum.dev",
@@ -36,6 +41,8 @@ describe("platform auth", () => {
         },
       } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
+      createTestPlatformMfa(),
     );
 
     const result = await service.login(
@@ -44,7 +51,64 @@ describe("platform auth", () => {
       createResponse(cookies),
     );
 
+    // A correct password gets the owner to the second step and no further.
+    // One platform account reaches every tenant's data, so it is exactly the
+    // account a password alone must not be enough for.
     assert.deepEqual(result, {
+      step: "mfa",
+      challengeToken: "login-challenge-token",
+      expiresAt: TEST_CHALLENGE_EXPIRY,
+    });
+    assert.equal(sessionInputs.length, 0, "no session yet");
+    assert.equal(updates.length, 0, "lastLoginAt waits for the second step");
+    assert.equal(cookies.length, 0, "no cookies until the code is accepted");
+  });
+
+  it("issues a platform-owner session once the code is accepted", async () => {
+    const owner = {
+      id: "owner-1",
+      email: "owner@vizitum.dev",
+      name: "Platform Owner",
+      passwordHash: "hash",
+      status: "active",
+      totpSecret: "SECRET",
+      totpConfirmedAt: new Date(),
+      totpRecoveryCodeHashes: [],
+    };
+    const updates: unknown[] = [];
+    const sessionInputs: unknown[] = [];
+    const cookies: Array<{ name: string; token: string }> = [];
+
+    const service = new PlatformAuthService(
+      {
+        platformUser: {
+          findUnique: async () => owner,
+          update: async (args: unknown) => {
+            updates.push(args);
+            return owner;
+          },
+        },
+      } as never,
+      { verifyPassword: async () => true } as never,
+      {
+        createSession: async (input: unknown) => {
+          sessionInputs.push(input);
+          return { token: "platform-token", session: { id: "session-1" } };
+        },
+      } as never,
+      { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
+      createTestPlatformMfa(),
+    );
+
+    const result = await service.verifyMfa(
+      { challengeToken: "login-challenge-token", code: "123456" },
+      createRequest(),
+      createResponse(cookies),
+    );
+
+    assert.deepEqual(result, {
+      step: "session",
       platformUser: {
         id: "owner-1",
         email: "owner@vizitum.dev",
@@ -57,6 +121,7 @@ describe("platform auth", () => {
         PERMISSIONS.PLATFORM_TENANTS_MANAGE,
         PERMISSIONS.PLATFORM_OPERATIONS_READ,
       ],
+      recoveryCodesRemaining: 0,
     });
     assert.equal(sessionInputs.length, 1);
     assert.equal(updates.length, 1);
@@ -70,6 +135,8 @@ describe("platform auth", () => {
       { verifyPassword: async () => true } as never,
       { createSession: async () => ({ token: "t", session: {} }) } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
+      createTestPlatformMfa(),
     );
 
     await assert.rejects(
@@ -99,6 +166,8 @@ describe("platform auth", () => {
       { verifyPassword: async () => true } as never,
       { createSession: async () => ({ token: "t", session: {} }) } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
+      createTestPlatformMfa(),
     );
 
     await assert.rejects(
@@ -134,6 +203,8 @@ describe("platform auth", () => {
         },
       } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
+      createTestPlatformMfa(),
     );
 
     await assert.rejects(
@@ -154,6 +225,8 @@ describe("platform auth", () => {
       { verifyPassword: async () => true } as never,
       { findActiveSessionByToken: async () => null } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
+      createTestPlatformMfa(),
     );
 
     await assert.rejects(

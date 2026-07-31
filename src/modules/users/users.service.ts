@@ -937,6 +937,21 @@ export class UsersService {
       Date.now() + INVITE_TTL_DAYS * MILLISECONDS_PER_DAY,
     );
 
+    // Every earlier pending invite to this address stops working the moment a
+    // new one is issued. Otherwise each invite leaves a 7-day window in which
+    // its token can still set a password for that email — so re-inviting
+    // someone, or inviting an address that was invited before, quietly
+    // multiplied the number of live credentials for one account. resendInvite
+    // already revoked the one invite it knew about; this covers the rest.
+    await this.prisma.invite.updateMany({
+      where: {
+        tenantId: context.tenantId,
+        email,
+        status: "pending",
+      },
+      data: { status: "revoked" },
+    });
+
     const invite = await this.prisma.invite.create({
       data: {
         tenantId: context.tenantId,
@@ -963,7 +978,13 @@ export class UsersService {
       status: invite.status,
       emailStatus,
       expiresAt: invite.expiresAt.toISOString(),
-      token,
+      // The plaintext token is a working credential for this address, so it
+      // leaves the API only when there is no other way to deliver it: the
+      // email was skipped or failed, and the copyable link in the admin UI is
+      // the fallback. When the email did go out, the token stays server-side
+      // rather than travelling through the Next layer, the admin's browser
+      // and every log sink in between.
+      ...(emailStatus === "sent" ? {} : { token }),
     };
   }
 

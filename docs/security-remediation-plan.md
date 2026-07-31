@@ -1,6 +1,46 @@
 # Security Remediation Plan
 
-Status: draft · Date: 2026-07-31 · Scope: NestJS API (`src/`) + Next.js web (`apps/web`)
+Status: waves 1 and 2 implemented · Date: 2026-07-31 · Scope: NestJS API (`src/`) + Next.js web (`apps/web`)
+
+## Implementation status
+
+Waves 1 and 2 are done, plus 3.3 (trust proxy), which 1.1 depends on for
+correct per-IP keying. Each item below is marked; the reference docs
+([environment.md](reference/environment.md),
+[api-reference.md](reference/api-reference.md),
+[data-model.md](reference/data-model.md),
+[module-map.md](reference/module-map.md),
+[executable-spec.md](reference/executable-spec.md)) describe the shipped
+behaviour and are the place to read what the code does now — this file stays
+as the record of what was found and why each fix took the shape it did.
+
+| Item | Status |
+| ---- | ------ |
+| 1.1 Rate limiting / account lockout | Done — hard per-IP throttle, progressive per-account delay, Redis-backed counters |
+| 1.2 Turnstile fail-closed, required in production | Done |
+| 1.3 Platform-owner hardening | Done for TOTP MFA and the shortened session TTL. Login alerting is 3.5 (wave 3); re-auth for destructive tenant operations is **not** implemented |
+| 2.1 Security response headers | Done — verified live, including Turnstile under the CSP |
+| 2.2 Password change + invite overwrite | Done, but **not by this branch**: PR #168 landed both halves — the authenticated change *and* the forgot-password flow the plan deferred — while this was open, so this branch dropped its duplicate change-password and kept only the invite-overwrite fix |
+| 2.3 CSRF path normalization | Done, including the Express routing flags (applied before the router is built) |
+| 2.4 Backend length caps + body limit | Done. The class-validator DTO migration remains deferred |
+| 2.5 Session TTL, rotation and idle timeout | Done |
+| 2.6 Raw invite tokens | Done |
+| 3.1–3.2, 3.4–3.8 | Not started (wave 3) |
+
+Two deviations worth knowing about, both deliberate:
+
+- **1.2 fails closed on any non-2xx siteverify response, as specified.** That
+  includes a 5xx or 429 from Cloudflare, which therefore blocks logins for as
+  long as it lasts. The alternative — treating a degraded response as "allow"
+  — is the bypass this item exists to remove.
+- **`TRUST_PROXY_HOPS` has no production default and the process refuses to
+  start without it.** The plan says "set it to the exact hop count"; there is
+  no value that is safe to guess, since too low puts all traffic in one
+  rate-limit bucket and too high lets clients forge their own address. The
+  value is **2** for the deployed shape — one more than PR #168's docs said,
+  because the web layer now forwards the originating client address and the
+  hosting edge appends the Next server's to it. Worth confirming against a
+  real request rather than trusting either number.
 
 Derived from a defensive security review covering tenant isolation, authentication/authorization, session management, injection/input validation, secrets, and HTTP hardening.
 
