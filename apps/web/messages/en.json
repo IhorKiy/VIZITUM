@@ -241,7 +241,57 @@
     "errorInvalid": "Invalid email or password.",
     "errorCaptcha": "Captcha verification failed. Please try again.",
     "email": "Email",
-    "password": "Password"
+    "password": "Password",
+    "forgotPassword": "Forgot your password?",
+    "noticePasswordReset": "Your password has been changed. Sign in with the new one."
+  },
+  "passwordReset": {
+    "eyebrow": "Password recovery",
+    "backToSignIn": "Back to sign in",
+    "forgot": {
+      "title": "Reset your password",
+      "copy": "Enter the email you sign in with. If it belongs to an account in this workspace, we'll send a link for choosing a new password.",
+      "email": "Email",
+      "submit": "Send the link",
+      "submitting": "Sending the link...",
+      "errorNetwork": "Could not reach the API. Try again in a moment.",
+      "errorCaptcha": "Captcha verification failed. Please try again.",
+      "sentTitle": "Check your inbox",
+      "sentCopy": "If that address belongs to an account in this workspace, a link for choosing a new password is on its way. It stays valid for one hour.",
+      "sentHint": "Nothing arrived? Check the spam folder, or ask your administrator to confirm which address your account uses."
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "copy": "Set the password you'll use to sign in to this workspace from now on.",
+      "token": "Code from your reset link",
+      "tokenHint": "Copy the long code that follows token= in the email link. If you no longer have the link, request a new one.",
+      "password": "New password",
+      "passwordConfirm": "Confirm new password",
+      "passwordMismatch": "Passwords do not match.",
+      "submit": "Save the new password",
+      "submitting": "Saving your password...",
+      "errorInvalid": "This link is invalid or has expired. Request a new one.",
+      "errorNetwork": "Could not reach the API. Try again in a moment.",
+      "requestNew": "Request a new link",
+      "signedOutNotice": "Saving signs this account out everywhere else."
+    }
+  },
+  "account": {
+    "open": "Open account settings",
+    "eyebrow": "Your account",
+    "title": "Change password",
+    "copy": "Set a new password for this workspace. Every other device signed in as you will be signed out.",
+    "signedInAs": "Signed in as {email}",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "newPasswordConfirm": "Confirm new password",
+    "passwordMismatch": "Passwords do not match.",
+    "submit": "Change password",
+    "submitting": "Changing your password...",
+    "success": "Your password has been changed. Other devices have been signed out.",
+    "errorCurrent": "The current password is incorrect.",
+    "errorInvalid": "The password could not be changed. Check both fields and try again.",
+    "errorNetwork": "Could not reach the API. Try again in a moment."
   },
   "invites": {
     "eyebrow": "Team invite",
@@ -1128,6 +1178,8 @@
       "productsHint": "The product catalogue",
       "help": "Help",
       "helpHint": "Answers about notes, drafts and reports",
+      "account": "Account",
+      "accountHint": "Change your password",
       "signOut": "Sign out",
       "signingOut": "Signing out..."
     },

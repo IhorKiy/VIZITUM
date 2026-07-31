@@ -324,7 +324,7 @@ const AREA_ZONE = new Map<RoleArea, Zone>([
 // The field menu's own entries. Not nav items (see MENU_ONLY_AREA_ZONE) — this
 // is a plain link list, labelled in the UI via `field.menu.<key>`.
 export type FieldMenuLinkKey =
-  "announcements" | "routes" | "locations" | "products" | "help";
+  "announcements" | "routes" | "locations" | "products" | "help" | "account";
 
 export type FieldMenuLink = {
   key: FieldMenuLinkKey;
@@ -377,6 +377,17 @@ const FIELD_MENU_LINK_DEFS: {
   // useful exactly when the API — and with it the session's permission list —
   // is the thing that failed.
   { key: "help", path: "/field/help", icon: "help", requiredPermissions: [] },
+  // Also unpermissioned, for the opposite reason: everyone who can open this
+  // menu has an account, and changing your own password is not something a
+  // role grants. Note the path leaves the field zone — the account screen
+  // belongs to none, which is why it renders standalone rather than in the
+  // AppShell (see app/[tenantSlug]/account/page.tsx).
+  {
+    key: "account",
+    path: "/account",
+    icon: "settings",
+    requiredPermissions: [],
+  },
 ];
 
 // Argument order mirrors buildTenantNav's, and the permission filter works the
