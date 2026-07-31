@@ -112,7 +112,7 @@ export function LocationPotentialPanel({
                     <PendingSubmitButton
                       aria-label={t("remove")}
                       className="location-insight-action location-insight-action--danger"
-                      pendingLabel="…"
+                      pendingLabel={null}
                     >
                       <TrashIcon />
                     </PendingSubmitButton>

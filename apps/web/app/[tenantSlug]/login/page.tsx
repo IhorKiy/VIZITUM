@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { BrandMark } from "../../../components/brand-mark";
+import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import { TurnstileWidget } from "../../../components/turnstile-widget";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
 import { buildApiUrl, getCurrentSession } from "../../../lib/api-client";
@@ -152,9 +153,16 @@ export default async function LoginPage({
           {turnstileSiteKey ? (
             <TurnstileWidget language={locale} siteKey={turnstileSiteKey} />
           ) : null}
-          <button className="primary-button" type="submit">
+          {/* Signing in is the longest wait in the product: the login call,
+              then /auth/me, then the landing zone's own first render. The
+              button holds through all of it — on a phone in a shop the
+              alternative is a rep tapping a screen that looks unchanged. */}
+          <PendingSubmitButton
+            className="primary-button"
+            pendingLabel={tCommon("signingIn")}
+          >
             {tCommon("signIn")}
-          </button>
+          </PendingSubmitButton>
         </form>
       </section>
     </main>

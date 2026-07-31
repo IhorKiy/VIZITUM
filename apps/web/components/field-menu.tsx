@@ -13,6 +13,8 @@ import { logoutAction } from "../lib/session-actions";
 import { selectZoneAction } from "../lib/zone-actions";
 import { CloseIcon, LogOutIcon, MenuIcon } from "./icons";
 import { NavIcon } from "./nav-icon";
+import { PendingLabel } from "./pending-label";
+import { PendingSubmitButton } from "./pending-submit-button";
 
 type FieldMenuProps = {
   tenantSlug: string;
@@ -98,8 +100,12 @@ export function FieldMenu({
 
     await Promise.all([clearDrafts(), deleteRouteSnapshot(tenantSlug)]);
 
-    setClearingDrafts(false);
+    // Submit first, then drop the flag: releasing it beforehand leaves a frame
+    // where the clear is done but the form has not started, and the button
+    // flicks back to "Sign out" mid-sign-out. Ordered this way both updates
+    // land in the same batch and the spinner never breaks.
     logoutFormRef.current?.requestSubmit();
+    setClearingDrafts(false);
   }
 
   // This menu hangs off every field screen, so a link out of it has no single
@@ -231,9 +237,12 @@ export function FieldMenu({
               <form action={selectZoneAction} key={zone}>
                 <input name="tenantSlug" type="hidden" value={tenantSlug} />
                 <input name="zone" type="hidden" value={zone} />
-                <button className="field-menu-zone-button" type="submit">
+                <PendingSubmitButton
+                  className="field-menu-zone-button"
+                  pendingLabel={zoneNames[zone] ?? zone}
+                >
                   {zoneNames[zone] ?? zone}
-                </button>
+                </PendingSubmitButton>
               </form>
             ))}
           </div>
@@ -247,14 +256,27 @@ export function FieldMenu({
             ref={logoutFormRef}
           >
             <input name="tenantSlug" type="hidden" value={tenantSlug} />
-            <button
-              className="field-menu-logout-button"
+            {/* Clearing the drafts happens before the submit, so `pending` is
+                still false through it — the same spinner is shown by hand for
+                that stretch, or the first (and on a slow phone the longer)
+                half of signing out would look like nothing happened. */}
+            <PendingSubmitButton
+              aria-busy={clearingDrafts}
+              className={`field-menu-logout-button${
+                clearingDrafts ? " is-pending" : ""
+              }`}
               disabled={clearingDrafts}
-              type="submit"
+              pendingLabel={t("signingOut")}
             >
-              <LogOutIcon size={18} />
-              <span>{t("signOut")}</span>
-            </button>
+              {clearingDrafts ? (
+                <PendingLabel label={t("signingOut")} />
+              ) : (
+                <>
+                  <LogOutIcon size={18} />
+                  <span>{t("signOut")}</span>
+                </>
+              )}
+            </PendingSubmitButton>
           </form>
         ) : null}
       </dialog>

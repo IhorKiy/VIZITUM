@@ -141,7 +141,7 @@ export function LocationAssortmentPanel({
                       <PendingSubmitButton
                         aria-label={t("remove")}
                         className="location-insight-action location-insight-action--danger"
-                        pendingLabel="…"
+                        pendingLabel={null}
                       >
                         <TrashIcon />
                       </PendingSubmitButton>

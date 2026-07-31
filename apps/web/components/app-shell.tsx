@@ -11,6 +11,7 @@ import { resolveTenantBranding } from "../lib/tenant-branding";
 import { BrandMark } from "./brand-mark";
 import { FieldMenu } from "./field-menu";
 import { NavIcon } from "./nav-icon";
+import { PendingSubmitButton } from "./pending-submit-button";
 import {
   availableZones,
   buildFieldMenuLinks,
@@ -223,9 +224,12 @@ export async function AppShell({
                   <form action={selectZoneAction} key={zone}>
                     <input name="tenantSlug" type="hidden" value={tenantSlug} />
                     <input name="zone" type="hidden" value={zone} />
-                    <button className="zone-switcher-link" type="submit">
+                    <PendingSubmitButton
+                      className="zone-switcher-link"
+                      pendingLabel={tZoneNames(zone)}
+                    >
                       {tZoneNames(zone)}
-                    </button>
+                    </PendingSubmitButton>
                   </form>
                 ))}
               </div>
@@ -260,7 +264,13 @@ export async function AppShell({
               <form action={selectZoneAction} key={zone}>
                 <input name="tenantSlug" type="hidden" value={tenantSlug} />
                 <input name="zone" type="hidden" value={zone} />
-                <button className="zone-switcher-link" type="submit">
+                {/* Switching zones is a full navigation, so the spinner takes
+                    the arrow's place while it runs and the zone keeps its
+                    name — same shape, so nothing around it moves. */}
+                <PendingSubmitButton
+                  className="zone-switcher-link"
+                  pendingLabel={tZoneNames(zone)}
+                >
                   <span aria-hidden="true" className="zone-switcher-icon">
                     <svg
                       fill="none"
@@ -277,7 +287,7 @@ export async function AppShell({
                     </svg>
                   </span>
                   <span>{tZoneNames(zone)}</span>
-                </button>
+                </PendingSubmitButton>
               </form>
             ))}
           </div>

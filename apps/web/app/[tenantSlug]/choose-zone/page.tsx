@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
+import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import { getCurrentSession } from "../../../lib/api-client";
 import { resolveZoneLanding, zoneHomePath } from "../../../lib/navigation";
 import { resolveTenantBranding } from "../../../lib/tenant-branding";
@@ -70,9 +71,16 @@ export default async function ChooseZonePage({ params }: ChooseZonePageProps) {
             <form action={selectZoneAction} key={zone}>
               <input name="tenantSlug" type="hidden" value={tenantSlug} />
               <input name="zone" type="hidden" value={zone} />
-              <button className="zone-choice-link" type="submit">
+              {/* The chosen zone keeps its name while it loads — this is the
+                  screen right after signing in, and a row that swapped its
+                  label for "Saving..." would leave the reader unsure which
+                  of the zones they actually picked. */}
+              <PendingSubmitButton
+                className="zone-choice-link"
+                pendingLabel={tZoneNames(zone)}
+              >
                 {tZoneNames(zone)}
-              </button>
+              </PendingSubmitButton>
             </form>
           ))}
         </div>

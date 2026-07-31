@@ -83,7 +83,7 @@ export function LocationContactsPanel({
                   <PendingSubmitButton
                     aria-label={t("removeContactAria", { name: row.name })}
                     className="location-insight-action location-insight-action--danger"
-                    pendingLabel="…"
+                    pendingLabel={null}
                   >
                     <TrashIcon />
                   </PendingSubmitButton>

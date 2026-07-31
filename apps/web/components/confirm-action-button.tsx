@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { ReactNode, RefObject } from "react";
 
+import { PendingLabel } from "./pending-label";
+
 type ConfirmActionButtonProps = {
   fieldName: string;
   id: string;
@@ -87,13 +89,14 @@ export function ConfirmActionButton({
       </span>
       <div className="confirm-action-buttons">
         <button
-          className="secondary-button danger"
+          aria-busy={pending}
+          className={`secondary-button danger${pending ? " is-pending" : ""}`}
           disabled={pending}
           onClick={run}
           ref={confirmRef}
           type="button"
         >
-          {pending ? pendingLabel : confirmLabel}
+          {pending ? <PendingLabel label={pendingLabel} /> : confirmLabel}
         </button>
         <button
           className="secondary-button"
