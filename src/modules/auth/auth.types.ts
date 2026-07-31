@@ -26,6 +26,23 @@ export type AcceptInviteRequestBody = {
   phone?: unknown;
 };
 
+export type ForgotPasswordRequestBody = {
+  email?: unknown;
+  tenantSlug?: unknown;
+  captchaToken?: unknown;
+};
+
+export type ResetPasswordRequestBody = {
+  token?: unknown;
+  tenantSlug?: unknown;
+  password?: unknown;
+};
+
+export type ChangePasswordRequestBody = {
+  currentPassword?: unknown;
+  newPassword?: unknown;
+};
+
 export type AuthUserResponse = {
   id: string;
   email: string;

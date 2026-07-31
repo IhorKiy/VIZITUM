@@ -192,6 +192,9 @@ describe("navigation zones", () => {
         "/acme/field/locations",
         "/acme/field/products",
         "/acme/field/help",
+        // Account settings belong to no zone, so this is the one menu entry
+        // whose path leaves /field — see app/[tenantSlug]/account/page.tsx.
+        "/acme/account",
       ],
     );
     assert.deepEqual(
@@ -203,6 +206,7 @@ describe("navigation zones", () => {
         "/acme/field/routes",
         "/acme/field/locations",
         "/acme/field/help",
+        "/acme/account",
       ],
     );
   });
@@ -217,7 +221,7 @@ describe("navigation zones", () => {
       buildFieldMenuLinks("acme", ["announcements.read"]).map(
         (link) => link.key,
       ),
-      ["announcements", "help"],
+      ["announcements", "help", "account"],
     );
     assert.deepEqual(availableZones(["announcements.read"]), []);
   });
@@ -236,13 +240,13 @@ describe("navigation zones", () => {
     );
     assert.deepEqual(
       buildFieldMenuLinks("acme", ["routes.read"]).map((link) => link.key),
-      ["routes", "help"],
+      ["routes", "help", "account"],
     );
     assert.deepEqual(availableZones(["routes.read"]), ["field"]);
     // ...and a rep without it is offered neither the screen nor a dead entry.
     assert.deepEqual(
       buildFieldMenuLinks("acme", ["visits.read_own"]).map((link) => link.key),
-      ["help"],
+      ["help", "account"],
     );
   });
 
@@ -251,19 +255,22 @@ describe("navigation zones", () => {
     // without this filter the menu would advertise a "you need access" page.
     assert.deepEqual(
       buildFieldMenuLinks("acme", ["visits.read_own"]).map((link) => link.key),
-      ["help"],
+      ["help", "account"],
     );
     assert.deepEqual(
       buildFieldMenuLinks("acme", ["visits.read_own", "products.read"]).map(
         (link) => link.key,
       ),
-      ["products", "help"],
+      ["products", "help", "account"],
     );
-    // Help carries no permission of its own: the answers are reference text,
-    // and they matter most when the API is the thing that failed.
+    // Help and account are the two entries with no permission of their own, for
+    // opposite reasons: help is reference text that matters most when the API
+    // (and with it the permission list) is what failed, while everyone who can
+    // open this menu has an account — changing your own password is not
+    // something a role grants.
     assert.deepEqual(
       buildFieldMenuLinks("acme", []).map((link) => link.key),
-      ["help"],
+      ["help", "account"],
     );
   });
 

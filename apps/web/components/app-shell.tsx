@@ -43,6 +43,7 @@ export async function AppShell({
     branding,
     tNav,
     tCommon,
+    tAccount,
     tZoneNames,
     tZoneSwitcher,
     fieldTasksInProgressResult,
@@ -52,6 +53,7 @@ export async function AppShell({
     resolveTenantBranding(tenantSlug),
     getTranslations("common.nav"),
     getTranslations("common"),
+    getTranslations("account"),
     getTranslations("common.zone.names"),
     getTranslations("common.zone.switcher"),
     // Feeds the "Tasks" nav badge below. Fetched here (rather than per-page)
@@ -248,10 +250,18 @@ export async function AppShell({
         </div>
 
         {currentUser ? (
-          <div className="current-user">
+          // The identity block doubles as the way into account settings, which
+          // is where every desktop zone reaches the password change — the field
+          // zone has no sidebar and uses its menu entry instead.
+          <Link
+            aria-label={tAccount("open")}
+            className="current-user"
+            href={`/${tenantSlug}/account`}
+            title={tAccount("open")}
+          >
             <p className="current-user-name">{currentUser.name}</p>
             <p className="current-user-email">{currentUser.email}</p>
-          </div>
+          </Link>
         ) : null}
 
         {otherZones.length > 0 ? (

@@ -363,6 +363,7 @@ model User {
   createdInvites             Invite[]                  @relation("CreatedInvites")
   acceptedInvites            Invite[]                  @relation("AcceptedInvites")
   sessions                   Session[]
+  passwordResetTokens        PasswordResetToken[]
   updatedSettings            TenantSetting[]           @relation("UpdatedTenantSettings")
   createdLocationAssignments LocationAssignment[]      @relation("CreatedLocationAssignments")
   assignedLocations          LocationAssignment[]      @relation("RepresentativeLocationAssignments")
@@ -448,6 +449,32 @@ model Session {
   @@index([tenantId, userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+// One-time password reset tokens. Only the hash is stored, the same way
+// invites and sessions do it: the plaintext token exists in the emailed link
+// and nowhere else, so a database read can't be turned into a reset.
+//
+// Rows are never updated in place for reuse — a token is spent by setting
+// `usedAt`, and a fresh request issues a new row after pruning this user's
+// spent/expired ones (password-reset.service.ts), which is what keeps the
+// table from growing without a cleanup worker.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Backs both the "how many did this account request lately" throttle and the
+  // prune, which query on the same pair.
+  @@index([tenantId, userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model TenantSetting {

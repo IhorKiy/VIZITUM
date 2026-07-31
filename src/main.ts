@@ -3,19 +3,31 @@ import "dotenv/config";
 import "./types/express";
 
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 
 import { AppModule } from "./app.module";
 import { applyAccessLog } from "./common/access-log.middleware";
 import { ApiErrorFilter } from "./common/api-error.filter";
 import { JsonLogger } from "./common/json-logger.service";
 import { applyRequestId } from "./common/request-id.middleware";
+import { resolveTrustProxyHops } from "./common/trust-proxy";
 import { applyCsrfProtection } from "./modules/auth/csrf";
 
 async function bootstrap() {
   const logger = new JsonLogger();
-  const app = await NestFactory.create(AppModule, { logger });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger,
+  });
   const port = Number(process.env.PORT ?? 4000);
   const host = process.env.HOST ?? "0.0.0.0";
+  const trustProxyHops = resolveTrustProxyHops();
+
+  // Must be set before anything reads `request.ip` — the rate limiter on
+  // password reset and the `ipHash` written on every session both do. See
+  // common/trust-proxy.ts for why this is a hop count and not `true`.
+  if (trustProxyHops > 0) {
+    app.set("trust proxy", trustProxyHops);
+  }
 
   app.use(applyRequestId);
   app.use(applyAccessLog);

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
 
@@ -13,7 +14,7 @@ import { INPUT_LIMITS } from "../../../lib/input-limits";
 
 type LoginPageProps = {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; notice?: string }>;
 };
 
 export default async function LoginPage({
@@ -21,7 +22,7 @@ export default async function LoginPage({
   searchParams,
 }: LoginPageProps) {
   const { tenantSlug } = await params;
-  const { error } = await searchParams;
+  const { error, notice } = await searchParams;
   const [t, tCommon, locale, branding] = await Promise.all([
     getTranslations("auth"),
     getTranslations("common"),
@@ -119,6 +120,16 @@ export default async function LoginPage({
           <p className="login-copy">{t("copy")}</p>
         </div>
 
+        {/* The reset flow deliberately issues no session, so this line is the
+            only thing telling someone who just chose a new password that it
+            took — otherwise the reset lands them back on a bare login screen
+            indistinguishable from a failed one. */}
+        {notice === "passwordReset" && !error ? (
+          <div className="form-success" role="status">
+            {t("noticePasswordReset")}
+          </div>
+        ) : null}
+
         {error ? (
           <div className="form-error" role="alert">
             {error === "network"
@@ -164,6 +175,10 @@ export default async function LoginPage({
             {tCommon("signIn")}
           </PendingSubmitButton>
         </form>
+
+        <Link className="auth-link" href={`/${tenantSlug}/password/forgot`}>
+          {t("forgotPassword")}
+        </Link>
       </section>
     </main>
   );

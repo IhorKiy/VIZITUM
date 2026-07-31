@@ -19,7 +19,7 @@ import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
 import { hashValue } from "./auth-crypto";
 import { PasswordService } from "./password.service";
-import { CSRF_COOKIE_NAME } from "./auth.constants";
+import { CSRF_COOKIE_NAME, MIN_PASSWORD_LENGTH } from "./auth.constants";
 import { createCsrfToken, writeCsrfCookie } from "./csrf";
 import { readSessionToken, writeSessionCookie } from "./session-cookie";
 import { SessionService } from "./session.service";
@@ -697,7 +697,7 @@ function normalizeToken(value: unknown): string | null {
 }
 
 function normalizeNewPassword(value: unknown): string | null {
-  if (typeof value !== "string" || value.length < 8) {
+  if (typeof value !== "string" || value.length < MIN_PASSWORD_LENGTH) {
     return null;
   }
 
