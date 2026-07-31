@@ -9,10 +9,18 @@ import { useEffect, useRef } from "react";
 const SCRIPT_SRC =
   "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
+// The narrowest width Turnstile will render a widget at.
+const MIN_WIDTH = 300;
+
 type TurnstileApi = {
   render: (
     container: HTMLElement,
-    options: { sitekey: string; language?: string; theme?: "light" | "dark" },
+    options: {
+      sitekey: string;
+      language?: string;
+      theme?: "light" | "dark";
+      size?: "normal" | "flexible";
+    },
   ) => string | undefined;
   remove: (widgetId: string) => void;
 };
@@ -34,7 +42,43 @@ type TurnstileWidgetProps = {
 // element: Turnstile injects a hidden `cf-turnstile-response` input next to
 // the widget, which the server action forwards to the API as `captchaToken`.
 export function TurnstileWidget({ siteKey, language }: TurnstileWidgetProps) {
+  const fieldRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // "flexible" fills the field on a laptop, but Turnstile refuses to render
+  // below MIN_WIDTH, and the login panel is narrower than that on a phone —
+  // where the widget would otherwise be clipped, taking Cloudflare's logo and
+  // privacy links with it. So below that width the widget is rendered at its
+  // minimum and scaled down to whatever the field actually offers. `zoom`
+  // rather than `transform` because it scales the layout box too, so the
+  // field's height follows on its own.
+  useEffect(() => {
+    const field = fieldRef.current;
+    const container = containerRef.current;
+
+    if (!field || !container) {
+      return;
+    }
+
+    const fitToField = () => {
+      const available = field.getBoundingClientRect().width;
+
+      if (available > 0 && available < MIN_WIDTH) {
+        container.style.width = `${MIN_WIDTH}px`;
+        container.style.zoom = String(available / MIN_WIDTH);
+      } else {
+        container.style.width = "";
+        container.style.zoom = "";
+      }
+    };
+
+    fitToField();
+
+    const observer = new ResizeObserver(fitToField);
+    observer.observe(field);
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let widgetId: string | undefined;
@@ -54,6 +98,11 @@ export function TurnstileWidget({ siteKey, language }: TurnstileWidgetProps) {
         // the app has no dark theme — a dark widget on the light login panel
         // reads as a foreign element.
         theme: "light",
+        // Cloudflare draws the widget's own frame and does not expose it to
+        // page CSS, so matching the inputs means matching what it does
+        // expose: "flexible" fills the form width the way they do, instead
+        // of leaving a 300px box short of the field above it.
+        size: "flexible",
       });
     }
 
@@ -89,5 +138,9 @@ export function TurnstileWidget({ siteKey, language }: TurnstileWidgetProps) {
     };
   }, [siteKey, language]);
 
-  return <div ref={containerRef} />;
+  return (
+    <div className="turnstile-field" ref={fieldRef}>
+      <div ref={containerRef} />
+    </div>
+  );
 }
