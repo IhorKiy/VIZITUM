@@ -19,13 +19,14 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 - **Files:** `src/main.ts`, `src/modules/auth/*`, `src/modules/platform/platform-auth.service.ts`, `package.json`.
 - **Change:**
   - Add `@nestjs/throttler`. Register a global throttler guard with a permissive default, then tight per-route limits on the login and invite-accept routes (per-IP **and** per-account/email).
-  - Add short-lived progressive backoff / temporary lockout after N consecutive failures per account.
+  - **Per-account must be progressive backoff (seconds→minutes), NOT a hard lockout.** A hard per-email lockout is itself a DoS vector — an attacker can deliberately lock a victim (including the platform owner) out by burning failed attempts against their email. Keep the per-IP limit hard; make the per-account control a growing delay that never fully denies the legitimate user. The earlier "progressive backoff / lockout" wording conflated the two — the choice is explicitly backoff.
+  - **Counter storage:** `@nestjs/throttler` keeps counters in memory by default — they reset on every deploy and are not shared across instances. Acceptable while Render runs a single instance, but Redis is already in the stack, so wire `@nest-lab/throttler-storage-redis` (or equivalent) from the start rather than retrofitting it once a second instance appears.
   - Keep this independent of Turnstile — it is the always-on floor.
   - Requires `trust proxy` (item 3.3) for correct per-IP keying behind Render's proxy.
-- **Verify:** New test asserting the Nth+1 rapid login attempt is rejected with 429; manual check that a valid login still succeeds after the window resets.
+- **Verify:** New test asserting the Nth+1 rapid login attempt is rejected with 429; a test that repeated per-account failures add delay but never permanently deny; manual check that a valid login still succeeds after the window resets.
 
 ### 1.2 Turnstile: fail-closed on rejection, required in production
-- **Risk (HIGH):** Captcha is the only brute-force control today, and it (a) is a silent no-op when `TURNSTILE_SECRET_KEY` is unset, and (b) fails open on any non-2xx siteverify response — an attacker can induce this by loading siteverify (`src/modules/auth/turnstile.service.ts:36-77`).
+- **Risk (HIGH):** Captcha is the only brute-force control today, and it is a **silent no-op when `TURNSTILE_SECRET_KEY` is unset** — that misconfiguration is what carries the HIGH rating. Separately, it fails open on any non-2xx siteverify response (`src/modules/auth/turnstile.service.ts:36-77`). Note: the "attacker induces non-2xx by loading siteverify" framing is overstated — driving Cloudflare's global siteverify to failure is not a realistic vector. The fail-open path is worth fixing as hygiene, but the priority here is the no-op-without-secret case, not the induced-failure one.
 - **Files:** `src/modules/auth/turnstile.service.ts`, app bootstrap/config validation, `docs/reference/environment.md`.
 - **Change:**
   - Separate *transport failure* from *HTTP rejection*: treat a non-2xx siteverify response as a verification failure (fail closed). Only fail open on genuine network errors, and gate that behind a short circuit-breaker window plus a hard `fetch` timeout (`AbortSignal`).
@@ -58,6 +59,9 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 
 ### 2.2 Password change flow + invite cannot overwrite an active account
 - **Risk (MEDIUM):** No self-service change/reset password exists. `acceptInvite`'s upsert overwrites `passwordHash` and reactivates soft-deleted users — any still-pending invite (7-day TTL) is a working password-overwrite for that email (`src/modules/auth/auth.service.ts:255-279`).
+- **Scope note — two distinct flows, only one is in this item:**
+  - **(a) Authenticated change-password** — in scope here. Straightforward: verify current password, revoke other sessions.
+  - **(b) Unauthenticated forgot/reset-via-email** — a *separate, security-sensitive* flow (reset-token issuance, single-use + short TTL, email-delivery dependency, its own enumeration/rate-limit surface). It is **not** covered by (a) and is **deliberately deferred to its own track** — do not fold it into this PR. Called out explicitly so "no self-service reset" isn't silently left half-addressed.
 - **Files:** `src/modules/auth/auth.service.ts`, `auth.controller.ts`, `src/modules/users/users.service.ts`, `apps/web` account UI.
 - **Change:**
   - Add an authenticated change-password endpoint (verify current password, revoke all *other* sessions on success).
@@ -70,18 +74,19 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 - **Files:** `src/modules/auth/csrf.ts`, `src/main.ts`.
 - **Change:**
   - Normalize the path once (lowercase, strip query/trailing slash) and share it between `isCsrfExemptRoute` and `resolveCsrfSession`.
-  - Set `app.set('case sensitive routing', true)` and `strict routing`.
+  - Set `app.set('case sensitive routing', true)` and `strict routing` — **but these must be applied before routes are registered**, i.e. on the underlying Express instance right after `NestFactory.create<NestExpressApplication>(...)` (via `app.set(...)` on the `NestExpressApplication`), not late in bootstrap. Set after route registration, they silently do nothing. The path-normalization fix above is the actual security control; treat the Express flags as defense-in-depth and verify they took effect.
   - Optionally add an `Origin`/`Sec-Fetch-Site` check as a second layer.
 - **Verify:** Test that `/api/Platform/...` (mixed case) with a platform session now requires a CSRF token.
 
-### 2.4 Global input validation + backend length caps
-- **Risk (MEDIUM/LOW):** No global `ValidationPipe`, no class-validator. Mass-assignment safety rests on service discipline (`data: { tenantId, ...parsed }`, never `...body`). Most free-text fields have no backend length cap (all columns are unbounded `text`; only client-side `INPUT_LIMITS` guards them).
-- **Files:** `src/main.ts`, DTOs across `src/modules/*`, the shared `normalize*` helpers, `prisma/schema.prisma`, `package.json`.
-- **Change:**
-  - Add `app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))` with class-validator DTOs — defense-in-depth against future `...body` spreads.
-  - Enforce backend length caps in the `normalize*` helpers mirroring `apps/web/lib/input-limits.ts` (keep the two in sync).
-  - Set an explicit Express JSON body-size limit rather than relying on the ~100 kB default.
-- **Verify:** Test that an over-limit field and an unknown extra property are both rejected at the API.
+### 2.4 Backend length caps + explicit body limit (this PR) — global ValidationPipe/DTOs (separate track)
+- **Risk (MEDIUM/LOW):** Most free-text fields have no backend length cap (all columns are unbounded `text`; only client-side `INPUT_LIMITS` guards them, trivially bypassed by calling the API directly). Separately, there is no global `ValidationPipe`/class-validator — mass-assignment safety rests on service discipline (`data: { tenantId, ...parsed }`, never `...body`).
+- **Scope correction — do NOT ship a whitelist ValidationPipe in this item.** `new ValidationPipe({ whitelist: true })` strips every property not declared on a class-validator DTO. The codebase has **no DTOs** — `@Body()` handlers type against plain TypeScript interfaces. Enabling it globally would strip the *entire* request body on every DTO-less endpoint and break every controller at once. Making it safe means authoring class-validator DTOs for **all** modules simultaneously — that is the single largest item in this whole plan, larger than platform-MFA (1.3), and it is a refactor, not a security fix.
+- **This item (small, ship now):**
+  - Enforce backend length caps inside the existing `normalize*` helpers, mirroring `apps/web/lib/input-limits.ts` (keep the two in sync). The `normalize*` helpers already act as the anti-mass-assignment whitelist, so caps here close the real exposure (oversized rows / storage abuse) without any DTO work.
+  - Set an explicit Express JSON body-size limit rather than relying on the accidental ~100 kB default.
+- **Deferred to its own gradual track (or a conscious decision to skip):** the class-validator DTO migration + global `ValidationPipe({ whitelist, forbidNonWhitelisted, transform })`. If pursued, do it module-by-module (add DTO → enable the pipe scoped to that controller), never as one global flip. Record explicitly whether this is being scheduled or intentionally declined.
+- **Files:** the shared `normalize*` helpers, `src/main.ts` (body limit). (DTOs across `src/modules/*` + `package.json` only if/when the deferred track starts.)
+- **Verify:** Test that an over-limit field is rejected and an oversized body is refused by the API.
 
 ### 2.5 Session TTL, rotation & idle timeout
 - **Risk (MEDIUM):** 30-day absolute TTL, no rotation (not on login, not on privilege change), no idle timeout — including platform-owner sessions (`src/modules/auth/auth.constants.ts:4`). A stolen cookie is valid up to 30 days.
@@ -118,6 +123,7 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 ### 3.4 `__Host-` cookie prefix
 - **Risk (LOW):** Session/CSRF cookies lack the `__Host-` prefix → cookie-tossing from a sibling subdomain.
 - **Change:** Rename to `__Host-vizitum_session` / `__Host-vizitum_csrf` in production (requires `Secure`, `Path=/`, no `Domain` — all already true). Also drive the `secure` flag from an explicit `COOKIE_SECURE` env var rather than `NODE_ENV`.
+- **Do not break the worktree dev scheme:** `SESSION_COOKIE_NAME` is a **per-slot env var** so parallel dev sessions on different ports don't clobber each other's cookies on `localhost` (see CLAUDE.md → worktree slots). The `__Host-` prefix requires `Secure`, which localhost HTTP dev cannot set, and a fixed prefixed name would also re-collide the slots. So apply `__Host-` **only in production** and keep the per-slot `SESSION_COOKIE_NAME` override intact for dev/worktrees — production hard-codes the prefixed name, non-production keeps reading the env var.
 
 ### 3.5 Auth audit events
 - **Risk (LOW):** No audit record for login success/failure/logout on either domain, so the brute-force that 1.1 addresses can't be detected after the fact.
@@ -146,8 +152,12 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 4. **PR 4 — Password change + invite overwrite fix** (2.2, 2.6).
 5. **PR 5 — CSRF normalization** (2.3).
 6. **PR 6 — Platform-owner MFA** (1.3): own PR + short design note.
-7. **PR 7 — Global ValidationPipe + length caps** (2.4).
+7. **PR 7 — Backend length caps + body limit** (2.4, the small in-scope half only).
 8. **PR 8 — Session TTL/rotation** (2.5).
 9. **PR 9 — Low-priority hardening batch** (3.1–3.8, split as convenient).
+
+**Off this sequence (separate gradual tracks, scheduled or explicitly declined):**
+- Class-validator DTO migration + global `ValidationPipe` (deferred half of 2.4) — module-by-module, the largest single effort in the plan.
+- Unauthenticated forgot/reset-password-via-email flow (flow (b) of 2.2).
 
 Keep `docs/reference/environment.md`, `permissions.md`, and `api-reference.md` updated in the same PRs where env vars, permissions, or endpoints change.
