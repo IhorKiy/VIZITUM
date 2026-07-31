@@ -4201,6 +4201,11 @@ textarea {
 .turnstile-field {
   border: 1px solid var(--line);
   border-radius: 8px;
+  /* Cloudflare's script is third-party and may be slow or blocked outright.
+     Holding a field's worth of height keeps the frame from flashing as a
+     bordered sliver, and keeps the submit button from jumping when the widget
+     lands. */
+  min-height: 42px;
   overflow: hidden;
 }
 
@@ -4461,6 +4466,18 @@ textarea {
   .metric-value {
     font-size: 26px;
     margin-top: 4px;
+  }
+
+  /* Desktop padding costs a phone 98px of the panel's width — enough to push
+     the form below the 300px Cloudflare will render a captcha at, which would
+     leave the widget scaled down on every phone rather than none. Trimmed, the
+     form clears 300px at 360px and up, which is every common screen. */
+  .login-surface {
+    padding: 12px;
+  }
+
+  .login-panel {
+    padding: 16px;
   }
 }
 

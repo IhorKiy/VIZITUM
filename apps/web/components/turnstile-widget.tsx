@@ -45,13 +45,18 @@ export function TurnstileWidget({ siteKey, language }: TurnstileWidgetProps) {
   const fieldRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // "flexible" fills the field on a laptop, but Turnstile refuses to render
-  // below MIN_WIDTH, and the login panel is narrower than that on a phone —
-  // where the widget would otherwise be clipped, taking Cloudflare's logo and
-  // privacy links with it. So below that width the widget is rendered at its
-  // minimum and scaled down to whatever the field actually offers. `zoom`
-  // rather than `transform` because it scales the layout box too, so the
-  // field's height follows on its own.
+  // "flexible" fills the field at any width the panel actually offers, which
+  // on phones is every common screen. Below MIN_WIDTH Turnstile refuses to
+  // render narrower, and clipping it would cut off Cloudflare's logo and
+  // privacy links, so there the widget renders at its minimum and is scaled to
+  // the field. `zoom` rather than `transform` because it scales the layout box
+  // too, so the field's height follows on its own.
+  //
+  // Scaling is a last resort, not the phone path: it shrinks the widget's own
+  // hit target, and because the trigger is CSS pixels it would otherwise fire
+  // for a desktop reader at 400% browser zoom — shrinking the one element they
+  // had just enlarged. The narrow-screen padding in globals.css keeps the field
+  // above MIN_WIDTH on every common phone so this stays unused.
   useEffect(() => {
     const field = fieldRef.current;
     const container = containerRef.current;
@@ -61,7 +66,10 @@ export function TurnstileWidget({ siteKey, language }: TurnstileWidgetProps) {
     }
 
     const fitToField = () => {
-      const available = field.getBoundingClientRect().width;
+      // clientWidth, not getBoundingClientRect(): the container sits in the
+      // content box, and a border-box width would size it 2px wider than the
+      // space it has — straight into the clip.
+      const available = field.clientWidth;
 
       if (available > 0 && available < MIN_WIDTH) {
         container.style.width = `${MIN_WIDTH}px`;
