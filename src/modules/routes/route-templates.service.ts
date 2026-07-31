@@ -12,6 +12,7 @@ import {
   resolvePagination,
 } from "../../common/pagination";
 import { AuditService } from "../audit/audit.service";
+import { withinLimit } from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
@@ -764,7 +765,14 @@ function normalizeTemplateName(value: unknown): string | null {
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  // Over-length is rejected the same way a blank name is: the caller already
+  // turns a null here into a "name is required" field error, and the column
+  // is unbounded `text` with only the browser's maxLength in front of it.
+  if (!normalizedValue || !withinLimit(normalizedValue, "name")) {
+    return null;
+  }
+
+  return normalizedValue;
 }
 
 function normalizeDirection(value: unknown): "up" | "down" | null {

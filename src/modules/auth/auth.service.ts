@@ -7,6 +7,7 @@ import {
 import { Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 
+import { TEXT_LIMITS, withinLimit } from "../../common/input-limits";
 import { normalizeEmail } from "../../common/normalize";
 import {
   buildUserNameFields,
@@ -861,7 +862,15 @@ function normalizePassword(value: unknown): string | null {
     return null;
   }
 
-  return value || null;
+  // Argon2 hashes whatever it is given, so an unbounded password is an
+  // unbounded amount of hashing work per request — a cheap way to make the
+  // login endpoint expensive. Not trimmed: leading and trailing spaces are
+  // part of a password.
+  if (!value || value.length > TEXT_LIMITS.password) {
+    return null;
+  }
+
+  return value;
 }
 
 function normalizeTenantSlug(value: unknown): string | null {
@@ -871,7 +880,11 @@ function normalizeTenantSlug(value: unknown): string | null {
 
   const normalizedValue = value.trim().toLowerCase();
 
-  return normalizedValue || null;
+  if (!normalizedValue || !withinLimit(normalizedValue, "slug")) {
+    return null;
+  }
+
+  return normalizedValue;
 }
 
 function normalizeRoleCode(value: unknown) {
@@ -893,11 +906,21 @@ function normalizeToken(value: unknown): string | null {
 
   const token = value.trim();
 
-  return token || null;
+  // An invite token is a fixed-size base64url string; anything longer is not
+  // one, and hashing an unbounded value to look it up is wasted work.
+  if (!token || !withinLimit(token, "token")) {
+    return null;
+  }
+
+  return token;
 }
 
 function normalizeNewPassword(value: unknown): string | null {
-  if (typeof value !== "string" || value.length < 8) {
+  if (
+    typeof value !== "string" ||
+    value.length < 8 ||
+    value.length > TEXT_LIMITS.password
+  ) {
     return null;
   }
 

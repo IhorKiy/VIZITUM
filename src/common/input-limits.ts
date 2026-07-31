@@ -1,3 +1,5 @@
+import { BadRequestException } from "@nestjs/common";
+
 // Backend length caps for free-text input.
 //
 // The web app caps the same fields with `maxLength` from
@@ -38,10 +40,6 @@ export type TextLimitKey = keyof typeof TEXT_LIMITS;
 // (`POST /imports/jobs/validate`), which is why this is not smaller.
 export const JSON_BODY_LIMIT = "100kb";
 
-// Guard for a single free-text field. Returns null on anything longer than
-// the cap so callers reject rather than silently truncate: quietly storing
-// half of what someone typed is a data-loss bug wearing a security fix's
-// clothes.
 export function withinLimit(
   value: string,
   limit: TextLimitKey | number,
@@ -53,22 +51,31 @@ export function resolveLimit(limit: TextLimitKey | number): number {
   return typeof limit === "number" ? limit : TEXT_LIMITS[limit];
 }
 
-// Trim-then-cap for optional free text. `undefined` for absent/blank input,
-// `null` when the value exceeds its cap (the caller decides whether that is a
-// validation error or a reason to drop the field).
-export function normalizeBoundedText(
-  value: unknown,
+/**
+ * Rejects an over-long field rather than truncating it.
+ *
+ * Truncating would be the quieter option and the wrong one: quietly storing
+ * half of what someone typed is a data-loss bug wearing a security fix's
+ * clothes. The caller supplies the module's own error code so the response
+ * matches every other validation failure from that endpoint.
+ */
+export function assertTextWithinLimit(
+  value: string,
   limit: TextLimitKey | number,
-): string | null | undefined {
-  if (typeof value !== "string") {
-    return undefined;
+  field: string,
+  code: string,
+): string {
+  const maximum = resolveLimit(limit);
+
+  if (value.length <= maximum) {
+    return value;
   }
 
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return undefined;
-  }
-
-  return withinLimit(trimmed, limit) ? trimmed : null;
+  throw new BadRequestException({
+    code,
+    message: `${field} must be at most ${maximum} characters.`,
+    fieldErrors: {
+      [field]: [`Keep this to ${maximum} characters or fewer.`],
+    },
+  });
 }

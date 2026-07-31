@@ -17,6 +17,7 @@ import {
   resolvePagination,
 } from "../../common/pagination";
 import { AuditService } from "../audit/audit.service";
+import { assertTextWithinLimit } from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
@@ -552,6 +553,8 @@ function buildRoutePlanWhere(
   };
 }
 
+// The only free-text field on a route item is the skip reason; the cap keeps
+// the unbounded `text` column from taking a megabyte from a scripted caller.
 function normalizeOptionalString(value: unknown): string | null {
   if (value === undefined || value === null) {
     return null;
@@ -563,7 +566,16 @@ function normalizeOptionalString(value: unknown): string | null {
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(
+    normalizedValue,
+    "title",
+    "skipReason",
+    "ROUTE_ITEM_INVALID",
+  );
 }
 
 function normalizeRouteStatus(value: unknown): RouteStatus | null {

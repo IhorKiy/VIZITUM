@@ -1,3 +1,5 @@
+import { TEXT_LIMITS } from "./input-limits";
+
 export function normalizeEmail(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -5,7 +7,14 @@ export function normalizeEmail(value: unknown): string | null {
 
   const email = value.trim().toLowerCase();
 
-  return email || null;
+  // Over-length is treated as "not an email" rather than as its own error:
+  // every caller already rejects a null here, and nothing beyond the RFC 5321
+  // practical ceiling is a deliverable address anyway.
+  if (!email || email.length > TEXT_LIMITS.email) {
+    return null;
+  }
+
+  return email;
 }
 
 // Deliberately lenient shape check ("something@something.something", no

@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { Prisma, type ProductCategory } from "@prisma/client";
 
+import { withinLimit } from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
@@ -220,7 +221,13 @@ function normalizeCategoryName(value: unknown): string | null {
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  // Over-length joins blank in the "name is required" field error the caller
+  // already raises for a null — the column itself is unbounded `text`.
+  if (!normalizedValue || !withinLimit(normalizedValue, "name")) {
+    return null;
+  }
+
+  return normalizedValue;
 }
 
 function toProductCategoryResponse(

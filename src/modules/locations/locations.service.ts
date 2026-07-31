@@ -12,6 +12,10 @@ import {
   resolvePagination,
 } from "../../common/pagination";
 import { normalizePhoneInput } from "../../common/phone";
+import {
+  assertTextWithinLimit,
+  type TextLimitKey,
+} from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
@@ -749,9 +753,13 @@ function buildLocationWhere(
 function parseCreateLocationBody(
   body: CreateLocationRequestBody,
 ): LocationCreateData {
-  const name = normalizeRequiredString(body.name);
-  const addressLine = normalizeRequiredString(body.addressLine);
-  const city = normalizeRequiredString(body.city);
+  const name = normalizeRequiredString(body.name, "name", "name");
+  const addressLine = normalizeRequiredString(
+    body.addressLine,
+    "addressLine",
+    "addressLine",
+  );
+  const city = normalizeRequiredString(body.city, "city", "city");
 
   if (!name || !addressLine || !city) {
     throw new BadRequestException({
@@ -769,12 +777,16 @@ function parseCreateLocationBody(
     name,
     addressLine,
     city,
-    externalCode: normalizeOptionalString(body.externalCode),
+    externalCode: normalizeOptionalString(
+      body.externalCode,
+      "code",
+      "externalCode",
+    ),
     categoryId: normalizeId(body.categoryId),
     chainId: normalizeId(body.chainId),
     latitude: normalizeCoordinate(body.latitude),
     longitude: normalizeCoordinate(body.longitude),
-    notes: normalizeOptionalString(body.notes),
+    notes: normalizeOptionalString(body.notes, "notes", "notes"),
   };
 }
 
@@ -782,7 +794,7 @@ function parseCreateContactBody(
   body: CreateLocationContactRequestBody,
   phoneCountry: string | null,
 ): LocationContactData {
-  const name = normalizeRequiredString(body.name);
+  const name = normalizeRequiredString(body.name, "name", "name");
 
   if (!name) {
     throw new BadRequestException({
@@ -796,10 +808,10 @@ function parseCreateContactBody(
 
   return {
     name,
-    roleTitle: normalizeOptionalString(body.roleTitle),
+    roleTitle: normalizeOptionalString(body.roleTitle, "title", "roleTitle"),
     phone: normalizeContactPhone(body.phone, phoneCountry),
-    email: normalizeOptionalString(body.email),
-    notes: normalizeOptionalString(body.notes),
+    email: normalizeOptionalString(body.email, "email", "email"),
+    notes: normalizeOptionalString(body.notes, "notes", "notes"),
   };
 }
 
@@ -833,10 +845,16 @@ function parseUpdateContactBody(
 ): LocationContactUpdateData {
   return {
     ...(body.name !== undefined
-      ? { name: normalizeRequiredPatchString(body.name, "name") }
+      ? { name: normalizeRequiredPatchString(body.name, "name", "name") }
       : {}),
     ...(body.roleTitle !== undefined
-      ? { roleTitle: normalizeOptionalString(body.roleTitle) }
+      ? {
+          roleTitle: normalizeOptionalString(
+            body.roleTitle,
+            "title",
+            "roleTitle",
+          ),
+        }
       : {}),
     // An unchanged phone is passed through without validation so a record
     // whose legacy phone predates normalization stays editable; validation
@@ -845,10 +863,10 @@ function parseUpdateContactBody(
       ? { phone: normalizeContactPhone(body.phone, phoneCountry) }
       : {}),
     ...(body.email !== undefined
-      ? { email: normalizeOptionalString(body.email) }
+      ? { email: normalizeOptionalString(body.email, "email", "email") }
       : {}),
     ...(body.notes !== undefined
-      ? { notes: normalizeOptionalString(body.notes) }
+      ? { notes: normalizeOptionalString(body.notes, "notes", "notes") }
       : {}),
   };
 }
@@ -860,21 +878,28 @@ function parseUpdateLocationBody(
 
   return {
     ...(body.name !== undefined
-      ? { name: normalizeRequiredPatchString(body.name, "name") }
+      ? { name: normalizeRequiredPatchString(body.name, "name", "name") }
       : {}),
     ...(body.addressLine !== undefined
       ? {
           addressLine: normalizeRequiredPatchString(
             body.addressLine,
             "addressLine",
+            "addressLine",
           ),
         }
       : {}),
     ...(body.city !== undefined
-      ? { city: normalizeRequiredPatchString(body.city, "city") }
+      ? { city: normalizeRequiredPatchString(body.city, "city", "city") }
       : {}),
     ...(body.externalCode !== undefined
-      ? { externalCode: normalizeOptionalString(body.externalCode) }
+      ? {
+          externalCode: normalizeOptionalString(
+            body.externalCode,
+            "code",
+            "externalCode",
+          ),
+        }
       : {}),
     ...(body.categoryId !== undefined
       ? { categoryId: normalizeId(body.categoryId) }
@@ -889,24 +914,45 @@ function parseUpdateLocationBody(
       ? { longitude: normalizeCoordinate(body.longitude) }
       : {}),
     ...(body.notes !== undefined
-      ? { notes: normalizeOptionalString(body.notes) }
+      ? { notes: normalizeOptionalString(body.notes, "notes", "notes") }
       : {}),
     ...(status ? { status } : {}),
   };
 }
 
-function normalizeRequiredString(value: unknown): string | null {
+// Every free-text normalizer takes the cap its column should honour. The
+// columns are unbounded `text`, and the web app's own maxLength is a courtesy
+// to the person typing, not a control — the endpoint is reachable with curl.
+// The keys mirror apps/web/lib/input-limits.ts; keep the two in sync.
+function normalizeRequiredString(
+  value: unknown,
+  limit: TextLimitKey,
+  field: string,
+): string | null {
   if (typeof value !== "string") {
     return null;
   }
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(
+    normalizedValue,
+    limit,
+    field,
+    "LOCATION_INVALID",
+  );
 }
 
-function normalizeRequiredPatchString(value: unknown, field: string): string {
-  const normalizedValue = normalizeRequiredString(value);
+function normalizeRequiredPatchString(
+  value: unknown,
+  field: string,
+  limit: TextLimitKey,
+): string {
+  const normalizedValue = normalizeRequiredString(value, limit, field);
 
   if (!normalizedValue) {
     throw new BadRequestException({
@@ -921,7 +967,11 @@ function normalizeRequiredPatchString(value: unknown, field: string): string {
   return normalizedValue;
 }
 
-function normalizeOptionalString(value: unknown): string | null {
+function normalizeOptionalString(
+  value: unknown,
+  limit: TextLimitKey,
+  field: string,
+): string | null {
   if (value === undefined || value === null) {
     return null;
   }
@@ -932,7 +982,16 @@ function normalizeOptionalString(value: unknown): string | null {
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(
+    normalizedValue,
+    limit,
+    field,
+    "LOCATION_INVALID",
+  );
 }
 
 // Stricter than normalizeOptionalString for the dedicated notes endpoint:
@@ -950,7 +1009,18 @@ function normalizeNotesInput(value: unknown): string | null {
     });
   }
 
-  return value.trim() || null;
+  const normalizedValue = value.trim();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(
+    normalizedValue,
+    "notes",
+    "notes",
+    "LOCATION_NOTES_INVALID",
+  );
 }
 
 function normalizeId(value: unknown): string | null {

@@ -13,6 +13,10 @@ import {
   createPaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
+import {
+  assertTextWithinLimit,
+  type TextLimitKey,
+} from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import { StorageService } from "../storage/storage.service";
@@ -372,7 +376,11 @@ export class VisitsService {
     const representativeUserId =
       normalizeId(body.representativeUserId) ?? context.userId;
     const routeItemId = normalizeOptionalId(body.routeItemId);
-    const visitType = normalizeRequiredString(body.visitType);
+    const visitType = normalizeRequiredString(
+      body.visitType,
+      "code",
+      "visitType",
+    );
 
     if (!locationId || !representativeUserId || !visitType) {
       throw new BadRequestException({
@@ -710,7 +718,11 @@ export class VisitsService {
 
     this.assertCanUpdateVisit(context, visit.representativeUserId);
 
-    const textContent = normalizeRequiredString(body.textContent);
+    const textContent = normalizeRequiredString(
+      body.textContent,
+      "notes",
+      "textContent",
+    );
 
     if (!textContent) {
       throw new BadRequestException({
@@ -755,7 +767,7 @@ export class VisitsService {
     const fileName = normalizeUploadFileName(body.fileName);
     const contentType = normalizeAudioContentType(body.contentType, fileName);
     const sizeBytes = normalizeAudioSizeBytes(body.sizeBytes);
-    const checksum = normalizeOptionalString(body.checksum);
+    const checksum = normalizeOptionalString(body.checksum, "code", "checksum");
 
     if (!fileName || !contentType) {
       throw new BadRequestException({
@@ -976,7 +988,8 @@ export class VisitsService {
     const confirmedByUserId = context.userId;
     const confirmedData = normalizeJsonObject(body.confirmedData);
     const schemaVersion =
-      normalizeRequiredString(body.schemaVersion) ?? "manual.v1";
+      normalizeRequiredString(body.schemaVersion, "code", "schemaVersion") ??
+      "manual.v1";
 
     if (!confirmedData) {
       throw new BadRequestException({
@@ -1691,14 +1704,26 @@ function assertReplayBelongsToVisit(
   });
 }
 
-function normalizeRequiredString(value: unknown): string | null {
+// Every free-text normalizer takes the cap its column should honour. The
+// columns are unbounded `text`, and the web app's own maxLength is a courtesy
+// to the person typing, not a control — the endpoint is reachable with curl.
+// The keys mirror apps/web/lib/input-limits.ts; keep the two in sync.
+function normalizeRequiredString(
+  value: unknown,
+  limit: TextLimitKey | number,
+  field: string,
+): string | null {
   if (typeof value !== "string") {
     return null;
   }
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(normalizedValue, limit, field, "VISIT_INVALID");
 }
 
 // The visit date in a `field-report.v1` confirmation is client-supplied and
@@ -1759,7 +1784,11 @@ function normalizeJsonObject(value: unknown): Prisma.InputJsonObject | null {
   return value;
 }
 
-function normalizeOptionalString(value: unknown): string | null {
+function normalizeOptionalString(
+  value: unknown,
+  limit: TextLimitKey | number,
+  field: string,
+): string | null {
   if (value === undefined || value === null || value === "") {
     return null;
   }
@@ -1770,11 +1799,15 @@ function normalizeOptionalString(value: unknown): string | null {
 
   const normalizedValue = value.trim();
 
-  return normalizedValue || null;
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(normalizedValue, limit, field, "VISIT_INVALID");
 }
 
 function normalizeUploadFileName(value: unknown): string | null {
-  const normalizedValue = normalizeRequiredString(value);
+  const normalizedValue = normalizeRequiredString(value, 1_024, "fileName");
 
   if (!normalizedValue) {
     return null;
@@ -1794,7 +1827,11 @@ function normalizeAudioContentType(
   value: unknown,
   fileName?: string | null,
 ): string | null {
-  const normalizedValue = normalizeRequiredString(value)?.toLowerCase();
+  const normalizedValue = normalizeRequiredString(
+    value,
+    "code",
+    "contentType",
+  )?.toLowerCase();
   const aliasedValue = normalizedValue
     ? (AUDIO_CONTENT_TYPE_ALIASES.get(normalizedValue) ?? normalizedValue)
     : null;
@@ -1863,7 +1900,11 @@ function normalizePhotoContentType(
   value: unknown,
   fileName?: string | null,
 ): string | null {
-  const normalizedValue = normalizeRequiredString(value)?.toLowerCase();
+  const normalizedValue = normalizeRequiredString(
+    value,
+    "code",
+    "contentType",
+  )?.toLowerCase();
   const aliasedValue = normalizedValue
     ? (PHOTO_CONTENT_TYPE_ALIASES.get(normalizedValue) ?? normalizedValue)
     : null;

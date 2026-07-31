@@ -66,7 +66,7 @@ export class ApiErrorFilter implements ExceptionFilter {
       return exception.getStatus();
     }
 
-    return HttpStatus.INTERNAL_SERVER_ERROR;
+    return readHttpErrorStatus(exception) ?? HttpStatus.INTERNAL_SERVER_ERROR;
   }
 
   private toErrorResponse(
@@ -74,6 +74,19 @@ export class ApiErrorFilter implements ExceptionFilter {
     requestId: string,
   ): ApiErrorResponse {
     if (!(exception instanceof HttpException)) {
+      const httpErrorStatus = readHttpErrorStatus(exception);
+
+      if (httpErrorStatus) {
+        return {
+          code: HttpStatus[httpErrorStatus] ?? "HTTP_ERROR",
+          message:
+            httpErrorStatus === Number(HttpStatus.PAYLOAD_TOO_LARGE)
+              ? "Request body is too large."
+              : "Request could not be processed.",
+          requestId,
+        };
+      }
+
       return {
         code: "INTERNAL_SERVER_ERROR",
         message: "Internal server error.",
@@ -129,6 +142,35 @@ export class ApiErrorFilter implements ExceptionFilter {
 
     return exception.message || "Request failed.";
   }
+}
+
+/**
+ * Status carried by an `http-errors` object rather than a Nest exception.
+ *
+ * body-parser throws these — a request over the explicit JSON body limit
+ * arrives as a PayloadTooLargeError with `status: 413`, not as an
+ * HttpException. Without this it fell through to 500, which both misreports
+ * an ordinary client mistake as a server fault and sends every oversized
+ * request to Sentry.
+ *
+ * Only 4xx is honoured. A 5xx from a library is a server fault and should
+ * keep the generic 500 treatment, Sentry capture included.
+ */
+function readHttpErrorStatus(exception: unknown): number | null {
+  if (!exception || typeof exception !== "object") {
+    return null;
+  }
+
+  const candidate = (exception as { status?: unknown; statusCode?: unknown })
+    .status;
+  const fallback = (exception as { statusCode?: unknown }).statusCode;
+  const status = typeof candidate === "number" ? candidate : fallback;
+
+  if (typeof status !== "number" || status < 400 || status >= 500) {
+    return null;
+  }
+
+  return status;
 }
 
 function isFieldErrors(value: unknown): value is ApiFieldErrors {

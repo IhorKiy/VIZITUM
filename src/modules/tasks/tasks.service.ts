@@ -11,6 +11,10 @@ import {
   resolvePagination,
 } from "../../common/pagination";
 import { AuditService } from "../audit/audit.service";
+import {
+  assertTextWithinLimit,
+  type TextLimitKey,
+} from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
@@ -651,7 +655,7 @@ export function buildCompletedFilter(
 }
 
 function parseCreateTaskBody(body: CreateTaskRequestBody): TaskCreateData {
-  const title = normalizeRequiredString(body.title);
+  const title = normalizeRequiredString(body.title, "title", "title");
 
   if (!title) {
     throw new BadRequestException({
@@ -663,7 +667,11 @@ function parseCreateTaskBody(body: CreateTaskRequestBody): TaskCreateData {
 
   return {
     title,
-    description: normalizeOptionalString(body.description),
+    description: normalizeOptionalString(
+      body.description,
+      "notes",
+      "description",
+    ),
     isPriority: normalizeIsPriority(body.isPriority),
     assignedToUserId: normalizeOptionalId(body.assignedToUserId),
     locationId: normalizeOptionalId(body.locationId),
@@ -676,10 +684,16 @@ function parseCreateTaskBody(body: CreateTaskRequestBody): TaskCreateData {
 function parseUpdateTaskBody(body: UpdateTaskRequestBody): TaskUpdateData {
   return {
     ...(body.title !== undefined
-      ? { title: normalizeRequiredPatchString(body.title, "title") }
+      ? { title: normalizeRequiredPatchString(body.title, "title", "title") }
       : {}),
     ...(body.description !== undefined
-      ? { description: normalizeOptionalString(body.description) }
+      ? {
+          description: normalizeOptionalString(
+            body.description,
+            "notes",
+            "description",
+          ),
+        }
       : {}),
     ...(body.isPriority !== undefined
       ? { isPriority: normalizeIsPriority(body.isPriority) }
@@ -719,14 +733,34 @@ function normalizeOptionalId(value: unknown): string | null {
   return normalizeId(value);
 }
 
-function normalizeRequiredString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
+// Every free-text normalizer takes the cap its column should honour. The
+// columns are unbounded `text`, and the web app's own maxLength is a courtesy
+// to the person typing, not a control — the endpoint is reachable with curl.
+// The keys mirror apps/web/lib/input-limits.ts; keep the two in sync.
+function normalizeRequiredString(
+  value: unknown,
+  limit: TextLimitKey,
+  field: string,
+): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
   const normalizedValue = value.trim();
-  return normalizedValue || null;
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(normalizedValue, limit, field, "TASK_INVALID");
 }
 
-function normalizeRequiredPatchString(value: unknown, field: string): string {
-  const normalizedValue = normalizeRequiredString(value);
+function normalizeRequiredPatchString(
+  value: unknown,
+  field: string,
+  limit: TextLimitKey,
+): string {
+  const normalizedValue = normalizeRequiredString(value, limit, field);
   if (!normalizedValue) {
     throw new BadRequestException({
       code: "TASK_INVALID",
@@ -737,11 +771,26 @@ function normalizeRequiredPatchString(value: unknown, field: string): string {
   return normalizedValue;
 }
 
-function normalizeOptionalString(value: unknown): string | null {
-  if (value === undefined || value === null) return null;
-  if (typeof value !== "string") return null;
+function normalizeOptionalString(
+  value: unknown,
+  limit: TextLimitKey,
+  field: string,
+): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
   const normalizedValue = value.trim();
-  return normalizedValue || null;
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return assertTextWithinLimit(normalizedValue, limit, field, "TASK_INVALID");
 }
 
 function normalizeTaskStatus(value: unknown): TaskStatus | null {
