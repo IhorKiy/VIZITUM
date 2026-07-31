@@ -252,11 +252,22 @@ textarea {
   margin-top: 2px;
 }
 
+/* Also the link into account settings, so it needs a hover state — without one
+   the only affordance is the cursor, and the block reads as a caption. The
+   negative inline margin lets the tinted hover area extend past the text
+   without shifting it off the sidebar's own alignment. */
 .current-user {
   border-top: 1px solid rgba(255, 255, 255, 0.14);
   display: grid;
   gap: 2px;
-  padding-top: 16px;
+  margin: 0 -8px;
+  padding: 16px 8px 8px;
+}
+
+.current-user:hover,
+.current-user:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0 0 8px 8px;
 }
 
 .current-user-name {
@@ -273,20 +284,6 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Hangs off the identity block, not the nav list: the nav is this zone's
-   screens and the account screen belongs to none of them. */
-.current-user-link {
-  color: var(--sidebar-muted);
-  font-size: 12px;
-  font-weight: 700;
-  margin-top: 6px;
-  text-decoration: underline;
-}
-
-.current-user-link:hover {
-  color: var(--sidebar-ink);
 }
 
 .nav-list {
@@ -4080,6 +4077,13 @@ textarea {
   margin: 8px 0 0;
 }
 
+/* A hint following the panel's copy paragraph is a separate statement (the
+   account screen's "Signed in as ..."), not a continuation of it — without
+   this the two run together as one block of muted text. */
+.login-copy + .form-hint {
+  margin-top: 10px;
+}
+
 /* Root marketing landing: same card language as the login panel, a bit
    wider to hold a paragraph of copy comfortably. */
 .landing-panel {
@@ -4275,16 +4279,33 @@ textarea {
   padding: 10px 12px;
 }
 
-/* The .form-error twin, for a form that reports its own success in place
-   rather than navigating away — the password change stays on its screen. */
+/* Success twin of .form-error, for the confirmation a form leaves behind on
+   its own screen (changing a password, where there is nowhere to redirect to
+   that would carry the news). Same shape, so one replacing the other in the
+   same slot doesn't move anything around it. */
 .form-success {
-  background: var(--surface-muted);
-  border: 1px solid var(--accent);
+  background: #eef8f1;
+  border: 1px solid #b8dfc2;
   border-radius: 8px;
-  color: var(--accent-strong);
+  color: #2f6b41;
   font-size: 13px;
   font-weight: 800;
   padding: 10px 12px;
+}
+
+/* Quiet inline navigation inside the signed-out panels — "Forgot your
+   password?", "Back to sign in". Underlined rather than tinted-and-bold: these
+   sit directly under a primary button and must not read as a second one. */
+.auth-link {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  justify-self: start;
+  text-decoration: underline;
+}
+
+.auth-link:hover {
+  color: var(--ink);
 }
 
 @media (max-width: 920px) {
@@ -4668,17 +4689,6 @@ textarea {
   font-size: 12px;
   margin: 2px 0 0;
   overflow-wrap: anywhere;
-}
-
-/* Same reasoning as .current-user-link in the sidebar: attached to the
-   identity, not to the list of the day's screens below it. */
-.field-menu-account-link {
-  color: var(--accent-strong);
-  display: inline-block;
-  font-size: 12px;
-  font-weight: 700;
-  margin-top: 6px;
-  text-decoration: underline;
 }
 
 .field-menu-links {

@@ -1,10 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../prisma/prisma.service";
-import {
-  isRateLimitDisabled,
-  resolveTrustProxyHops,
-} from "../rate-limit/rate-limit.constants";
+import { resolveTrustProxyHops } from "../../common/trust-proxy";
+import { isRateLimitDisabled } from "../rate-limit/rate-limit.constants";
 
 export type HealthStatus = {
   status: "ok";

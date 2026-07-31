@@ -1,19 +1,23 @@
 import { Module } from "@nestjs/common";
 
+import { EmailModule } from "../email/email.module";
 import { RolesModule } from "../roles/roles.module";
 import { TenancyModule } from "../tenancy/tenancy.module";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { PasswordResetService } from "./password-reset.service";
+import { PasswordController } from "./password.controller";
 import { PasswordService } from "./password.service";
 import { PermissionGuard } from "./permission.guard";
 import { SessionService } from "./session.service";
 import { TurnstileService } from "./turnstile.service";
 
 @Module({
-  imports: [RolesModule, TenancyModule],
-  controllers: [AuthController],
+  imports: [EmailModule, RolesModule, TenancyModule],
+  controllers: [AuthController, PasswordController],
   providers: [
     AuthService,
+    PasswordResetService,
     PasswordService,
     PermissionGuard,
     SessionService,
@@ -21,6 +25,7 @@ import { TurnstileService } from "./turnstile.service";
   ],
   exports: [
     AuthService,
+    PasswordResetService,
     PasswordService,
     PermissionGuard,
     SessionService,

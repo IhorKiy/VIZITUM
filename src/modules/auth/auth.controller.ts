@@ -13,12 +13,10 @@ import type { Request, Response } from "express";
 import {
   INVITE_ACCEPT_THROTTLE,
   LOGIN_THROTTLE,
-  PASSWORD_CHANGE_THROTTLE,
 } from "../rate-limit/rate-limit.constants";
 import { AuthService } from "./auth.service";
 import type {
   AcceptInviteRequestBody,
-  ChangePasswordRequestBody,
   LoginRequestBody,
   SwitchRoleRequestBody,
   SwitchZoneRequestBody,
@@ -80,24 +78,6 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     return this.authService.switchZone(body, request, response);
-  }
-
-  // Authenticated, but still a credential endpoint: it verifies the current
-  // password, so it gets the same per-IP cap and per-account backoff the
-  // login routes do.
-  @Post("password")
-  @Throttle({
-    default: {
-      limit: PASSWORD_CHANGE_THROTTLE.limit,
-      ttl: PASSWORD_CHANGE_THROTTLE.ttlSeconds * 1_000,
-    },
-  })
-  @HttpCode(200)
-  changePassword(
-    @Body() body: ChangePasswordRequestBody,
-    @Req() request: Request,
-  ) {
-    return this.authService.changePassword(body, request);
   }
 
   @Post("invites/accept")

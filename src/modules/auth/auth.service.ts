@@ -21,15 +21,13 @@ import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
 import { hashValue } from "./auth-crypto";
 import { PasswordService } from "./password.service";
-import { CSRF_COOKIE_NAME } from "./auth.constants";
+import { CSRF_COOKIE_NAME, MIN_PASSWORD_LENGTH } from "./auth.constants";
 import { createCsrfToken, writeCsrfCookie } from "./csrf";
 import { readSessionToken, writeSessionCookie } from "./session-cookie";
 import { SessionService } from "./session.service";
 import { TurnstileService } from "./turnstile.service";
 import type {
   AcceptInviteRequestBody,
-  ChangePasswordRequestBody,
-  ChangePasswordResponse,
   LoginRequestBody,
   LoginResponse,
   SwitchRoleRequestBody,
@@ -590,112 +588,6 @@ export class AuthService {
     };
   }
 
-  // Self-service password change for a signed-in user.
-  //
-  // Deliberately *not* the unauthenticated forgot-password flow: that one
-  // needs single-use emailed reset tokens with their own TTL, enumeration
-  // surface and delivery dependency, and is tracked separately. This is the
-  // straightforward half — the user already proved who they are, and proves
-  // it again by supplying the current password.
-  async changePassword(
-    body: ChangePasswordRequestBody,
-    request: Request,
-  ): Promise<ChangePasswordResponse> {
-    const currentPassword = normalizePassword(body.currentPassword);
-    const newPassword = normalizeNewPassword(body.newPassword);
-    const token = readSessionToken(request);
-
-    if (!token) {
-      throwAuthenticationRequired();
-    }
-
-    const session = await this.sessionService.findActiveSessionByToken(token);
-
-    if (!session) {
-      throwAuthenticationRequired();
-    }
-
-    if (!currentPassword || !newPassword) {
-      throw new BadRequestException({
-        code: "PASSWORD_CHANGE_INVALID",
-        message: "The current password and a new password are required.",
-        fieldErrors: {
-          currentPassword: currentPassword
-            ? []
-            : ["Enter your current password."],
-          newPassword: newPassword
-            ? []
-            : ["The new password must be at least 8 characters."],
-        },
-      });
-    }
-
-    const user = await this.prisma.user.findFirst({
-      where: { id: session.userId, tenantId: session.tenantId },
-    });
-
-    if (!user || user.status !== "active" || !user.passwordHash) {
-      throwAuthenticationRequired();
-    }
-
-    const backoffIdentity = `${session.tenantId}:${user.email}`;
-    const currentPasswordMatches = await this.passwordService.verifyPassword(
-      user.passwordHash,
-      currentPassword,
-    );
-
-    if (!currentPasswordMatches) {
-      // Same brake as a failed login: this endpoint verifies a credential, so
-      // it is a guessing surface too — a stolen session cookie must not become
-      // a free oracle for the account's password.
-      await this.loginBackoffService.penalizeFailure(
-        "password-change",
-        backoffIdentity,
-      );
-      throw new BadRequestException({
-        code: "CURRENT_PASSWORD_INVALID",
-        message: "The current password is incorrect.",
-        fieldErrors: {
-          currentPassword: ["The current password is incorrect."],
-        },
-      });
-    }
-
-    if (currentPassword === newPassword) {
-      throw new BadRequestException({
-        code: "PASSWORD_UNCHANGED",
-        message: "The new password must differ from the current one.",
-        fieldErrors: {
-          newPassword: ["Choose a password you are not already using."],
-        },
-      });
-    }
-
-    await this.loginBackoffService.clearFailures(
-      "password-change",
-      backoffIdentity,
-    );
-
-    const passwordHash = await this.passwordService.hashPassword(newPassword);
-
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash },
-    });
-
-    // The point of changing a password is usually that someone else might
-    // have it. Leaving their sessions alive would make the change cosmetic,
-    // since a session cookie needs no password to keep working.
-    const revokedOtherSessions =
-      await this.sessionService.revokeOtherUserSessions(
-        session.tenantId,
-        user.id,
-        session.id,
-      );
-
-    return { ok: true, revokedOtherSessions };
-  }
-
   async switchRole(
     body: SwitchRoleRequestBody,
     request: Request,
@@ -918,7 +810,7 @@ function normalizeToken(value: unknown): string | null {
 function normalizeNewPassword(value: unknown): string | null {
   if (
     typeof value !== "string" ||
-    value.length < 8 ||
+    value.length < MIN_PASSWORD_LENGTH ||
     value.length > TEXT_LIMITS.password
   ) {
     return null;

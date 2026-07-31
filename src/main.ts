@@ -14,9 +14,9 @@ import { ApiErrorFilter } from "./common/api-error.filter";
 import { JSON_BODY_LIMIT } from "./common/input-limits";
 import { JsonLogger } from "./common/json-logger.service";
 import { applyRequestId } from "./common/request-id.middleware";
+import { resolveTrustProxyHops } from "./common/trust-proxy";
 import { applyCsrfProtection } from "./modules/auth/csrf";
 import { assertSecurityConfiguration } from "./modules/auth/security-config";
-import { resolveTrustProxyHops } from "./modules/rate-limit/rate-limit.constants";
 
 async function bootstrap() {
   const logger = new JsonLogger();

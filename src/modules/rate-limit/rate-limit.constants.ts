@@ -14,9 +14,11 @@
 //     failed attempts against it. A delay slows a guesser without ever
 //     stranding the real user.
 //
-// Correct per-IP keying depends on `trust proxy` being set (see
-// resolveTrustProxy below); behind a proxy without it every request keys on
-// the proxy's own address and the whole world shares one bucket.
+// Correct per-IP keying depends on `trust proxy` being set from
+// TRUST_PROXY_HOPS (src/common/trust-proxy.ts); behind a proxy without it
+// every request keys on the proxy's own address and the whole world shares
+// one bucket. Production refuses to boot without it —
+// src/modules/auth/security-config.ts.
 
 export type ThrottlePolicy = {
   limit: number;
@@ -60,6 +62,16 @@ export const PASSWORD_CHANGE_THROTTLE: ThrottlePolicy = {
   ttlSeconds: 60,
 };
 
+// Forgot/reset. The service behind them has its own finer controls — a
+// per-account cap on live tokens and a per-IP window (see
+// auth/password-reset.service.ts) — and deliberately answers 200 either way
+// so it never reveals whether an address exists. This is the floor underneath
+// all of that, applied before any of it runs.
+export const PASSWORD_RESET_THROTTLE: ThrottlePolicy = {
+  limit: 15,
+  ttlSeconds: 60,
+};
+
 export const LOGIN_BACKOFF = {
   // The first few failures cost nothing: typos are ordinary.
   freeAttempts: 3,
@@ -76,42 +88,6 @@ export const LOGIN_BACKOFF = {
   // few times is back to full speed a quarter-hour later.
   windowSeconds: 900,
 } as const;
-
-// Express's `trust proxy` must match the real number of hops in front of the
-// app, and must never be a blanket `true`: one hop too many and any client can
-// forge its own address with an `X-Forwarded-For` header, sidestepping every
-// per-IP limit above.
-//
-// There is no safe default for production, which is why it has none and
-// security-config.ts refuses to boot without TRUST_PROXY_HOPS set. Both ways
-// of being wrong hurt:
-//
-//   * Too low and `request.ip` resolves to an infrastructure address, so all
-//     production traffic shares one bucket and real users get 429s.
-//   * Too high and the value is client-controlled, so the per-IP limits are
-//     bypassable. (The per-account backoff keys on the email, not the
-//     address, so it still applies — which is the reason both controls exist.)
-//
-// The count is deployment shape, not preference. For the documented setup —
-// browser → hosting edge → Next server → hosting edge → API — the API sees
-// two trusted hops: the edge that is its socket peer, plus the Next server's
-// address appended to the forwarded chain. Non-production defaults to 0:
-// nothing sits in front of a dev server, so no forwarded header is believed.
-export function resolveTrustProxyHops(
-  env: NodeJS.ProcessEnv = process.env,
-): number {
-  const raw = env.TRUST_PROXY_HOPS?.trim();
-
-  if (raw) {
-    const parsed = Number(raw);
-
-    if (Number.isInteger(parsed) && parsed >= 0) {
-      return parsed;
-    }
-  }
-
-  return 0;
-}
 
 // Escape hatch for the Playwright suite, which drives many parallel logins
 // from a single loopback address and would otherwise trip the per-IP caps.

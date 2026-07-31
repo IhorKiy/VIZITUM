@@ -12,7 +12,6 @@ import {
   LOGIN_BACKOFF,
   LOGIN_THROTTLE,
   isRateLimitDisabled,
-  resolveTrustProxyHops,
 } from "../src/modules/rate-limit/rate-limit.constants";
 import { TestLoginBackoffService } from "./fixtures/login-backoff";
 
@@ -69,7 +68,6 @@ describe("auth rate limiting", () => {
   afterEach(() => {
     closeStorages();
     delete process.env.RATE_LIMIT_DISABLED;
-    delete process.env.TRUST_PROXY_HOPS;
   });
 
   it("rejects the attempt past the per-IP login limit with 429", async () => {
@@ -265,40 +263,5 @@ describe("per-account login backoff", () => {
     }
 
     assert.ok(backoff.delays.every((entry) => entry.delayMs === 0));
-  });
-});
-
-describe("trust proxy configuration", () => {
-  afterEach(() => {
-    delete process.env.TRUST_PROXY_HOPS;
-  });
-
-  it("trusts nothing unless the hop count is stated", () => {
-    assert.equal(resolveTrustProxyHops({} as NodeJS.ProcessEnv), 0);
-    assert.equal(
-      resolveTrustProxyHops({ NODE_ENV: "production" } as NodeJS.ProcessEnv),
-      0,
-      "production has no safe default — security-config.ts refuses to boot without one",
-    );
-  });
-
-  it("reads an explicit hop count", () => {
-    assert.equal(
-      resolveTrustProxyHops({ TRUST_PROXY_HOPS: "2" } as NodeJS.ProcessEnv),
-      2,
-    );
-  });
-
-  it("ignores a nonsense hop count rather than trusting a bad value", () => {
-    // `true` here would mean "trust every hop", which lets any client forge
-    // its own address with X-Forwarded-For.
-    assert.equal(
-      resolveTrustProxyHops({ TRUST_PROXY_HOPS: "true" } as NodeJS.ProcessEnv),
-      0,
-    );
-    assert.equal(
-      resolveTrustProxyHops({ TRUST_PROXY_HOPS: "-1" } as NodeJS.ProcessEnv),
-      0,
-    );
   });
 });

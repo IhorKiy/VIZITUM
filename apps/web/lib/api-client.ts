@@ -770,22 +770,6 @@ export async function switchZone(
   );
 }
 
-export type ChangePasswordResult = {
-  ok: true;
-  /** How many of the user's *other* sessions were signed out. */
-  revokedOtherSessions: number;
-};
-
-export async function changePassword(
-  currentPassword: string,
-  newPassword: string,
-): Promise<ApiResult<ChangePasswordResult>> {
-  return apiPost<ChangePasswordResult>("/auth/password", {
-    currentPassword,
-    newPassword,
-  });
-}
-
 // The status split of the whole selected period, ignoring any status filter —
 // the recap a status pill is picked from. Comes back with the list itself, so
 // a screen never counts statuses by firing one request per status.

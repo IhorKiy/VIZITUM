@@ -43,9 +43,9 @@ export async function AppShell({
     branding,
     tNav,
     tCommon,
+    tAccount,
     tZoneNames,
     tZoneSwitcher,
-    tAccount,
     fieldTasksInProgressResult,
     activeAnnouncementsResult,
   ] = await Promise.all([
@@ -53,9 +53,9 @@ export async function AppShell({
     resolveTenantBranding(tenantSlug),
     getTranslations("common.nav"),
     getTranslations("common"),
+    getTranslations("account"),
     getTranslations("common.zone.names"),
     getTranslations("common.zone.switcher"),
-    getTranslations("auth.account"),
     // Feeds the "Tasks" nav badge below. Fetched here (rather than per-page)
     // since the bottom nav is the one thing every field page renders; gated
     // on zone, not on session, so it stays a single parallel round-trip
@@ -250,16 +250,18 @@ export async function AppShell({
         </div>
 
         {currentUser ? (
-          <div className="current-user">
+          // The identity block doubles as the way into account settings, which
+          // is where every desktop zone reaches the password change — the field
+          // zone has no sidebar and uses its menu entry instead.
+          <Link
+            aria-label={tAccount("open")}
+            className="current-user"
+            href={`/${tenantSlug}/account`}
+            title={tAccount("open")}
+          >
             <p className="current-user-name">{currentUser.name}</p>
             <p className="current-user-email">{currentUser.email}</p>
-            {/* Attached to the identity block rather than the nav list below:
-                the nav is this zone's screens, and the account is not one of
-                them — it is the same for every zone. */}
-            <Link className="current-user-link" href={`/${tenantSlug}/account`}>
-              {tAccount("link")}
-            </Link>
-          </div>
+          </Link>
         ) : null}
 
         {otherZones.length > 0 ? (

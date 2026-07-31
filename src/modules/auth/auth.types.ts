@@ -26,17 +26,21 @@ export type AcceptInviteRequestBody = {
   phone?: unknown;
 };
 
+export type ForgotPasswordRequestBody = {
+  email?: unknown;
+  tenantSlug?: unknown;
+  captchaToken?: unknown;
+};
+
+export type ResetPasswordRequestBody = {
+  token?: unknown;
+  tenantSlug?: unknown;
+  password?: unknown;
+};
+
 export type ChangePasswordRequestBody = {
   currentPassword?: unknown;
   newPassword?: unknown;
-};
-
-export type ChangePasswordResponse = {
-  ok: true;
-  // How many *other* sessions were signed out. Surfaced so the confirmation
-  // can tell the user their other devices were logged out, which is the
-  // visible half of the security guarantee.
-  revokedOtherSessions: number;
 };
 
 export type AuthUserResponse = {
