@@ -4,7 +4,10 @@ import { describe, it } from "node:test";
 import { NotFoundException } from "@nestjs/common";
 
 import { PasswordResetService } from "../src/modules/auth/password-reset.service";
-import { PASSWORD_RESET_MAX_ACTIVE_TOKENS } from "../src/modules/auth/auth.constants";
+import {
+  PASSWORD_RESET_IP_LIMIT,
+  PASSWORD_RESET_MAX_ACTIVE_TOKENS,
+} from "../src/modules/auth/auth.constants";
 
 const TENANT = {
   id: "tenant-a",
@@ -24,37 +27,35 @@ function createPrismaStub(options: PrismaStubOptions = {}) {
   const auditEvents: { eventType: string; actorUserId: string }[] = [];
   const deletions: unknown[] = [];
 
-  return {
-    createdTokens,
-    auditEvents,
-    deletions,
-    prisma: {
-      user: {
-        findUnique: async () => options.user ?? null,
+  const prisma: Record<string, unknown> = {
+    user: {
+      findUnique: async () => options.user ?? null,
+    },
+    passwordResetToken: {
+      deleteMany: async (query: unknown) => {
+        deletions.push(query);
+        return { count: 0 };
       },
-      passwordResetToken: {
-        deleteMany: async (query: unknown) => {
-          deletions.push(query);
-          return { count: 0 };
-        },
-        count: async () => options.activeTokenCount ?? 0,
-        create: async ({ data }: { data: typeof createdTokens[number] }) => {
-          createdTokens.push(data);
-          return data;
-        },
+      count: async () => options.activeTokenCount ?? 0,
+      create: async ({ data }: { data: (typeof createdTokens)[number] }) => {
+        createdTokens.push(data);
+        return data;
       },
-      auditEvent: {
-        create: async ({
-          data,
-        }: {
-          data: typeof auditEvents[number];
-        }) => {
-          auditEvents.push(data);
-          return data;
-        },
+    },
+    auditEvent: {
+      create: async ({ data }: { data: (typeof auditEvents)[number] }) => {
+        auditEvents.push(data);
+        return data;
       },
     },
   };
+
+  // Issuance runs inside a serializable transaction (the count and the create
+  // must not race), so the stub hands the callback the same client back.
+  prisma.$transaction = async (run: (tx: unknown) => Promise<unknown>) =>
+    run(prisma);
+
+  return { createdTokens, auditEvents, deletions, prisma };
 }
 
 function createEmailStub() {
@@ -119,6 +120,7 @@ describe("password reset request", () => {
       { email: "Rep@Demo-Team.local", tenantSlug: TENANT.slug },
       createRequest(),
     );
+    await service.settlePendingDispatches();
 
     assert.deepEqual(result, { ok: true });
     assert.equal(createdTokens.length, 1);
@@ -141,6 +143,7 @@ describe("password reset request", () => {
       { email: "nobody@demo-team.local", tenantSlug: TENANT.slug },
       createRequest(),
     );
+    await service.settlePendingDispatches();
 
     assert.deepEqual(result, { ok: true });
     assert.equal(createdTokens.length, 0);
@@ -158,6 +161,7 @@ describe("password reset request", () => {
       { email: "suspended@demo-team.local", tenantSlug: TENANT.slug },
       createRequest(),
     );
+    await service.settlePendingDispatches();
 
     assert.deepEqual(result, { ok: true });
     assert.equal(createdTokens.length, 0);
@@ -173,6 +177,7 @@ describe("password reset request", () => {
       { email: "rep@demo-team.local", tenantSlug: "no-such-tenant" },
       createRequest(),
     );
+    await service.settlePendingDispatches();
 
     assert.deepEqual(result, { ok: true });
     assert.equal(createdTokens.length, 0);
@@ -191,6 +196,7 @@ describe("password reset request", () => {
       { email: "rep@demo-team.local", tenantSlug: TENANT.slug },
       createRequest(),
     );
+    await service.settlePendingDispatches();
 
     // Still the same acknowledgement — a throttled address must not be
     // distinguishable from one that was just mailed.
@@ -208,6 +214,7 @@ describe("password reset request", () => {
       { email: "rep@demo-team.local", tenantSlug: TENANT.slug },
       createRequest(),
     );
+    await service.settlePendingDispatches();
 
     assert.equal(deletions.length, 1);
     const where = (deletions[0] as { where: { OR: unknown[] } }).where;
@@ -221,19 +228,49 @@ describe("password reset request", () => {
     const service = createService({ prisma, emailService });
     const request = createRequest("198.51.100.7");
 
-    // Far past PASSWORD_RESET_IP_LIMIT; the limiter is instance state, so
-    // these accumulate across calls on this one service.
-    for (let attempt = 0; attempt < 25; attempt += 1) {
+    const attempts = PASSWORD_RESET_IP_LIMIT * 2 + 5;
+
+    // The limiter is instance state, so these accumulate across calls on this
+    // one service.
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
       await service.requestReset(
         { email: "rep@demo-team.local", tenantSlug: TENANT.slug },
         request,
       );
     }
+    await service.settlePendingDispatches();
 
-    assert.ok(
-      createdTokens.length < 25,
-      "the per-IP limiter must stop issuing before every attempt lands",
+    // Pinned to the exact ceiling rather than "fewer than we tried": a
+    // regression that quietly raised the limit would still be under the loop
+    // count and would pass an inequality unnoticed.
+    assert.equal(createdTokens.length, PASSWORD_RESET_IP_LIMIT);
+    assert.equal(sent.length, PASSWORD_RESET_IP_LIMIT);
+  });
+
+  it("counts the per-IP window per client address, not globally", async () => {
+    const { prisma, createdTokens } = createPrismaStub({ user: ACTIVE_USER });
+    const { emailService } = createEmailStub();
+    const service = createService({ prisma, emailService });
+
+    // One address exhausts its window; a second must still be served. This is
+    // what silently stops being true when `request.ip` collapses to a single
+    // proxy address for every caller — see common/trust-proxy.ts.
+    for (let attempt = 0; attempt < PASSWORD_RESET_IP_LIMIT; attempt += 1) {
+      await service.requestReset(
+        { email: "rep@demo-team.local", tenantSlug: TENANT.slug },
+        createRequest("198.51.100.8"),
+      );
+    }
+    await service.settlePendingDispatches();
+    const afterFirstAddress = createdTokens.length;
+
+    await service.requestReset(
+      { email: "rep@demo-team.local", tenantSlug: TENANT.slug },
+      createRequest("198.51.100.9"),
     );
-    assert.equal(createdTokens.length, sent.length);
+    await service.settlePendingDispatches();
+
+    assert.equal(afterFirstAddress, PASSWORD_RESET_IP_LIMIT);
+    assert.equal(createdTokens.length, PASSWORD_RESET_IP_LIMIT + 1);
   });
 });

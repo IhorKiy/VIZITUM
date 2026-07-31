@@ -61,6 +61,12 @@ function createResetPrisma(options: ResetPrismaOptions = {}) {
       platformTenant: {
         findUnique: async () => ({ id: TENANT_ID }),
       },
+      session: {
+        updateMany: (args: unknown) => {
+          updates.push({ model: "session.updateMany", args });
+          return args;
+        },
+      },
       auditEvent: {
         create: async ({ data }: { data: { eventType: string } }) => {
           auditEvents.push(data);
@@ -107,10 +113,9 @@ async function assertResetRejected(promise: Promise<unknown>) {
 }
 
 describe("password reset completion", () => {
-  it("sets the password, spends the token and revokes every session", async () => {
+  it("spends the token, sets the password and revokes sessions in one transaction", async () => {
     const { prisma, transactions, auditEvents, updates } = createResetPrisma();
-    const revoked: string[][] = [];
-    const service = createService(prisma, revoked);
+    const service = createService(prisma);
 
     const result = await service.resetPassword(
       { token: TOKEN, password: "new-password-1" },
@@ -118,18 +123,22 @@ describe("password reset completion", () => {
     );
 
     assert.deepEqual(result, { ok: true });
-    // Spending the token and writing the password land in one transaction, so
-    // neither can survive without the other.
+    // All four writes are one unit. Session revocation in particular must not
+    // be a follow-up write: if it were and it failed, the password would
+    // already be changed while whoever prompted the reset still held a live
+    // session — the exact guarantee this endpoint exists to give.
     assert.equal(transactions.length, 1);
-    assert.equal(transactions[0].length, 3);
-    assert.deepEqual(revoked, [[TENANT_ID, USER_ID]]);
-    assert.equal(auditEvents[0].eventType, "password.reset_completed");
-    // The third operation clears this account's other outstanding tokens.
-    assert.ok(
-      updates.some(
-        (update) => update.model === "passwordResetToken.deleteMany",
-      ),
+    assert.equal(transactions[0].length, 4);
+    assert.deepEqual(
+      updates.map((update) => update.model),
+      [
+        "passwordResetToken.update",
+        "user.update",
+        "passwordResetToken.deleteMany",
+        "session.updateMany",
+      ],
     );
+    assert.equal(auditEvents[0].eventType, "password.reset_completed");
   });
 
   it("rejects a token that was already spent", async () => {
@@ -139,7 +148,10 @@ describe("password reset completion", () => {
     const service = createService(prisma);
 
     await assertResetRejected(
-      service.resetPassword({ token: TOKEN, password: "new-password-1" }, request),
+      service.resetPassword(
+        { token: TOKEN, password: "new-password-1" },
+        request,
+      ),
     );
   });
 
@@ -150,7 +162,10 @@ describe("password reset completion", () => {
     const service = createService(prisma);
 
     await assertResetRejected(
-      service.resetPassword({ token: TOKEN, password: "new-password-1" }, request),
+      service.resetPassword(
+        { token: TOKEN, password: "new-password-1" },
+        request,
+      ),
     );
   });
 
@@ -159,7 +174,10 @@ describe("password reset completion", () => {
     const service = createService(prisma);
 
     await assertResetRejected(
-      service.resetPassword({ token: "nope", password: "new-password-1" }, request),
+      service.resetPassword(
+        { token: "nope", password: "new-password-1" },
+        request,
+      ),
     );
   });
 
@@ -168,7 +186,10 @@ describe("password reset completion", () => {
     const service = createService(prisma);
 
     await assertResetRejected(
-      service.resetPassword({ token: TOKEN, password: "new-password-1" }, request),
+      service.resetPassword(
+        { token: TOKEN, password: "new-password-1" },
+        request,
+      ),
     );
   });
 
@@ -185,28 +206,43 @@ describe("password reset completion", () => {
 describe("password change", () => {
   function createChangePrisma(passwordHash: string | null = "old-hash") {
     const auditEvents: { eventType: string }[] = [];
-    const updates: unknown[] = [];
+    const updates: { model: string }[] = [];
+    const transactions: unknown[][] = [];
 
     return {
       auditEvents,
       updates,
+      transactions,
       prisma: {
         user: {
           findFirst: async () =>
             passwordHash === null ? null : { id: USER_ID, passwordHash },
-          update: async (args: unknown) => {
-            updates.push(args);
+          update: (args: unknown) => {
+            updates.push({ model: "user.update" });
+            return args;
+          },
+        },
+        session: {
+          updateMany: (args: unknown) => {
+            updates.push({ model: "session.updateMany" });
             return args;
           },
         },
         passwordResetToken: {
-          deleteMany: async () => ({ count: 0 }),
+          deleteMany: (args: unknown) => {
+            updates.push({ model: "passwordResetToken.deleteMany" });
+            return args;
+          },
         },
         auditEvent: {
           create: async ({ data }: { data: { eventType: string } }) => {
             auditEvents.push(data);
             return data;
           },
+        },
+        $transaction: async (operations: unknown[]) => {
+          transactions.push(operations);
+          return operations;
         },
       },
     };
@@ -260,9 +296,8 @@ describe("password change", () => {
   }
 
   it("changes the password, revokes sessions and re-issues one for the caller", async () => {
-    const { prisma, auditEvents, updates } = createChangePrisma();
-    const revoked: string[][] = [];
-    const service = createChangeService(prisma, { revoked });
+    const { prisma, auditEvents, updates, transactions } = createChangePrisma();
+    const service = createChangeService(prisma);
     const { response, cookies } = createResponse();
 
     const result = await service.changePassword(
@@ -272,8 +307,15 @@ describe("password change", () => {
     );
 
     assert.deepEqual(result, { ok: true });
-    assert.equal(updates.length, 1);
-    assert.deepEqual(revoked, [[TENANT_ID, USER_ID]]);
+    // The new password, the sign-out and the invalidation of pending reset
+    // links commit together — a partial failure would otherwise leave exactly
+    // the state the change was meant to end.
+    assert.equal(transactions.length, 1);
+    assert.equal(transactions[0].length, 3);
+    assert.deepEqual(
+      updates.map((update) => update.model),
+      ["user.update", "session.updateMany", "passwordResetToken.deleteMany"],
+    );
     // Session and CSRF cookies, so the person who just changed their password
     // keeps the screen they did it on while every other device is signed out.
     assert.equal(cookies.length, 2);

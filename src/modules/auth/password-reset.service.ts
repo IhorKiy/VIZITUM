@@ -5,11 +5,12 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { JsonLogger } from "../../common/json-logger.service";
 import { normalizeEmail } from "../../common/normalize";
+import { withSerializationRetry } from "../../common/prisma-retry";
 import { RateLimiter } from "../../common/rate-limit";
 import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -57,10 +58,16 @@ export class PasswordResetService {
 
   // Instance state, so it lives as long as the Nest application context. See
   // RateLimiter's own note on why process-local is the right scope here.
+  // Keying it on `request.ip` only means anything once Express is told to trust
+  // the proxy in front of the API — see common/trust-proxy.ts.
   private readonly requestsByIp = new RateLimiter({
     limit: PASSWORD_RESET_IP_LIMIT,
     windowMs: PASSWORD_RESET_IP_WINDOW_MS,
   });
+
+  // In-flight dispatches started by requestReset. Held only so tests (and a
+  // graceful shutdown) can wait for them; nothing in the request path reads it.
+  private readonly pendingDispatches = new Set<Promise<void>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -117,68 +124,150 @@ export class PasswordResetService {
       return acknowledge();
     }
 
-    const now = new Date();
-
-    // Clearing this account's dead rows on every request is what bounds the
-    // table without a cleanup worker, and it has to happen before the live
-    // count below or spent tokens would count against the throttle.
-    await this.prisma.passwordResetToken.deleteMany({
-      where: {
-        tenantId: tenant.id,
+    // Everything from here on runs *off* the response path, and that is the
+    // point. Awaiting it would answer a known address only after a token write,
+    // an HTTP round trip to the email provider and an audit insert, while an
+    // unknown one returns straight after the lookup above — a difference of
+    // hundreds of milliseconds, reliably measurable, which is the same account
+    // enumeration the identical response bodies exist to prevent. Nothing the
+    // caller is told depends on the outcome, so there is nothing to wait for.
+    this.trackDispatch(
+      this.issueAndSendResetToken({
+        tenant,
         userId: user.id,
-        OR: [{ usedAt: { not: null } }, { expiresAt: { lte: now } }],
-      },
-    });
-
-    const activeTokenCount = await this.prisma.passwordResetToken.count({
-      where: { tenantId: tenant.id, userId: user.id },
-    });
-
-    if (activeTokenCount >= PASSWORD_RESET_MAX_ACTIVE_TOKENS) {
-      this.logger.warn(
-        {
-          message: "password_reset_throttled",
-          requestId: request.requestId,
-          tenantSlug: tenant.slug,
-        },
-        "PasswordReset",
-      );
-
-      return acknowledge();
-    }
-
-    const token = randomBytes(PASSWORD_RESET_TOKEN_BYTES).toString("base64url");
-    const expiresAt = new Date(
-      now.getTime() + PASSWORD_RESET_TTL_MINUTES * MILLISECONDS_PER_MINUTE,
+        email,
+        requestId: request.requestId,
+      }),
     );
 
-    await this.prisma.passwordResetToken.create({
-      data: {
-        tenantId: tenant.id,
-        userId: user.id,
-        tokenHash: hashValue(token),
-        expiresAt,
-      },
-    });
-
-    const emailStatus = await this.emailService.sendPasswordResetEmail({
-      to: email,
-      tenantName: tenant.name,
-      tenantSlug: tenant.slug,
-      language: tenant.language,
-      timezone: tenant.timezone,
-      token,
-      expiresAt,
-      requestId: request.requestId,
-    });
-
-    // Audited without the token: this records that a reset was asked for, which
-    // is what an account owner reviewing their history needs to see.
-    await this.recordEvent(tenant.id, user.id, "password.reset_requested", {
-      emailStatus,
-    });
-
     return acknowledge();
+  }
+
+  /**
+   * Issue a token and mail it. Never rejects — it runs unawaited, so a thrown
+   * error would surface as an unhandled rejection rather than anywhere useful.
+   */
+  private async issueAndSendResetToken(input: {
+    tenant: {
+      id: string;
+      name: string;
+      slug: string;
+      language: string;
+      timezone: string;
+    };
+    userId: string;
+    email: string;
+    requestId?: string;
+  }): Promise<void> {
+    const { tenant, userId, email, requestId } = input;
+
+    try {
+      const now = new Date();
+      const token = randomBytes(PASSWORD_RESET_TOKEN_BYTES).toString(
+        "base64url",
+      );
+      const expiresAt = new Date(
+        now.getTime() + PASSWORD_RESET_TTL_MINUTES * MILLISECONDS_PER_MINUTE,
+      );
+
+      // Pruning, counting and issuing are one serializable unit: a plain
+      // count-then-create lets two concurrent requests both read a count under
+      // the ceiling and both write, putting the account over the limit the
+      // count exists to enforce — the same re-check-inside-the-transaction
+      // shape acceptInvite uses for the admin limit.
+      const issued = await withSerializationRetry(() =>
+        this.prisma.$transaction(
+          async (tx) => {
+            // Clearing this account's dead rows on every request is what bounds
+            // the table without a cleanup worker, and it has to happen before
+            // the count or spent tokens would count against the throttle.
+            await tx.passwordResetToken.deleteMany({
+              where: {
+                tenantId: tenant.id,
+                userId,
+                OR: [{ usedAt: { not: null } }, { expiresAt: { lte: now } }],
+              },
+            });
+
+            const activeTokenCount = await tx.passwordResetToken.count({
+              where: { tenantId: tenant.id, userId },
+            });
+
+            if (activeTokenCount >= PASSWORD_RESET_MAX_ACTIVE_TOKENS) {
+              return false;
+            }
+
+            await tx.passwordResetToken.create({
+              data: {
+                tenantId: tenant.id,
+                userId,
+                tokenHash: hashValue(token),
+                expiresAt,
+              },
+            });
+
+            return true;
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        ),
+      );
+
+      if (!issued) {
+        this.logger.warn(
+          {
+            message: "password_reset_throttled",
+            requestId,
+            tenantSlug: tenant.slug,
+          },
+          "PasswordReset",
+        );
+
+        return;
+      }
+
+      const emailStatus = await this.emailService.sendPasswordResetEmail({
+        to: email,
+        tenantName: tenant.name,
+        tenantSlug: tenant.slug,
+        language: tenant.language,
+        timezone: tenant.timezone,
+        token,
+        expiresAt,
+        requestId,
+      });
+
+      // Audited without the token: this records that a reset was asked for,
+      // which is what an account owner reviewing their history needs to see.
+      await this.recordEvent(tenant.id, userId, "password.reset_requested", {
+        emailStatus,
+      });
+    } catch (error) {
+      this.logger.error(
+        {
+          message: "password_reset_dispatch_failed",
+          requestId,
+          tenantSlug: tenant.slug,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        undefined,
+        "PasswordReset",
+      );
+    }
+  }
+
+  private trackDispatch(dispatch: Promise<void>): void {
+    this.pendingDispatches.add(dispatch);
+    void dispatch.finally(() => this.pendingDispatches.delete(dispatch));
+  }
+
+  /**
+   * Wait for the dispatches `requestReset` deliberately does not await. Exists
+   * for tests, which would otherwise assert against work that has not run yet.
+   */
+  async settlePendingDispatches(): Promise<void> {
+    while (this.pendingDispatches.size > 0) {
+      await Promise.allSettled([...this.pendingDispatches]);
+    }
   }
 
   async resetPassword(
@@ -246,14 +335,21 @@ export class PasswordResetService {
 
     const passwordHash = await this.passwordService.hashPassword(password);
 
-    // Spending the token and setting the password in one transaction: a
+    const now = new Date();
+
+    // One transaction for the whole recovery, session revocation included.
+    // Spending the token and setting the password have to be atomic — a
     // password changed against a token that stayed unspent would be reusable,
     // and a token spent without the password landing would strand the person
-    // holding the only link they have.
+    // holding the only link they have. Revocation belongs in here for the same
+    // reason: if it were a separate write and it failed, the password would
+    // already be changed while whoever prompted the reset kept a live session,
+    // which is precisely the guarantee this endpoint exists to give. Written
+    // through `tx` rather than SessionService, which is not transaction-aware.
     await this.prisma.$transaction([
       this.prisma.passwordResetToken.update({
         where: { id: resetToken.id },
-        data: { usedAt: new Date() },
+        data: { usedAt: now },
       }),
       this.prisma.user.update({
         where: { id: user.id },
@@ -269,12 +365,15 @@ export class PasswordResetService {
           id: { not: resetToken.id },
         },
       }),
+      this.prisma.session.updateMany({
+        where: {
+          tenantId: resetToken.tenantId,
+          userId: user.id,
+          revokedAt: null,
+        },
+        data: { revokedAt: now },
+      }),
     ]);
-
-    // Whoever prompted the reset may already be holding a session on this
-    // account. Recovering the password has to end those, and the person
-    // resetting signs in fresh with the password they just chose.
-    await this.sessionService.revokeUserSessions(resetToken.tenantId, user.id);
 
     await this.recordEvent(
       resetToken.tenantId,
@@ -355,18 +454,38 @@ export class PasswordResetService {
     }
 
     const passwordHash = await this.passwordService.hashPassword(newPassword);
+    const now = new Date();
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash },
-    });
+    // The new password, the sign-out of every device and the invalidation of
+    // any outstanding reset link commit together or not at all. Split across
+    // separate writes, a failure between them leaves the account in exactly the
+    // state the change was meant to end: a new password with someone else's
+    // session still live, or a reset link still able to undo it.
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      }),
+      this.prisma.session.updateMany({
+        where: {
+          tenantId: session.tenantId,
+          userId: user.id,
+          revokedAt: null,
+        },
+        data: { revokedAt: now },
+      }),
+      // Someone who changed their password deliberately has recovered the
+      // account; a link still sitting in an inbox would undo that.
+      this.prisma.passwordResetToken.deleteMany({
+        where: { tenantId: session.tenantId, userId: user.id },
+      }),
+    ]);
 
-    // Revoke everywhere, then re-issue for the caller. Every other device is
-    // signed out — that is the point of changing a password — while the person
-    // who just did it keeps the screen they did it on rather than being bounced
-    // to login. The new cookies replace the ones whose session was just killed.
-    await this.sessionService.revokeUserSessions(session.tenantId, user.id);
-
+    // Re-issued only after the revocation above is durable, so the caller's new
+    // session can't be swept by it. Every other device stays signed out — that
+    // is the point of changing a password — while the person who just did it
+    // keeps the screen they did it on rather than being bounced to login. If
+    // this call fails they are signed out too, which is the safe direction.
     const { token: freshSessionToken } =
       await this.sessionService.createSession({
         tenantId: session.tenantId,
@@ -381,13 +500,6 @@ export class PasswordResetService {
       createCsrfToken(freshSessionToken),
       CSRF_COOKIE_NAME,
     );
-
-    // Any pending reset links are dead too: someone who changed their password
-    // deliberately has recovered the account, and a link still sitting in an
-    // inbox would undo that.
-    await this.prisma.passwordResetToken.deleteMany({
-      where: { tenantId: session.tenantId, userId: user.id },
-    });
 
     await this.recordEvent(session.tenantId, user.id, "password.changed", {
       requestId: request.requestId,
