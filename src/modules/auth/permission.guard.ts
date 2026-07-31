@@ -11,6 +11,7 @@ import { Reflector } from "@nestjs/core";
 import type { Request } from "express";
 
 import { isSessionActive, touchSession } from "../../common/session-lifecycle";
+import { PLATFORM_SESSION_IDLE_TIMEOUT_HOURS } from "../platform/platform-auth.constants";
 import { readPlatformSessionToken } from "../platform/platform-session-cookie";
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS, type PermissionCode } from "../roles/permissions";
@@ -182,7 +183,15 @@ export class PermissionGuard implements CanActivate {
       include: { platformUser: true },
     });
 
-    if (!session || !isSessionActive(session)) {
+    // Same idle deadline PlatformSessionService applies. This is a second,
+    // inline copy of that check (the guard queries the row directly), so the
+    // timeout has to be passed here too — otherwise the console's own
+    // endpoints would keep honouring a session /platform/auth/me has already
+    // stopped accepting.
+    if (
+      !session ||
+      !isSessionActive(session, PLATFORM_SESSION_IDLE_TIMEOUT_HOURS)
+    ) {
       return null;
     }
 

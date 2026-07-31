@@ -56,6 +56,7 @@ export function FieldMenu({
   const t = useTranslations("field.menu");
   const tCommon = useTranslations("common");
   const tZoneSwitcher = useTranslations("common.zone.switcher");
+  const tAccount = useTranslations("auth.account");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const logoutFormRef = useRef<HTMLFormElement>(null);
   const draftsClearedRef = useRef(false);
@@ -190,6 +191,15 @@ export function FieldMenu({
               <>
                 <p className="field-menu-user-name">{user.name}</p>
                 <p className="field-menu-user-email">{user.email}</p>
+                {/* Under the identity rather than in the link list below:
+                    that list is the working day's screens, and this is about
+                    the account behind them. */}
+                <Link
+                  className="field-menu-account-link"
+                  href={`/${tenantSlug}/account`}
+                >
+                  {tAccount("link")}
+                </Link>
               </>
             ) : null}
           </div>

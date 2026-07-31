@@ -13,6 +13,7 @@ import { PermissionGuard } from "../src/modules/auth/permission.guard";
 import { PLATFORM_SESSION_COOKIE_NAME } from "../src/modules/platform/platform-auth.constants";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
 import { RolesService } from "../src/modules/roles/roles.service";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
 
 describe("auth tenant isolation", () => {
   it("loads the current user only from the session tenant", async () => {
@@ -40,6 +41,7 @@ describe("auth tenant isolation", () => {
       createSessionService(session) as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -75,6 +77,7 @@ describe("auth tenant isolation", () => {
       createSessionService(session) as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -242,6 +245,7 @@ describe("auth tenant isolation", () => {
         },
       } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -297,6 +301,7 @@ describe("auth tenant isolation", () => {
       createSessionService(createSession()) as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(

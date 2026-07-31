@@ -40,6 +40,8 @@ async function invite(
       findUnique: async () => tenant,
     },
     invite: {
+      // Every new invite revokes any earlier pending one for the address.
+      updateMany: async () => ({ count: 0 }),
       create: async (query: { data: Record<string, unknown> }) => {
         created.push(query);
 

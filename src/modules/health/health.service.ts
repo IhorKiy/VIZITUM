@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  isRateLimitDisabled,
+  resolveTrustProxyHops,
+} from "../rate-limit/rate-limit.constants";
 
 export type HealthStatus = {
   status: "ok";
@@ -22,6 +26,16 @@ export type ReadinessStatus = {
     observability: {
       sentryConfigured: boolean;
       sentryReleaseConfigured: boolean;
+    };
+    // Controls that degrade silently rather than erroring when
+    // misconfigured, so the only way to notice is to ask. A production
+    // process refuses to boot without them (auth/security-config.ts); this
+    // makes the same state observable in staging and after a config change.
+    authHardening: {
+      captchaEnabled: boolean;
+      rateLimitEnabled: boolean;
+      rateLimitCountersShared: boolean;
+      trustProxyHops: number;
     };
   };
 };
@@ -67,6 +81,12 @@ export class HealthService {
         observability: {
           sentryConfigured: Boolean(process.env.SENTRY_DSN?.trim()),
           sentryReleaseConfigured: Boolean(process.env.SENTRY_RELEASE?.trim()),
+        },
+        authHardening: {
+          captchaEnabled: Boolean(process.env.TURNSTILE_SECRET_KEY?.trim()),
+          rateLimitEnabled: !isRateLimitDisabled(),
+          rateLimitCountersShared: Boolean(process.env.REDIS_URL?.trim()),
+          trustProxyHops: resolveTrustProxyHops(),
         },
       },
     };

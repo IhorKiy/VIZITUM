@@ -39,7 +39,8 @@
       "locationHistory": "Back to visit history",
       "visits": "Back to visits",
       "coverage": "Back to coverage",
-      "potential": "Back to potential"
+      "potential": "Back to potential",
+      "zone": "Back to {zone}"
     },
     "labels": {
       "draft": "Draft",
@@ -241,7 +242,28 @@
     "errorInvalid": "Invalid email or password.",
     "errorCaptcha": "Captcha verification failed. Please try again.",
     "email": "Email",
-    "password": "Password"
+    "password": "Password",
+    "account": {
+      "eyebrow": "Your account",
+      "title": "Password",
+      "copy": "Change the password you use to sign in. Your other devices will be signed out.",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmPassword": "Repeat the new password",
+      "hint": "At least 8 characters.",
+      "submit": "Change password",
+      "submitPending": "Changing your password...",
+      "successTitle": "Password changed",
+      "successBody": "Your new password is active. You are still signed in here.",
+      "successOtherDevices": "Your new password is active. Every other signed-in device was signed out.",
+      "errorMismatch": "The two new passwords do not match.",
+      "errorTooShort": "The new password must be at least 8 characters.",
+      "errorCurrent": "The current password is incorrect.",
+      "errorUnchanged": "Choose a password you are not already using.",
+      "errorRateLimited": "Too many attempts. Please wait and try again.",
+      "errorGeneric": "The password could not be changed. Please try again.",
+      "link": "Change password"
+    }
   },
   "invites": {
     "eyebrow": "Team invite",

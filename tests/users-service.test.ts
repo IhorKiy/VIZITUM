@@ -142,6 +142,13 @@ describe("users service", () => {
         update: async (query: unknown) => {
           updates.push(query);
         },
+        // Every new invite revokes any earlier pending one for the address,
+        // so the resent token is the only live credential for it.
+        updateMany: async (query: unknown) => {
+          updates.push(query);
+
+          return { count: 0 };
+        },
         create: async (query: {
           data: {
             tenantId: string;
@@ -175,12 +182,24 @@ describe("users service", () => {
         where: { id: "invite-a" },
         data: { status: "revoked" },
       },
+      // The sweep every invite creation does, which also catches any other
+      // pending invite to the same address that this resend never saw.
+      {
+        where: {
+          tenantId: "tenant-a",
+          email: "new@example.com",
+          status: "pending",
+        },
+        data: { status: "revoked" },
+      },
     ]);
     assert.equal(creates.length, 1);
     assert.equal(resentInvite.id, "invite-b");
     assert.equal(resentInvite.email, "new@example.com");
     assert.equal(resentInvite.roleCodes[0], "field_representative");
-    assert.ok(resentInvite.token.length > 20);
+    // Email is off in this fixture, so the copyable link is the only way in
+    // and the token comes back.
+    assert.ok((resentInvite.token ?? "").length > 20);
   });
 
   function withTransaction(client: Record<string, unknown>) {

@@ -14,6 +14,7 @@ import { PilotReviewModule } from "./modules/pilot-review/pilot-review.module";
 import { PlatformModule } from "./modules/platform/platform.module";
 import { PrismaModule } from "./modules/prisma/prisma.module";
 import { ProductsModule } from "./modules/products/products.module";
+import { RateLimitModule } from "./modules/rate-limit/rate-limit.module";
 import { RolesModule } from "./modules/roles/roles.module";
 import { RoutesModule } from "./modules/routes/routes.module";
 import { SettingsModule } from "./modules/settings/settings.module";
@@ -26,6 +27,9 @@ import { VisitsModule } from "./modules/visits/visits.module";
 @Module({
   imports: [
     PrismaModule,
+    // First: it registers the global throttler guard, and the rest of the
+    // graph resolves LoginBackoffService out of it.
+    RateLimitModule,
     HealthModule,
     PlatformModule,
     AuthModule,

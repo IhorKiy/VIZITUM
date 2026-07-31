@@ -275,6 +275,20 @@ textarea {
   white-space: nowrap;
 }
 
+/* Hangs off the identity block, not the nav list: the nav is this zone's
+   screens and the account screen belongs to none of them. */
+.current-user-link {
+  color: var(--sidebar-muted);
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 6px;
+  text-decoration: underline;
+}
+
+.current-user-link:hover {
+  color: var(--sidebar-ink);
+}
+
 .nav-list {
   display: grid;
   gap: 8px;
@@ -4261,6 +4275,18 @@ textarea {
   padding: 10px 12px;
 }
 
+/* The .form-error twin, for a form that reports its own success in place
+   rather than navigating away — the password change stays on its screen. */
+.form-success {
+  background: var(--surface-muted);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 12px;
+}
+
 @media (max-width: 920px) {
   .app-shell {
     display: block;
@@ -4642,6 +4668,17 @@ textarea {
   font-size: 12px;
   margin: 2px 0 0;
   overflow-wrap: anywhere;
+}
+
+/* Same reasoning as .current-user-link in the sidebar: attached to the
+   identity, not to the list of the day's screens below it. */
+.field-menu-account-link {
+  color: var(--accent-strong);
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 6px;
+  text-decoration: underline;
 }
 
 .field-menu-links {

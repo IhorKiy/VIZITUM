@@ -68,7 +68,10 @@ export type InviteUserResponse = {
   status: string;
   emailStatus: InviteEmailStatus;
   expiresAt: string;
-  token: string;
+  // Present only when the invite email was not delivered (`skipped` or
+  // `failed`), where the copyable link is the invited person's only way in.
+  // Absent on a successful send — see createInvite.
+  token?: string;
 };
 
 export type InviteHistoryItem = {

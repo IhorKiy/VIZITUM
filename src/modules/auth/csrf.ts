@@ -74,12 +74,19 @@ export function applyCsrfProtection(
     return;
   }
 
-  if (isCsrfExemptRoute(request)) {
+  // Normalized once and shared by both checks below. They used to derive the
+  // path independently — the exemption list lowercased, the platform-session
+  // lookup did not — so `POST /api/Platform/...` reached the platform handler
+  // (Express routing was case-insensitive) while resolveCsrfSession failed to
+  // recognise it as a platform path, found no session, and skipped CSRF.
+  const requestPath = normalizeRequestPath(request);
+
+  if (isCsrfExemptRoute(request.method, requestPath)) {
     next();
     return;
   }
 
-  const resolved = resolveCsrfSession(request);
+  const resolved = resolveCsrfSession(request, requestPath);
 
   if (!resolved) {
     next();
@@ -106,21 +113,37 @@ export function applyCsrfProtection(
   next();
 }
 
-function isCsrfExemptRoute(request: Request): boolean {
-  if (request.method !== "POST") {
+// Single normalization for every path decision in this file: query dropped,
+// lowercased, trailing slashes trimmed. The bootstrap now also turns on
+// case-sensitive and strict Express routing, so those spellings 404 before
+// they get here — but this must not depend on that. The flags are read once
+// when Express builds its router and are silently ignored if set a moment too
+// late, which is precisely how the mixed-case bypass came about.
+export function normalizeRequestPath(request: Request): string {
+  const rawPath = request.originalUrl ?? request.url ?? "";
+
+  return rawPath.split("?")[0].toLowerCase().replace(/\/+$/, "");
+}
+
+function isCsrfExemptRoute(method: string, requestPath: string): boolean {
+  if (method !== "POST") {
     return false;
   }
 
-  const requestPath = request.originalUrl ?? request.url ?? "";
-  // Express routing is case-insensitive and tolerant of trailing slashes by
-  // default, so `/api/auth/logout/` or `/API/auth/logout` still reach the
-  // logout handler. Normalize the same way before the exact-match lookup so
-  // those forms don't stay CSRF-blocked while nested paths (which the
-  // trailing-slash trim can't produce) still require a token.
-  const pathWithoutQuery = requestPath.split("?")[0].toLowerCase();
-  const normalizedPath = pathWithoutQuery.replace(/\/+$/, "");
+  return CSRF_EXEMPT_ROUTES.has(requestPath);
+}
 
-  return CSRF_EXEMPT_ROUTES.has(normalizedPath);
+// Takes an already-normalized path. Both the `/api`-prefixed and bare forms
+// are matched for the same reason the exemption list carries both: the global
+// prefix is applied by Nest, and this middleware also runs in contexts that
+// see the unprefixed path.
+export function isPlatformPath(requestPath: string): boolean {
+  return (
+    requestPath === "/api/platform" ||
+    requestPath === "/platform" ||
+    requestPath.startsWith("/api/platform/") ||
+    requestPath.startsWith("/platform/")
+  );
 }
 
 // Platform and tenant sessions each get their own CSRF cookie
@@ -137,15 +160,9 @@ function isCsrfExemptRoute(request: Request): boolean {
 // and rejects it with 401/403 regardless of what CSRF decided.
 function resolveCsrfSession(
   request: Request,
+  requestPath: string,
 ): { sessionToken: string; cookieName: string } | null {
-  const requestPath = request.originalUrl ?? request.url ?? "";
-  const isPlatformPath =
-    requestPath.startsWith("/api/platform/") ||
-    requestPath === "/api/platform" ||
-    requestPath.startsWith("/platform/") ||
-    requestPath === "/platform";
-
-  if (isPlatformPath) {
+  if (isPlatformPath(requestPath)) {
     const platformSessionToken = readPlatformSessionToken(request);
 
     return platformSessionToken

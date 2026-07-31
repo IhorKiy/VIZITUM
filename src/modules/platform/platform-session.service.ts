@@ -2,13 +2,17 @@ import { Injectable } from "@nestjs/common";
 import type { PlatformSession, PlatformUser } from "@prisma/client";
 
 import {
-  issueSessionToken,
+  issueSessionTokenForHours,
   isSessionActive,
   touchSession,
 } from "../../common/session-lifecycle";
 import { hashValue } from "../auth/auth-crypto";
-import { SESSION_TOKEN_BYTES, SESSION_TTL_DAYS } from "../auth/auth.constants";
+import { SESSION_TOKEN_BYTES } from "../auth/auth.constants";
 import { PrismaService } from "../prisma/prisma.service";
+import {
+  PLATFORM_SESSION_IDLE_TIMEOUT_HOURS,
+  PLATFORM_SESSION_TTL_HOURS,
+} from "./platform-auth.constants";
 
 export type CreatePlatformSessionInput = {
   platformUserId: string;
@@ -28,9 +32,11 @@ export class PlatformSessionService {
   async createSession(
     input: CreatePlatformSessionInput,
   ): Promise<CreatedPlatformSession> {
-    const { token, expiresAt } = issueSessionToken(
+    // Hours, not the tenant session's days — one account reaches every
+    // tenant's data. See PLATFORM_SESSION_TTL_HOURS.
+    const { token, expiresAt } = issueSessionTokenForHours(
       SESSION_TOKEN_BYTES,
-      SESSION_TTL_DAYS,
+      PLATFORM_SESSION_TTL_HOURS,
     );
     const sessionTokenHash = hashValue(token);
 
@@ -55,7 +61,10 @@ export class PlatformSessionService {
       include: { platformUser: true },
     });
 
-    if (!session || !isSessionActive(session)) {
+    if (
+      !session ||
+      !isSessionActive(session, PLATFORM_SESSION_IDLE_TIMEOUT_HOURS)
+    ) {
       return null;
     }
 

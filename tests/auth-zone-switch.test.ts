@@ -5,6 +5,7 @@ import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { SESSION_COOKIE_NAME } from "../src/modules/auth/auth.constants";
 import { RolesService } from "../src/modules/roles/roles.service";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
 
 describe("auth zone switch", () => {
   it("requires an active session", async () => {
@@ -15,6 +16,7 @@ describe("auth zone switch", () => {
       { findActiveSessionByToken: async () => null } as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -22,6 +24,7 @@ describe("auth zone switch", () => {
         authService.switchZone(
           { zone: "admin" },
           createRequest("session-token"),
+          createResponse(),
         ),
       UnauthorizedException,
     );
@@ -41,6 +44,7 @@ describe("auth zone switch", () => {
       } as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -48,6 +52,7 @@ describe("auth zone switch", () => {
         authService.switchZone(
           { zone: "not-a-real-zone" },
           createRequest("session-token"),
+          createResponse(),
         ),
       (error: unknown) => {
         assert.ok(error instanceof BadRequestException);
@@ -79,6 +84,7 @@ describe("auth zone switch", () => {
       createSessionService(session) as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -86,6 +92,7 @@ describe("auth zone switch", () => {
         authService.switchZone(
           { zone: "admin" },
           createRequest("session-token"),
+          createResponse(),
         ),
       UnauthorizedException,
     );
@@ -125,6 +132,7 @@ describe("auth zone switch", () => {
       createSessionService(session) as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     // field_representative holds no admin-zone permission (see
@@ -134,6 +142,7 @@ describe("auth zone switch", () => {
         authService.switchZone(
           { zone: "admin" },
           createRequest("session-token"),
+          createResponse(),
         ),
       (error: unknown) => {
         assert.ok(error instanceof BadRequestException);
@@ -170,18 +179,22 @@ describe("auth zone switch", () => {
         },
       },
     };
+    const rotations: string[] = [];
+    const cookies: { name: string; value: string }[] = [];
     const authService = new AuthService(
       prisma as never,
       {} as never,
       new RolesService(),
-      createSessionService(session) as never,
+      createSessionService(session, rotations) as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     const result = await authService.switchZone(
       { zone: "admin" },
       createRequest("session-token"),
+      createResponse(cookies),
     );
 
     assert.equal(result.user.lastSelectedZone, "admin");
@@ -192,6 +205,18 @@ describe("auth zone switch", () => {
         data: { lastSelectedZone: "admin" },
       },
     ]);
+    // The switch changes what the session may do, so the token it was
+    // carrying stops working — anything that captured the old value is no
+    // longer holding a credential for the new privilege level.
+    assert.deepEqual(rotations, [session.id]);
+    // Both cookies, not just the session one: the CSRF token is an HMAC keyed
+    // on the session token, so a rotated session leaves the old CSRF cookie
+    // unverifiable and every later mutation would fail.
+    assert.deepEqual(
+      cookies.map((cookie) => cookie.name),
+      ["vizitum_session", "vizitum_csrf"],
+    );
+    assert.equal(cookies[0].value, "rotated-session-token");
   });
 });
 
@@ -210,10 +235,30 @@ function createSession() {
   };
 }
 
-function createSessionService(session: ReturnType<typeof createSession>) {
+function createSessionService(
+  session: ReturnType<typeof createSession>,
+  rotations: string[] = [],
+) {
   return {
     findActiveSessionByToken: async () => session,
+    // A zone or role switch changes what the session may do, so the service
+    // mints a new token for it. Recorded rather than ignored so the test
+    // below can assert the rotation actually happened.
+    rotateSessionToken: async (sessionId: string) => {
+      rotations.push(sessionId);
+
+      return "rotated-session-token";
+    },
   };
+}
+
+// switchZone/switchRole now write the rotated session and CSRF cookies.
+function createResponse(cookies: { name: string; value: string }[] = []) {
+  return {
+    cookie: (name: string, value: string) => {
+      cookies.push({ name, value });
+    },
+  } as never;
 }
 
 function createRequest(token?: string) {

@@ -205,6 +205,7 @@ describe("email service", () => {
 describe("invite creation email dispatch", () => {
   function createClient(overrides: Record<string, unknown> = {}) {
     const inviteUpdates: Array<Record<string, unknown>> = [];
+    const revocations: Array<Record<string, unknown>> = [];
     const client = {
       user: {
         findUnique: async () => null,
@@ -222,6 +223,11 @@ describe("invite creation email dispatch", () => {
 
           return {};
         },
+        updateMany: async (query: { where: Record<string, unknown> }) => {
+          revocations.push(query.where);
+
+          return { count: 0 };
+        },
       },
       platformTenant: {
         findUnique: async () => ({
@@ -234,7 +240,7 @@ describe("invite creation email dispatch", () => {
       ...overrides,
     };
 
-    return { client, inviteUpdates };
+    return { client, inviteUpdates, revocations };
   }
 
   function createService(client: Record<string, unknown>, emailService: unknown) {
@@ -246,7 +252,7 @@ describe("invite creation email dispatch", () => {
     );
   }
 
-  it("persists sent status and still returns the token", async () => {
+  it("persists sent status and withholds the token once the email is on its way", async () => {
     const { client, inviteUpdates } = createClient();
     const sentEmails: Array<Record<string, unknown>> = [];
     const service = createService(client, {
@@ -264,12 +270,15 @@ describe("invite creation email dispatch", () => {
     });
 
     assert.equal(invite.emailStatus, "sent");
-    assert.ok(invite.token.length > 0);
+    // The plaintext token is a working credential for that address. Once the
+    // email carries it, it has no business travelling back through the Next
+    // layer, the admin's browser and every log sink in between.
+    assert.equal(invite.token, undefined);
     assert.equal(sentEmails.length, 1);
     assert.equal(sentEmails[0].to, "new.user@example.com");
     assert.equal(sentEmails[0].tenantSlug, "demo-team");
     assert.equal(sentEmails[0].language, "uk");
-    assert.equal(sentEmails[0].token, invite.token);
+    assert.ok(String(sentEmails[0].token).length > 0);
     assert.equal(inviteUpdates.length, 1);
     assert.equal(inviteUpdates[0].emailStatus, "sent");
     assert.ok(inviteUpdates[0].emailSentAt instanceof Date);
@@ -288,10 +297,36 @@ describe("invite creation email dispatch", () => {
     });
 
     assert.equal(invite.emailStatus, "failed");
-    assert.ok(invite.token.length > 0);
+    // Nothing was delivered, so the copyable link in the admin UI is the
+    // invited person's only way in — the token has to come back here.
+    assert.ok((invite.token ?? "").length > 0);
     assert.equal(inviteUpdates.length, 1);
     assert.equal(inviteUpdates[0].emailStatus, "failed");
     assert.equal(inviteUpdates[0].emailSentAt, null);
+  });
+
+  it("revokes any earlier pending invite to the same address", async () => {
+    const { client, revocations } = createClient();
+    const service = createService(client, {
+      isEnabled: () => false,
+      sendInviteEmail: async () => "skipped",
+    });
+
+    await service.inviteUser(context as never, {
+      email: "new.user@example.com",
+      roleCodes: ["field_representative"],
+    });
+
+    // Without this, every invite leaves a 7-day window in which its token can
+    // still set a password for that email, so re-inviting someone multiplied
+    // the live credentials for one account.
+    assert.deepEqual(revocations, [
+      {
+        tenantId: "tenant-a",
+        email: "new.user@example.com",
+        status: "pending",
+      },
+    ]);
   });
 
   it("skips the tenant lookup and row update when email is disabled", async () => {

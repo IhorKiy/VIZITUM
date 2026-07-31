@@ -4,6 +4,7 @@ import { UnauthorizedException } from "@nestjs/common";
 
 import { PlatformAuthService } from "../src/modules/platform/platform-auth.service";
 import { PERMISSIONS } from "../src/modules/roles/permissions";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
 
 describe("platform auth", () => {
   it("issues a platform-owner session for valid credentials", async () => {
@@ -36,6 +37,7 @@ describe("platform auth", () => {
         },
       } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     const result = await service.login(
@@ -70,6 +72,7 @@ describe("platform auth", () => {
       { verifyPassword: async () => true } as never,
       { createSession: async () => ({ token: "t", session: {} }) } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -99,6 +102,7 @@ describe("platform auth", () => {
       { verifyPassword: async () => true } as never,
       { createSession: async () => ({ token: "t", session: {} }) } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -134,6 +138,7 @@ describe("platform auth", () => {
         },
       } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
@@ -154,6 +159,7 @@ describe("platform auth", () => {
       { verifyPassword: async () => true } as never,
       { findActiveSessionByToken: async () => null } as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(

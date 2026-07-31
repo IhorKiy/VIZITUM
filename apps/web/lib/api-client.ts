@@ -1,5 +1,7 @@
 import { cookies, headers } from "next/headers";
 
+import { forwardSetCookies } from "./backend-cookies";
+
 export type AuthSession = {
   user: {
     id: string;
@@ -494,7 +496,10 @@ export type InviteUserResult = {
   status: string;
   emailStatus: InviteEmailStatus;
   expiresAt: string;
-  token: string;
+  // Only sent back when the invite email was not delivered (`skipped` or
+  // `failed`), where the copyable link is the invited person's only way in.
+  // A successfully emailed token never leaves the API.
+  token?: string;
 };
 
 export type InviteHistoryItem = {
@@ -755,7 +760,30 @@ export type SwitchZoneResult = Pick<
 export async function switchZone(
   zone: string,
 ): Promise<ApiResult<SwitchZoneResult>> {
-  return apiPost<SwitchZoneResult>("/auth/zone", { zone });
+  // Switching zone changes what the session may do, so the API rotates the
+  // session token and re-issues both cookies. They have to reach the browser
+  // or it keeps a token the API has just invalidated.
+  return apiPost<SwitchZoneResult>(
+    "/auth/zone",
+    { zone },
+    { forwardCookies: true },
+  );
+}
+
+export type ChangePasswordResult = {
+  ok: true;
+  /** How many of the user's *other* sessions were signed out. */
+  revokedOtherSessions: number;
+};
+
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<ApiResult<ChangePasswordResult>> {
+  return apiPost<ChangePasswordResult>("/auth/password", {
+    currentPassword,
+    newPassword,
+  });
 }
 
 // The status split of the whole selected period, ignoring any status filter —
@@ -2136,6 +2164,13 @@ async function apiGet<TData>(path: string): Promise<ApiResult<TData>> {
 async function apiPost<TData>(
   path: string,
   body: Record<string, unknown>,
+  // Copies the API's Set-Cookie headers onto this response. Needed only by
+  // the endpoints that re-issue the session — a privilege switch rotates the
+  // session token, and without forwarding it the browser would keep the token
+  // the API has just invalidated and find itself signed out. Off by default
+  // because cookies().set() is only legal inside a Server Action or Route
+  // Handler, and most apiPost callers are neither.
+  { forwardCookies = false }: { forwardCookies?: boolean } = {},
 ): Promise<ApiResult<TData>> {
   const baseUrl = getApiBaseUrl();
   let response: Response;
@@ -2164,6 +2199,10 @@ async function apiPost<TData>(
       status: response.status,
       ...(await readErrorPayload(response)),
     };
+  }
+
+  if (forwardCookies) {
+    await forwardSetCookies(response.headers);
   }
 
   return {
@@ -2311,12 +2350,33 @@ export async function buildRequestHeaders(path: string): Promise<HeadersInit> {
     ? PLATFORM_CSRF_COOKIE_NAME
     : TENANT_CSRF_COOKIE_NAME;
   const csrfToken = cookieStore.get(csrfCookieName)?.value;
+  const clientAddress = resolveClientAddress(headerStore);
 
   return {
     ...(cookieHeader ? { cookie: cookieHeader } : {}),
     ...(requestId ? { "x-request-id": requestId } : {}),
     ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+    ...(clientAddress ? { "x-forwarded-for": clientAddress } : {}),
   };
+}
+
+// Every API call is server-to-server, so without this the API sees this Next
+// process as the caller and its per-IP rate limits would put the whole world
+// in one bucket. Forwarding the browser's address restores per-client keying;
+// the API turns it back into `request.ip` via `trust proxy` (TRUST_PROXY_HOPS).
+//
+// Only the leftmost entry is forwarded — the originating client. Passing the
+// whole inbound chain through would make the API's hop count depend on how
+// many proxies happened to sit in front of *this* layer for that request.
+function resolveClientAddress(headerStore: Headers): string | null {
+  const forwardedFor = headerStore.get("x-forwarded-for");
+  const originating = forwardedFor?.split(",")[0]?.trim();
+
+  if (originating) {
+    return originating;
+  }
+
+  return headerStore.get("x-real-ip")?.trim() || null;
 }
 
 async function readErrorPayload(

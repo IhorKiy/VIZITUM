@@ -45,6 +45,7 @@ export async function AppShell({
     tCommon,
     tZoneNames,
     tZoneSwitcher,
+    tAccount,
     fieldTasksInProgressResult,
     activeAnnouncementsResult,
   ] = await Promise.all([
@@ -54,6 +55,7 @@ export async function AppShell({
     getTranslations("common"),
     getTranslations("common.zone.names"),
     getTranslations("common.zone.switcher"),
+    getTranslations("auth.account"),
     // Feeds the "Tasks" nav badge below. Fetched here (rather than per-page)
     // since the bottom nav is the one thing every field page renders; gated
     // on zone, not on session, so it stays a single parallel round-trip
@@ -251,6 +253,12 @@ export async function AppShell({
           <div className="current-user">
             <p className="current-user-name">{currentUser.name}</p>
             <p className="current-user-email">{currentUser.email}</p>
+            {/* Attached to the identity block rather than the nav list below:
+                the nav is this zone's screens, and the account is not one of
+                them — it is the same for every zone. */}
+            <Link className="current-user-link" href={`/${tenantSlug}/account`}>
+              {tAccount("link")}
+            </Link>
           </div>
         ) : null}
 

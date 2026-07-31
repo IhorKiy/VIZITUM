@@ -15,6 +15,7 @@ import {
 import { normalizePhoneInput } from "../../common/phone";
 import { withSerializationRetry } from "../../common/prisma-retry";
 import { PrismaService } from "../prisma/prisma.service";
+import { LoginBackoffService } from "../rate-limit/login-backoff.service";
 import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
 import { hashValue } from "./auth-crypto";
@@ -26,6 +27,8 @@ import { SessionService } from "./session.service";
 import { TurnstileService } from "./turnstile.service";
 import type {
   AcceptInviteRequestBody,
+  ChangePasswordRequestBody,
+  ChangePasswordResponse,
   LoginRequestBody,
   LoginResponse,
   SwitchRoleRequestBody,
@@ -49,6 +52,7 @@ export class AuthService {
     private readonly sessionService: SessionService,
     private readonly tenancyService: TenancyService,
     private readonly turnstileService: TurnstileService,
+    private readonly loginBackoffService: LoginBackoffService,
   ) {}
 
   async login(
@@ -85,7 +89,16 @@ export class AuthService {
       },
     });
 
+    // Keyed per tenant so the same address in two tenants keeps separate
+    // counters, and applied whether or not the user exists so a missing
+    // account and a wrong password behave identically here.
+    const backoffIdentity = `${tenant.id}:${email}`;
+
     if (!user || user.status !== "active" || !user.passwordHash) {
+      await this.loginBackoffService.penalizeFailure(
+        "tenant-login",
+        backoffIdentity,
+      );
       throwInvalidCredentials();
     }
 
@@ -95,8 +108,19 @@ export class AuthService {
     );
 
     if (!passwordMatches) {
+      await this.loginBackoffService.penalizeFailure(
+        "tenant-login",
+        backoffIdentity,
+      );
       throwInvalidCredentials();
     }
+
+    // Correct credentials clear the debt: the delay only ever slows guessing,
+    // it never carries over to the person who actually owns the account.
+    await this.loginBackoffService.clearFailures(
+      "tenant-login",
+      backoffIdentity,
+    );
 
     const { token } = await this.sessionService.createSession({
       tenantId: tenant.id,
@@ -252,6 +276,40 @@ export class AuthService {
             }
           }
 
+          // An invite is a password-setting credential for its email address,
+          // and it stays valid for its full 7-day TTL. Both issue paths
+          // refuse an address that already belongs to a live user, but
+          // nothing stopped an invite issued *before* that account existed —
+          // or before a deleted one was restored — from being redeemed
+          // afterwards, and the upsert below would then overwrite the live
+          // account's password and reactivate it.
+          //
+          // Checked on `deletedAt` as well as status because reactivating a
+          // soft-deleted user through a fresh invite is a supported flow; a
+          // deleted row carries status "deleted", so only a genuinely live
+          // account is refused here.
+          const existingUser = await tx.user.findUnique({
+            where: {
+              tenantId_email: {
+                tenantId: invite.tenantId,
+                email: invite.email,
+              },
+            },
+            select: { status: true, deletedAt: true },
+          });
+
+          if (
+            existingUser &&
+            existingUser.status === "active" &&
+            !existingUser.deletedAt
+          ) {
+            throw new ConflictException({
+              code: "INVITE_ACCOUNT_ALREADY_ACTIVE",
+              message:
+                "This account is already active. Sign in with your password instead of using the invite link.",
+            });
+          }
+
           const acceptedUser = await tx.user.upsert({
             where: {
               tenantId_email: {
@@ -380,14 +438,24 @@ export class AuthService {
             }
           }
 
-          await tx.invite.update({
-            where: { id: invite.id },
+          // Conditional on the invite still being pending, inside the
+          // transaction. The `status !== "pending"` check above runs before
+          // the transaction opens, so on its own it leaves a window where two
+          // concurrent acceptances of the same token both pass it. Claiming
+          // the row here — and aborting when nothing was claimed — means
+          // exactly one of them commits.
+          const claimed = await tx.invite.updateMany({
+            where: { id: invite.id, status: "pending" },
             data: {
               status: "accepted",
               acceptedAt: new Date(),
               acceptedByUserId: acceptedUser.id,
             },
           });
+
+          if (claimed.count === 0) {
+            throwInvalidInvite();
+          }
 
           return { acceptedUser, demotedSuperadminIds };
         },
@@ -521,9 +589,116 @@ export class AuthService {
     };
   }
 
+  // Self-service password change for a signed-in user.
+  //
+  // Deliberately *not* the unauthenticated forgot-password flow: that one
+  // needs single-use emailed reset tokens with their own TTL, enumeration
+  // surface and delivery dependency, and is tracked separately. This is the
+  // straightforward half — the user already proved who they are, and proves
+  // it again by supplying the current password.
+  async changePassword(
+    body: ChangePasswordRequestBody,
+    request: Request,
+  ): Promise<ChangePasswordResponse> {
+    const currentPassword = normalizePassword(body.currentPassword);
+    const newPassword = normalizeNewPassword(body.newPassword);
+    const token = readSessionToken(request);
+
+    if (!token) {
+      throwAuthenticationRequired();
+    }
+
+    const session = await this.sessionService.findActiveSessionByToken(token);
+
+    if (!session) {
+      throwAuthenticationRequired();
+    }
+
+    if (!currentPassword || !newPassword) {
+      throw new BadRequestException({
+        code: "PASSWORD_CHANGE_INVALID",
+        message: "The current password and a new password are required.",
+        fieldErrors: {
+          currentPassword: currentPassword
+            ? []
+            : ["Enter your current password."],
+          newPassword: newPassword
+            ? []
+            : ["The new password must be at least 8 characters."],
+        },
+      });
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: session.userId, tenantId: session.tenantId },
+    });
+
+    if (!user || user.status !== "active" || !user.passwordHash) {
+      throwAuthenticationRequired();
+    }
+
+    const backoffIdentity = `${session.tenantId}:${user.email}`;
+    const currentPasswordMatches = await this.passwordService.verifyPassword(
+      user.passwordHash,
+      currentPassword,
+    );
+
+    if (!currentPasswordMatches) {
+      // Same brake as a failed login: this endpoint verifies a credential, so
+      // it is a guessing surface too — a stolen session cookie must not become
+      // a free oracle for the account's password.
+      await this.loginBackoffService.penalizeFailure(
+        "password-change",
+        backoffIdentity,
+      );
+      throw new BadRequestException({
+        code: "CURRENT_PASSWORD_INVALID",
+        message: "The current password is incorrect.",
+        fieldErrors: {
+          currentPassword: ["The current password is incorrect."],
+        },
+      });
+    }
+
+    if (currentPassword === newPassword) {
+      throw new BadRequestException({
+        code: "PASSWORD_UNCHANGED",
+        message: "The new password must differ from the current one.",
+        fieldErrors: {
+          newPassword: ["Choose a password you are not already using."],
+        },
+      });
+    }
+
+    await this.loginBackoffService.clearFailures(
+      "password-change",
+      backoffIdentity,
+    );
+
+    const passwordHash = await this.passwordService.hashPassword(newPassword);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    // The point of changing a password is usually that someone else might
+    // have it. Leaving their sessions alive would make the change cosmetic,
+    // since a session cookie needs no password to keep working.
+    const revokedOtherSessions =
+      await this.sessionService.revokeOtherUserSessions(
+        session.tenantId,
+        user.id,
+        session.id,
+      );
+
+    return { ok: true, revokedOtherSessions };
+  }
+
   async switchRole(
     body: SwitchRoleRequestBody,
     request: Request,
+    response: Response,
   ): Promise<LoginResponse> {
     const selectedRoleCode = normalizeRoleCode(body.roleCode);
 
@@ -572,6 +747,8 @@ export class AuthService {
       data: { lastSelectedRoleCode: selectedRoleCode },
     });
 
+    await this.rotateSessionAfterPrivilegeChange(response, session.id);
+
     return {
       user: {
         id: updatedUser.id,
@@ -591,6 +768,7 @@ export class AuthService {
   async switchZone(
     body: SwitchZoneRequestBody,
     request: Request,
+    response: Response,
   ): Promise<LoginResponse> {
     if (!isValidZone(body.zone)) {
       throw new BadRequestException({
@@ -639,6 +817,8 @@ export class AuthService {
       data: { lastSelectedZone: selectedZone },
     });
 
+    await this.rotateSessionAfterPrivilegeChange(response, session.id);
+
     return {
       user: {
         id: updatedUser.id,
@@ -653,6 +833,26 @@ export class AuthService {
       roleCodes,
       permissions,
     };
+  }
+
+  /**
+   * Mints a fresh session token after the session's privileges change, and
+   * re-issues the cookies that depend on it.
+   *
+   * The CSRF cookie has to be rewritten too, not just the session one: the
+   * CSRF token is an HMAC keyed on the session token (see csrf.ts), so a
+   * rotated session leaves the old CSRF cookie unverifiable and every
+   * subsequent mutation would fail with CSRF_TOKEN_INVALID.
+   */
+  private async rotateSessionAfterPrivilegeChange(
+    response: Response,
+    sessionId: string,
+  ): Promise<void> {
+    const rotatedToken =
+      await this.sessionService.rotateSessionToken(sessionId);
+
+    writeSessionCookie(response, rotatedToken);
+    writeCsrfCookie(response, createCsrfToken(rotatedToken), CSRF_COOKIE_NAME);
   }
 }
 

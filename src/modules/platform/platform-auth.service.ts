@@ -6,6 +6,7 @@ import { createCsrfToken, writeCsrfCookie } from "../auth/csrf";
 import { PasswordService } from "../auth/password.service";
 import { TurnstileService } from "../auth/turnstile.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { LoginBackoffService } from "../rate-limit/login-backoff.service";
 import { ROLE_PERMISSION_MATRIX } from "../roles/role-permission.matrix";
 import { PLATFORM_CSRF_COOKIE_NAME } from "./platform-auth.constants";
 import { PLATFORM_OWNER_ROLE_CODE } from "./platform-auth.types";
@@ -24,6 +25,7 @@ export class PlatformAuthService {
     private readonly passwordService: PasswordService,
     private readonly platformSessionService: PlatformSessionService,
     private readonly turnstileService: TurnstileService,
+    private readonly loginBackoffService: LoginBackoffService,
   ) {}
 
   async login(
@@ -47,6 +49,7 @@ export class PlatformAuthService {
     });
 
     if (!platformUser || platformUser.status !== "active") {
+      await this.loginBackoffService.penalizeFailure("platform-login", email);
       throwInvalidCredentials();
     }
 
@@ -56,8 +59,11 @@ export class PlatformAuthService {
     );
 
     if (!passwordMatches) {
+      await this.loginBackoffService.penalizeFailure("platform-login", email);
       throwInvalidCredentials();
     }
+
+    await this.loginBackoffService.clearFailures("platform-login", email);
 
     const { token } = await this.platformSessionService.createSession({
       platformUserId: platformUser.id,

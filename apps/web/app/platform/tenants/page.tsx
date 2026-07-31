@@ -78,7 +78,10 @@ const INVITE_FLASH_MAX_AGE_SECONDS = 120;
 type InviteFlash = {
   email: string;
   tenantSlug: string;
-  token: string;
+  // Absent whenever the invite email was delivered: the API only returns the
+  // plaintext token when the copyable link is the invited person's only way
+  // in (see createInvite in src/modules/users/users.service.ts).
+  token?: string;
   emailStatus?: string;
 };
 
@@ -441,7 +444,7 @@ export default async function PlatformTenantsPage({
       )
     : [];
   const inviteFlash = pageState.invited ? await readInviteFlash() : null;
-  const inviteLink = inviteFlash
+  const inviteLink = inviteFlash?.token
     ? `/${inviteFlash.tenantSlug}/invites/accept?token=${encodeURIComponent(
         inviteFlash.token,
       )}`
@@ -946,13 +949,12 @@ async function readInviteFlash(): Promise<InviteFlash | null> {
 
     if (
       typeof parsed.email === "string" &&
-      typeof parsed.tenantSlug === "string" &&
-      typeof parsed.token === "string"
+      typeof parsed.tenantSlug === "string"
     ) {
       return {
         email: parsed.email,
         tenantSlug: parsed.tenantSlug,
-        token: parsed.token,
+        token: typeof parsed.token === "string" ? parsed.token : undefined,
         emailStatus:
           typeof parsed.emailStatus === "string"
             ? parsed.emailStatus

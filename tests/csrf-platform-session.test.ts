@@ -98,6 +98,59 @@ describe("csrf platform session selection", () => {
 
     assert.equal(nextCalled, true);
   });
+
+  // Regression tests for a case-sensitivity bypass. Platform-path detection
+  // compared the raw path, so `/api/Platform/...` was not recognised as a
+  // platform path, no platform session was looked up, and CSRF was skipped
+  // outright — while Express's then case-insensitive routing still delivered
+  // the request to the platform handler.
+  //
+  // The bootstrap now also turns on case-sensitive and strict routing, so
+  // these spellings 404 before reaching the middleware. These cases pin the
+  // middleware's own behaviour regardless: those flags are read once, when
+  // Express builds its router, and are silently ignored if set a moment too
+  // late — the exact trap this bypass came from.
+  for (const path of [
+    "/api/Platform/tenants",
+    "/API/PLATFORM/tenants",
+    "/api/platform/tenants/",
+    "/api/platform/tenants?page=2",
+  ]) {
+    it(`requires a platform CSRF token for the routing-equivalent form POST ${path}`, () => {
+      const request = createRequest({
+        originalUrl: path,
+        platformSessionToken: "platform-token",
+        // A tenant CSRF cookie is present and sent: before the fix this
+        // request sailed through, because the path was not recognised as
+        // platform and the tenant session was absent, so CSRF was skipped.
+        tenantCsrfToken: createCsrfToken("tenant-token"),
+        headerToken: createCsrfToken("tenant-token"),
+      });
+
+      assert.throws(
+        () => applyCsrfProtection(request, {} as Response, () => undefined),
+        ForbiddenException,
+      );
+    });
+  }
+
+  it("accepts the platform CSRF token on a mixed-case platform path", () => {
+    // The flip side: normalization must not make a legitimate request fail.
+    const platformCsrfToken = createCsrfToken("platform-token");
+    const request = createRequest({
+      originalUrl: "/api/Platform/tenants",
+      platformSessionToken: "platform-token",
+      platformCsrfToken,
+      headerToken: platformCsrfToken,
+    });
+    let nextCalled = false;
+
+    applyCsrfProtection(request, {} as Response, () => {
+      nextCalled = true;
+    });
+
+    assert.equal(nextCalled, true);
+  });
 });
 
 describe("csrf logout exemption", () => {

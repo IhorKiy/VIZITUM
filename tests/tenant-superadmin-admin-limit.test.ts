@@ -5,6 +5,7 @@ import { ConflictException } from "@nestjs/common";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
 import { UsersService } from "../src/modules/users/users.service";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
 
 const superadminContext = {
   requestId: "request-a",
@@ -73,6 +74,8 @@ describe("tenant superadmin admin limit", () => {
         findUnique: async () => ({ adminLimit: 2 }),
       },
       invite: {
+        // Every new invite revokes any earlier pending one for the address.
+        updateMany: async () => ({ count: 0 }),
         create: async (query: { data: Record<string, unknown> }) => {
           created.push(query);
 
@@ -236,6 +239,7 @@ describe("tenant superadmin admin limit", () => {
       {} as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      createTestLoginBackoff(),
     );
 
     await assert.rejects(
