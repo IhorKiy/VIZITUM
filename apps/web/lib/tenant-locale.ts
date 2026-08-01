@@ -16,10 +16,11 @@ export type ResolvedTenantLocale = {
   phoneCountry: string | null;
 };
 
-// "en" is the English marketing landing (app/en/page.tsx), which shadows the
-// [tenantSlug] route anyway — excluding it here just skips a doomed tenant
-// locale lookup on every request to it.
-const NON_TENANT_SEGMENTS = new Set(["platform", "api", "en"]);
+// "en" is the English marketing landing (app/en/page.tsx) and "sign-in" the
+// workspace entry screen (app/sign-in/page.tsx); both are static routes, which
+// shadow the [tenantSlug] route anyway — excluding them here just skips a
+// doomed tenant locale lookup on every request to them.
+const NON_TENANT_SEGMENTS = new Set(["platform", "api", "en", "sign-in"]);
 const TENANT_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
 // Shared slug-shape check: also guards redirect paths built from

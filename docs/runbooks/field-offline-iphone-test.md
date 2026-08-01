@@ -132,13 +132,33 @@ the session cookie and the service worker scope sit on one host.
 4. Confirm the page is **not** in demo mode — a "Демо-режим" notice means the
    route came from the fabricated fallback and the snapshot is deliberately
    not written.
-5. **Add to Home Screen** (Share → Add to Home Screen) and run the rest of the
-   pass in the installed app, not the Safari tab. It is the installed case
-   that is exempt from iOS's 7-day eviction of script-writable storage, and
-   the one a rep would actually use. Expect the installed app to need its own
-   sign-in and to build its own worker/IndexedDB state — it does not
-   necessarily share Safari's; note which way it behaves, it is worth knowing.
-   Keep the Safari tab too: T12 uses it as the un-installed control.
+5. **Add to Home Screen from a field screen** (Share → Add to Home Screen)
+   and run the rest of the pass in the installed app, not the Safari tab. It
+   is the installed case that is exempt from iOS's 7-day eviction of
+   script-writable storage, and the one a rep would actually use. Expect the
+   installed app to need its own sign-in and to build its own
+   worker/IndexedDB state — it does not necessarily share Safari's; note
+   which way it behaves, it is worth knowing. Keep the Safari tab too: T12
+   uses it as the un-installed control.
+
+   *Which screen you install from matters.* Only the field zone links the
+   workspace's own manifest (`/vizitum-staging/manifest.webmanifest`, served
+   by `apps/web/app/[tenantSlug]/manifest.webmanifest/route.ts`), and that is
+   the manifest carrying `start_url: /vizitum-staging/field`. Installed from
+   anywhere else — the marketing page, an admin screen — iOS reads the
+   origin-wide manifest instead and the app launches at `/sign-in`, which
+   reaches a workspace but has no offline shell behind it (T2 would fail for
+   that reason alone). Check the icon caption reads the workspace name
+   ("Vizitum Demo Team", not "Vizitum") before continuing: that is the
+   cheapest confirmation the right manifest was used.
+
+   This was found the hard way on 2026-08-01. Before that day the origin-wide
+   manifest was the only one, its `start_url` was `/` and the marketing
+   landing's only sign-in link was hardcoded to `/demo-team/login` — a tenant
+   that exists in a seeded local database and nowhere else. An install made on
+   staging therefore launched on marketing copy whose one link led to a login
+   screen that answered every password with "Неправильна електронна пошта або
+   пароль", with no address bar to see the wrong slug in.
 6. Re-run step 3's warm-up inside the installed app (open the field home
    online once).
 
@@ -151,7 +171,7 @@ after entering airplane mode.
 | #   | Scenario                    | Steps                                                                                                                                                                                                | Expected                                                                                                                                                                                                                                                          | Evidence | Status |
 | --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ------ |
 | T1  | Worker and shell cached     | Online, in the installed app: run the SW/cache snippets from the appendix in the inspector console.                                                                                                    | One registration scoped to `https://www.vizitum.com/`; `vizitum-shell-v1` holds `/offline.html`; `vizitum-static-v1` holds `/_next/static/` entries.                                                                                                               |          |        |
-| T2  | Cold offline load           | Airplane mode on. Force-quit the app from the app switcher. Reopen it.                                                                                                                                 | The offline shell renders today's stops with the banner "Офлайн — дані станом на HH:MM" and per-stop "Відвідано"/"Ще не відвідано" — not Safari's own "no internet" page, and not an empty screen.                                                                  |          |        |
+| T2  | Cold offline load           | Airplane mode on. Force-quit the app from the app switcher. Reopen it. This reopen is a full navigation to the manifest's `start_url`, so it tests the installed app's launch destination as much as the worker.                                                                                                 | The offline shell renders today's stops with the banner "Офлайн — дані станом на HH:MM" and per-stop "Відвідано"/"Ще не відвідано" — not Safari's own "no internet" page, and not an empty screen. Safari's error page here usually means the install did not come from a field screen (see setup step 5), not that the worker is broken. |          |        |
 | T3  | Offline visit start         | Still offline: open a stop's location card, tap "Почати візит".                                                                                                                                        | Lands on a working report screen headed "Візит триває". Going back to the location card offers "Продовжити візит" with the hint that it has not reached the server yet. Tapping "Почати візит" twice must not mint a second visit.                                  |          |        |
 | T4  | Offline voice capture       | On that screen tap the record control ("Записати голосову нотатку"), allow the microphone, speak ~15s, stop.                                                                                            | Recording starts (a first-run permission prompt is expected inside the installed app), playback of the recorded blob works, and the screen says the capture is kept on this device ("Запис нікуди не зник" / "Збережено на цьому пристрої"). `pending-media` holds a record with `bytes.byteLength > 0` and an `audio/mp4` mime type. |          |        |
 | T5  | Offline manual confirm      | Tap "Заповнити вручну", fill the summary and next step, tap "Зберегти звіт".                                                                                                                            | The report is accepted locally, and the outbox indicator reads "1 звіт очікує на відправлення". `report-outbox` holds one entry; `visit-start-outbox` still holds the unsent start.                                                                                 |          |        |

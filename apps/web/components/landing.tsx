@@ -8,13 +8,22 @@ export type LandingLocale = "uk" | "en";
 // `/en` (en). The caller pins the dictionary and passes the messages down —
 // see app/page.tsx for why the landing bypasses request-scoped locale
 // resolution.
+//
+// `signInHref` is the workspace entry screen in the same language, never a
+// tenant. Tenancy here is path-shaped, so the one thing this page cannot know
+// is which workspace its reader belongs to: it once named a demo tenant that
+// exists in a seeded local database and nowhere else, which on the real
+// deployment resolved to a login screen that answered every password with
+// "wrong email or password".
 export function Landing({
   lang,
   messages: t,
+  signInHref,
   switchHref,
 }: {
   lang: LandingLocale;
   messages: LandingMessages;
+  signInHref: string;
   switchHref: string;
 }) {
   return (
@@ -44,7 +53,7 @@ export function Landing({
 
         <div className="landing-signin">
           <p className="landing-hint">{t.hint}</p>
-          <a className="landing-cta" href="/demo-team/login">
+          <a className="landing-cta" href={signInHref}>
             {t.signIn}
           </a>
         </div>

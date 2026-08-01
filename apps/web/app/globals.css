@@ -4164,6 +4164,15 @@ textarea {
   background: var(--accent-strong);
 }
 
+/* Workspace entry: the workspace this browser last signed in to, offered
+   above the form that asks for a different one. A grid rather than the
+   .form-stack the form below uses — the hint reads as a caption for the
+   button under it, so it sits tighter than two independent fields would. */
+.workspace-recent {
+  display: grid;
+  gap: 8px;
+}
+
 .form-stack {
   display: grid;
   gap: 14px;

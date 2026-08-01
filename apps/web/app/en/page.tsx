@@ -12,5 +12,7 @@ const t = enMessages.landing;
 export const metadata: Metadata = buildLandingMetadata("en", t);
 
 export default function EnglishHomePage() {
-  return <Landing lang="en" messages={t} switchHref="/" />;
+  return (
+    <Landing lang="en" messages={t} signInHref="/en/sign-in" switchHref="/" />
+  );
 }
