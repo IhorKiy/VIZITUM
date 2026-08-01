@@ -239,6 +239,7 @@
     "copy": "Use your team account to open the tenant workspace.",
     "errorNetwork": "Could not reach the API. Check the staging API URL.",
     "errorInvalid": "Invalid email or password.",
+    "errorWorkspaceUnavailable": "This workspace is not available right now. Contact the platform owner — a different password will not open it.",
     "errorCaptcha": "Captcha verification failed. Please try again.",
     "email": "Email",
     "password": "Password",
