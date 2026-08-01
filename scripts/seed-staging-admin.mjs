@@ -71,8 +71,9 @@ try {
         country: "UA",
         timezone: "Europe/Kiev",
         language: "uk",
+        // No `planCode`: migration 20260707175924_unify_tenant_status_and_plan
+        // folded the plan tier into `status`, so the column is gone.
         status: "ready",
-        planCode: "pilot",
         productMode: "team",
         segmentTemplate: "distribution",
         databasePlacement: "shared",
