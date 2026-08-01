@@ -36,11 +36,13 @@ Two deviations worth knowing about, both deliberate:
 - **`TRUST_PROXY_HOPS` has no production default and the process refuses to
   start without it.** The plan says "set it to the exact hop count"; there is
   no value that is safe to guess, since too low puts all traffic in one
-  rate-limit bucket and too high lets clients forge their own address. The
-  value is **2** for the deployed shape — one more than PR #168's docs said,
-  because the web layer now forwards the originating client address and the
-  hosting edge appends the Next server's to it. Worth confirming against a
-  real request rather than trusting either number.
+  rate-limit bucket and too high lets clients forge their own address.
+  Successive versions of this document asserted 1, then 2, and staging
+  measured 3 — a Cloudflare proxy sits in front of Render, which no amount of
+  reading this repository would have revealed. Derive nothing: the readiness
+  diagnostic added in #170 reports the address the setting actually resolved
+  and the length of the forwarded chain, and the correct hop count is that
+  length. Measure each environment separately.
 
 Derived from a defensive security review covering tenant isolation, authentication/authorization, session management, injection/input validation, secrets, and HTTP hardening.
 
