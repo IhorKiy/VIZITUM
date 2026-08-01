@@ -38,6 +38,7 @@ Do not reuse staging secrets, database URLs, Redis URLs, buckets or tokens in pr
 | --- | --- | --- | --- |
 | `DATABASE_URL` | Production PostgreSQL provider | Yes | Must point to production DB with backup/export/restore evidence. |
 | `REDIS_URL` | Production Redis provider | Yes | Must not point to staging Redis. |
+| `TRUST_PROXY_HOPS` | Measured, not derived — see below | Yes | Number of proxies in front of the API. The service refuses to start without it. Do not copy a number from another environment or from this repository: staging measured `3` because Cloudflare fronts Render, while reasoning from the app's own topology alone suggests `2`. |
 | `SESSION_SECRET` | Generate new secret | Yes | Long random production-only value. Rotate if exposed. |
 | `SESSION_COOKIE_NAME` | Product decision | Yes | Usually `vizitum_session`; keep stable unless there is a reason to isolate. |
 | `OPENAI_API_KEY` | OpenAI project/secret manager | Yes | Use a production-controlled key/project. |
@@ -55,9 +56,45 @@ Do not reuse staging secrets, database URLs, Redis URLs, buckets or tokens in pr
 | `SENTRY_ENVIRONMENT` | Literal environment name | Yes | Must be `production`. |
 | `SENTRY_RELEASE` | Git SHA or release version | Yes | Use the deployed commit SHA. |
 
+
+### Measuring `TRUST_PROXY_HOPS`
+
+Both ways of getting this wrong are silent, and neither shows up as an error:
+too low and every caller resolves to an infrastructure address, so all traffic
+shares one rate-limit bucket and the `ipHash` on every session is identical;
+too high and the value is client-controlled via `X-Forwarded-For`.
+
+Set any value, deploy, then ask the API what it actually resolved — from a
+machine whose public address you know, and with no `X-Forwarded-For` of your
+own (anyone can inflate their own count by sending the header):
+
+```sh
+curl -s -H "authorization: Bearer <platform-operator-token>" \
+  https://<api-host>/api/health/readiness | jq .checks.authHardening
+```
+
+```json
+{
+  "trustProxyHops": 2,
+  "proxyResolution": { "clientAddress": "162.158.103.144", "forwardedHopCount": 3 }
+}
+```
+
+If `clientAddress` is not your own address, set `TRUST_PROXY_HOPS` to
+`forwardedHopCount` and redeploy — Express counts hops inward from the socket
+and each forwarded entry is one hop. Repeat until `clientAddress` matches.
+
+The reading above is a real staging result: the resolved address was
+Cloudflare's, not the caller's, because the chain is three long and the
+setting said two.
+
+Afterwards, sign in through the web app once. The measurement is taken on a
+direct call to the API, and real traffic arrives through the web layer; if the
+count is too high for that path the symptom is unmistakable — `429` on login.
+
 ## Cleanup Worker
 
-Use the same production values as the API for shared backend dependencies:
+Use the same production values as the API for shared backend dependencies (not `TRUST_PROXY_HOPS` — the worker serves no HTTP, so it never reads `request.ip` and has no boot gate on it):
 
 - `DATABASE_URL`
 - `REDIS_URL`
