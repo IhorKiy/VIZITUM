@@ -31,6 +31,12 @@
  * advisory and the per-account backoff in modules/rate-limit is the control
  * that still bites.
  *
+ * That is the case today: the API answers on its own public URL, so anything
+ * bypassing the web layer picks its own address. Accepted deliberately for the
+ * pilot rather than overlooked — docs/security-remediation-plan.md records the
+ * decision, what it costs, why blocking direct access is not available on the
+ * current hosting, and the shape of the fix when it is reopened.
+ *
  * Express also never parses the entries at a numeric setting — it compiles
  * `(addr, i) => i < n` — so `request.ip` can be arbitrary text rather than an
  * address. Anything echoing it must validate first.

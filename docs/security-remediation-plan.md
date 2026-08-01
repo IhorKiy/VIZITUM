@@ -80,12 +80,10 @@ reasoning, which is worth not repeating.
   overwriting or stripping is sufficient. See `docs/reference/environment.md`
   and `src/common/trust-proxy.ts`.
 
-  **Untouched by this and still open:** the API answers on its own public
-  `*.onrender.com` URL, so a caller reaching it directly can forge the chain
-  and pick the address it is limited under — the caveat
-  `src/common/trust-proxy.ts` already documents. Closing it means restricting
-  the API to its edge, or resolving the address there from a header Render's
-  own proxy guarantees.
+  **Untouched by this:** the API answers on its own public `*.onrender.com`
+  URL, so a caller reaching it directly can still forge the chain and pick the
+  address it is limited under. Recorded as an accepted risk below rather than
+  fixed.
 - **2.4's caps did not reach the password endpoints.** PR #168 landed the
   recovery flow while the caps PR was open, carrying its own copies of
   `normalizeToken` / `normalizeNewPassword` / `normalizeTenantSlug` /
@@ -104,6 +102,66 @@ re-read rather than trusted as written — `next` now carries advisories of its
 own beyond the transitive `postcss`/`sharp` ones, with a patched release
 available, and `multer` (via `@nestjs/platform-express`, no multipart endpoint
 in the app) has appeared since.
+
+### Accepted risk: the API is directly reachable, so per-IP keying is advisory
+
+**Decision, 2026-08-01: accepted for the pilot, not fixed.** Recorded here so it
+is a choice on the record rather than an oversight, and so the options are not
+re-derived from scratch.
+
+**The exposure.** The API answers on `vizitum-api-staging.onrender.com` (and
+whatever the production service is named). Every per-IP limit in
+`src/modules/rate-limit` keys on `request.ip`, which Express resolves from
+`X-Forwarded-For` at `TRUST_PROXY_HOPS`. A caller who goes straight to that URL
+writes the leftmost entry itself, so it chooses the identity it is limited
+under and can take a fresh bucket per request. It also chooses the `ipHash`
+stored on any session it opens, making that field unreliable for forensics on
+traffic that did not come through the web layer. `src/common/trust-proxy.ts`
+and `tests/trust-proxy-resolution.test.ts` already state and pin this.
+
+**What still holds, which is why this is survivable.** The per-account backoff
+keys on the address being signed into rather than on the network, so guessing
+one account stays capped at roughly three attempts a minute however many source
+addresses the caller invents. Turnstile still runs before any database work,
+argon2 still costs what it costs, and platform login still needs a TOTP code.
+What is lost is the *hard* per-IP ceiling — credential stuffing spread thinly
+across many accounts is the case it stops bounding.
+
+**Why not simply block direct access.** Checked against the actual hosting,
+2026-08-01:
+
+- **Render private service** — removes the public URL and serves only inside
+  Render's private network. `apps/web` is on Vercel, which is not on it, so the
+  product would stop working entirely.
+- **Render inbound IP rules** — exist, but for individual web services they
+  need the **Scale or Enterprise** plan.
+- **Vercel egress IPs are not static.** Vercel documents that deployments can
+  come from any address; fixed ones require Secure Compute / Static IPs, an
+  **Enterprise** feature, and the Edge runtime that `apps/web/proxy.ts` runs on
+  is excluded from it regardless. So there is no address list to allow even
+  after paying for the Render side.
+- **It would break the monitoring that exists.** UptimeRobot polls
+  `/api/health/readiness` every five minutes, `npm run alerts:check` reads
+  readiness and `/api/operations/summary`, and
+  `docs/runbooks/expanded-staging-product-smoke.md` curls the API directly —
+  including the readiness proxy diagnostic this plan tells operators to use to
+  measure `TRUST_PROXY_HOPS`.
+
+**The fix when this stops being acceptable.** Blocking is the wrong shape;
+distinguishing callers is the right one. Have the web layer send a shared
+secret header alongside the address, and have the API trust `X-Forwarded-For`
+only when that secret verifies — otherwise ignore it and key on the address
+Render's own edge supplies (`CF-Connecting-IP`, which its Cloudflare sets and a
+direct caller cannot forge). Direct callers then get limited under their real
+address instead of being refused, so the monitors above keep working, and local
+development is untouched because no secret is configured there. This is the
+same shape as `apps/web/lib/client-address.ts` and needs no plan upgrade.
+
+**Revisit when** any of: the pilot opens to users outside a known set of
+companies; a second API instance or a paid Render plan arrives for other
+reasons; or auth audit events (3.5) land and show direct-to-API credential
+traffic — which today would leave no trace at all, and is the reason 3.5 is the
+item to do first if this one is ever reopened.
 
 ---
 
