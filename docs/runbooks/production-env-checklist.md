@@ -49,7 +49,7 @@ Do not reuse staging secrets, database URLs, Redis URLs, buckets or tokens in pr
 | `S3_FORCE_PATH_STYLE` | R2 config | Yes | Usually `true`. |
 | `APP_BASE_URL` | Production web URL | Yes | The origin users actually browse — currently `https://www.vizitum.com`. Never the deployment's own `*.vercel.app` alias: invite emails are built from this value and outlive any later domain change. |
 | `API_BASE_URL` | Production API URL | Yes | Example shape: `https://api.<domain>/api`. |
-| `PLATFORM_OPERATIONS_TOKEN_SHA256` | Hash of generated operator token | Yes | Preferred for production operations summary checks. |
+| `PLATFORM_OPERATIONS_TOKEN_SHA256` | Hash of generated operator token | Yes | Preferred for production operations summary checks. Also the credential that unlocks the `trust proxy` diagnostic on `GET /health/readiness` — with neither this nor the plaintext fallback set, that block never appears and `TRUST_PROXY_HOPS` cannot be verified against a live request. |
 | `PLATFORM_OPERATIONS_TOKEN` | Do not use for production | No | Plaintext fallback is staging-only. |
 | `SENTRY_DSN` | Sentry API project | Yes | API/backend DSN. |
 | `SENTRY_ENVIRONMENT` | Literal environment name | Yes | Must be `production`. |
