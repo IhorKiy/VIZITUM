@@ -3,12 +3,14 @@ import { describe, it } from "node:test";
 
 import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 
+import { TEXT_LIMITS } from "../src/common/input-limits";
 import { hashValue } from "../src/modules/auth/auth-crypto";
 import { SESSION_COOKIE_NAME } from "../src/modules/auth/auth.constants";
 import { PasswordResetService } from "../src/modules/auth/password-reset.service";
 
 const TENANT_ID = "tenant-a";
 const USER_ID = "user-a";
+const USER_EMAIL = "person@example.com";
 const TOKEN = "reset-token-value";
 
 function liveToken(overrides: Record<string, unknown> = {}) {
@@ -96,6 +98,7 @@ function createService(prisma: unknown, revoked: string[][] = []) {
     } as never,
     {} as never,
     { assertValidToken: async () => {} } as never,
+    { penalizeFailure: async () => 0, clearFailures: async () => {} } as never,
   );
 }
 
@@ -216,7 +219,9 @@ describe("password change", () => {
       prisma: {
         user: {
           findFirst: async () =>
-            passwordHash === null ? null : { id: USER_ID, passwordHash },
+            passwordHash === null
+              ? null
+              : { id: USER_ID, email: USER_EMAIL, passwordHash },
           update: (args: unknown) => {
             updates.push({ model: "user.update" });
             return args;
@@ -250,7 +255,11 @@ describe("password change", () => {
 
   function createChangeService(
     prisma: unknown,
-    options: { verifies?: boolean; revoked?: string[][] } = {},
+    options: {
+      verifies?: boolean;
+      revoked?: string[][];
+      backoff?: { penalized: string[]; cleared: string[] };
+    } = {},
   ) {
     return new PasswordResetService(
       prisma as never,
@@ -271,6 +280,15 @@ describe("password change", () => {
       } as never,
       {} as never,
       { assertValidToken: async () => {} } as never,
+      {
+        penalizeFailure: async (_scope: string, identity: string) => {
+          options.backoff?.penalized.push(identity);
+          return 0;
+        },
+        clearFailures: async (_scope: string, identity: string) => {
+          options.backoff?.cleared.push(identity);
+        },
+      } as never,
     );
   }
 
@@ -345,6 +363,46 @@ describe("password change", () => {
     assert.equal(updates.length, 0);
   });
 
+  // The one credential check reachable from a session someone else already
+  // has: a borrowed phone left signed in can be used to guess the password at
+  // whatever rate the per-IP cap allows, so the per-account delay has to apply
+  // here too. It is keyed per tenant, like the login's, and under its own
+  // scope so the two never slow each other.
+  it("charges a wrong current password the per-account delay", async () => {
+    const { prisma } = createChangePrisma();
+    const backoff = { penalized: [] as string[], cleared: [] as string[] };
+    const service = createChangeService(prisma, { verifies: false, backoff });
+    const { response } = createResponse();
+
+    await assert.rejects(
+      service.changePassword(
+        { currentPassword: "wrong", newPassword: "new-password-1" },
+        signedInRequest,
+        response,
+      ),
+      BadRequestException,
+    );
+
+    assert.deepEqual(backoff.penalized, [`${TENANT_ID}:${USER_EMAIL}`]);
+    assert.deepEqual(backoff.cleared, []);
+  });
+
+  it("clears the delay once the right password is given", async () => {
+    const { prisma } = createChangePrisma();
+    const backoff = { penalized: [] as string[], cleared: [] as string[] };
+    const service = createChangeService(prisma, { backoff });
+    const { response } = createResponse();
+
+    await service.changePassword(
+      { currentPassword: "old-password", newPassword: "new-password-1" },
+      signedInRequest,
+      response,
+    );
+
+    assert.deepEqual(backoff.cleared, [`${TENANT_ID}:${USER_EMAIL}`]);
+    assert.deepEqual(backoff.penalized, []);
+  });
+
   it("requires a session", async () => {
     const { prisma } = createChangePrisma();
     const service = new PasswordResetService(
@@ -352,6 +410,7 @@ describe("password change", () => {
       {} as never,
       {} as never,
       { findActiveSessionByToken: async () => null } as never,
+      {} as never,
       {} as never,
       {} as never,
     );
@@ -364,6 +423,113 @@ describe("password change", () => {
         response,
       ),
       UnauthorizedException,
+    );
+  });
+});
+
+// The browser caps these fields with maxLength, which is a courtesy to the
+// person typing rather than a control — all three endpoints answer curl. These
+// pin the backend half, which the recovery flow shipped without: its
+// normalizers were copies of auth.service.ts's minus the limits, so a scripted
+// caller could hand argon2 and the token lookup as much text as the body limit
+// allowed.
+describe("password endpoints cap their free text", () => {
+  const overLongToken = "t".repeat(TEXT_LIMITS.token + 1);
+  const overLongPassword = "p".repeat(TEXT_LIMITS.password + 1);
+
+  function createCappingService(prisma: unknown) {
+    return new PasswordResetService(
+      prisma as never,
+      { sendPasswordResetEmail: async () => "sent" } as never,
+      {
+        hashPassword: async () => "new-hash",
+        verifyPassword: async () => true,
+      } as never,
+      {
+        revokeUserSessions: async () => {},
+        findActiveSessionByToken: async () => ({
+          tenantId: TENANT_ID,
+          userId: USER_ID,
+        }),
+        createSession: async () => ({ token: "fresh-session-token" }),
+      } as never,
+      {} as never,
+      { assertValidToken: async () => {} } as never,
+      { penalizeFailure: async () => 0, clearFailures: async () => {} } as never,
+    );
+  }
+
+  const signedInRequest = {
+    ip: "203.0.113.10",
+    header: (name: string) =>
+      name === "cookie" ? `${SESSION_COOKIE_NAME}=session-token` : undefined,
+  } as never;
+
+  async function assertRejectedWith(promise: Promise<unknown>, code: string) {
+    await assert.rejects(promise, (error: unknown) => {
+      assert.ok(error instanceof BadRequestException);
+      assert.equal((error.getResponse() as { code?: string }).code, code);
+      return true;
+    });
+  }
+
+  // The stub hands back a live token whatever it is asked for, so without the
+  // cap this reset would go through — the assertion is that the value never
+  // reaches the lookup at all.
+  it("refuses an over-long reset token before looking it up", async () => {
+    const { prisma, updates } = createResetPrisma();
+
+    await assertRejectedWith(
+      createCappingService(prisma).resetPassword(
+        { token: overLongToken, password: "new-password-1" },
+        { ip: "203.0.113.10", header: () => undefined } as never,
+      ),
+      "PASSWORD_RESET_INVALID",
+    );
+    assert.equal(updates.length, 0);
+  });
+
+  it("refuses an over-long new password on reset", async () => {
+    const { prisma, updates } = createResetPrisma();
+
+    await assertRejectedWith(
+      createCappingService(prisma).resetPassword(
+        { token: TOKEN, password: overLongPassword },
+        { ip: "203.0.113.10", header: () => undefined } as never,
+      ),
+      "PASSWORD_RESET_INVALID",
+    );
+    assert.equal(updates.length, 0);
+  });
+
+  it("refuses an over-long password on change, current or new", async () => {
+    const prisma = {
+      user: {
+        findFirst: async () => ({
+          id: USER_ID,
+          email: USER_EMAIL,
+          passwordHash: "old-hash",
+        }),
+      },
+    };
+    const service = createCappingService(prisma);
+    const response = { cookie: () => {} } as never;
+
+    await assertRejectedWith(
+      service.changePassword(
+        { currentPassword: overLongPassword, newPassword: "new-password-1" },
+        signedInRequest,
+        response,
+      ),
+      "PASSWORD_CHANGE_INVALID",
+    );
+    await assertRejectedWith(
+      service.changePassword(
+        { currentPassword: "old-password", newPassword: overLongPassword },
+        signedInRequest,
+        response,
+      ),
+      "PASSWORD_CHANGE_INVALID",
     );
   });
 });

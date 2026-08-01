@@ -15,12 +15,21 @@
  *
  * That does **not** mean client-supplied entries are ignored. Set N to the
  * real chain length — which is what makes `request.ip` the client — and the
- * leftmost entry becomes authoritative, and any caller reaching the API
- * directly writes it (`tests/trust-proxy-resolution.test.ts` pins this). The
- * setting is therefore only as trustworthy as the network: it assumes the API
- * is reachable only through an edge that appends to, or normalizes, the
- * header. Where that does not hold, the per-IP limits are advisory, and the
- * per-account backoff in modules/rate-limit is the control that still bites.
+ * leftmost entry becomes authoritative, so whoever wrote that entry chooses
+ * the address they are limited under (`tests/trust-proxy-resolution.test.ts`
+ * pins this).
+ *
+ * An edge that merely *appends* to `X-Forwarded-For` does not fix that, and
+ * that is what Cloudflare does: it adds the connecting address to whatever
+ * header the caller sent rather than replacing it, leaving the caller's own
+ * entry leftmost. Only an edge that overwrites or strips the inbound header
+ * makes the chain trustworthy. So the value this resolves is not read off the
+ * chain by chance: the web layer sends exactly one entry, taken from the
+ * header named by `CLIENT_IP_HEADER` — one the edge overwrites — see
+ * `apps/web/lib/client-address.ts`. Where that does not hold (an API reachable
+ * directly, or a deployment with no such header), the per-IP limits are
+ * advisory and the per-account backoff in modules/rate-limit is the control
+ * that still bites.
  *
  * Express also never parses the entries at a numeric setting — it compiles
  * `(addr, i) => i < n` — so `request.ip` can be arbitrary text rather than an

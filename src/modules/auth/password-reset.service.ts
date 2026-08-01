@@ -8,12 +8,14 @@ import {
 import { Prisma } from "@prisma/client";
 import type { Request, Response } from "express";
 
+import { TEXT_LIMITS, withinLimit } from "../../common/input-limits";
 import { JsonLogger } from "../../common/json-logger.service";
 import { normalizeEmail } from "../../common/normalize";
 import { withSerializationRetry } from "../../common/prisma-retry";
 import { RateLimiter } from "../../common/rate-limit";
 import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { LoginBackoffService } from "../rate-limit/login-backoff.service";
 import { TenancyService } from "../tenancy/tenancy.service";
 import { hashValue } from "./auth-crypto";
 import {
@@ -76,6 +78,7 @@ export class PasswordResetService {
     private readonly sessionService: SessionService,
     private readonly tenancyService: TenancyService,
     private readonly turnstileService: TurnstileService,
+    private readonly loginBackoffService: LoginBackoffService,
   ) {}
 
   async requestReset(
@@ -428,13 +431,17 @@ export class PasswordResetService {
         status: "active",
         deletedAt: null,
       },
-      select: { id: true, passwordHash: true },
+      select: { id: true, email: true, passwordHash: true },
     });
 
     if (!user || !user.passwordHash) {
       throwAuthenticationRequired();
     }
 
+    // Same identity shape the tenant login uses — per tenant, so the same
+    // address in two workspaces keeps separate counters — but its own scope, so
+    // fumbling a password change never slows signing in, or the reverse.
+    const backoffIdentity = `${session.tenantId}:${user.email}`;
     const currentPasswordMatches = await this.passwordService.verifyPassword(
       user.passwordHash,
       currentPassword,
@@ -443,7 +450,19 @@ export class PasswordResetService {
     // Re-checking the current password is what makes this safe to reach from an
     // unattended session: without it, a borrowed phone left signed in is enough
     // to take the account over.
+    //
+    // Which also makes it a credential endpoint, and the only one reachable
+    // from a session someone else already has: whoever borrowed that phone can
+    // guess the password here at whatever rate the per-IP cap allows. So a
+    // wrong answer earns the same growing delay a wrong login does. A delay
+    // rather than a refusal, for the reason in rate-limit.constants.ts — and
+    // charged only on failure, so the account's owner never waits.
     if (!currentPasswordMatches) {
+      await this.loginBackoffService.penalizeFailure(
+        "password-change",
+        backoffIdentity,
+      );
+
       throw new BadRequestException({
         code: "CURRENT_PASSWORD_INVALID",
         message: "The current password is incorrect.",
@@ -452,6 +471,11 @@ export class PasswordResetService {
         },
       });
     }
+
+    await this.loginBackoffService.clearFailures(
+      "password-change",
+      backoffIdentity,
+    );
 
     const passwordHash = await this.passwordService.hashPassword(newPassword);
     const now = new Date();
@@ -556,6 +580,14 @@ function acknowledge(): PasswordResetAcknowledgement {
   return { ok: true };
 }
 
+// The caps below are the same ones auth.service.ts applies to the identically
+// named fields on login and invite acceptance. They belong here for the same
+// reason they belong there — see common/input-limits.ts: `maxLength` in the
+// browser is a courtesy to the person typing, and every one of these endpoints
+// answers curl. An over-length value is rejected rather than truncated, which
+// for these fields means "not a valid token / password / slug" and lands on the
+// path each caller already has for that.
+
 function normalizeTenantSlug(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -563,7 +595,11 @@ function normalizeTenantSlug(value: unknown): string | null {
 
   const normalizedValue = value.trim().toLowerCase();
 
-  return normalizedValue || null;
+  if (!normalizedValue || !withinLimit(normalizedValue, "slug")) {
+    return null;
+  }
+
+  return normalizedValue;
 }
 
 function normalizeToken(value: unknown): string | null {
@@ -573,25 +609,43 @@ function normalizeToken(value: unknown): string | null {
 
   const token = value.trim();
 
-  return token || null;
+  // A reset token is a fixed-size base64url string; anything longer is not one,
+  // and hashing an unbounded value to look it up is wasted work.
+  if (!token || !withinLimit(token, "token")) {
+    return null;
+  }
+
+  return token;
 }
 
 function normalizeNewPassword(value: unknown): string | null {
-  if (typeof value !== "string" || value.length < MIN_PASSWORD_LENGTH) {
+  if (
+    typeof value !== "string" ||
+    value.length < MIN_PASSWORD_LENGTH ||
+    value.length > TEXT_LIMITS.password
+  ) {
     return null;
   }
 
   return value;
 }
 
-// Not length-checked: the stored password predates whatever the current minimum
-// is, and the only question asked of it is whether it verifies.
+// No minimum: the stored password predates whatever the current one is, and the
+// only question asked of it is whether it verifies. The maximum still applies —
+// argon2 hashes whatever it is given, so an unbounded value is an unbounded
+// amount of work per request. It locks nobody out either, since every path that
+// *sets* a password caps it at the same length and login rejects anything
+// longer outright.
 function normalizeCurrentPassword(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
   }
 
-  return value || null;
+  if (!value || !withinLimit(value, "password")) {
+    return null;
+  }
+
+  return value;
 }
 
 function throwInvalidResetToken(): never {

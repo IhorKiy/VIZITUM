@@ -16,7 +16,7 @@ as the record of what was found and why each fix took the shape it did.
 
 | Item | Status |
 | ---- | ------ |
-| 1.1 Rate limiting / account lockout | Done — hard per-IP throttle, progressive per-account delay, Redis-backed counters |
+| 1.1 Rate limiting / account lockout | Done — hard per-IP throttle, progressive per-account delay, Redis-backed counters. Amended: the per-IP half was bypassable until `CLIENT_IP_HEADER` landed — see the follow-up below |
 | 1.2 Turnstile fail-closed, required in production | Done |
 | 1.3 Platform-owner hardening | Done for TOTP MFA and the shortened session TTL. Login alerting is 3.5 (wave 3); re-auth for destructive tenant operations is **not** implemented |
 | 2.1 Security response headers | Done — verified live, including Turnstile under the CSP |
@@ -43,6 +43,50 @@ Two deviations worth knowing about, both deliberate:
   diagnostic added in #170 reports the address the setting actually resolved
   and the length of the forwarded chain, and the correct hop count is that
   length. Measure each environment separately.
+
+## Follow-up review of the shipped work
+
+A second pass over the implementation found three defects in what had already
+landed. All three are fixed; they are recorded here because two of them were
+introduced *by* this plan's own work and the third was an error in its
+reasoning, which is worth not repeating.
+
+- **The per-IP throttle of 1.1 could be bypassed outright.** The web layer
+  forwarded the leftmost `X-Forwarded-For` entry as the client address, and the
+  API keyed every per-IP limit on it. Cloudflare *appends* the connecting
+  address to a caller-supplied `X-Forwarded-For` rather than replacing it, so
+  that leftmost entry was written by the caller: rotating the header handed out
+  a fresh rate-limit bucket per request, defeating every cap (including the
+  tight platform-login one) and filling `ipHash` on every session with a chosen
+  value. Only the per-account backoff still bit. The address now comes from a
+  header the edge overwrites, named per deployment by `CLIENT_IP_HEADER`
+  (`cf-connecting-ip`), with a startup gate in production and no address
+  forwarded at all when the header is absent. The underlying error was in the
+  documentation this plan produced, which recorded the safe condition as an
+  edge that "appends to, or normalizes" the header — appending is exactly what
+  makes the entry caller-controlled, and only overwriting is sufficient.
+  `docs/reference/environment.md` and `src/common/trust-proxy.ts` are corrected;
+  `tests/web-client-address.test.ts` pins it.
+- **2.4's caps did not reach the password endpoints.** PR #168 landed the
+  recovery flow while the caps PR was open, carrying its own copies of
+  `normalizeToken` / `normalizeNewPassword` / `normalizeTenantSlug` /
+  `normalizeCurrentPassword` — the same helpers as `auth.service.ts`'s, minus
+  the limits. `/auth/password/{forgot,reset,change}` therefore accepted
+  unbounded values up to the body limit. `tests/input-limits.test.ts` could not
+  catch this: it compares the two limit maps, not their use sites.
+- **The per-account backoff did not apply to the password change.**
+  `BackoffScope` declared `"password-change"` and nothing ever used it, so the
+  one credential check reachable from a session someone else already holds — a
+  borrowed phone left signed in — was bounded only by the 10/min per-IP cap.
+
+Still open from the original review, unchanged: all of wave 3, plus re-auth for
+destructive tenant operations (part of 1.3). Item 3.7 has moved and should be
+re-read rather than trusted as written — `next` now carries advisories of its
+own beyond the transitive `postcss`/`sharp` ones, with a patched release
+available, and `multer` (via `@nestjs/platform-express`, no multipart endpoint
+in the app) has appeared since.
+
+---
 
 Derived from a defensive security review covering tenant isolation, authentication/authorization, session management, injection/input validation, secrets, and HTTP hardening.
 
