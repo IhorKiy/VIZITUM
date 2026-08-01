@@ -50,8 +50,13 @@ export function resolveClientAddress(
     return headerStore.get(trustedHeader)?.trim() || null;
   }
 
-  // Unconfigured in production should be unreachable — the assertion below
-  // refuses to start the server — so this is the belt to that pair of braces.
+  // Unconfigured with NODE_ENV=production. Two cases reach here and both want
+  // the same answer. On a real production process this should be unreachable —
+  // the assertion below refuses to start it — so this is the belt to that pair
+  // of braces. On a Vercel preview, which also runs as production but is
+  // deliberately not gated (see isServingRealTraffic), it is the ordinary path:
+  // a preview serves no real traffic, so naming no address costs nothing and
+  // guessing one from a header this layer cannot vouch for costs the guarantee.
   if (env.NODE_ENV === "production") {
     return null;
   }
@@ -66,10 +71,36 @@ export function resolveClientAddress(
   return originating || headerStore.get("x-real-ip")?.trim() || null;
 }
 
+/**
+ * Whether this process is the one actually serving users.
+ *
+ * `NODE_ENV` alone is not that question. Vercel builds and runs **preview**
+ * deployments with `NODE_ENV=production` too, so gating on it would refuse to
+ * start every preview for every branch — and refuse it invisibly: `next build`
+ * never evaluates the instrumentation hook, so the build succeeds, the
+ * deployment reports itself complete, the checks go green, and the failure
+ * only appears as a 500 to whoever opens the preview. That is the same silent
+ * failure this gate exists to remove, one level up.
+ *
+ * A preview serves no real traffic, so it has nothing to lose by forwarding no
+ * client address. `VERCEL_ENV` is `production` | `preview` | `development`;
+ * off Vercel it is absent, and then `NODE_ENV` is the only signal there is and
+ * the gate applies as before.
+ */
+function isServingRealTraffic(env: NodeJS.ProcessEnv): boolean {
+  if (env.NODE_ENV !== "production") {
+    return false;
+  }
+
+  const vercelEnv = env.VERCEL_ENV?.trim();
+
+  return !vercelEnv || vercelEnv === "production";
+}
+
 export function collectClientAddressConfigurationErrors(
   env: NodeJS.ProcessEnv = process.env,
 ): string[] {
-  if (env.NODE_ENV !== "production" || env[CLIENT_IP_HEADER_ENV]?.trim()) {
+  if (!isServingRealTraffic(env) || env[CLIENT_IP_HEADER_ENV]?.trim()) {
     return [];
   }
 

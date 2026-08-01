@@ -145,4 +145,37 @@ describe("client address configuration gate", () => {
     );
     assert.deepEqual(collectClientAddressConfigurationErrors({}), []);
   });
+
+  // Vercel builds and runs previews with NODE_ENV=production, so gating on
+  // that alone refuses to start every preview for every branch — and does it
+  // invisibly, since `next build` never evaluates the hook: the build passes,
+  // the deployment reports complete, the checks go green, and the only symptom
+  // is a 500 for whoever opens the preview. Exactly the silent failure the gate
+  // exists to remove, one level up.
+  it("asks nothing of a Vercel preview, which also runs as production", () => {
+    assert.deepEqual(
+      collectClientAddressConfigurationErrors({
+        NODE_ENV: "production",
+        VERCEL_ENV: "preview",
+      }),
+      [],
+    );
+    assert.doesNotThrow(() =>
+      assertClientAddressConfiguration({
+        NODE_ENV: "production",
+        VERCEL_ENV: "preview",
+      }),
+    );
+  });
+
+  it("still gates the real production deployment on Vercel", () => {
+    assert.throws(
+      () =>
+        assertClientAddressConfiguration({
+          NODE_ENV: "production",
+          VERCEL_ENV: "production",
+        }),
+      /CLIENT_IP_HEADER is required in production/,
+    );
+  });
 });
