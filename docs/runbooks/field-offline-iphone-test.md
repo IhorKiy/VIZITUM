@@ -78,6 +78,19 @@ the session cookie and the service worker scope sit on one host.
       while signed in must render the "Візит триває" pending screen rather
       than an error — that lookup falls through to `VisitClientAlias`, so a
       missing table turns a plain miss into a 500.
+- [x] **The tenant is on a serving status.** `TenancyService.assertTenantCanServeRequests`
+      answers requests for `pilot`, `team` and `business` only; every other
+      status is a 403, and the login screen renders that 403 as "Неправильна
+      електронна пошта або пароль", so it reads as a credentials problem for as
+      long as you let it. `vizitum-staging` was found on the legacy `ready`
+      status on 2026-08-01 — unable to serve since migration
+      `20260707175924_unify_tenant_status_and_plan` redefined `status` as the
+      plan tier on 2026-07-07, which is why its last successful login was
+      2026-07-02. Fix it as the platform owner: `/platform/tenants` → the
+      tenant's status control → `pilot`. `ready` is deliberately not assignable
+      there, so this is a one-way exit from the legacy value. Done for
+      `vizitum-staging` on 2026-08-01, and sign-in confirmed working right
+      after — the same credentials that had been refused for an hour.
 - [x] **Account.** A user on `vizitum-staging` with the `field_representative`
       role. Seeded 2026-08-01 as `ikyianich@gmail.com` ("Field Tester", all
       three roles) via `npm run seed:staging-admin` with `SEED_SMOKE_DATA=false`

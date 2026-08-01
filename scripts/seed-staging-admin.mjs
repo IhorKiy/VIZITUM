@@ -71,17 +71,26 @@ try {
         country: "UA",
         timezone: "Europe/Kiev",
         language: "uk",
-        // No `planCode`: migration 20260707175924_unify_tenant_status_and_plan
-        // folded the plan tier into `status`, so the column is gone.
-        status: "ready",
+        // Both the missing `planCode` and this status come from migration
+        // 20260707175924_unify_tenant_status_and_plan, which dropped that
+        // column and folded the plan tier into `status`. `ready` is a legacy
+        // value on the wrong side of that change: TenancyService.
+        // assertTenantCanServeRequests serves `pilot`/`team`/`business` only,
+        // so a tenant seeded as `ready` answers 403 TENANT_NOT_READY to every
+        // request — and the login screen renders that as "invalid email or
+        // password". `pilot` is what PlatformService's own provisioning
+        // writes; the owner moves a tenant off it from the platform UI.
+        status: "pilot",
         productMode: "team",
         segmentTemplate: "distribution",
         databasePlacement: "shared",
         databaseKey: "shared-primary",
       },
+      // Deliberately does not carry `status`: the plan tier of a tenant that
+      // already exists is the platform owner's to set, and re-seeding must not
+      // silently move it — least of all back to a status that cannot serve.
       update: {
         name: tenantName,
-        status: "ready",
       },
     });
 
