@@ -1,5 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
-
 import {
   CanActivate,
   ExecutionContext,
@@ -21,6 +19,10 @@ import type { RequestContext } from "../tenancy/request-context";
 import { hashValue } from "./auth-crypto";
 import { REQUIRED_PERMISSIONS_METADATA } from "./permissions.decorator";
 import { REQUIRED_ANY_PERMISSIONS_METADATA } from "./permissions.decorator";
+import {
+  isValidPlatformOperationsToken,
+  readBearerToken,
+} from "./platform-operations-token";
 import { readSessionToken } from "./session-cookie";
 import { SessionService } from "./session.service";
 
@@ -233,42 +235,6 @@ function buildPlatformOperationsContext(
     roleCodes: [],
     permissions: [PERMISSIONS.PLATFORM_OPERATIONS_READ],
   };
-}
-
-function readBearerToken(request: Request): string | null {
-  const authorization = request.header("authorization")?.trim();
-
-  if (!authorization?.toLowerCase().startsWith("bearer ")) {
-    return null;
-  }
-
-  const token = authorization.slice("bearer ".length).trim();
-
-  return token || null;
-}
-
-function isValidPlatformOperationsToken(token: string): boolean {
-  const expectedHash = process.env.PLATFORM_OPERATIONS_TOKEN_SHA256?.trim();
-  const tokenHash = hashValue(token);
-
-  if (expectedHash) {
-    return secureHashEquals(tokenHash, expectedHash);
-  }
-
-  const expectedToken = process.env.PLATFORM_OPERATIONS_TOKEN?.trim();
-
-  if (!expectedToken) {
-    return false;
-  }
-
-  return secureHashEquals(tokenHash, hashValue(expectedToken));
-}
-
-function secureHashEquals(actualHash: string, expectedHash: string): boolean {
-  const actual = Buffer.from(actualHash, "hex");
-  const expected = Buffer.from(expectedHash, "hex");
-
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 function throwUnauthorized(): never {
