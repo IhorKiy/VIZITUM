@@ -16,7 +16,7 @@ as the record of what was found and why each fix took the shape it did.
 
 | Item | Status |
 | ---- | ------ |
-| 1.1 Rate limiting / account lockout | Done — hard per-IP throttle, progressive per-account delay, Redis-backed counters |
+| 1.1 Rate limiting / account lockout | Done — hard per-IP throttle, progressive per-account delay, Redis-backed counters. Amended: the per-IP half was bypassable until `CLIENT_IP_HEADER` landed — see the follow-up below |
 | 1.2 Turnstile fail-closed, required in production | Done |
 | 1.3 Platform-owner hardening | Done for TOTP MFA and the shortened session TTL. Login alerting is 3.5 (wave 3); re-auth for destructive tenant operations is **not** implemented |
 | 2.1 Security response headers | Done — verified live, including Turnstile under the CSP |
@@ -43,6 +43,127 @@ Two deviations worth knowing about, both deliberate:
   diagnostic added in #170 reports the address the setting actually resolved
   and the length of the forwarded chain, and the correct hop count is that
   length. Measure each environment separately.
+
+## Follow-up review of the shipped work
+
+A second pass over the implementation found three defects in what had already
+landed. All three are fixed; they are recorded here because two of them were
+introduced *by* this plan's own work and the third was an error in its
+reasoning, which is worth not repeating.
+
+- **The per-IP throttle of 1.1 rested on the host rather than on the code.**
+  The web layer forwarded the leftmost `X-Forwarded-For` entry as the client
+  address, and the API keys every per-IP limit on it. Whether that entry is the
+  client's or the caller's to choose is decided entirely by whatever terminates
+  the request first, and nothing in the repository recorded which it was.
+
+  **Not exploitable as deployed — the first version of this note said it was,
+  and that was wrong.** `apps/web` runs on Vercel, which overwrites
+  `X-Forwarded-For` and drops external values expressly to prevent spoofing,
+  and `www.vizitum.com` reaches it directly: Cloudflare holds the DNS but does
+  not proxy that hostname (`server: Vercel`, no `cf-ray`). The
+  Cloudflare-appends reasoning is sound, but it describes the edge in front of
+  *Render*, where the API lives, not the web layer. Turning Cloudflare's proxy
+  on for the web domain is a one-switch change that would have made the old
+  behaviour a live bypass with nothing here to notice it — that latent
+  exposure, not a present one, is what this closes.
+
+  The address now comes from a header named per deployment by
+  `CLIENT_IP_HEADER` — `x-vercel-forwarded-for` here, the one Vercel keeps
+  authoritative even under a proxy — with a startup gate in production and no
+  address forwarded at all when the header is absent.
+  `tests/web-client-address.test.ts` pins it.
+
+  The documentation error was real and is corrected: this plan recorded the
+  safe condition as an edge that "appends to, or normalizes" the header.
+  Appending is exactly what leaves the entry caller-controlled; only
+  overwriting or stripping is sufficient. See `docs/reference/environment.md`
+  and `src/common/trust-proxy.ts`.
+
+  **Untouched by this:** the API answers on its own public `*.onrender.com`
+  URL, so a caller reaching it directly can still forge the chain and pick the
+  address it is limited under. Recorded as an accepted risk below rather than
+  fixed.
+- **2.4's caps did not reach the password endpoints.** PR #168 landed the
+  recovery flow while the caps PR was open, carrying its own copies of
+  `normalizeToken` / `normalizeNewPassword` / `normalizeTenantSlug` /
+  `normalizeCurrentPassword` — the same helpers as `auth.service.ts`'s, minus
+  the limits. `/auth/password/{forgot,reset,change}` therefore accepted
+  unbounded values up to the body limit. `tests/input-limits.test.ts` could not
+  catch this: it compares the two limit maps, not their use sites.
+- **The per-account backoff did not apply to the password change.**
+  `BackoffScope` declared `"password-change"` and nothing ever used it, so the
+  one credential check reachable from a session someone else already holds — a
+  borrowed phone left signed in — was bounded only by the 10/min per-IP cap.
+
+Still open from the original review, unchanged: all of wave 3, plus re-auth for
+destructive tenant operations (part of 1.3). Item 3.7 has moved and should be
+re-read rather than trusted as written — `next` now carries advisories of its
+own beyond the transitive `postcss`/`sharp` ones, with a patched release
+available, and `multer` (via `@nestjs/platform-express`, no multipart endpoint
+in the app) has appeared since.
+
+### Accepted risk: the API is directly reachable, so per-IP keying is advisory
+
+**Decision, 2026-08-01: accepted for the pilot, not fixed.** Recorded here so it
+is a choice on the record rather than an oversight, and so the options are not
+re-derived from scratch.
+
+**The exposure.** The API answers on `vizitum-api-staging.onrender.com` (and
+whatever the production service is named). Every per-IP limit in
+`src/modules/rate-limit` keys on `request.ip`, which Express resolves from
+`X-Forwarded-For` at `TRUST_PROXY_HOPS`. A caller who goes straight to that URL
+writes the leftmost entry itself, so it chooses the identity it is limited
+under and can take a fresh bucket per request. It also chooses the `ipHash`
+stored on any session it opens, making that field unreliable for forensics on
+traffic that did not come through the web layer. `src/common/trust-proxy.ts`
+and `tests/trust-proxy-resolution.test.ts` already state and pin this.
+
+**What still holds, which is why this is survivable.** The per-account backoff
+keys on the address being signed into rather than on the network, so guessing
+one account stays capped at roughly three attempts a minute however many source
+addresses the caller invents. Turnstile still runs before any database work,
+argon2 still costs what it costs, and platform login still needs a TOTP code.
+What is lost is the *hard* per-IP ceiling — credential stuffing spread thinly
+across many accounts is the case it stops bounding.
+
+**Why not simply block direct access.** Checked against the actual hosting,
+2026-08-01:
+
+- **Render private service** — removes the public URL and serves only inside
+  Render's private network. `apps/web` is on Vercel, which is not on it, so the
+  product would stop working entirely.
+- **Render inbound IP rules** — exist, but for individual web services they
+  need the **Scale or Enterprise** plan.
+- **Vercel egress IPs are not static.** Vercel documents that deployments can
+  come from any address; fixed ones require Secure Compute / Static IPs, an
+  **Enterprise** feature, and the Edge runtime that `apps/web/proxy.ts` runs on
+  is excluded from it regardless. So there is no address list to allow even
+  after paying for the Render side.
+- **It would break the monitoring that exists.** UptimeRobot polls
+  `/api/health/readiness` every five minutes, `npm run alerts:check` reads
+  readiness and `/api/operations/summary`, and
+  `docs/runbooks/expanded-staging-product-smoke.md` curls the API directly —
+  including the readiness proxy diagnostic this plan tells operators to use to
+  measure `TRUST_PROXY_HOPS`.
+
+**The fix when this stops being acceptable.** Blocking is the wrong shape;
+distinguishing callers is the right one. Have the web layer send a shared
+secret header alongside the address, and have the API trust `X-Forwarded-For`
+only when that secret verifies — otherwise ignore it and key on the address
+Render's own edge supplies (`CF-Connecting-IP`, which its Cloudflare sets and a
+direct caller cannot forge). Direct callers then get limited under their real
+address instead of being refused, so the monitors above keep working, and local
+development is untouched because no secret is configured there. This is the
+same shape as `apps/web/lib/client-address.ts` and needs no plan upgrade.
+
+**Revisit when** any of: the pilot opens to users outside a known set of
+companies; a second API instance or a paid Render plan arrives for other
+reasons; or auth audit events (3.5) land and show direct-to-API credential
+traffic — which today would leave no trace at all, and is the reason 3.5 is the
+item to do first if this one is ever reopened.
+
+---
 
 Derived from a defensive security review covering tenant isolation, authentication/authorization, session management, injection/input validation, secrets, and HTTP hardening.
 

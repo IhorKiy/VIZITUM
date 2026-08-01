@@ -94,7 +94,17 @@ function createService(overrides: {
     { revokeUserSessions: async () => {} } as never,
     tenancyService as never,
     { assertValidToken: async () => {} } as never,
+    createLoginBackoff() as never,
   );
+}
+
+// Only the change-password path consults it; the reset paths carry it so the
+// constructor is satisfied.
+function createLoginBackoff() {
+  return {
+    penalizeFailure: async () => 0,
+    clearFailures: async () => {},
+  };
 }
 
 function createRequest(ip = "203.0.113.10") {

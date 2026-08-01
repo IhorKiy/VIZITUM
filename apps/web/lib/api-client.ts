@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers";
 
 import { forwardSetCookies } from "./backend-cookies";
+import { resolveClientAddress } from "./client-address";
 
 export type AuthSession = {
   user: {
@@ -2340,27 +2341,13 @@ export async function buildRequestHeaders(path: string): Promise<HeadersInit> {
     ...(cookieHeader ? { cookie: cookieHeader } : {}),
     ...(requestId ? { "x-request-id": requestId } : {}),
     ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+    // A single entry, never the inbound chain: passing that through would make
+    // the API's hop count depend on how many proxies happened to sit in front
+    // of *this* layer for that request. Which header the address came from,
+    // and why it cannot simply be the leftmost forwarded one, is
+    // lib/client-address.ts.
     ...(clientAddress ? { "x-forwarded-for": clientAddress } : {}),
   };
-}
-
-// Every API call is server-to-server, so without this the API sees this Next
-// process as the caller and its per-IP rate limits would put the whole world
-// in one bucket. Forwarding the browser's address restores per-client keying;
-// the API turns it back into `request.ip` via `trust proxy` (TRUST_PROXY_HOPS).
-//
-// Only the leftmost entry is forwarded — the originating client. Passing the
-// whole inbound chain through would make the API's hop count depend on how
-// many proxies happened to sit in front of *this* layer for that request.
-function resolveClientAddress(headerStore: Headers): string | null {
-  const forwardedFor = headerStore.get("x-forwarded-for");
-  const originating = forwardedFor?.split(",")[0]?.trim();
-
-  if (originating) {
-    return originating;
-  }
-
-  return headerStore.get("x-real-ip")?.trim() || null;
 }
 
 async function readErrorPayload(
