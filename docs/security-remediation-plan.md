@@ -51,22 +51,41 @@ landed. All three are fixed; they are recorded here because two of them were
 introduced *by* this plan's own work and the third was an error in its
 reasoning, which is worth not repeating.
 
-- **The per-IP throttle of 1.1 could be bypassed outright.** The web layer
-  forwarded the leftmost `X-Forwarded-For` entry as the client address, and the
-  API keyed every per-IP limit on it. Cloudflare *appends* the connecting
-  address to a caller-supplied `X-Forwarded-For` rather than replacing it, so
-  that leftmost entry was written by the caller: rotating the header handed out
-  a fresh rate-limit bucket per request, defeating every cap (including the
-  tight platform-login one) and filling `ipHash` on every session with a chosen
-  value. Only the per-account backoff still bit. The address now comes from a
-  header the edge overwrites, named per deployment by `CLIENT_IP_HEADER`
-  (`cf-connecting-ip`), with a startup gate in production and no address
-  forwarded at all when the header is absent. The underlying error was in the
-  documentation this plan produced, which recorded the safe condition as an
-  edge that "appends to, or normalizes" the header — appending is exactly what
-  makes the entry caller-controlled, and only overwriting is sufficient.
-  `docs/reference/environment.md` and `src/common/trust-proxy.ts` are corrected;
+- **The per-IP throttle of 1.1 rested on the host rather than on the code.**
+  The web layer forwarded the leftmost `X-Forwarded-For` entry as the client
+  address, and the API keys every per-IP limit on it. Whether that entry is the
+  client's or the caller's to choose is decided entirely by whatever terminates
+  the request first, and nothing in the repository recorded which it was.
+
+  **Not exploitable as deployed — the first version of this note said it was,
+  and that was wrong.** `apps/web` runs on Vercel, which overwrites
+  `X-Forwarded-For` and drops external values expressly to prevent spoofing,
+  and `www.vizitum.com` reaches it directly: Cloudflare holds the DNS but does
+  not proxy that hostname (`server: Vercel`, no `cf-ray`). The
+  Cloudflare-appends reasoning is sound, but it describes the edge in front of
+  *Render*, where the API lives, not the web layer. Turning Cloudflare's proxy
+  on for the web domain is a one-switch change that would have made the old
+  behaviour a live bypass with nothing here to notice it — that latent
+  exposure, not a present one, is what this closes.
+
+  The address now comes from a header named per deployment by
+  `CLIENT_IP_HEADER` — `x-vercel-forwarded-for` here, the one Vercel keeps
+  authoritative even under a proxy — with a startup gate in production and no
+  address forwarded at all when the header is absent.
   `tests/web-client-address.test.ts` pins it.
+
+  The documentation error was real and is corrected: this plan recorded the
+  safe condition as an edge that "appends to, or normalizes" the header.
+  Appending is exactly what leaves the entry caller-controlled; only
+  overwriting or stripping is sufficient. See `docs/reference/environment.md`
+  and `src/common/trust-proxy.ts`.
+
+  **Untouched by this and still open:** the API answers on its own public
+  `*.onrender.com` URL, so a caller reaching it directly can forge the chain
+  and pick the address it is limited under — the caveat
+  `src/common/trust-proxy.ts` already documents. Closing it means restricting
+  the API to its edge, or resolving the address there from a header Render's
+  own proxy guarantees.
 - **2.4's caps did not reach the password endpoints.** PR #168 landed the
   recovery flow while the caps PR was open, carrying its own copies of
   `normalizeToken` / `normalizeNewPassword` / `normalizeTenantSlug` /

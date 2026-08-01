@@ -2,25 +2,29 @@
 //
 // Every API call from this layer is server-to-server, so unless an address is
 // forwarded the API sees this Next process as the caller and its per-IP limits
-// put the whole world in one bucket. The obvious source — the leftmost
-// `X-Forwarded-For` entry — is the wrong one, and behind Cloudflare it is
-// actively dangerous: Cloudflare *appends* the connecting address to whatever
-// `X-Forwarded-For` the caller sent rather than replacing it, so the leftmost
-// entry is written by the caller, not by the edge. Forwarding it as the single
-// entry the API then keys on let anyone rotate the header per request and hand
-// themselves a fresh rate-limit bucket every time, defeating every per-IP cap
-// in `src/modules/rate-limit` and filling the `ipHash` on every session with a
-// value of their choosing. The per-account backoff, which keys on the address
-// being signed into rather than on the network, was the only control left
-// standing.
+// put the whole world in one bucket. Whatever is chosen here becomes the
+// identity every caller is limited under, so it has to be a value the hosting
+// edge writes and refuses to take from the client.
 //
-// No header is safe to trust by default. `CF-Connecting-IP` is authoritative
-// only because Cloudflare overwrites it on every proxied request; reaching this
-// app by some path that does not pass through Cloudflare makes it just another
-// string the caller chose. So the header is named per deployment via
-// `CLIENT_IP_HEADER` (`cf-connecting-ip` for the current one), for the same
-// reason `TRUST_PROXY_HOPS` names a hop count instead of defaulting to a number
-// no environment can be sure of.
+// Reading the leftmost `X-Forwarded-For` entry, which is what this used to do,
+// is not that. It happens to be safe on Vercel — which overwrites the header
+// with the connecting address and documents that it drops external ones
+// specifically to prevent spoofing — and it is unsafe the moment anything else
+// terminates the request first. Cloudflare, for one, *appends* to a
+// caller-supplied `X-Forwarded-For` rather than replacing it, leaving the
+// caller's own entry leftmost; put its proxy in front of this app and reading
+// the chain would let anyone rotate the header for a fresh rate-limit bucket
+// per request, defeating every per-IP cap in `src/modules/rate-limit` and
+// filling the `ipHash` on every session with a value of their choosing. That
+// the current topology is safe is a property of the host, not of the code, and
+// it is one deploy setting away from changing without anything here noticing.
+//
+// So the header is named per deployment via `CLIENT_IP_HEADER` rather than
+// inferred, for the same reason `TRUST_PROXY_HOPS` names a hop count instead of
+// defaulting to a number no environment can be sure of. On Vercel that is
+// `x-vercel-forwarded-for`: identical to `x-forwarded-for` today, but it is the
+// one Vercel keeps authoritative if a proxy is ever put on top, which is
+// exactly the change that would otherwise turn the old behaviour into a hole.
 
 export const CLIENT_IP_HEADER_ENV = "CLIENT_IP_HEADER";
 
@@ -70,7 +74,7 @@ export function collectClientAddressConfigurationErrors(
   }
 
   return [
-    `${CLIENT_IP_HEADER_ENV} is required in production: without it this layer forwards no client address, so every caller shares one rate-limit bucket at the API. Set it to the header the edge in front of this app overwrites on every request — \`cf-connecting-ip\` behind Cloudflare. Do not set it to \`x-forwarded-for\`: Cloudflare appends to that header rather than replacing it, so its leftmost entry is chosen by the caller.`,
+    `${CLIENT_IP_HEADER_ENV} is required in production: without it this layer forwards no client address, so every caller shares one rate-limit bucket at the API. Set it to the header the host writes and refuses to take from the client — \`x-vercel-forwarded-for\` on Vercel, \`cf-connecting-ip\` where Cloudflare's proxy terminates the request. Not \`x-forwarded-for\`: whether that one can be forged depends on the host, and Cloudflare appends to it rather than replacing it, leaving the caller's own entry leftmost.`,
   ];
 }
 
