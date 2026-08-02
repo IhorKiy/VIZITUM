@@ -145,6 +145,7 @@ npm run build
 npm run test
 npm run web:typecheck
 npm run web:build
+npm run audit:check
 npm run alerts:check
 npm run restore:drill:check
 ```

@@ -1,0 +1,40 @@
+version: 2
+
+updates:
+  # One npm entry, not two: `apps/web` is a workspace of the root manifest and
+  # has no lockfile of its own, so the root directory covers both.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Kyiv
+    open-pull-requests-limit: 5
+    groups:
+      # Patch and minor bumps arrive as one PR per week rather than fifteen.
+      # The point of this file is that somebody reads the updates; fifteen PRs
+      # is how that stops happening.
+      routine:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Prisma's client is generated from the schema and its version is pinned
+      # alongside migrations — an unattended bump here lands as a schema-engine
+      # change nobody asked for. Upgrade these deliberately, together.
+      - dependency-name: prisma
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - dependencies
+
+  # The workflow's own actions pin to major tags (actions/checkout@v4), so
+  # these are rare and worth seeing when they happen.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
