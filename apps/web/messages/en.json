@@ -244,7 +244,11 @@
     "email": "Email",
     "password": "Password",
     "forgotPassword": "Forgot your password?",
-    "noticePasswordReset": "Your password has been changed. Sign in with the new one."
+    "noticePasswordReset": "Your password has been changed. Sign in with the new one.",
+    "unknownWorkspaceEyebrow": "Workspace access",
+    "unknownWorkspaceTitle": "No such workspace",
+    "unknownWorkspaceCopy": "There is no workspace at this address, so no account can sign in here. Check the link your team gave you.",
+    "unknownWorkspaceAction": "Open a different workspace"
   },
   "passwordReset": {
     "eyebrow": "Password recovery",
@@ -1788,5 +1792,22 @@
     "switchLabel": "Українською",
     "metaTitle": "Vizitum — field team management platform",
     "metaDescription": "Vizitum is a workspace for sales and field teams: visit planning, routes, tasks and reports from voice notes. The platform is in development — launching soon."
+  },
+  "workspaceEntry": {
+    "metaTitle": "Open your workspace — Vizitum",
+    "eyebrow": "Workspace access",
+    "title": "Open your workspace",
+    "copy": "Every team has its own workspace with its own address. Enter yours to reach its sign-in screen.",
+    "rememberedHint": "You last signed in here:",
+    "rememberedAction": "Continue to {workspace}",
+    "workspaceLabel": "Workspace address",
+    "otherWorkspaceLabel": "A different workspace",
+    "workspacePlaceholder": "your-workspace",
+    "workspaceHint": "The part of your link that comes after vizitum.com/ — or paste the whole link.",
+    "submit": "Continue",
+    "pending": "Opening your workspace...",
+    "errorInvalid": "That is not a workspace address. Paste the whole link your team gave you, or just the part after vizitum.com/.",
+    "errorNotFound": "There is no workspace at that address. Check the link your team gave you — it may have a typo, or the workspace may have been closed.",
+    "backHome": "Back to the home page"
   }
 }

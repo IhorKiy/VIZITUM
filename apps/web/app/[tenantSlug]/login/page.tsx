@@ -7,6 +7,7 @@ import { PendingSubmitButton } from "../../../components/pending-submit-button";
 import { TurnstileWidget } from "../../../components/turnstile-widget";
 import { forwardSetCookies } from "../../../lib/backend-cookies";
 import { buildApiUrl, getCurrentSession } from "../../../lib/api-client";
+import { rememberWorkspace } from "../../../lib/remembered-workspace";
 import { resolveTenantBranding } from "../../../lib/tenant-branding";
 import { resolveZoneLanding, zoneHomePath } from "../../../lib/navigation";
 import { getFormString } from "../../../lib/form";
@@ -15,6 +16,7 @@ import {
   loginErrorMessageKey,
   loginErrorReason,
 } from "../../../lib/login-error";
+import { workspaceEntryPath } from "../../../lib/workspace-address";
 
 type LoginPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -77,6 +79,10 @@ export default async function LoginPage({
     }
 
     await forwardSetCookies(response.headers);
+    // Only after a sign-in the API accepted: a slug someone merely typed
+    // proves nothing, and this is what the workspace entry screen offers back
+    // on the next visit (lib/remembered-workspace.ts).
+    await rememberWorkspace(tenantSlug);
 
     // Fresh cookies set above are visible to this same-action read: Server
     // Actions expose cookies().set() to subsequent cookies() reads within
@@ -101,6 +107,39 @@ export default async function LoginPage({
     }
 
     redirect(`/${tenantSlug}/no-access`);
+  }
+
+  // A workspace that does not exist cannot answer a password with anything
+  // but "invalid email or password": tenant resolution fails on the API long
+  // before any credential is looked at, and this page maps that 404 to the
+  // same error as a wrong password. Rendering the form anyway is what turned
+  // a stale link into an hour of doubting known-good credentials during the
+  // iOS pass (docs/runbooks/field-offline-iphone-test.md) — and in a
+  // standalone install there is not even an address bar to notice the wrong
+  // slug in. Only a confirmed 404 gets this screen; an unreachable API still
+  // renders the form, since "your workspace does not exist" is the wrong way
+  // to report a backend outage.
+  if (branding.existence === "missing") {
+    return (
+      <main className="login-surface">
+        <section className="login-panel" aria-labelledby="login-title">
+          <div className="brand-block">
+            <div className="brand-mark">V</div>
+            <p className="brand-name">Vizitum</p>
+          </div>
+
+          <div>
+            <p className="eyebrow">{t("unknownWorkspaceEyebrow")}</p>
+            <h1 id="login-title">{t("unknownWorkspaceTitle")}</h1>
+            <p className="login-copy">{t("unknownWorkspaceCopy")}</p>
+          </div>
+
+          <a className="primary-button" href={workspaceEntryPath(locale)}>
+            {t("unknownWorkspaceAction")}
+          </a>
+        </section>
+      </main>
+    );
   }
 
   return (

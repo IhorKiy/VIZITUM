@@ -14,5 +14,7 @@ const t = ukMessages.landing;
 export const metadata: Metadata = buildLandingMetadata("uk", t);
 
 export default function HomePage() {
-  return <Landing lang="uk" messages={t} switchHref="/en" />;
+  return (
+    <Landing lang="uk" messages={t} signInHref="/sign-in" switchHref="/en" />
+  );
 }
