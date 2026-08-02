@@ -27,6 +27,14 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@prisma/*"
         update-types: ["version-update:semver-major"]
+      # A TypeScript major cannot install: typescript-eslint caps its peer
+      # range below the next one (8.65.0, the latest as of 2026-08-02, asks
+      # for `>=4.8.4 <6.1.0`), so `npm ci` fails on ERESOLVE before any check
+      # runs — #194 failed all three that way. Nothing here can fix it; the
+      # bump becomes possible when typescript-eslint ships support, and this
+      # entry should be removed then.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     labels:
       - dependencies
 
@@ -36,5 +44,14 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+    groups:
+      # Grouped for the same reason the npm updates are, and the omission was
+      # caught the hard way: enabling this file produced three separate PRs to
+      # bump three GitHub-maintained actions by a major each. That is one
+      # decision — "move the workflow to the current actions" — split across
+      # three reviews, which is how a review turns into a rubber stamp.
+      actions:
+        patterns:
+          - "*"
     labels:
       - dependencies
