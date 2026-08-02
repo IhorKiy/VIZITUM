@@ -164,8 +164,8 @@ export class PlatformAuthService {
           platformUser.totpRecoveryCodeHashes,
           body.recoveryCode,
         )
-      : this.platformMfaService.verifyTotpCode(
-          platformUser.totpSecret,
+      : await this.platformMfaService.acceptTotpCode(
+          { id: platformUser.id, totpSecret: platformUser.totpSecret },
           body.code,
         );
 

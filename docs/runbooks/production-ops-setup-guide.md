@@ -58,10 +58,16 @@ Once paid PostgreSQL is available, use `docs/runbooks/final-production-pilot-exe
 
 ### API Service
 
+`--include=dev` у build-команді обов'язковий: `NODE_ENV` на Render діє і на
+збірку, а `NODE_ENV=production` вмикає в npm `omit=dev` — тоді `npm ci`
+не поставить `typescript` і `@types/*`, і збірка впаде на `TS7016`, який
+виглядає як помилка в коді, а не в конфігурації. Деталі й приклад —
+у [production-deployment.md](production-deployment.md).
+
 Створіть API service з такими командами:
 
 ```sh
-npm ci && npm run prisma:generate && npm run build
+npm ci --include=dev && npm run prisma:generate && npm run build
 npm start
 ```
 
@@ -113,7 +119,7 @@ Expected result:
 Build/start:
 
 ```sh
-npm ci && npm run web:build
+npm ci --include=dev && npm run web:build
 npm run web:start
 ```
 
@@ -135,7 +141,7 @@ Production recommendation:
 Run this as scheduled job, at least hourly for pilot:
 
 ```sh
-npm ci && npm run prisma:generate && npm run build
+npm ci --include=dev && npm run prisma:generate && npm run build
 npm run worker:cleanup:prod
 ```
 

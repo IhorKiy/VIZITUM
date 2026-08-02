@@ -3,6 +3,14 @@ import type { PlatformMfaChallengePurpose } from "@prisma/client";
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { generateSecret, generateURI, verifySync } from "otplib";
 
+import {
+  decryptSecret,
+  encryptSecret,
+  isEncrypted,
+  protectSecret,
+  resolveSecretKey,
+  type SecretKey,
+} from "../../common/secret-box";
 import { hashValue } from "../auth/auth-crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import {
@@ -12,6 +20,16 @@ import {
   MFA_TOTP_ISSUER,
   MFA_TOTP_WINDOW_SECONDS,
 } from "./platform-auth.constants";
+
+/**
+ * A verified code, carrying the step it belongs to.
+ *
+ * The step is the whole point of returning an object rather than a boolean:
+ * one code is accepted across three steps, so "was this code right" is not
+ * enough to know whether it has already been spent.
+ */
+export type TotpVerification =
+  { valid: false } | { valid: true; timeStep: number };
 
 export type IssuedChallenge = {
   token: string;
@@ -40,6 +58,25 @@ export class PlatformMfaService {
   private readonly logger = new Logger(PlatformMfaService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  // Read per call rather than cached on the instance so a key rotated in the
+  // environment takes effect on the next restart of the process only — the
+  // cost is parsing 32 bytes, and the alternative is a service that has to be
+  // reconstructed to pick one up.
+  private get secretKey(): SecretKey {
+    return resolveSecretKey(process.env.TOTP_ENCRYPTION_KEY);
+  }
+
+  /**
+   * The stored secret in the clear.
+   *
+   * Rows written before encryption existed are returned unchanged, which is
+   * what lets an already-enrolled owner sign in through the deploy that turns
+   * it on.
+   */
+  readTotpSecret(storedSecret: string): string {
+    return decryptSecret(storedSecret, this.secretKey);
+  }
 
   isEnrolled(platformUser: {
     totpSecret: string | null;
@@ -70,7 +107,7 @@ export class PlatformMfaService {
     const challenge = await this.createChallenge(
       platformUserId,
       "enrollment",
-      secret,
+      protectSecret(secret, this.secretKey),
     );
     const otpauthUrl = generateURI({
       strategy: "totp",
@@ -127,25 +164,40 @@ export class PlatformMfaService {
     return {
       id: challenge.id,
       platformUserId: challenge.platformUserId,
-      pendingSecret: challenge.pendingSecret,
+      pendingSecret: challenge.pendingSecret
+        ? this.readTotpSecret(challenge.pendingSecret)
+        : null,
     };
   }
 
-  verifyTotpCode(secret: string, code: unknown): boolean {
+  verifyTotpCode(secret: string, code: unknown): TotpVerification {
     const normalizedCode = normalizeCode(code);
 
     if (!normalizedCode) {
-      return false;
+      return { valid: false };
     }
 
     // A tolerance either side of the current step, for the clock drift
     // between the owner's phone and the server that RFC 6238 expects.
-    return verifySync({
+    // otplib's declared result type is the union of its HOTP and TOTP
+    // shapes, and `timeStep` survives only on the TOTP side, so the union
+    // collapses it away. The value is there at runtime — `verifyTotpCode` is
+    // TOTP-only by construction — and `tests/platform-mfa-replay.test.ts`
+    // asserts it rather than trusting this narrowing.
+    const result = verifySync({
       strategy: "totp",
       secret,
       token: normalizedCode,
       epochTolerance: MFA_TOTP_WINDOW_SECONDS,
-    }).valid;
+    }) as { valid: boolean; timeStep?: number };
+
+    // `timeStep` is the step the *token* belongs to, not the one it was
+    // checked from, so the same code reports the same step throughout the
+    // window it is accepted in — which is what makes it usable as the
+    // replay marker.
+    return result.valid && typeof result.timeStep === "number"
+      ? { valid: true, timeStep: result.timeStep }
+      : { valid: false };
   }
 
   /**
@@ -159,7 +211,9 @@ export class PlatformMfaService {
     pendingSecret: string,
     code: unknown,
   ): Promise<string[]> {
-    if (!this.verifyTotpCode(pendingSecret, code)) {
+    const verification = this.verifyTotpCode(pendingSecret, code);
+
+    if (!verification.valid) {
       throwCodeInvalid();
     }
 
@@ -168,9 +222,13 @@ export class PlatformMfaService {
     await this.prisma.platformUser.update({
       where: { id: platformUserId },
       data: {
-        totpSecret: pendingSecret,
+        totpSecret: protectSecret(pendingSecret, this.secretKey),
         totpConfirmedAt: new Date(),
         totpRecoveryCodeHashes: recoveryCodes.map(hashValue),
+        // The code that proved the enrolment is spent by proving it. Without
+        // this it would still be the newest step, and so would work a second
+        // time as the first sign-in code.
+        totpLastUsedStep: verification.timeStep,
       },
     });
 
@@ -179,6 +237,67 @@ export class PlatformMfaService {
     );
 
     return recoveryCodes;
+  }
+
+  /**
+   * The login path's code check: verifies, then spends the code's step so the
+   * same six digits cannot be presented twice.
+   *
+   * One code is accepted across three steps — the current one and one either
+   * side, for clock drift — so roughly ninety seconds of wall clock. Within
+   * that, nothing else stops a code seen over a shoulder or captured by a
+   * phishing proxy from being replayed by whoever also has the password.
+   */
+  async acceptTotpCode(
+    platformUser: { id: string; totpSecret: string },
+    code: unknown,
+  ): Promise<boolean> {
+    const secret = this.readTotpSecret(platformUser.totpSecret);
+    const verification = this.verifyTotpCode(secret, code);
+
+    if (!verification.valid) {
+      return false;
+    }
+
+    // A conditional update rather than read-then-write: two requests
+    // replaying one code concurrently would both pass a read check, and
+    // exactly one of them must win.
+    const { count } = await this.prisma.platformUser.updateMany({
+      where: {
+        id: platformUser.id,
+        OR: [
+          { totpLastUsedStep: null },
+          { totpLastUsedStep: { lt: verification.timeStep } },
+        ],
+      },
+      data: {
+        totpLastUsedStep: verification.timeStep,
+        // Upgrades a secret still stored in the clear, on the first sign-in
+        // after encryption is switched on. Written in the same statement so
+        // it cannot half-happen, and skipped entirely when the value is
+        // already an envelope or no key is configured.
+        ...this.reencryptedSecret(platformUser.totpSecret, secret),
+      },
+    });
+
+    if (count === 0) {
+      this.logger.warn(
+        `Platform user ${platformUser.id} presented an already-used code.`,
+      );
+    }
+
+    return count === 1;
+  }
+
+  private reencryptedSecret(
+    storedSecret: string,
+    plaintextSecret: string,
+  ): { totpSecret?: string } {
+    const key = this.secretKey;
+
+    return key && !isEncrypted(storedSecret)
+      ? { totpSecret: encryptSecret(plaintextSecret, key) }
+      : {};
   }
 
   /**

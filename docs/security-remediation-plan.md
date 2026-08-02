@@ -144,6 +144,63 @@ Worth noting for the redirect half: the phishing value came from a victim
 opening a crafted link, seeing a real login screen and being bounced
 cross-origin on submit. With the page 404ing there is no screen and no form,
 so the chain breaks at the first step.
+### Found outside this plan: the second factor's own weak points
+
+Two more gaps the original review did not look for, found by the same later
+audit and fixed with it. Both sit inside 1.3's TOTP work, which this plan
+recorded as simply "done".
+
+- **The TOTP secret was stored in the clear.** A code is verified against the
+  secret itself, so unlike a password it cannot be hashed — which is exactly
+  why it needed encrypting. Any database read (a dump, a replica, a restore
+  drill) handed over a permanent code generator for the one account that
+  reaches every tenant. Now AES-256-GCM under `TOTP_ENCRYPTION_KEY`, with a
+  production boot gate, both formats readable so an enrolled owner survives
+  the deploy, a re-encrypt on next sign-in, and
+  `npm run encrypt:totp-secrets` to migrate immediately rather than
+  eventually.
+- **A code could be spent more than once.** One code is accepted across three
+  steps — the current one and one either side, for the clock drift RFC 6238
+  expects — and nothing recorded that it had been used. Roughly ninety
+  seconds in which a code seen over a shoulder, or caught by a phishing
+  proxy, worked again for whoever also had the password. `totpLastUsedStep`
+  now records the step of the last accepted code, claimed with a conditional
+  update so two concurrent replays cannot both win.
+
+Worth generalizing alongside the tenant-status finding above: both of these
+are controls that were *present* and looked complete. "MFA is implemented" and
+"the tenant status is enforced" were both true statements that stopped short
+of the property anyone actually wanted.
+
+### Found outside this plan: four smaller gaps, all closed
+
+Recorded together because none is individually interesting and the pattern
+across them is: a control that was applied on one path and not on its twin.
+
+- **`/health/readiness` answered the hardening question anonymously.**
+  `proxyResolution` was operator-gated from the start, with a comment calling
+  the hop numbers a forgery recipe; `trustProxyHops`, `captchaEnabled` and
+  `rateLimitEnabled` sat outside the gate saying half the same thing and
+  naming the moment credential stuffing is unopposed. The whole
+  `authHardening` block is now operator-only.
+- **The import path bypassed the 2.4 length caps.** `POST /locations` stops a
+  name at 120 characters; the same column reached through an import was
+  bounded only by the 100 kB body limit. Caps are now declared on the template
+  columns and enforced in one generic validation pass, so a new template gets
+  them by declaring them.
+- **Import confirm was a TOCTOU.** The status check ran outside the
+  transaction that applies the rows, so two confirms of one job both applied
+  it. Now claimed with a conditional update inside the transaction.
+- **Creatorless visit artifacts were readable by any representative.** The
+  *write* path had already been fixed to stop treating "no creator" as
+  "unowned, so yours" — the AI worker writes `temporary_transcript` rows with
+  no creator — and the read path was left as it was. It is now the mirror of
+  the write path.
+- **`EMAIL_PROVIDER=console` was not refused in production.** That driver
+  writes every email, including one-time invite and reset tokens, to the
+  application log; its own comment says never to deploy it, which is not a
+  place a deploy looks. `security-config.ts` now refuses it, alongside the
+  controls it already guards.
 
 ### Accepted risk: the API is directly reachable, so per-IP keying is advisory
 

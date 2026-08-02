@@ -474,7 +474,10 @@ describe("import validation preview", () => {
       $transaction: async (
         callback: (transaction: {
           product: { create: (query: unknown) => Promise<void> };
-          importJob: { update: (query: unknown) => Promise<void> };
+          importJob: {
+            update: (query: unknown) => Promise<void>;
+            updateMany: (query: unknown) => Promise<{ count: number }>;
+          };
         }) => Promise<unknown>,
       ) =>
         callback({
@@ -487,6 +490,9 @@ describe("import validation preview", () => {
             update: async (query: unknown) => {
               updatedJobs.push(query);
             },
+            // The conditional claim that makes a concurrent second confirm
+            // lose — pinned in tests/import-confirm-race.test.ts.
+            updateMany: async () => ({ count: 1 }),
           },
         }),
     };
@@ -547,7 +553,10 @@ describe("import validation preview", () => {
       $transaction: async (
         callback: (transaction: {
           product: { create: (query: unknown) => Promise<void> };
-          importJob: { update: (query: unknown) => Promise<void> };
+          importJob: {
+            update: (query: unknown) => Promise<void>;
+            updateMany: (query: unknown) => Promise<{ count: number }>;
+          };
         }) => Promise<unknown>,
       ) =>
         callback({
@@ -564,6 +573,9 @@ describe("import validation preview", () => {
             update: async (query: unknown) => {
               updatedJobs.push(query);
             },
+            // The conditional claim that makes a concurrent second confirm
+            // lose — pinned in tests/import-confirm-race.test.ts.
+            updateMany: async () => ({ count: 1 }),
           },
         }),
     };

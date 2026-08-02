@@ -30,16 +30,19 @@ export type ReadinessStatus = {
     // misconfigured, so the only way to notice is to ask. A production
     // process refuses to boot without them (auth/security-config.ts); this
     // makes the same state observable in staging and after a config change.
-    authHardening: {
+    //
+    // Present only for a caller holding the platform operations token: an
+    // answer that says which of these are switched off is an answer about
+    // when the login routes are unopposed.
+    authHardening?: {
       captchaEnabled: boolean;
       rateLimitEnabled: boolean;
       rateLimitCountersShared: boolean;
       trustProxyHops: number;
       // What `trustProxyHops` actually produced for *this* request, so the
-      // setting can be checked instead of reasoned about. Present only for a
-      // caller holding the platform operations token — see
-      // describeProxyResolution for why it is not anonymous.
-      proxyResolution?: {
+      // setting can be checked instead of reasoned about — see
+      // describeProxyResolution.
+      proxyResolution: {
         clientAddress: string;
         forwardedHopCount: number;
       };
@@ -159,15 +162,27 @@ export class HealthService {
           sentryConfigured: Boolean(process.env.SENTRY_DSN?.trim()),
           sentryReleaseConfigured: Boolean(process.env.SENTRY_RELEASE?.trim()),
         },
-        authHardening: {
-          captchaEnabled: Boolean(process.env.TURNSTILE_SECRET_KEY?.trim()),
-          rateLimitEnabled: !isRateLimitDisabled(),
-          rateLimitCountersShared: Boolean(process.env.REDIS_URL?.trim()),
-          trustProxyHops: resolveTrustProxyHops(),
-          ...(requestContext.isOperator
-            ? { proxyResolution: describeProxyResolution(requestContext) }
-            : {}),
-        },
+        // Operator-only in full. `proxyResolution` was gated from the start
+        // because the hop numbers are a forgery recipe; the rest of the block
+        // is the same kind of answer and was not. `captchaEnabled: false` or
+        // `rateLimitEnabled: false` tells an anonymous caller exactly when
+        // credential stuffing is unopposed, and `trustProxyHops` is half the
+        // recipe its own gated sibling exists to withhold. The block is
+        // omitted rather than blanked, so a reader can tell "not for you" from
+        // "configured as false".
+        ...(requestContext.isOperator
+          ? {
+              authHardening: {
+                captchaEnabled: Boolean(
+                  process.env.TURNSTILE_SECRET_KEY?.trim(),
+                ),
+                rateLimitEnabled: !isRateLimitDisabled(),
+                rateLimitCountersShared: Boolean(process.env.REDIS_URL?.trim()),
+                trustProxyHops: resolveTrustProxyHops(),
+                proxyResolution: describeProxyResolution(requestContext),
+              },
+            }
+          : {}),
       },
     };
   }

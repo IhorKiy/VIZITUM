@@ -108,6 +108,50 @@ describe("storage service", () => {
     );
   });
 
+  it("refuses a download URL for a visit artifact with no creator", async () => {
+    // The mirror of the test above, and it was missing: the read path treated
+    // an absent creator as "yours", so a representative could mint a presigned
+    // GET for another representative's visit transcript. Intra-tenant rather
+    // than a tenancy break, but still a document about a visit they had
+    // nothing to do with.
+    const ownerlessTranscript = {
+      id: "storage-transcript",
+      tenantId: "tenant-a",
+      bucket: "vizitum",
+      objectKey: "tenants/tenant-a/visits/visit-b/transcript/uuid.json",
+      purpose: "temporary_transcript",
+      contentType: "application/json",
+      sizeBytes: BigInt(512),
+      checksum: null,
+      status: "active",
+      expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+      createdByUserId: null,
+      createdAt,
+      deletedAt: null,
+    };
+    const service = new StorageService(
+      {
+        storageObject: { findFirst: async () => ownerlessTranscript },
+      } as never,
+      { getDefaultBucket: () => "vizitum" } as never,
+      {
+        createPresignedObjectUrl: () => {
+          throw new Error("must not be signed");
+        },
+      } as never,
+    );
+
+    await assert.rejects(
+      () =>
+        service.createPresignedDownloadUrl(
+          context as never,
+          "storage-transcript",
+        ),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "MISSING_PERMISSION",
+    );
+  });
+
   it("physically deletes expired temporary objects and marks them deleted", async () => {
     const deletedObjects: string[] = [];
     const updates: unknown[] = [];

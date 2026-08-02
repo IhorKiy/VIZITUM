@@ -1,5 +1,7 @@
 import type { LoggerService } from "@nestjs/common";
 
+import { isSecretKeyValid } from "../../common/secret-box";
+
 // Security controls that are optional everywhere else and mandatory in
 // production. Each one degrades *silently* when its variable is missing —
 // captcha becomes a no-op, rate-limit counters become per-process — which is
@@ -34,6 +36,12 @@ const PRODUCTION_REQUIREMENTS: ProductionRequirement[] = [
     isSatisfied: (env) => Boolean(env.SESSION_SECRET?.trim()),
   },
   {
+    name: "TOTP_ENCRYPTION_KEY",
+    reason:
+      "the platform owner's TOTP secret is stored in the clear without it, so any database read hands over a permanent code generator for the account that reaches every tenant (32 bytes, base64 or hex)",
+    isSatisfied: (env) => isSecretKeyValid(env.TOTP_ENCRYPTION_KEY),
+  },
+  {
     name: "TRUST_PROXY_HOPS",
     reason:
       "without it Express reads request.ip as the proxy's address, so every request shares one rate-limit bucket — see resolveTrustProxyHops for how to count the hops for your deployment",
@@ -58,6 +66,16 @@ export function collectSecurityConfigurationErrors(
     (requirement) =>
       `${requirement.name} is required in production: ${requirement.reason}.`,
   );
+
+  // The console driver prints the whole email — including invite and
+  // password-reset links with their one-time tokens — to the log. Its own
+  // comment says never to deploy it; this is that instruction expressed
+  // somewhere a deploy actually runs into.
+  if (env.EMAIL_PROVIDER?.trim().toLowerCase() === "console") {
+    errors.push(
+      'EMAIL_PROVIDER must not be "console" in production: that driver writes every email, including one-time invite and password-reset tokens, to the application log.',
+    );
+  }
 
   // A test-only escape hatch reaching production would disable every per-IP
   // limit and the per-account backoff at once, without any other symptom.

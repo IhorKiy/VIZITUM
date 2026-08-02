@@ -284,8 +284,21 @@ model PlatformUser {
   // Nullable so an existing owner can still sign in and enrol: the login flow
   // refuses to issue a session until enrolment completes, so "not enrolled"
   // is a state you can only pass through, never sit in.
+  //
+  // Stored encrypted (AES-256-GCM, `src/common/secret-box.ts`) rather than in
+  // the clear: verifying a code needs the secret itself, so unlike a password
+  // it cannot be hashed, and a database dump would otherwise be a permanent
+  // code generator for the one account that reaches every tenant. Rows
+  // written before that keep working — see `decryptSecret`.
   totpSecret      String?
   totpConfirmedAt DateTime?
+
+  // The TOTP step of the last code accepted for this account. A code is valid
+  // across three steps (the current one and one either side, for clock
+  // drift), so without this the same six digits — shoulder-surfed, or caught
+  // by a phishing proxy — could be spent more than once inside roughly ninety
+  // seconds. A code whose step is not greater than this is refused.
+  totpLastUsedStep Int?
 
   // SHA-256 of each single-use recovery code. Hashed for the same reason
   // session tokens are: a database read must not hand over working
@@ -322,7 +335,9 @@ model PlatformMfaChallenge {
   // Enrolment only: the candidate secret, held here until a generated code
   // proves the authenticator actually has it. Committing it to the user row
   // first would leave an account marked as enrolled against a secret nobody
-  // holds — locked out of the console with no way back.
+  // holds — locked out of the console with no way back. Encrypted at rest the
+  // same way `PlatformUser.totpSecret` is: short-lived is not the same as
+  // safe to store in the clear.
   pendingSecret  String?
   expiresAt      DateTime
   consumedAt     DateTime?
