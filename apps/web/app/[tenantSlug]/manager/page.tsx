@@ -19,6 +19,7 @@ import {
   type Task,
   type Visit,
 } from "../../../lib/api-client";
+import { toCsv } from "../../../lib/csv";
 import { isDemoFallbackEnabled } from "../../../lib/demo-mode";
 import { formatEnumLabel, type CommonTranslator } from "../../../lib/format";
 import { getFormString } from "../../../lib/form";
@@ -514,7 +515,10 @@ function buildManagerCsv(
   attentionItems: AttentionItem[],
   t: OverviewTranslator,
 ): string {
-  return [
+  // Every name in here is tenant-entered — a rep's name, a location's, a
+  // task's — and reaches this file unfiltered, so the cells are escaped by
+  // the shared helper rather than by hand.
+  const rows = [
     [t("csvSection"), t("csvName"), t("csvValue"), t("csvDetail")],
     ...metrics.map((metric) => [
       t("csvMetric"),
@@ -534,11 +538,7 @@ function buildManagerCsv(
       item.area,
       item.detail,
     ]),
-  ]
-    .map((row) => row.map(escapeCsvCell).join(","))
-    .join("\n");
-}
+  ];
 
-function escapeCsvCell(value: string): string {
-  return `"${value.replaceAll('"', '""')}"`;
+  return toCsv(rows);
 }
