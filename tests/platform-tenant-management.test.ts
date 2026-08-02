@@ -813,6 +813,12 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
         return data;
       },
     },
+    // Archiving and suspending revoke the tenant's live sessions; what that
+    // revocation does is pinned in tenant-suspension-revokes-access.test.ts,
+    // this delegate only keeps those calls from throwing here.
+    session: {
+      updateMany: async () => ({ count: 0 }),
+    },
     invite: {
       updateMany: async ({
         where,

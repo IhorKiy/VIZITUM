@@ -25,8 +25,9 @@ as the record of what was found and why each fix took the shape it did.
 | 2.4 Backend length caps + body limit | Done. The class-validator DTO migration remains deferred |
 | 2.5 Session TTL, rotation and idle timeout | Done |
 | 2.6 Raw invite tokens | Done |
+| 3.2 Upload size | Half done — the read side enforces the cap against the length the store reports; signing `Content-Length` on the PUT is still open. See the item below |
 | 3.5 Auth audit events | Done — login success/failure and logout on both domains, with the failure reason; see the item below |
-| 3.1–3.2, 3.4, 3.6–3.8 | Not started (wave 3) |
+| 3.1, 3.4, 3.6–3.8 | Not started (wave 3) |
 
 Two deviations worth knowing about, both deliberate:
 
@@ -97,8 +98,27 @@ reasoning, which is worth not repeating.
   one credential check reachable from a session someone else already holds — a
   borrowed phone left signed in — was bounded only by the 10/min per-IP cap.
 
-Still open from the original review: wave 3 apart from 3.5, plus re-auth for
-destructive tenant operations (part of 1.3). Item 3.7 has moved and should be
+### Found outside this plan: a suspended tenant kept serving its live sessions
+
+Not a wave-3 item and not a defect in this plan's work — a gap the original
+review did not look for, found by a later audit and fixed with it.
+`TenancyService.assertTenantCanServeRequests` was reachable only from
+`resolveTenant`, i.e. from login and password reset. `PermissionGuard` checked
+the user's status but never the tenant's, so every session opened before a
+suspension or archival kept full access for the rest of its TTL — the exact
+window an abuse or non-payment suspension exists to close, and the one
+`unarchiveTenant`'s own comment claimed was already shut. The serving set now
+lives in `tenancy/tenant-serving-status.ts` and is read by both the login-time
+resolution and the guard, and the platform side revokes the tenant's open
+sessions when it archives or suspends. `tests/tenant-suspension-revokes-access.test.ts`
+pins both halves.
+
+Worth generalizing: the finding is that a check performed once at the session
+boundary is not a check on requests. Anything else resolved only at login has
+the same shape.
+
+Still open from the original review: wave 3 apart from 3.5 and the read half
+of 3.2, plus re-auth for destructive tenant operations (part of 1.3). Item 3.7 has moved and should be
 re-read rather than trusted as written — `next` now carries advisories of its
 own beyond the transitive `postcss`/`sharp` ones, with a patched release
 available, and `multer` (via `@nestjs/platform-express`, no multipart endpoint
@@ -276,9 +296,10 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 - **Risk (LOW):** Argon2 runs only when the user exists, so response timing distinguishes valid emails/tenants (`auth.service.ts:88-99`, `platform-auth.service.ts:49-60`).
 - **Change:** Perform a dummy argon2 verify against a fixed hash on the not-found path. Consider a generic error for unknown tenant slugs on the login route.
 
-### 3.2 Enforce upload size on presigned PUTs
+### 3.2 Enforce upload size on presigned PUTs — **half done**
 - **Risk (LOW/MEDIUM):** `s3-storage.client.ts:29-45` signs `contentType` + host but not `Content-Length`; the byte cap is validated only against the client-declared size at registration, so the actual PUT to R2 is uncapped.
-- **Change:** Sign `Content-Length` (or a content-length-range policy) so R2 enforces the cap.
+- **Rated too low, because the write side is only half of it.** `downloadObject` buffers the whole object into memory and hands it to the transcription provider, so an upload that ignored its declared size was an out-of-memory kill on the API and an unbounded transcription bill, not merely wasted storage. **That half is done:** the cap is now one shared constant (`visits/visit-media-limits.ts`) applied both at registration and against the length the store reports on the read, before any of the body is read. `tests/storage-download-size-cap.test.ts` pins it.
+- **Still open:** signing `Content-Length` (or a content-length-range POST policy) so R2 refuses the oversized PUT itself. Until then an oversized object can still land in the bucket and sit there until the cleanup worker's TTL collects it — it just can no longer be read back into the API. Doing it means making the declared size mandatory and exact, which is a client contract change (the field app's offline outbox re-uploads included), so it is its own piece of work rather than a line in a hardening batch.
 
 ### 3.3 Set `trust proxy`
 - **Risk (LOW):** No `app.set('trust proxy', …)`; `request.ip` is the proxy address, degrading session forensics and undermining any IP-based rate limit (1.1).
