@@ -124,6 +124,26 @@ own beyond the transitive `postcss`/`sharp` ones, with a patched release
 available, and `multer` (via `@nestjs/platform-express`, no multipart endpoint
 in the app) has appeared since.
 
+### Found outside this plan: the `[tenantSlug]` segment was unconstrained
+
+Two of the findings above shared a root the review only noticed afterwards.
+Nothing checked the shape of the tenant slug in a URL, and what gets served
+under it is decided by the session cookie rather than by the slug — so any
+string at all rendered the real, authenticated app. That is what made
+`/acme.x/field` a page without a Content-Security-Policy, and it is what let a
+crafted segment reach the `redirect()` targets pages build from it.
+
+Fixing the proxy matcher closed the common case but not the whole shape: a
+path whose last segment ends in a known extension (`/team.html`) is still
+skipped, and a matcher cannot tell that apart from `sw.js`. The second line is
+`apps/web/app/[tenantSlug]/layout.tsx`, which now answers `notFound()` for
+anything that is not slug-shaped, so those paths render a 404 rather than the
+app. `tests/web-tenant-slug-shape.test.ts` pins it.
+
+Worth noting for the redirect half: the phishing value came from a victim
+opening a crafted link, seeing a real login screen and being bounced
+cross-origin on submit. With the page 404ing there is no screen and no form,
+so the chain breaks at the first step.
 ### Found outside this plan: the second factor's own weak points
 
 Two more gaps the original review did not look for, found by the same later
