@@ -98,7 +98,19 @@ export class S3StorageClient {
   // (see visits.controller.ts's notes/audio/register), so this is a
   // short-lived signed GET the backend follows itself to hand the bytes to
   // the transcription client — never a second client-facing hop.
-  async downloadObject(bucket: string, objectKey: string): Promise<Buffer> {
+  //
+  // `maxBytes` is required rather than optional because this method buffers
+  // the whole object into memory. The size a client declared at registration
+  // bounds nothing on its own — the presigned PUT does not sign
+  // `Content-Length`, so the object can be arbitrarily larger than the number
+  // that was validated. Checking the length the store reports, before any of
+  // it is read, is what keeps an oversized upload from becoming an
+  // out-of-memory kill and an unbounded transcription bill.
+  async downloadObject(
+    bucket: string,
+    objectKey: string,
+    options: { maxBytes: number },
+  ): Promise<Buffer> {
     const signedUrl = this.createPresignedObjectUrl({
       bucket,
       objectKey,
@@ -115,9 +127,57 @@ export class S3StorageClient {
       );
     }
 
+    const contentLength = parseContentLength(
+      response.headers.get("content-length"),
+    );
+
+    // An absent or unparseable length is refused rather than read
+    // optimistically: S3 and R2 both send one on a whole-object GET, so its
+    // absence means this is not the response we think it is, and reading it
+    // would be reading an object of unknown size.
+    if (contentLength === null) {
+      await cancelBody(response);
+
+      throw new Error("S3 download refused: object size was not reported.");
+    }
+
+    if (contentLength > options.maxBytes) {
+      await cancelBody(response);
+
+      throw new Error(
+        `S3 download refused: object is ${contentLength} bytes, over the ${options.maxBytes} byte limit.`,
+      );
+    }
+
     const arrayBuffer = await response.arrayBuffer();
 
     return Buffer.from(arrayBuffer);
+  }
+}
+
+// Canonical decimal digits only. `Number` alone accepts a good deal more than
+// a Content-Length can be — `"1e3"` becomes 1000, `"0x10"` becomes 16, and
+// surrounding whitespace is ignored — so a response whose header is not a
+// plain integer would be read as though its size were understood. Anything
+// else is treated as "size not reported", which refuses the download rather
+// than guessing at it.
+function parseContentLength(value: string | null): number | null {
+  if (!value || !/^\d+$/.test(value)) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+// Releases the connection instead of leaving an unread body dangling. A
+// failure to cancel must not mask the refusal that is being thrown.
+async function cancelBody(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Ignored on purpose.
   }
 }
 

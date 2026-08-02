@@ -34,6 +34,10 @@ import {
   VISIT_DATE_BACKDATE_WINDOW_DAYS,
 } from "./shelf-check";
 import { findVisitByEitherId } from "./visit-identity";
+import {
+  MAX_PROBLEM_PHOTO_SIZE_BYTES,
+  MAX_TEMPORARY_AUDIO_SIZE_BYTES,
+} from "./visit-media-limits";
 import type {
   AddTextVisitNoteRequestBody,
   CancelVisitRequestBody,
@@ -77,7 +81,6 @@ const MAX_DEFERRED_VISIT_START_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const CLOCK_SKEW_SLACK_MS = 60 * 60 * 1000;
 
 const TEMPORARY_AUDIO_TTL_HOURS = 24;
-const MAX_TEMPORARY_AUDIO_SIZE_BYTES = 50 * 1024 * 1024;
 const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
   "audio/webm",
   "audio/webm;codecs=opus",
@@ -87,7 +90,6 @@ const SUPPORTED_AUDIO_CONTENT_TYPES = new Set([
   "audio/mpeg",
   "audio/wav",
 ]);
-const MAX_PROBLEM_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
 // How long a registered-but-unconfirmed problem photo survives before the
 // cleanup worker collects it. Same window the temporary audio uses.
 const UNCONFIRMED_PHOTO_TTL_HOURS = 24;

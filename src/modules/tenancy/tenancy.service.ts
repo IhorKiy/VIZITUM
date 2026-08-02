@@ -8,6 +8,7 @@ import type { PlatformTenant } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { readBrandingSettings } from "../settings/branding";
 import { S3StorageClient } from "../storage/s3-storage.client";
+import { canTenantServeRequests } from "./tenant-serving-status";
 import type {
   PublicTenantBranding,
   PublicTenantLocale,
@@ -142,11 +143,7 @@ export class TenancyService {
   }
 
   private assertTenantCanServeRequests(tenant: PlatformTenant): void {
-    if (
-      tenant.status === "pilot" ||
-      tenant.status === "team" ||
-      tenant.status === "business"
-    ) {
+    if (canTenantServeRequests(tenant.status)) {
       return;
     }
 
