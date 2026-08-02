@@ -18,6 +18,7 @@ import {
 } from "../visits/report-response.util";
 import { applyShelfCheck, extractShelfCheck } from "../visits/shelf-check";
 import { findVisitByEitherId } from "../visits/visit-identity";
+import { MAX_TEMPORARY_AUDIO_SIZE_BYTES } from "../visits/visit-media-limits";
 import { JsonLogger } from "../../common/json-logger.service";
 import {
   classifyAiDraftQuality,
@@ -770,6 +771,7 @@ export class AiService {
       const audioBuffer = await this.s3StorageClient.downloadObject(
         audioObject.bucket,
         audioObject.objectKey,
+        { maxBytes: MAX_TEMPORARY_AUDIO_SIZE_BYTES },
       );
       const transcription = await this.transcriptionClient.transcribe(
         {

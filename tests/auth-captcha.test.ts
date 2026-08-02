@@ -9,6 +9,7 @@ import { PlatformAuthService } from "../src/modules/platform/platform-auth.servi
 import { RolesService } from "../src/modules/roles/roles.service";
 import { createTestLoginBackoff } from "./fixtures/login-backoff";
 import { createTestPlatformMfa } from "./fixtures/platform-mfa";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 const originalFetch = globalThis.fetch;
 const originalSecret = process.env.TURNSTILE_SECRET_KEY;
@@ -225,6 +226,7 @@ describe("turnstile verification", () => {
       } as never,
       new TurnstileService(),
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -263,6 +265,7 @@ describe("turnstile verification", () => {
       new TurnstileService(),
       createTestLoginBackoff(),
       createTestPlatformMfa(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(

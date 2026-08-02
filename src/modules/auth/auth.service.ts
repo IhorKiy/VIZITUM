@@ -19,11 +19,16 @@ import { PrismaService } from "../prisma/prisma.service";
 import { LoginBackoffService } from "../rate-limit/login-backoff.service";
 import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
+import { AuthAuditService } from "./auth-audit.service";
 import { hashValue } from "./auth-crypto";
 import { PasswordService } from "./password.service";
 import { CSRF_COOKIE_NAME, MIN_PASSWORD_LENGTH } from "./auth.constants";
-import { createCsrfToken, writeCsrfCookie } from "./csrf";
-import { readSessionToken, writeSessionCookie } from "./session-cookie";
+import { clearCsrfCookie, createCsrfToken, writeCsrfCookie } from "./csrf";
+import {
+  clearSessionCookie,
+  readSessionToken,
+  writeSessionCookie,
+} from "./session-cookie";
 import { SessionService } from "./session.service";
 import { TurnstileService } from "./turnstile.service";
 import type {
@@ -52,6 +57,7 @@ export class AuthService {
     private readonly tenancyService: TenancyService,
     private readonly turnstileService: TurnstileService,
     private readonly loginBackoffService: LoginBackoffService,
+    private readonly authAuditService: AuthAuditService,
   ) {}
 
   async login(
@@ -98,6 +104,16 @@ export class AuthService {
         "tenant-login",
         backoffIdentity,
       );
+      // Both failure paths audit, so the write costs the same whether or not
+      // the address exists — the timing this login already equalizes must not
+      // be reintroduced by the trail that records it.
+      await this.authAuditService.recordTenantLoginFailed({
+        tenantId: tenant.id,
+        userId: user?.id ?? null,
+        email,
+        requestId: request.requestId,
+        reason: user ? "inactive_account" : "unknown_account",
+      });
       throwInvalidCredentials();
     }
 
@@ -111,6 +127,13 @@ export class AuthService {
         "tenant-login",
         backoffIdentity,
       );
+      await this.authAuditService.recordTenantLoginFailed({
+        tenantId: tenant.id,
+        userId: user.id,
+        email,
+        requestId: request.requestId,
+        reason: "wrong_password",
+      });
       throwInvalidCredentials();
     }
 
@@ -136,6 +159,13 @@ export class AuthService {
     writeSessionCookie(response, token);
     writeCsrfCookie(response, createCsrfToken(token), CSRF_COOKIE_NAME);
 
+    await this.authAuditService.recordTenantLoginSucceeded({
+      tenantId: tenant.id,
+      userId: user.id,
+      email,
+      requestId: request.requestId,
+    });
+
     const roleCodes = user.roles.map((role) => role.roleCode);
     const permissions = this.rolesService.getPermissionsForRoles(roleCodes);
 
@@ -153,6 +183,34 @@ export class AuthService {
       roleCodes,
       permissions,
     };
+  }
+
+  // Lives here rather than in the controller because signing out is an
+  // audited event, and resolving who signed out has to happen before the
+  // revocation that makes the session unfindable.
+  async logout(request: Request, response: Response): Promise<{ ok: true }> {
+    const token = readSessionToken(request);
+
+    if (token) {
+      const session = await this.sessionService.findActiveSessionByToken(token);
+
+      await this.sessionService.revokeSessionByToken(token);
+
+      if (session) {
+        await this.authAuditService.recordTenantLoggedOut({
+          tenantId: session.tenantId,
+          userId: session.userId,
+          requestId: request.requestId,
+        });
+      }
+    }
+
+    // Cleared even when no session matched: a cookie for a session that is
+    // already gone should not survive a deliberate sign-out.
+    clearSessionCookie(response);
+    clearCsrfCookie(response, CSRF_COOKIE_NAME);
+
+    return { ok: true };
   }
 
   async acceptInvite(

@@ -14,6 +14,7 @@ import { PLATFORM_SESSION_COOKIE_NAME } from "../src/modules/platform/platform-a
 import { PERMISSIONS } from "../src/modules/roles/permissions";
 import { RolesService } from "../src/modules/roles/roles.service";
 import { createTestLoginBackoff } from "./fixtures/login-backoff";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 describe("auth tenant isolation", () => {
   it("loads the current user only from the session tenant", async () => {
@@ -42,6 +43,7 @@ describe("auth tenant isolation", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -78,6 +80,7 @@ describe("auth tenant isolation", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -246,6 +249,7 @@ describe("auth tenant isolation", () => {
       } as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -302,6 +306,7 @@ describe("auth tenant isolation", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -429,7 +434,11 @@ describe("auth tenant isolation", () => {
     const guard = new PermissionGuard(
       {
         platformTenant: {
-          findUnique: async () => ({ id: session.tenantId, slug: "tenant-a" }),
+          findUnique: async () => ({
+            id: session.tenantId,
+            slug: "tenant-a",
+            status: "pilot",
+          }),
         },
         platformSession: {
           findUnique: async () => platformSession,
