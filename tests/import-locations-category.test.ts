@@ -176,6 +176,8 @@ describe("import locations: category resolution", () => {
           },
           importJob: {
             update: async () => undefined,
+            // The conditional claim confirm makes before applying any row.
+            updateMany: async () => ({ count: 1 }),
           },
         }),
     };
