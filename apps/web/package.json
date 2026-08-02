@@ -14,15 +14,15 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@types/qrcode": "^1.5.6",
-    "libphonenumber-js": "^1.13.9",
+    "libphonenumber-js": "^1.13.10",
     "next": "^16.2.12",
-    "next-intl": "^4.13.1",
+    "next-intl": "^4.13.4",
     "qrcode": "^1.5.4",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.62.0",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "otplib": "^13.4.1"
