@@ -44,7 +44,11 @@ describe("auth audit events", () => {
       await assert.rejects(
         () =>
           service.login(
-            { email: "ghost@example.com", password: "secret", tenantSlug: "acme" },
+            {
+              email: "ghost@example.com",
+              password: "secret",
+              tenantSlug: "acme",
+            },
             createRequest(),
             createResponse(),
           ),
@@ -85,7 +89,11 @@ describe("auth audit events", () => {
             audit: suspended,
             user: { ...activeUser(), status: "suspended" },
           }).login(
-            { email: "rep@example.com", password: "secret", tenantSlug: "acme" },
+            {
+              email: "rep@example.com",
+              password: "secret",
+              tenantSlug: "acme",
+            },
             createRequest(),
             createResponse(),
           ),
@@ -227,6 +235,109 @@ describe("auth audit events", () => {
       assert.equal(wrongPassword.events[0]?.reason, "wrong_password");
     });
 
+    it("records a rejected challenge, on both steps", async () => {
+      // Expired, already spent, or claimed for the other step. This was the
+      // one sign-in refusal that left no trace at all, and a run of them is
+      // somebody replaying captured tokens rather than guessing digits.
+      for (const step of ["mfa", "enroll"] as const) {
+        const audit = createTestAuthAudit();
+        const service = createPlatformAuthService({
+          audit,
+          claimThrows: new BadRequestException({
+            code: "MFA_CHALLENGE_INVALID",
+            message: "This sign-in attempt has expired. Start again.",
+          }),
+        });
+
+        await assert.rejects(
+          () =>
+            step === "mfa"
+              ? service.verifyMfa(
+                  { challengeToken: "stale-token", code: "123456" },
+                  createRequest(),
+                  createResponse(),
+                )
+              : service.completeEnrollment(
+                  { challengeToken: "stale-token", code: "123456" },
+                  createRequest(),
+                  createResponse(),
+                ),
+          BadRequestException,
+        );
+
+        assert.equal(audit.events.length, 1, `expected one event on ${step}`);
+        assert.equal(audit.events[0]?.eventType, "platform.login_failed");
+        assert.equal(audit.events[0]?.reason, "invalid_challenge");
+        assert.equal(
+          audit.events[0]?.method,
+          step === "mfa" ? "totp" : "enrollment",
+        );
+        // The token is the only identity a challenge has, and it did not
+        // resolve — so there is no account to attach, exactly as for an
+        // address that matches nothing.
+        assert.equal(audit.events[0]?.platformUserId, null);
+        assert.equal(audit.events[0]?.email, undefined);
+      }
+    });
+
+    it("records a wrong code on the enrolment step, not only on the login step", async () => {
+      // Enrolment ends in a session, so it is a sign-in. Its wrong-code path
+      // wrote nothing, which meant working through codes against the
+      // enrolment step left no trace while the same attempt against the login
+      // step did.
+      const audit = createTestAuthAudit();
+      const service = createPlatformAuthService({
+        audit,
+        enrollmentThrows: new BadRequestException({
+          code: "MFA_CODE_INVALID",
+          message: "That code is not valid.",
+        }),
+      });
+
+      await assert.rejects(
+        () =>
+          service.completeEnrollment(
+            { challengeToken: "challenge-token", code: "000000" },
+            createRequest(),
+            createResponse(),
+          ),
+        BadRequestException,
+      );
+
+      assert.deepEqual(audit.events, [
+        {
+          eventType: "platform.login_failed",
+          platformUserId: "owner-1",
+          email: "owner@vizitum.dev",
+          reason: "wrong_code",
+          method: "enrollment",
+          requestId: "request-a",
+        },
+      ]);
+    });
+
+    it("does not record a failure when enrolment breaks for some other reason", async () => {
+      // A database failure is not a failed sign-in attempt, and recording it
+      // as one would put noise in exactly the trail that exists to be read
+      // after an incident.
+      const audit = createTestAuthAudit();
+      const service = createPlatformAuthService({
+        audit,
+        enrollmentThrows: new Error("database unavailable"),
+      });
+
+      await assert.rejects(
+        () =>
+          service.completeEnrollment(
+            { challengeToken: "challenge-token", code: "123456" },
+            createRequest(),
+            createResponse(),
+          ),
+        /database unavailable/,
+      );
+      assert.deepEqual(audit.events, []);
+    });
+
     it("records an unknown platform address with no account attached", async () => {
       const audit = createTestAuthAudit();
 
@@ -252,10 +363,7 @@ describe("auth audit events", () => {
         session: { id: "session-1", platformUserId: "owner-1" },
       });
 
-      await service.logout(
-        createRequest("platform-token"),
-        createResponse(),
-      );
+      await service.logout(createRequest("platform-token"), createResponse());
 
       assert.deepEqual(audit.events, [
         {
@@ -408,6 +516,10 @@ function createPlatformAuthService(options: {
   passwordMatches?: boolean;
   codeAccepted?: boolean;
   session?: { id: string; platformUserId: string };
+  /** Rejects the challenge token, as an expired or replayed one would. */
+  claimThrows?: Error;
+  /** Fails the enrolment step — a wrong code, or anything else. */
+  enrollmentThrows?: Error;
 }) {
   const owner =
     options.platformUser === undefined
@@ -423,7 +535,10 @@ function createPlatformAuthService(options: {
         }
       : options.platformUser;
 
-  const mfa = createTestPlatformMfa();
+  const mfa = createTestPlatformMfa({
+    claimThrows: options.claimThrows,
+    confirmEnrollmentThrows: options.enrollmentThrows,
+  });
   const originalVerify = mfa.verifyTotpCode.bind(mfa);
 
   mfa.verifyTotpCode = (secret: string, code: unknown) =>
@@ -452,7 +567,9 @@ function createPlatformAuthService(options: {
 
 function createRequest(token?: string) {
   const cookie = token ? `vizitum_session=${token}` : undefined;
-  const platformCookie = token ? `vizitum_platform_session=${token}` : undefined;
+  const platformCookie = token
+    ? `vizitum_platform_session=${token}`
+    : undefined;
 
   return {
     requestId: "request-a",

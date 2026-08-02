@@ -11,6 +11,8 @@ export type TestPlatformMfaOptions = {
   recoveryCodeValid?: boolean;
   /** Set to reject the challenge token, as an expired or replayed one would. */
   claimThrows?: Error;
+  /** Set to fail the enrolment step — a wrong code, or anything else. */
+  confirmEnrollmentThrows?: Error;
   pendingSecret?: string | null;
   recoveryCodes?: string[];
 };
@@ -53,7 +55,8 @@ export function createTestPlatformMfa(
       purpose: "enrollment" as const,
       expiresAt: new Date(TEST_CHALLENGE_EXPIRY),
       secret: "PENDINGSECRET",
-      otpauthUrl: "otpauth://totp/Vizitum:owner@vizitum.dev?secret=PENDINGSECRET",
+      otpauthUrl:
+        "otpauth://totp/Vizitum:owner@vizitum.dev?secret=PENDINGSECRET",
     }),
 
     claimChallenge: async () => {
@@ -73,7 +76,14 @@ export function createTestPlatformMfa(
 
     verifyTotpCode: () => options.codeValid ?? true,
 
-    confirmEnrollment: async (platformUserId: string, pendingSecret: string) => {
+    confirmEnrollment: async (
+      platformUserId: string,
+      pendingSecret: string,
+    ) => {
+      if (options.confirmEnrollmentThrows) {
+        throw options.confirmEnrollmentThrows;
+      }
+
       confirmedEnrollments.push({ platformUserId, pendingSecret });
 
       return options.recoveryCodes ?? ["aaaa-bbbb-cccc", "dddd-eeee-ffff"];

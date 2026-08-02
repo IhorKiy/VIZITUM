@@ -296,6 +296,15 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
   - **Failures record a reason** (`unknown_account`/`inactive_account`/`wrong_password`/`wrong_code`) and the address attempted. That is the distinction the login response deliberately refuses to make, and it is safe here only because nothing reads these rows back over the API — a read endpoint for them would need to weigh that again.
   - **Both failure paths write.** Auditing only the branch where the account exists would have put back, in the trail, the timing difference 3.1 exists to remove.
   - **The write is best-effort.** A failed audit write is logged as `auth_audit_write_failed` and swallowed: refusing to sign anyone in because the audit table is unavailable turns a degraded trail into an outage, and on the failure path it would answer a wrong password with a 500. The error log is what keeps a silently empty trail noticeable — an alert on it is the natural follow-up.
+- **Where the alarm lives, and why not on the operations summary.** A
+  swallowed write is the one failure nobody would notice — the symptom of a
+  broken trail is an empty trail, which looks exactly like a quiet week. It is
+  reported to Sentry (`errorCode=AUTH_AUDIT_WRITE_FAILED`) as well as logged,
+  with an alert row in `docs/runbooks/production-alerts.md`. It is deliberately
+  **not** a counter on `GET /operations/summary`: every counter there is a
+  `count()` over rows carrying a failed status, and a write that never reached
+  the database leaves no row to count. Counting it would mean writing the
+  failure to the same database that just refused a write.
 - **What this unblocks:** the accepted risk above ("the API is directly reachable, so per-IP keying is advisory") names this item as the one to do first if that decision is ever reopened, because direct-to-API credential traffic previously left no trace at all. It now leaves one.
 
 ### 3.6 Pin argon2 work factor + rehash-on-login

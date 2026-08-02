@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { JsonLogger } from "../../common/json-logger.service";
+import { SentryService } from "../../common/sentry.service";
 import { PrismaService } from "../prisma/prisma.service";
 
 // Sign-in events for both domains. Tenant events land in `AuditEvent`
@@ -26,7 +27,16 @@ export const AUTH_AUDIT_EVENTS = {
 // so the distinction the login response deliberately withholds is not
 // reintroduced anywhere a guesser can see it.
 export type AuthFailureReason =
-  "unknown_account" | "inactive_account" | "wrong_password" | "wrong_code";
+  | "unknown_account"
+  | "inactive_account"
+  | "wrong_password"
+  | "wrong_code"
+  // The half-authenticated state between the password step and the code step
+  // was refused: expired, already spent, or claimed for the other step. Worth
+  // its own reason rather than folding into `wrong_code`, because a run of
+  // these is somebody replaying captured challenge tokens, which is a
+  // different story from somebody guessing six digits.
+  | "invalid_challenge";
 
 // How the second factor was satisfied. A recovery code is worth telling apart
 // from an authenticator: spending one usually means the owner lost their
@@ -45,7 +55,9 @@ export type TenantLoginAuditInput = {
 
 export type PlatformLoginAuditInput = {
   platformUserId: string | null;
-  email: string;
+  // Absent when the attempt was refused before any account was resolved — a
+  // rejected challenge token carries no identity of its own.
+  email?: string;
   requestId?: string;
   reason?: AuthFailureReason;
   method?: PlatformLoginMethod;
@@ -54,6 +66,10 @@ export type PlatformLoginAuditInput = {
 @Injectable()
 export class AuthAuditService {
   private readonly logger = new JsonLogger();
+  // Constructed rather than injected, the way `src/worker.ts` does it and for
+  // the same reason: this service is built by hand in tests, and a Sentry
+  // with no DSN configured is a no-op, so nothing has to be stubbed.
+  private readonly sentry = new SentryService();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -171,11 +187,19 @@ export class AuthAuditService {
     );
   }
 
-  // Auditing is best-effort on purpose. A failed write is logged as an error
-  // rather than thrown: refusing to sign anyone in because the audit table is
-  // unavailable turns a degraded trail into an outage, and the same failure on
-  // the *failed*-login path would answer a wrong password with a 500. The
-  // error log is what keeps a silently empty trail noticeable.
+  // Auditing is best-effort on purpose. A failed write is reported rather than
+  // thrown: refusing to sign anyone in because the audit table is unavailable
+  // turns a degraded trail into an outage, and the same failure on the
+  // *failed*-login path would answer a wrong password with a 500.
+  //
+  // Reported to Sentry as well as logged, because a swallowed failure is the
+  // one thing nobody would notice: the symptom of a broken trail is an empty
+  // trail, which looks exactly like a quiet week. Sentry is where the alert
+  // rows in docs/runbooks/production-alerts.md already live.
+  //
+  // Deliberately *not* a counter on the operations summary: every counter
+  // there is a `count()` over rows with a failed status, and a write that
+  // never reached the database leaves no row to count.
   private async write(
     eventType: string,
     create: () => Promise<unknown>,
@@ -192,12 +216,20 @@ export class AuthAuditService {
         undefined,
         "AuthAudit",
       );
+
+      void this.sentry.captureException({
+        exception: error,
+        requestId: "auth-audit",
+        module: "AuthAudit",
+        operation: eventType,
+        errorCode: "AUTH_AUDIT_WRITE_FAILED",
+      });
     }
   }
 }
 
 function buildMetadata(input: {
-  email: string;
+  email?: string;
   reason?: AuthFailureReason;
   method?: PlatformLoginMethod;
 }): Record<string, string> {

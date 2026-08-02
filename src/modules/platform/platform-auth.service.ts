@@ -137,15 +137,24 @@ export class PlatformAuthService {
     request: Request,
     response: Response,
   ): Promise<{ step: "session" } & PlatformSessionResponse> {
-    const challenge = await this.platformMfaService.claimChallenge(
+    const method = body.recoveryCode ? "recovery_code" : "totp";
+    const challenge = await this.claimChallengeAudited(
       body.challengeToken,
       "login",
+      request,
+      method,
     );
     const platformUser = await this.loadActivePlatformUser(
       challenge.platformUserId,
     );
 
     if (!platformUser.totpSecret) {
+      // Reached only for an account whose secret vanished between the two
+      // steps; the identity is known here, unlike at claim time.
+      await this.recordChallengeRejected(request, method, {
+        platformUserId: platformUser.id,
+        email: platformUser.email,
+      });
       throwChallengeInvalid();
     }
 
@@ -174,7 +183,7 @@ export class PlatformAuthService {
         email: platformUser.email,
         requestId: request.requestId,
         reason: "wrong_code",
-        method: body.recoveryCode ? "recovery_code" : "totp",
+        method,
       });
       throw new BadRequestException({
         code: "MFA_CODE_INVALID",
@@ -182,12 +191,7 @@ export class PlatformAuthService {
       });
     }
 
-    return this.issueSession(
-      platformUser,
-      request,
-      response,
-      body.recoveryCode ? "recovery_code" : "totp",
-    );
+    return this.issueSession(platformUser, request, response, method);
   }
 
   /**
@@ -200,22 +204,28 @@ export class PlatformAuthService {
     request: Request,
     response: Response,
   ): Promise<PlatformMfaEnrollResponse> {
-    const challenge = await this.platformMfaService.claimChallenge(
+    const challenge = await this.claimChallengeAudited(
       body.challengeToken,
+      "enrollment",
+      request,
       "enrollment",
     );
 
     if (!challenge.pendingSecret) {
+      await this.recordChallengeRejected(request, "enrollment", {
+        platformUserId: challenge.platformUserId,
+      });
       throwChallengeInvalid();
     }
 
     const platformUser = await this.loadActivePlatformUser(
       challenge.platformUserId,
     );
-    const recoveryCodes = await this.platformMfaService.confirmEnrollment(
-      platformUser.id,
+    const recoveryCodes = await this.confirmEnrollmentAudited(
+      platformUser,
       challenge.pendingSecret,
       body.code,
+      request,
     );
     const session = await this.issueSession(
       platformUser,
@@ -294,6 +304,83 @@ export class PlatformAuthService {
     return platformUser;
   }
 
+  /**
+   * Claims a challenge, recording the refusal when it is rejected.
+   *
+   * A rejected challenge — expired, already spent, or claimed for the other
+   * step — is the one sign-in failure that left no trace at all, and a run of
+   * them is somebody replaying captured tokens rather than guessing digits.
+   * Nothing is known about who it was at this point: the token is the only
+   * identity a challenge has, and it did not resolve.
+   */
+  private async claimChallengeAudited(
+    token: unknown,
+    purpose: "login" | "enrollment",
+    request: Request,
+    method: PlatformLoginMethod,
+  ) {
+    try {
+      return await this.platformMfaService.claimChallenge(token, purpose);
+    } catch (error) {
+      await this.recordChallengeRejected(request, method, {
+        platformUserId: null,
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * Confirms enrolment, recording a rejected code.
+   *
+   * Enrolment is a sign-in: it ends in a session. Its wrong-code path was the
+   * one that wrote nothing, so somebody working through codes against the
+   * enrolment step left no trace while the same attempt against the login
+   * step did.
+   */
+  private async confirmEnrollmentAudited(
+    platformUser: PlatformUser,
+    pendingSecret: string,
+    code: unknown,
+    request: Request,
+  ): Promise<string[]> {
+    try {
+      return await this.platformMfaService.confirmEnrollment(
+        platformUser.id,
+        pendingSecret,
+        code,
+      );
+    } catch (error) {
+      // Narrowed to the rejected code: anything else (a database failure, say)
+      // is not a failed sign-in attempt and must not be recorded as one.
+      if (isMfaCodeInvalid(error)) {
+        await this.authAuditService.recordPlatformLoginFailed({
+          platformUserId: platformUser.id,
+          email: platformUser.email,
+          requestId: request.requestId,
+          reason: "wrong_code",
+          method: "enrollment",
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  private async recordChallengeRejected(
+    request: Request,
+    method: PlatformLoginMethod,
+    identity: { platformUserId: string | null; email?: string },
+  ): Promise<void> {
+    await this.authAuditService.recordPlatformLoginFailed({
+      platformUserId: identity.platformUserId,
+      ...(identity.email ? { email: identity.email } : {}),
+      requestId: request.requestId,
+      reason: "invalid_challenge",
+      method,
+    });
+  }
+
   private async issueSession(
     platformUser: PlatformUser,
     request: Request,
@@ -330,6 +417,13 @@ export class PlatformAuthService {
 
     return { step: "session", ...toSessionResponse(platformUser) };
   }
+}
+
+function isMfaCodeInvalid(error: unknown): boolean {
+  return (
+    error instanceof BadRequestException &&
+    (error.getResponse() as { code?: string }).code === "MFA_CODE_INVALID"
+  );
 }
 
 function toSessionResponse(platformUser: {
