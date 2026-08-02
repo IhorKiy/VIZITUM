@@ -535,14 +535,15 @@ function createPlatformAuthService(options: {
         }
       : options.platformUser;
 
+  // `codeValid` drives both halves of the fixture: `verifyTotpCode`, which
+  // the enrolment step still calls directly, and `acceptTotpCode`, which the
+  // login step goes through so a code's step can be spent. Setting it here
+  // rather than patching one of them keeps the two in step.
   const mfa = createTestPlatformMfa({
+    codeValid: options.codeAccepted,
     claimThrows: options.claimThrows,
     confirmEnrollmentThrows: options.enrollmentThrows,
   });
-  const originalVerify = mfa.verifyTotpCode.bind(mfa);
-
-  mfa.verifyTotpCode = (secret: string, code: unknown) =>
-    options.codeAccepted === false ? false : originalVerify(secret, code);
 
   return new PlatformAuthService(
     {

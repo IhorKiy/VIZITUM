@@ -12,10 +12,9 @@ import {
 //
 // It is also where Content-Security-Policy is set, for the same reason: the
 // policy carries a per-request nonce, so it cannot be a static entry in
-// next.config.ts the way the fixed security headers are. The matcher below
-// already skips `_next` and anything with a file extension, which keeps the
-// nonce policy off public/offline.html — a hand-written page whose inline
-// <script> could never carry one.
+// next.config.ts the way the fixed security headers are. Which paths that
+// policy reaches is decided by the matcher at the bottom of this file — see
+// the note there for why "anything with a dot" was the wrong test.
 export default function proxy(request: NextRequest) {
   const canonicalUrl = canonicalRedirectUrl(
     request.headers.get("host"),
@@ -52,6 +51,24 @@ export default function proxy(request: NextRequest) {
   return response;
 }
 
+// Skips `_next` and the static files in `public/`, matched on a real file
+// extension at the end of the path.
+//
+// The previous pattern excluded any path containing a dot *anywhere*
+// (`.*\..*`), which is the shape most Next examples use. That is safe only
+// while no route segment can contain a dot — and `[tenantSlug]` can hold
+// anything, so `/acme.x/field` rendered the real, session-authenticated app
+// (the session cookie decides what is served, not the slug) with no
+// Content-Security-Policy and no nonce. An XSS anywhere in the app lost its
+// main mitigation to one extra character in the URL.
+//
+// Anchoring on a known extension list keeps public/offline.html and sw.js out
+// — a hand-written page whose inline <script> could never carry a nonce, and
+// a worker that is not a document — while a dot inside a path segment no
+// longer opts a page out of the policy. `tests/web-csp-matcher.test.ts` pins
+// both halves.
 export const config = {
-  matcher: ["/((?!_next|.*\\..*).*)"],
+  matcher: [
+    "/((?!_next|.*\\.(?:png|jpg|jpeg|gif|webp|avif|svg|ico|css|js|mjs|map|txt|xml|json|webmanifest|woff|woff2|ttf|html)$).*)",
+  ],
 };

@@ -124,6 +124,34 @@ own beyond the transitive `postcss`/`sharp` ones, with a patched release
 available, and `multer` (via `@nestjs/platform-express`, no multipart endpoint
 in the app) has appeared since.
 
+### Found outside this plan: the second factor's own weak points
+
+Two more gaps the original review did not look for, found by the same later
+audit and fixed with it. Both sit inside 1.3's TOTP work, which this plan
+recorded as simply "done".
+
+- **The TOTP secret was stored in the clear.** A code is verified against the
+  secret itself, so unlike a password it cannot be hashed — which is exactly
+  why it needed encrypting. Any database read (a dump, a replica, a restore
+  drill) handed over a permanent code generator for the one account that
+  reaches every tenant. Now AES-256-GCM under `TOTP_ENCRYPTION_KEY`, with a
+  production boot gate, both formats readable so an enrolled owner survives
+  the deploy, a re-encrypt on next sign-in, and
+  `npm run encrypt:totp-secrets` to migrate immediately rather than
+  eventually.
+- **A code could be spent more than once.** One code is accepted across three
+  steps — the current one and one either side, for the clock drift RFC 6238
+  expects — and nothing recorded that it had been used. Roughly ninety
+  seconds in which a code seen over a shoulder, or caught by a phishing
+  proxy, worked again for whoever also had the password. `totpLastUsedStep`
+  now records the step of the last accepted code, claimed with a conditional
+  update so two concurrent replays cannot both win.
+
+Worth generalizing alongside the tenant-status finding above: both of these
+are controls that were *present* and looked complete. "MFA is implemented" and
+"the tenant status is enforced" were both true statements that stopped short
+of the property anyone actually wanted.
+
 ### Found outside this plan: four smaller gaps, all closed
 
 Recorded together because none is individually interesting and the pattern
