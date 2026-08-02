@@ -138,6 +138,11 @@ describe("auth audit events", () => {
           tenantId: "tenant-a",
           userId: "user-a",
           requestId: "request-a",
+          // Recorded here too, not only on the sign-in rows: the report reads
+          // every event type, so one without an origin would sit in its
+          // "predates this" bucket forever and read as a gap in the data
+          // rather than as a signed-out session.
+          origin: { ipHash: hashValue("203.0.113.10"), forwardedHopCount: 0 },
         },
       ]);
     });
@@ -375,6 +380,7 @@ describe("auth audit events", () => {
           eventType: "platform.logged_out",
           platformUserId: "owner-1",
           requestId: "request-a",
+          origin: { ipHash: hashValue("203.0.113.10"), forwardedHopCount: 0 },
         },
       ]);
     });

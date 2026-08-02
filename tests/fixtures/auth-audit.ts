@@ -37,6 +37,7 @@ export class TestAuthAuditService extends AuthAuditService {
     tenantId: string;
     userId: string;
     requestId?: string;
+    origin?: { ipHash?: string; forwardedHopCount: number };
   }) {
     this.record("auth.logged_out", input);
   }
@@ -54,6 +55,7 @@ export class TestAuthAuditService extends AuthAuditService {
     email?: string;
     tenantId: string;
     requestId?: string;
+    origin?: { ipHash?: string; forwardedHopCount: number };
   }) {
     this.record("platform.reauth_failed", input);
   }
@@ -61,6 +63,7 @@ export class TestAuthAuditService extends AuthAuditService {
   override async recordPlatformLoggedOut(input: {
     platformUserId: string;
     requestId?: string;
+    origin?: { ipHash?: string; forwardedHopCount: number };
   }) {
     this.record("platform.logged_out", input);
   }

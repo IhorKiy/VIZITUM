@@ -110,13 +110,14 @@ export class AuthAuditService {
     tenantId: string;
     userId: string;
     requestId?: string;
+    origin?: RequestOrigin;
   }): Promise<void> {
     await this.writeTenantEvent({
       eventType: AUTH_AUDIT_EVENTS.tenantLoggedOut,
       tenantId: input.tenantId,
       userId: input.userId,
       requestId: input.requestId,
-      metadata: {},
+      metadata: buildMetadata({ origin: input.origin }),
     });
   }
 
@@ -153,6 +154,7 @@ export class AuthAuditService {
     email?: string;
     tenantId: string;
     requestId?: string;
+    origin?: RequestOrigin;
   }): Promise<void> {
     await this.writePlatformEvent({
       eventType: AUTH_AUDIT_EVENTS.platformReauthFailed,
@@ -162,6 +164,7 @@ export class AuthAuditService {
       metadata: buildMetadata({
         email: input.email,
         reason: "wrong_code",
+        origin: input.origin,
       }),
     });
   }
@@ -169,12 +172,13 @@ export class AuthAuditService {
   async recordPlatformLoggedOut(input: {
     platformUserId: string;
     requestId?: string;
+    origin?: RequestOrigin;
   }): Promise<void> {
     await this.writePlatformEvent({
       eventType: AUTH_AUDIT_EVENTS.platformLoggedOut,
       platformUserId: input.platformUserId,
       requestId: input.requestId,
-      metadata: {},
+      metadata: buildMetadata({ origin: input.origin }),
     });
   }
 

@@ -257,6 +257,7 @@ export class PlatformAuthService {
         await this.authAuditService.recordPlatformLoggedOut({
           platformUserId: session.platformUserId,
           requestId: request.requestId,
+          origin: describeRequestOrigin(request),
         });
       }
     }

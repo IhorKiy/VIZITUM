@@ -24,18 +24,38 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const daysArgIndex = process.argv.indexOf("--days");
-const days =
-  daysArgIndex === -1 ? 7 : Math.max(1, Number(process.argv[daysArgIndex + 1]));
+const days = readDays(process.argv);
 const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
+// `--days` with nothing after it used to reach `new Date(NaN)` and surface as
+// an opaque Prisma error about the filter. A window is the one input here, so
+// getting it wrong should say so.
+function readDays(argv) {
+  const index = argv.indexOf("--days");
+
+  if (index === -1) {
+    return 7;
+  }
+
+  const value = Number(argv[index + 1]);
+
+  if (!Number.isFinite(value) || value < 1) {
+    console.error(
+      `--days needs a positive number of days, got ${argv[index + 1] ?? "nothing"}.`,
+    );
+    process.exit(1);
+  }
+
+  return Math.floor(value);
+}
+
+// TLS is governed by the connection string, as in every other script here.
+// A managed database that requires it wants `?sslmode=require` on the URL; the
+// alternative — disabling certificate verification in the script — would make
+// this the one place in the repo that connects to production without checking
+// who answered.
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({
-    connectionString,
-    ...(/@(localhost|127\.0\.0\.1)[:/]/.test(connectionString)
-      ? {}
-      : { ssl: { rejectUnauthorized: false } }),
-  }),
+  adapter: new PrismaPg({ connectionString }),
 });
 
 async function main() {
@@ -153,6 +173,13 @@ function readString(metadata, key) {
 main()
   .catch((error) => {
     console.error("Failed:", error.message);
+
+    if (/ssl|tls/i.test(error.message)) {
+      console.error(
+        "The database requires TLS — append `?sslmode=require` to DATABASE_URL.",
+      );
+    }
+
     process.exitCode = 1;
   })
   .finally(async () => {

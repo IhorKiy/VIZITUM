@@ -205,6 +205,7 @@ export class AuthService {
           tenantId: session.tenantId,
           userId: session.userId,
           requestId: request.requestId,
+          origin: describeRequestOrigin(request),
         });
       }
     }
