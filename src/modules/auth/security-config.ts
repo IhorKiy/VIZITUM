@@ -1,5 +1,7 @@
 import type { LoggerService } from "@nestjs/common";
 
+import { isSecretKeyValid } from "../../common/secret-box";
+
 // Security controls that are optional everywhere else and mandatory in
 // production. Each one degrades *silently* when its variable is missing —
 // captcha becomes a no-op, rate-limit counters become per-process — which is
@@ -32,6 +34,12 @@ const PRODUCTION_REQUIREMENTS: ProductionRequirement[] = [
     name: "SESSION_SECRET",
     reason: "session and CSRF token signing depends on it",
     isSatisfied: (env) => Boolean(env.SESSION_SECRET?.trim()),
+  },
+  {
+    name: "TOTP_ENCRYPTION_KEY",
+    reason:
+      "the platform owner's TOTP secret is stored in the clear without it, so any database read hands over a permanent code generator for the account that reaches every tenant (32 bytes, base64 or hex)",
+    isSatisfied: (env) => isSecretKeyValid(env.TOTP_ENCRYPTION_KEY),
   },
   {
     name: "TRUST_PROXY_HOPS",
