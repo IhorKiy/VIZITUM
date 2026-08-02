@@ -380,7 +380,10 @@ describe("platform login requires a second factor", () => {
           update: async () => owner,
         },
       } as never,
-      { verifyPassword: async () => true } as never,
+      {
+        verifyPassword: async () => true,
+        rehashIfNeeded: async () => null,
+      } as never,
       {
         createSession: async (input: unknown) => {
           sessions.push(input);
@@ -427,7 +430,10 @@ describe("platform login requires a second factor", () => {
           update: async () => owner,
         },
       } as never,
-      { verifyPassword: async () => true } as never,
+      {
+        verifyPassword: async () => true,
+        rehashIfNeeded: async () => null,
+      } as never,
       {
         createSession: async (input: unknown) => {
           sessions.push(input);

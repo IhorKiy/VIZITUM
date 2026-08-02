@@ -505,6 +505,7 @@ function createAuthService(options: {
     prisma as never,
     {
       verifyPassword: async () => options.passwordMatches ?? true,
+      rehashIfNeeded: async () => null,
     } as never,
     new RolesService(),
     (options.sessionService ?? {
@@ -564,7 +565,10 @@ function createPlatformAuthService(options: {
         update: async () => owner,
       },
     } as never,
-    { verifyPassword: async () => options.passwordMatches ?? true } as never,
+    {
+      verifyPassword: async () => options.passwordMatches ?? true,
+      rehashIfNeeded: async () => null,
+    } as never,
     {
       createSession: async () => ({ token: "platform-token" }),
       findActiveSessionByToken: async () => options.session ?? null,

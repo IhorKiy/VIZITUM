@@ -76,7 +76,7 @@ Required environment:
 - `DATABASE_URL`
 - `REDIS_URL`
 - `SESSION_SECRET`
-- `SESSION_COOKIE_NAME`
+- `COOKIE_SECURE` (literal `true`)
 - `OPENAI_API_KEY`
 - `S3_ENDPOINT`
 - `S3_REGION`

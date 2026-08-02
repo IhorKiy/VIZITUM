@@ -26,8 +26,10 @@ as the record of what was found and why each fix took the shape it did.
 | 2.5 Session TTL, rotation and idle timeout | Done |
 | 2.6 Raw invite tokens | Done |
 | 3.2 Upload size | Half done — the read side enforces the cap against the length the store reports; signing `Content-Length` on the PUT is still open. See the item below |
+| 3.4 `__Host-` cookie prefix + `COOKIE_SECURE` | Done — see the item below |
 | 3.5 Auth audit events | Done — login success/failure and logout on both domains, with the failure reason; see the item below |
-| 3.1, 3.4, 3.6–3.8 | Not started (wave 3) |
+| 3.6 Pin argon2 params + rehash-on-login | Done — see the item below |
+| 3.1, 3.8 | Not started (wave 3) |
 
 Two deviations worth knowing about, both deliberate:
 
@@ -397,10 +399,12 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 - **Risk (LOW):** No `app.set('trust proxy', …)`; `request.ip` is the proxy address, degrading session forensics and undermining any IP-based rate limit (1.1).
 - **Change:** Set `trust proxy` to the exact hop count; forward `x-forwarded-for` from the Next layer (`buildRequestHeaders`).
 
-### 3.4 `__Host-` cookie prefix
-- **Risk (LOW):** Session/CSRF cookies lack the `__Host-` prefix → cookie-tossing from a sibling subdomain.
-- **Change:** Rename to `__Host-vizitum_session` / `__Host-vizitum_csrf` in production (requires `Secure`, `Path=/`, no `Domain` — all already true). Also drive the `secure` flag from an explicit `COOKIE_SECURE` env var rather than `NODE_ENV`.
-- **Do not break the worktree dev scheme:** `SESSION_COOKIE_NAME` is a **per-slot env var** so parallel dev sessions on different ports don't clobber each other's cookies on `localhost` (see CLAUDE.md → worktree slots). The `__Host-` prefix requires `Secure`, which localhost HTTP dev cannot set, and a fixed prefixed name would also re-collide the slots. So apply `__Host-` **only in production** and keep the per-slot `SESSION_COOKIE_NAME` override intact for dev/worktrees — production hard-codes the prefixed name, non-production keeps reading the env var.
+### 3.4 `__Host-` cookie prefix — **done**
+- **Risk (LOW):** Session/CSRF cookies lacked the `__Host-` prefix → cookie-tossing from a sibling subdomain. Separately, the `Secure` flag was inferred from `NODE_ENV` rather than set explicitly — and production had at one point run with `NODE_ENV` unset, which silently sent the session cookie without `Secure` and nothing noticed.
+- **Shipped:** `src/common/cookie-naming.ts`'s `resolveCookieName` is shared by both domains' constants (`auth.constants.ts`, `platform-auth.constants.ts`) so the rule can't drift between them — production always returns `__Host-`-prefixed names (`__Host-vizitum_session`, `__Host-vizitum_csrf`, `__Host-vizitum_platform_session`, `__Host-vizitum_platform_csrf`); outside production it returns the plain name, or a dev override where one is given. The `secure` flag on `COOKIE_OPTIONS`/`CSRF_COOKIE_OPTIONS` now reads a new `COOKIE_SECURE` env var instead of `NODE_ENV`, and `COOKIE_SECURE` is added to `security-config.ts`'s production-required list — an unset or non-`"true"` value now refuses to start rather than repeating the silent-no-`Secure` incident. `tests/cookie-naming.test.ts` and `tests/security-config.test.ts` pin both.
+- **The two twins, resolved:**
+  1. **Cookie names hardcoded in both the backend and `apps/web`.** `apps/web/lib/api-client.ts` cannot import `src/common/cookie-naming.ts` (separate workspace), so it carries a duplicated copy of the same function and computes the same four names the same way. This matters concretely: `session-actions.ts`'s `logoutAction` and `platform/tenants/page.tsx`'s sign-out both clear cookies by name directly rather than trusting the API's `Set-Cookie` response (deliberately — see their own comments), so a name computed differently on the two sides would leave a stale, revoked-but-still-present cookie in the browser after a production `__Host-` rollout.
+  2. **The per-slot `SESSION_COOKIE_NAME` dev var was dead.** Chose to wire it up (option (a) in the prompt) rather than document it as permanently dead: `auth.constants.ts` now reads `process.env.SESSION_COOKIE_NAME` outside production, and `apps/web/lib/api-client.ts` reads the *same-named* variable from its own environment (server actions run in a separate process from the API, so it can't read the API's copy) — both must be set to the same value for a given worktree slot. `docs/reference/environment.md` and `CLAUDE.md` → worktree slots are updated accordingly; existing `wt-N` slots' `apps/web/.env.local` files pick up the variable the next time someone sets it there (not touched by this change, to avoid clobbering another session's in-flight worktree). The CSRF cookie names get no equivalent override, matching today's reality that no slot varies them.
 
 ### 3.5 Auth audit events — **done**
 - **Risk (LOW):** No audit record for login success/failure/logout on either domain, so the brute-force that 1.1 addresses can't be detected after the fact.
@@ -420,9 +424,10 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
   failure to the same database that just refused a write.
 - **What this unblocks:** the accepted risk above ("the API is directly reachable, so per-IP keying is advisory") names this item as the one to do first if that decision is ever reopened, because direct-to-API credential traffic previously left no trace at all. It now leaves one.
 
-### 3.6 Pin argon2 work factor + rehash-on-login
-- **Risk (INFO):** `hash(password)` uses library defaults with no `needsRehash` path, so a dependency bump can silently change cost and existing users can never be upgraded.
-- **Change:** Pin explicit argon2id parameters in a constant; on successful login, re-hash when `argon2.needsRehash(hash, options)`.
+### 3.6 Pin argon2 work factor + rehash-on-login — **done**
+- **Risk (INFO):** `hash(password)` used library defaults with no `needsRehash` path, so a dependency bump could silently change cost and existing users could never be upgraded.
+- **Shipped:** `PASSWORD_HASH_OPTIONS` in `password.service.ts` pins `type: argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1` — OWASP's own low-memory Argon2id profile, chosen deliberately over the library defaults (`memoryCost: 65536, timeCost: 3, parallelism: 4`) for what production actually runs on: Render's free tier, 512 MB RAM and 0.1 CPU shared across the whole process. Parallelism above 1 buys nothing without real spare cores — on a tenth of one core the lanes just take turns — and memoryCost is charged per concurrent hash, so the default's 64 MiB leaves little of 512 MB once more than a couple of logins overlap. Measured locally (not representative of the Render instance, but directionally telling): the pinned profile hashed in ~22ms against ~34ms for the library default in this environment — cheaper *and* lighter, not merely safer for memory.
+- **Rehash-on-login:** `PasswordService.rehashIfNeeded(currentHash, password)` returns a fresh hash when `needsRehash` flags the stored one, `null` otherwise. Both `AuthService.login` and `PlatformAuthService.login` call it immediately once the password itself verifies — for the tenant login this is folded into the existing `lastLoginAt` update (one write, not two); for the platform login it runs right after `clearFailures`, independent of whatever the MFA step decides next, since the password was already proven correct at that point and rehashing doesn't grant anything by itself. `tests/password-service.test.ts` pins the hashing/rehash logic directly (including the encoded parameter string); `tests/auth-password-rehash.test.ts` pins that both login paths persist the rehashed value.
 
 ### 3.7 Dependency advisories — **done, as far as it goes**
 - **Risk as originally written (LOW):** `npm audit` reports 5 high (postcss XSS/path-traversal, sharp/libvips CVEs), both transitive via `next@16`. Real exposure is low — the app avoids `next/image` (logos render via plain `<img>`) so no user bytes reach libvips at runtime, and postcss runs at build over first-party CSS only.

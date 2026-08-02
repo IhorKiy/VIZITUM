@@ -8,6 +8,7 @@ import {
 
 const COMPLETE_PRODUCTION_ENV = {
   NODE_ENV: "production",
+  COOKIE_SECURE: "true",
   TURNSTILE_SECRET_KEY: "turnstile-secret",
   REDIS_URL: "redis://redis:6379",
   SESSION_SECRET: "session-secret",
@@ -38,6 +39,7 @@ describe("production security configuration", () => {
   });
 
   for (const missing of [
+    "COOKIE_SECURE",
     "TURNSTILE_SECRET_KEY",
     "REDIS_URL",
     "SESSION_SECRET",
@@ -90,6 +92,33 @@ describe("production security configuration", () => {
     assert.match(errors[0], /TRUST_PROXY_HOPS/);
   });
 
+  it('rejects any COOKIE_SECURE value other than "true"', () => {
+    // Anything short of the exact literal must refuse to start rather than
+    // guess — "false", "0" or a stray typo are all closer to "cookies go out
+    // without Secure in production" than to a deliberate choice. Matches the
+    // existing RATE_LIMIT_DISABLED check above: trimmed, but not
+    // case-folded, so only a dashboard's surrounding whitespace is forgiven.
+    for (const value of ["false", "0", "TRUE"]) {
+      const errors = collectSecurityConfigurationErrors({
+        ...COMPLETE_PRODUCTION_ENV,
+        COOKIE_SECURE: value,
+      } as NodeJS.ProcessEnv);
+
+      assert.equal(errors.length, 1, `expected "${value}" to be refused`);
+      assert.match(errors[0], /COOKIE_SECURE/);
+    }
+  });
+
+  it("forgives surrounding whitespace around COOKIE_SECURE", () => {
+    assert.deepEqual(
+      collectSecurityConfigurationErrors({
+        ...COMPLETE_PRODUCTION_ENV,
+        COOKIE_SECURE: " true ",
+      } as NodeJS.ProcessEnv),
+      [],
+    );
+  });
+
   it('refuses to start in production with EMAIL_PROVIDER="console"', () => {
     // That driver writes the whole email to the log, including invite and
     // password-reset links with their one-time tokens. Its own comment says
@@ -131,6 +160,6 @@ describe("production security configuration", () => {
     // One per production requirement, pinned to the list itself so adding a
     // requirement without a test for it is a failure rather than a silent
     // pass.
-    assert.equal(errors.length, 5);
+    assert.equal(errors.length, 6);
   });
 });

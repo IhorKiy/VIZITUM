@@ -34,7 +34,10 @@ describe("platform auth", () => {
           },
         },
       } as never,
-      { verifyPassword: async () => true } as never,
+      {
+        verifyPassword: async () => true,
+        rehashIfNeeded: async () => null,
+      } as never,
       {
         createSession: async (input: unknown) => {
           sessionInputs.push(input);
@@ -91,7 +94,10 @@ describe("platform auth", () => {
           },
         },
       } as never,
-      { verifyPassword: async () => true } as never,
+      {
+        verifyPassword: async () => true,
+        rehashIfNeeded: async () => null,
+      } as never,
       {
         createSession: async (input: unknown) => {
           sessionInputs.push(input);
@@ -135,7 +141,10 @@ describe("platform auth", () => {
   it("rejects an unknown platform user", async () => {
     const service = new PlatformAuthService(
       { platformUser: { findUnique: async () => null } } as never,
-      { verifyPassword: async () => true } as never,
+      {
+        verifyPassword: async () => true,
+        rehashIfNeeded: async () => null,
+      } as never,
       { createSession: async () => ({ token: "t", session: {} }) } as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
@@ -167,7 +176,10 @@ describe("platform auth", () => {
           }),
         },
       } as never,
-      { verifyPassword: async () => true } as never,
+      {
+        verifyPassword: async () => true,
+        rehashIfNeeded: async () => null,
+      } as never,
       { createSession: async () => ({ token: "t", session: {} }) } as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
@@ -200,7 +212,10 @@ describe("platform auth", () => {
           }),
         },
       } as never,
-      { verifyPassword: async () => false } as never,
+      {
+        verifyPassword: async () => false,
+        rehashIfNeeded: async () => null,
+      } as never,
       {
         createSession: async () => {
           sessionCreated = true;
@@ -228,7 +243,10 @@ describe("platform auth", () => {
   it("requires an active session for getCurrentPlatformUser", async () => {
     const service = new PlatformAuthService(
       { platformUser: { findUnique: async () => null } } as never,
-      { verifyPassword: async () => true } as never,
+      {
+        verifyPassword: async () => true,
+        rehashIfNeeded: async () => null,
+      } as never,
       { findActiveSessionByToken: async () => null } as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),

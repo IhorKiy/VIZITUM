@@ -105,6 +105,25 @@ export class PlatformAuthService {
 
     await this.loginBackoffService.clearFailures("platform-login", email);
 
+    // Same rationale as the tenant login: the password is already proven
+    // correct at this point, independent of whatever the MFA step below
+    // decides, so a stored hash whose parameters have drifted from
+    // PASSWORD_HASH_OPTIONS is upgraded here rather than waiting on a
+    // separate migration. A second write from the one in issueSession()
+    // below, since that one only ever runs once MFA also succeeds — often a
+    // separate request entirely — and this credential shouldn't wait on it.
+    const rehashedPassword = await this.passwordService.rehashIfNeeded(
+      platformUser.passwordHash,
+      password,
+    );
+
+    if (rehashedPassword) {
+      await this.prisma.platformUser.update({
+        where: { id: platformUser.id },
+        data: { passwordHash: rehashedPassword },
+      });
+    }
+
     if (!this.platformMfaService.isEnrolled(platformUser)) {
       // No confirmed authenticator yet. The answer is an enrolment offer
       // rather than a session, so an unenrolled account cannot simply keep
