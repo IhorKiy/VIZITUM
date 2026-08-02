@@ -1976,12 +1976,23 @@ function buildCsvTemplate(template: ImportTemplateDefinition): string {
     .concat("\n");
 }
 
-function escapeCsvCell(value: string): string {
-  if (!/[",\n\r]/.test(value)) {
-    return value;
+// Mirrors apps/web/lib/csv.ts — same two rules, kept in step by
+// tests/csv-formula-injection.test.ts. The formula guard is defence rather
+// than a fix here: the only thing this file writes is the static column text
+// of an import template, so nothing tenant-entered reaches it today. It is
+// applied anyway, because "no dynamic column ever" is not a property anyone
+// checks when adding a template.
+export function escapeCsvCell(value: string): string {
+  const guarded =
+    /^[=+\-@\t\r]/.test(value) && !/^-?\d+(?:[.,]\d+)?$/.test(value)
+      ? `'${value}`
+      : value;
+
+  if (!/[",\n\r]/.test(guarded)) {
+    return guarded;
   }
 
-  return `"${value.replaceAll('"', '""')}"`;
+  return `"${guarded.replaceAll('"', '""')}"`;
 }
 
 function buildPreview(
