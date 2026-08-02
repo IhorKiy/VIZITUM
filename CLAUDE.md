@@ -52,6 +52,7 @@ Worker and ops:
 ```sh
 npm run worker:cleanup         # local cleanup worker (ts-node)
 npm run worker:cleanup:prod    # compiled worker (node dist/worker.js)
+npm run audit:check            # fails on any high/critical advisory not on the reviewed list (runs in CI)
 npm run alerts:check           # scripts/production-alerts-check.mjs, needs OPERATIONS_SUMMARY_URL
 npm run restore:drill:check
 npm run seed:staging-admin
