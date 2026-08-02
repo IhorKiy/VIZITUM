@@ -9,6 +9,7 @@ import { PlatformAuthService } from "../src/modules/platform/platform-auth.servi
 import { PlatformMfaService } from "../src/modules/platform/platform-mfa.service";
 import { createTestLoginBackoff } from "./fixtures/login-backoff";
 import { createTestPlatformMfa } from "./fixtures/platform-mfa";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 // A fake of just the two Prisma delegates PlatformMfaService touches. The
 // suite runs under tsx, so services are constructed by hand (see CLAUDE.md).
@@ -390,6 +391,7 @@ describe("platform login requires a second factor", () => {
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
       mfa,
+      createTestAuthAudit(),
     );
   }
 
@@ -436,6 +438,7 @@ describe("platform login requires a second factor", () => {
       { assertValidToken: async () => {} } as never,
       backoff,
       createTestPlatformMfa({ codeValid: false }),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(

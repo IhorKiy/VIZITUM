@@ -5,6 +5,7 @@ import { BadRequestException } from "@nestjs/common";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
 import { createTestLoginBackoff } from "./fixtures/login-backoff";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 // Invite acceptance parses the optional phone against the invite tenant's
 // phoneCountry and stores E.164 — the same policy as every other phone write
@@ -81,6 +82,7 @@ function createService(phoneCountry: string | null) {
     {} as never,
     { assertValidToken: async () => {} } as never,
     createTestLoginBackoff(),
+    createTestAuthAudit(),
   );
 
   return { service, upserts };

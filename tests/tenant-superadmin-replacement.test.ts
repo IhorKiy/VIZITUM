@@ -6,6 +6,7 @@ import { AuthService } from "../src/modules/auth/auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
 import { UsersService } from "../src/modules/users/users.service";
 import { createTestLoginBackoff } from "./fixtures/login-backoff";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 function createRequest() {
   return {
@@ -97,6 +98,7 @@ describe("tenant superadmin replacement", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     const result = await authService.acceptInvite(
@@ -202,6 +204,7 @@ describe("tenant superadmin replacement", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await authService.acceptInvite(

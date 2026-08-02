@@ -16,6 +16,7 @@ import { PERMISSIONS, type PermissionCode } from "../roles/permissions";
 import { ROLE_PERMISSION_MATRIX } from "../roles/role-permission.matrix";
 import { RolesService } from "../roles/roles.service";
 import type { RequestContext } from "../tenancy/request-context";
+import { canTenantServeRequests } from "../tenancy/tenant-serving-status";
 import { hashValue } from "./auth-crypto";
 import { REQUIRED_PERMISSIONS_METADATA } from "./permissions.decorator";
 import { REQUIRED_ANY_PERMISSIONS_METADATA } from "./permissions.decorator";
@@ -156,6 +157,22 @@ export class PermissionGuard implements CanActivate {
     ]);
 
     if (!tenant || !user || user.status !== "active") {
+      return null;
+    }
+
+    // Login resolves the tenant's status once and nothing revalidated it
+    // afterwards, so suspending or archiving a tenant left every session
+    // opened before the switch with full access for the rest of its TTL —
+    // exactly the window an abuse or non-payment suspension exists to close.
+    //
+    // Dropping the candidate rather than throwing TENANT_UNAVAILABLE here is
+    // deliberate: this method resolves one of several credentials that may be
+    // present at once (see buildRequestContextCandidates), and a platform
+    // owner holding a stale cookie for the tenant they just suspended must
+    // keep working through their platform session. The reader still gets the
+    // explicit status on the next login, which is where that error can be
+    // acted on.
+    if (!canTenantServeRequests(tenant.status)) {
       return null;
     }
 

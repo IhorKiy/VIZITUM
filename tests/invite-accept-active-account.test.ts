@@ -6,6 +6,7 @@ import { ConflictException } from "@nestjs/common";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
 import { createTestLoginBackoff } from "./fixtures/login-backoff";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 describe("invite acceptance against an existing account", () => {
   // An invite is a password-setting credential for its address and stays
@@ -56,6 +57,7 @@ describe("invite acceptance against an existing account", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     return { service, upserts };
