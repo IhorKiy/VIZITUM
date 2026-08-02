@@ -7,7 +7,13 @@ import type { PlatformUser } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { normalizeEmail } from "../../common/normalize";
-import { createCsrfToken, writeCsrfCookie } from "../auth/csrf";
+import { AuthAuditService } from "../auth/auth-audit.service";
+import type { PlatformLoginMethod } from "../auth/auth-audit.service";
+import {
+  clearCsrfCookie,
+  createCsrfToken,
+  writeCsrfCookie,
+} from "../auth/csrf";
 import { PasswordService } from "../auth/password.service";
 import { TurnstileService } from "../auth/turnstile.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -24,8 +30,11 @@ import type {
   PlatformMfaVerifyRequestBody,
   PlatformSessionResponse,
 } from "./platform-auth.types";
-import { readPlatformSessionToken } from "./platform-session-cookie";
-import { writePlatformSessionCookie } from "./platform-session-cookie";
+import {
+  clearPlatformSessionCookie,
+  readPlatformSessionToken,
+  writePlatformSessionCookie,
+} from "./platform-session-cookie";
 import { PlatformSessionService } from "./platform-session.service";
 
 @Injectable()
@@ -37,6 +46,7 @@ export class PlatformAuthService {
     private readonly turnstileService: TurnstileService,
     private readonly loginBackoffService: LoginBackoffService,
     private readonly platformMfaService: PlatformMfaService,
+    private readonly authAuditService: AuthAuditService,
   ) {}
 
   /**
@@ -44,7 +54,10 @@ export class PlatformAuthService {
    * one platform account reaches every tenant's data, so it is exactly the
    * account a password alone should not be enough for.
    */
-  async login(body: PlatformLoginRequestBody): Promise<PlatformLoginResponse> {
+  async login(
+    body: PlatformLoginRequestBody,
+    request: Request,
+  ): Promise<PlatformLoginResponse> {
     const email = normalizeEmail(body.email);
     const password = typeof body.password === "string" ? body.password : "";
 
@@ -62,6 +75,12 @@ export class PlatformAuthService {
 
     if (!platformUser || platformUser.status !== "active") {
       await this.loginBackoffService.penalizeFailure("platform-login", email);
+      await this.authAuditService.recordPlatformLoginFailed({
+        platformUserId: platformUser?.id ?? null,
+        email,
+        requestId: request.requestId,
+        reason: platformUser ? "inactive_account" : "unknown_account",
+      });
       throwInvalidCredentials();
     }
 
@@ -72,6 +91,12 @@ export class PlatformAuthService {
 
     if (!passwordMatches) {
       await this.loginBackoffService.penalizeFailure("platform-login", email);
+      await this.authAuditService.recordPlatformLoginFailed({
+        platformUserId: platformUser.id,
+        email,
+        requestId: request.requestId,
+        reason: "wrong_password",
+      });
       throwInvalidCredentials();
     }
 
@@ -144,13 +169,25 @@ export class PlatformAuthService {
         "platform-login",
         platformUser.email,
       );
+      await this.authAuditService.recordPlatformLoginFailed({
+        platformUserId: platformUser.id,
+        email: platformUser.email,
+        requestId: request.requestId,
+        reason: "wrong_code",
+        method: body.recoveryCode ? "recovery_code" : "totp",
+      });
       throw new BadRequestException({
         code: "MFA_CODE_INVALID",
         message: "That code is not valid. Sign in again.",
       });
     }
 
-    return this.issueSession(platformUser, request, response);
+    return this.issueSession(
+      platformUser,
+      request,
+      response,
+      body.recoveryCode ? "recovery_code" : "totp",
+    );
   }
 
   /**
@@ -180,9 +217,40 @@ export class PlatformAuthService {
       challenge.pendingSecret,
       body.code,
     );
-    const session = await this.issueSession(platformUser, request, response);
+    const session = await this.issueSession(
+      platformUser,
+      request,
+      response,
+      "enrollment",
+    );
 
     return { ...session, recoveryCodes };
+  }
+
+  // Here rather than in the controller for the same reason the tenant logout
+  // is: who signed out has to be resolved before the revocation that makes
+  // the session unfindable.
+  async logout(request: Request, response: Response): Promise<{ ok: true }> {
+    const token = readPlatformSessionToken(request);
+
+    if (token) {
+      const session =
+        await this.platformSessionService.findActiveSessionByToken(token);
+
+      await this.platformSessionService.revokeSessionByToken(token);
+
+      if (session) {
+        await this.authAuditService.recordPlatformLoggedOut({
+          platformUserId: session.platformUserId,
+          requestId: request.requestId,
+        });
+      }
+    }
+
+    clearPlatformSessionCookie(response);
+    clearCsrfCookie(response, PLATFORM_CSRF_COOKIE_NAME);
+
+    return { ok: true };
   }
 
   async getCurrentPlatformUser(
@@ -230,6 +298,7 @@ export class PlatformAuthService {
     platformUser: PlatformUser,
     request: Request,
     response: Response,
+    method: PlatformLoginMethod,
   ): Promise<{ step: "session" } & PlatformSessionResponse> {
     const { token } = await this.platformSessionService.createSession({
       platformUserId: platformUser.id,
@@ -248,6 +317,16 @@ export class PlatformAuthService {
       createCsrfToken(token),
       PLATFORM_CSRF_COOKIE_NAME,
     );
+
+    // The one place a platform session is minted, so the one place the
+    // trail records a completed sign-in — both the ordinary code step and the
+    // enrolment step that also issues a session pass through here.
+    await this.authAuditService.recordPlatformLoginSucceeded({
+      platformUserId: platformUser.id,
+      email: platformUser.email,
+      requestId: request.requestId,
+      method,
+    });
 
     return { step: "session", ...toSessionResponse(platformUser) };
   }

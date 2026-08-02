@@ -10,27 +10,17 @@ import {
 import { Throttle } from "@nestjs/throttler";
 import type { Request, Response } from "express";
 
-import { clearCsrfCookie } from "../auth/csrf";
 import { PLATFORM_LOGIN_THROTTLE } from "../rate-limit/rate-limit.constants";
-import { PLATFORM_CSRF_COOKIE_NAME } from "./platform-auth.constants";
 import { PlatformAuthService } from "./platform-auth.service";
 import type {
   PlatformLoginRequestBody,
   PlatformMfaEnrollRequestBody,
   PlatformMfaVerifyRequestBody,
 } from "./platform-auth.types";
-import {
-  clearPlatformSessionCookie,
-  readPlatformSessionToken,
-} from "./platform-session-cookie";
-import { PlatformSessionService } from "./platform-session.service";
 
 @Controller("platform/auth")
 export class PlatformAuthController {
-  constructor(
-    private readonly platformAuthService: PlatformAuthService,
-    private readonly platformSessionService: PlatformSessionService,
-  ) {}
+  constructor(private readonly platformAuthService: PlatformAuthService) {}
 
   // Tighter than the tenant login: one account exists, it reaches every
   // tenant's data, and nothing legitimate signs into it in a loop.
@@ -42,10 +32,11 @@ export class PlatformAuthController {
     },
   })
   @HttpCode(200)
-  login(@Body() body: PlatformLoginRequestBody) {
+  login(@Body() body: PlatformLoginRequestBody, @Req() request: Request) {
     // No response to write: the password step no longer issues a session, so
-    // there are no cookies to set until the code step.
-    return this.platformAuthService.login(body);
+    // there are no cookies to set until the code step. The request is here for
+    // the audit trail's request id, not for a cookie.
+    return this.platformAuthService.login(body, request);
   }
 
   // The second step. Same per-IP cap as the password step: a six-digit code
@@ -89,19 +80,10 @@ export class PlatformAuthController {
 
   @Post("logout")
   @HttpCode(200)
-  async logout(
+  logout(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const token = readPlatformSessionToken(request);
-
-    if (token) {
-      await this.platformSessionService.revokeSessionByToken(token);
-    }
-
-    clearPlatformSessionCookie(response);
-    clearCsrfCookie(response, PLATFORM_CSRF_COOKIE_NAME);
-
-    return { ok: true };
+    return this.platformAuthService.logout(request, response);
   }
 }

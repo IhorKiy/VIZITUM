@@ -9,6 +9,7 @@ import {
   createTestPlatformMfa,
   TEST_CHALLENGE_EXPIRY,
 } from "./fixtures/platform-mfa";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 describe("platform auth", () => {
   it("answers a correct password with a code challenge, not a session", async () => {
@@ -43,6 +44,7 @@ describe("platform auth", () => {
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
       createTestPlatformMfa(),
+      createTestAuthAudit(),
     );
 
     const result = await service.login(
@@ -99,6 +101,7 @@ describe("platform auth", () => {
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
       createTestPlatformMfa(),
+      createTestAuthAudit(),
     );
 
     const result = await service.verifyMfa(
@@ -137,6 +140,7 @@ describe("platform auth", () => {
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
       createTestPlatformMfa(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -168,6 +172,7 @@ describe("platform auth", () => {
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
       createTestPlatformMfa(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -205,6 +210,7 @@ describe("platform auth", () => {
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
       createTestPlatformMfa(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -227,6 +233,7 @@ describe("platform auth", () => {
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
       createTestPlatformMfa(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(

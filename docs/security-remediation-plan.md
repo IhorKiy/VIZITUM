@@ -25,7 +25,8 @@ as the record of what was found and why each fix took the shape it did.
 | 2.4 Backend length caps + body limit | Done. The class-validator DTO migration remains deferred |
 | 2.5 Session TTL, rotation and idle timeout | Done |
 | 2.6 Raw invite tokens | Done |
-| 3.1–3.2, 3.4–3.8 | Not started (wave 3) |
+| 3.5 Auth audit events | Done — login success/failure and logout on both domains, with the failure reason; see the item below |
+| 3.1–3.2, 3.4, 3.6–3.8 | Not started (wave 3) |
 
 Two deviations worth knowing about, both deliberate:
 
@@ -96,7 +97,7 @@ reasoning, which is worth not repeating.
   one credential check reachable from a session someone else already holds — a
   borrowed phone left signed in — was bounded only by the 10/min per-IP cap.
 
-Still open from the original review, unchanged: all of wave 3, plus re-auth for
+Still open from the original review: wave 3 apart from 3.5, plus re-auth for
 destructive tenant operations (part of 1.3). Item 3.7 has moved and should be
 re-read rather than trusted as written — `next` now carries advisories of its
 own beyond the transitive `postcss`/`sharp` ones, with a patched release
@@ -288,9 +289,14 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 - **Change:** Rename to `__Host-vizitum_session` / `__Host-vizitum_csrf` in production (requires `Secure`, `Path=/`, no `Domain` — all already true). Also drive the `secure` flag from an explicit `COOKIE_SECURE` env var rather than `NODE_ENV`.
 - **Do not break the worktree dev scheme:** `SESSION_COOKIE_NAME` is a **per-slot env var** so parallel dev sessions on different ports don't clobber each other's cookies on `localhost` (see CLAUDE.md → worktree slots). The `__Host-` prefix requires `Secure`, which localhost HTTP dev cannot set, and a fixed prefixed name would also re-collide the slots. So apply `__Host-` **only in production** and keep the per-slot `SESSION_COOKIE_NAME` override intact for dev/worktrees — production hard-codes the prefixed name, non-production keeps reading the env var.
 
-### 3.5 Auth audit events
+### 3.5 Auth audit events — **done**
 - **Risk (LOW):** No audit record for login success/failure/logout on either domain, so the brute-force that 1.1 addresses can't be detected after the fact.
-- **Change:** Emit `auth.login.success` / `auth.login.failed` / `auth.logout` audit events (tenant + platform), including user id.
+- **Shipped as** `auth.login_succeeded` / `auth.login_failed` / `auth.logged_out` (tenant, into `AuditEvent`) and `platform.login_succeeded` / `platform.login_failed` / `platform.logged_out` (platform, into `PlatformOperationEvent`), written by `src/modules/auth/auth-audit.service.ts`. The names use the underscore form the rest of the trail already uses (`password.reset_requested`), not the dotted `auth.login.success` this plan sketched.
+- **Three decisions worth keeping on the record:**
+  - **Failures record a reason** (`unknown_account`/`inactive_account`/`wrong_password`/`wrong_code`) and the address attempted. That is the distinction the login response deliberately refuses to make, and it is safe here only because nothing reads these rows back over the API — a read endpoint for them would need to weigh that again.
+  - **Both failure paths write.** Auditing only the branch where the account exists would have put back, in the trail, the timing difference 3.1 exists to remove.
+  - **The write is best-effort.** A failed audit write is logged as `auth_audit_write_failed` and swallowed: refusing to sign anyone in because the audit table is unavailable turns a degraded trail into an outage, and on the failure path it would answer a wrong password with a 500. The error log is what keeps a silently empty trail noticeable — an alert on it is the natural follow-up.
+- **What this unblocks:** the accepted risk above ("the API is directly reachable, so per-IP keying is advisory") names this item as the one to do first if that decision is ever reopened, because direct-to-API credential traffic previously left no trace at all. It now leaves one.
 
 ### 3.6 Pin argon2 work factor + rehash-on-login
 - **Risk (INFO):** `hash(password)` uses library defaults with no `needsRehash` path, so a dependency bump can silently change cost and existing users can never be upgraded.
