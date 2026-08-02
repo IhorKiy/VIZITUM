@@ -48,6 +48,15 @@ export class TestAuthAuditService extends AuthAuditService {
     this.record("platform.login_failed", input);
   }
 
+  override async recordPlatformReauthFailed(input: {
+    platformUserId: string;
+    email?: string;
+    tenantId: string;
+    requestId?: string;
+  }) {
+    this.record("platform.reauth_failed", input);
+  }
+
   override async recordPlatformLoggedOut(input: {
     platformUserId: string;
     requestId?: string;

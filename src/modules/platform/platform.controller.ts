@@ -8,10 +8,12 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import type { Request } from "express";
 
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
+import { PLATFORM_REAUTH_THROTTLE } from "../rate-limit/rate-limit.constants";
 import { PERMISSIONS } from "../roles/permissions";
 import { PlatformService } from "./platform.service";
 import type {
@@ -85,15 +87,24 @@ export class PlatformController {
     });
   }
 
+  // Tighter than any login throttle: this is reached from an authenticated
+  // session and nothing legitimate retries it in a loop.
   @Post(":tenantId/purge")
+  @Throttle({
+    default: {
+      limit: PLATFORM_REAUTH_THROTTLE.limit,
+      ttl: PLATFORM_REAUTH_THROTTLE.ttlSeconds * 1_000,
+    },
+  })
   @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
   requestTenantPurge(
     @Req() request: Request,
     @Param("tenantId") tenantId: string,
-    @Body() body: Pick<PlatformRequestPurgeInput, "confirmSlug">,
+    @Body() body: Pick<PlatformRequestPurgeInput, "confirmSlug" | "mfaCode">,
   ) {
     return this.platformService.requestTenantPurge(tenantId, {
       confirmSlug: body?.confirmSlug,
+      mfaCode: body?.mfaCode,
       actorUserId: request.context?.userId,
       requestId: request.requestId,
     });

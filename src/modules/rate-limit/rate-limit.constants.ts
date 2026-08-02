@@ -48,6 +48,16 @@ export const PLATFORM_LOGIN_THROTTLE: ThrottlePolicy = {
   ttlSeconds: 60,
 };
 
+// Re-authentication before a tenant purge. Tighter than any login: this is
+// reached from an already-authenticated session, and nothing legitimate
+// retries it in a loop — an owner types one code from their phone. The floor
+// matters here because a stolen session turns the endpoint into a code oracle
+// that costs nothing to hammer.
+export const PLATFORM_REAUTH_THROTTLE: ThrottlePolicy = {
+  limit: 5,
+  ttlSeconds: 60,
+};
+
 // Invite acceptance takes a 32-byte token, so guessing is hopeless anyway;
 // the cap exists to stop the endpoint being used as a free argon2 oracle.
 export const INVITE_ACCEPT_THROTTLE: ThrottlePolicy = {

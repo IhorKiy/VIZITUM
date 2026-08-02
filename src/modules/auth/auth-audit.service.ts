@@ -18,6 +18,11 @@ export const AUTH_AUDIT_EVENTS = {
   platformLoginSucceeded: "platform.login_succeeded",
   platformLoginFailed: "platform.login_failed",
   platformLoggedOut: "platform.logged_out",
+  // Re-authentication refused at a destructive endpoint. Its own event rather
+  // than a login failure: somebody presenting codes here already holds a
+  // session, which is a different story from somebody guessing at the login
+  // page, and it is the story an alert wants to separate.
+  platformReauthFailed: "platform.reauth_failed",
 } as const;
 
 // Why a sign-in was refused. Recorded because the trail exists to answer
@@ -131,6 +136,30 @@ export class AuthAuditService {
     });
   }
 
+  /**
+   * A code refused in front of a destructive action.
+   *
+   * Carries the tenant, unlike the sign-in events: what was being attempted
+   * is the whole point of the record.
+   */
+  async recordPlatformReauthFailed(input: {
+    platformUserId: string;
+    email?: string;
+    tenantId: string;
+    requestId?: string;
+  }): Promise<void> {
+    await this.writePlatformEvent({
+      eventType: AUTH_AUDIT_EVENTS.platformReauthFailed,
+      platformUserId: input.platformUserId,
+      tenantId: input.tenantId,
+      requestId: input.requestId,
+      metadata: buildMetadata({
+        email: input.email,
+        reason: "wrong_code",
+      }),
+    });
+  }
+
   async recordPlatformLoggedOut(input: {
     platformUserId: string;
     requestId?: string;
@@ -170,14 +199,17 @@ export class AuthAuditService {
   private async writePlatformEvent(event: {
     eventType: string;
     platformUserId: string | null;
+    tenantId?: string;
     requestId?: string;
     metadata: Record<string, string>;
   }): Promise<void> {
     await this.write(event.eventType, () =>
       this.prisma.platformOperationEvent.create({
         data: {
-          // Not about any one tenant — a platform owner reaches all of them.
-          tenantId: null,
+          // Sign-in events name no tenant — a platform owner reaches all of
+          // them. A refused re-auth does, because which tenant was being acted
+          // on is the point of the record.
+          tenantId: event.tenantId ?? null,
           actorUserId: event.platformUserId,
           eventType: event.eventType,
           metadata: event.metadata,

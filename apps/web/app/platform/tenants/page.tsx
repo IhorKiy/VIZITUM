@@ -248,14 +248,21 @@ export default async function PlatformTenantsPage({
 
     const tenantId = getFormString(formData, "tenantId").trim();
     const confirmSlug = getFormString(formData, "confirmSlug").trim();
+    const mfaCode = getFormString(formData, "mfaCode").trim();
 
-    if (!tenantId || !confirmSlug) {
+    if (!tenantId || !confirmSlug || !mfaCode) {
       redirect("/platform/tenants?error=1");
     }
 
-    // The backend re-validates the slug echo against the tenant and refuses
-    // non-archived tenants; a mismatch is a 4xx and nothing changes.
-    const result = await requestPlatformTenantPurge(tenantId, { confirmSlug });
+    // The backend re-validates the slug echo against the tenant, refuses
+    // non-archived tenants, and requires a fresh authenticator code — a
+    // twelve-hour session is not on its own proof that the person marking a
+    // tenant for deletion is the one who signed in. Any of those failing is a
+    // 4xx and nothing changes.
+    const result = await requestPlatformTenantPurge(tenantId, {
+      confirmSlug,
+      mfaCode,
+    });
 
     redirect(`/platform/tenants?${result.ok ? "saved=1" : "error=1"}`);
   }

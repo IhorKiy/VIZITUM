@@ -40,6 +40,11 @@ export type UpdateTenantInput = {
 
 export type PlatformRequestPurgeInput = {
   confirmSlug?: unknown;
+  // A code from the owner's authenticator, re-entered for this one action.
+  // The slug echo proves the *right* tenant was chosen; this proves the person
+  // choosing is still the one who signed in, on a session that lives for
+  // twelve hours and can be left open on a borrowed machine.
+  mfaCode?: unknown;
   actorUserId?: string;
   requestId?: string;
 };
