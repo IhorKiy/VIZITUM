@@ -429,7 +429,11 @@ describe("auth tenant isolation", () => {
     const guard = new PermissionGuard(
       {
         platformTenant: {
-          findUnique: async () => ({ id: session.tenantId, slug: "tenant-a" }),
+          findUnique: async () => ({
+            id: session.tenantId,
+            slug: "tenant-a",
+            status: "pilot",
+          }),
         },
         platformSession: {
           findUnique: async () => platformSession,

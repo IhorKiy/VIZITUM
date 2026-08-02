@@ -96,6 +96,25 @@ reasoning, which is worth not repeating.
   one credential check reachable from a session someone else already holds — a
   borrowed phone left signed in — was bounded only by the 10/min per-IP cap.
 
+### Found outside this plan: a suspended tenant kept serving its live sessions
+
+Not a wave-3 item and not a defect in this plan's work — a gap the original
+review did not look for, found by a later audit and fixed with it.
+`TenancyService.assertTenantCanServeRequests` was reachable only from
+`resolveTenant`, i.e. from login and password reset. `PermissionGuard` checked
+the user's status but never the tenant's, so every session opened before a
+suspension or archival kept full access for the rest of its TTL — the exact
+window an abuse or non-payment suspension exists to close, and the one
+`unarchiveTenant`'s own comment claimed was already shut. The serving set now
+lives in `tenancy/tenant-serving-status.ts` and is read by both the login-time
+resolution and the guard, and the platform side revokes the tenant's open
+sessions when it archives or suspends. `tests/tenant-suspension-revokes-access.test.ts`
+pins both halves.
+
+Worth generalizing: the finding is that a check performed once at the session
+boundary is not a check on requests. Anything else resolved only at login has
+the same shape.
+
 Still open from the original review, unchanged: all of wave 3, plus re-auth for
 destructive tenant operations (part of 1.3). Item 3.7 has moved and should be
 re-read rather than trusted as written — `next` now carries advisories of its
