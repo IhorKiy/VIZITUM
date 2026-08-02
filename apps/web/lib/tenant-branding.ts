@@ -7,7 +7,7 @@ import {
   type TenantColorScheme,
 } from "./branding";
 import { tenantDisplayName } from "./navigation";
-import { isTenantSlug } from "./tenant-locale";
+import { normalizeTenantSlug } from "./tenant-locale";
 
 // Whether the workspace behind this slug exists at all. "missing" is only
 // ever a 404 from the endpoint — which does no status gating, so a suspended
@@ -51,8 +51,7 @@ const defaultBranding = (
 // the workspace instead of rendering an unbranded, unnamed panel.
 export const resolveTenantBranding = cache(
   async (tenantSlug: string | null): Promise<ResolvedTenantBranding> => {
-    const normalized = tenantSlug?.trim().toLowerCase() ?? "";
-    const slug = isTenantSlug(normalized) ? normalized : null;
+    const slug = normalizeTenantSlug(tenantSlug ?? "");
 
     if (!slug) {
       // Nothing slug-shaped can name a workspace, so this needs no round trip

@@ -30,6 +30,21 @@ export function isTenantSlug(value: string): boolean {
   return TENANT_SLUG_PATTERN.test(value);
 }
 
+/**
+ * The slug a URL segment names, or null when it names none.
+ *
+ * Trim-and-lowercase before the shape check mirrors the API's own
+ * `normalizeSlug`, so a link that shouts the slug ("/MG/login") still resolves
+ * the workspace instead of 404ing. Anything left over — a dot, a backslash, a
+ * leading dash — is not a slug any workspace can have, and the tenant layout
+ * turns that into a 404 rather than rendering the app under it.
+ */
+export function normalizeTenantSlug(value: string): string | null {
+  const normalized = value.trim().toLowerCase();
+
+  return isTenantSlug(normalized) ? normalized : null;
+}
+
 export function extractTenantSlugFromPathname(pathname: string): string | null {
   const firstSegment = pathname.split("/").filter(Boolean)[0]?.toLowerCase();
 

@@ -62,6 +62,21 @@ describe("proxy matcher (which paths get a CSP)", () => {
     }
   });
 
+  it("still skips a path whose last segment ends in an extension, which is why the slug is validated too", () => {
+    // The residual hole after the matcher fix: `/team.html` is a whole path
+    // ending in a known extension, so it is skipped and arrives with no
+    // policy. A matcher cannot tell that apart from a real asset — `sw.js`
+    // has to stay skipped — so the second line is the tenant layout, which
+    // 404s anything that is not slug-shaped and therefore never renders the
+    // app under one of these. See tests/web-tenant-slug-shape.test.ts.
+    assert.equal(matcher.test("/team.html"), false);
+    assert.equal(matcher.test("/acme.js"), false);
+
+    // A dot mid-path is still covered, so a nested route under a dotted
+    // segment keeps its policy even before the layout refuses it.
+    assert.ok(matcher.test("/acme.js/login"));
+  });
+
   it("only treats a trailing extension as an extension", () => {
     // The anchoring is the whole fix: a dot inside a segment must not opt a
     // page out, while a genuine asset still does.
