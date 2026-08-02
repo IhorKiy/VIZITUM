@@ -21,6 +21,7 @@ import {
   upsertProductsEnabledSetting,
 } from "../settings/products-enabled";
 import type { RequestContext } from "../tenancy/request-context";
+import { canTenantServeRequests } from "../tenancy/tenant-serving-status";
 import { resolveInviteStatus, UsersService } from "../users/users.service";
 import { adminCapForStatus, resolveAdminCap } from "../users/users.types";
 import type { InviteHistoryItem, UserResponse } from "../users/users.types";
@@ -590,6 +591,11 @@ export class PlatformService {
       data.primaryDomain = input.primaryDomain?.trim() || null;
     }
 
+    // Kept alongside `data.status` because a Prisma update input also accepts
+    // the `{ set: … }` form, so reading the status back off `data` is not a
+    // plain TenantStatus.
+    let assignedStatus: TenantStatus | undefined;
+
     if (input.status !== undefined) {
       if (!ASSIGNABLE_STATUSES.includes(input.status)) {
         fieldErrors.status = [
@@ -597,6 +603,7 @@ export class PlatformService {
         ];
       } else {
         data.status = input.status;
+        assignedStatus = input.status;
       }
     }
 
@@ -655,6 +662,13 @@ export class PlatformService {
         // The platform owner is not a tenant user, so `updatedByUserId`
         // (a tenant-User FK) stays null here.
         await upsertProductsEnabledSetting(tx, tenantId, productsEnabled, null);
+      }
+
+      if (
+        assignedStatus !== undefined &&
+        !canTenantServeRequests(assignedStatus)
+      ) {
+        await revokeTenantSessions(tx, tenantId);
       }
 
       await tx.platformOperationEvent.create({
@@ -733,6 +747,8 @@ export class PlatformService {
       if (count === 0) {
         return current;
       }
+
+      await revokeTenantSessions(tx, tenantId);
 
       await tx.platformOperationEvent.create({
         data: {
@@ -1123,6 +1139,21 @@ function normalizeSlug(value: string): string {
   const normalized = value.trim().toLowerCase();
 
   return withinLimit(normalized, "slug") ? normalized : "";
+}
+
+// Moving a tenant to a status it cannot serve under has to end its live
+// sessions, not just its next login. `PermissionGuard` refuses them either
+// way, but leaving the rows open would keep the database disagreeing with
+// what the tenant is actually allowed to do, and would resurrect every one of
+// those sessions the moment the tenant is reactivated.
+async function revokeTenantSessions(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+): Promise<void> {
+  await tx.session.updateMany({
+    where: { tenantId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
 }
 
 // The persisted `adminLimit` column is the owner's optional override (NULL =
