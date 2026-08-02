@@ -21,17 +21,10 @@ import type {
   SwitchRoleRequestBody,
   SwitchZoneRequestBody,
 } from "./auth.types";
-import { CSRF_COOKIE_NAME } from "./auth.constants";
-import { clearCsrfCookie } from "./csrf";
-import { clearSessionCookie, readSessionToken } from "./session-cookie";
-import { SessionService } from "./session.service";
 
 @Controller("auth")
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly sessionService: SessionService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   // Overrides the permissive global throttle with the tight per-IP cap. The
   // per-account half of the control is the progressive delay inside
@@ -98,19 +91,10 @@ export class AuthController {
 
   @Post("logout")
   @HttpCode(200)
-  async logout(
+  logout(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const token = readSessionToken(request);
-
-    if (token) {
-      await this.sessionService.revokeSessionByToken(token);
-    }
-
-    clearSessionCookie(response);
-    clearCsrfCookie(response, CSRF_COOKIE_NAME);
-
-    return { ok: true };
+    return this.authService.logout(request, response);
   }
 }

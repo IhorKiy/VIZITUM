@@ -6,6 +6,7 @@ import { AuthService } from "../src/modules/auth/auth.service";
 import { SESSION_COOKIE_NAME } from "../src/modules/auth/auth.constants";
 import { RolesService } from "../src/modules/roles/roles.service";
 import { createTestLoginBackoff } from "./fixtures/login-backoff";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 describe("auth zone switch", () => {
   it("requires an active session", async () => {
@@ -17,6 +18,7 @@ describe("auth zone switch", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -45,6 +47,7 @@ describe("auth zone switch", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -85,6 +88,7 @@ describe("auth zone switch", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
@@ -133,6 +137,7 @@ describe("auth zone switch", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     // field_representative holds no admin-zone permission (see
@@ -189,6 +194,7 @@ describe("auth zone switch", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     const result = await authService.switchZone(
