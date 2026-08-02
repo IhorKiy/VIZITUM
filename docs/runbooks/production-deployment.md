@@ -6,12 +6,52 @@ This runbook defines the minimum production deployment setup for the Team Pilot.
 
 Deploy these services from the same repository and release SHA.
 
-| Service        | Type                        | Build Command                                        | Pre-Deploy Command              | Start Command                 | Required Health/Alert                                  |
-| -------------- | --------------------------- | ---------------------------------------------------- | ------------------------------- | ----------------------------- | ------------------------------------------------------ |
-| Web            | Next.js frontend            | `npm ci && npm run web:build`                        | —                               | `npm run web:start`           | Frontend Sentry project and route smoke check          |
-| API            | Web service                 | `npm ci && npm run prisma:generate && npm run build` | `npm run prisma:migrate:deploy` | `npm start`                   | `GET /api/health/readiness`                            |
-| Cleanup worker | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | —                               | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
-| Purge worker   | Scheduled job / cron worker | `npm ci && npm run prisma:generate && npm run build` | —                               | `npm run worker:purge:prod`   | Non-zero exit alert and `worker_purge_completed` log   |
+| Service        | Type                        | Build Command                                                      | Pre-Deploy Command              | Start Command                 | Required Health/Alert                                  |
+| -------------- | --------------------------- | ------------------------------------------------------------------ | ------------------------------- | ----------------------------- | ------------------------------------------------------ |
+| Web            | Next.js frontend            | `npm ci --include=dev && npm run web:build`                        | —                               | `npm run web:start`           | Frontend Sentry project and route smoke check          |
+| API            | Web service                 | `npm ci --include=dev && npm run prisma:generate && npm run build` | `npm run prisma:migrate:deploy` | `npm start`                   | `GET /api/health/readiness`                            |
+| Cleanup worker | Scheduled job / cron worker | `npm ci --include=dev && npm run prisma:generate && npm run build` | —                               | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
+| Purge worker   | Scheduled job / cron worker | `npm ci --include=dev && npm run prisma:generate && npm run build` | —                               | `npm run worker:purge:prod`   | Non-zero exit alert and `worker_purge_completed` log   |
+
+### `--include=dev` is load-bearing, because `NODE_ENV=production` reaches the build
+
+Every build command above installs dev dependencies explicitly. That is not
+belt-and-braces: `NODE_ENV` set on a Render service applies to the **build**
+as well as the runtime, and npm reads it — `NODE_ENV=production` turns on
+`omit=dev`, so `npm ci` installs only the runtime dependencies. Confirm it
+anywhere:
+
+```sh
+NODE_ENV=production npm config get omit   # -> dev
+```
+
+`typescript` and every `@types/*` package are dev dependencies, so the install
+succeeds and the very next step fails on something that reads like a code
+problem rather than a configuration one:
+
+```
+src/modules/visits/visits.controller.ts(14,30): error TS7016: Could not find a
+declaration file for module 'express'. Try `npm i --save-dev @types/express`
+==> Build failed
+```
+
+This happened on 2026-08-02, on the deploy that first set `NODE_ENV=production`
+on the API. Nothing about the message points at the variable that caused it,
+and the suggested fix — install `@types/express` — is wrong: it is already a
+dev dependency, and moving it to `dependencies` would ship type packages to
+production to work around a flag.
+
+Prefer `--include=dev` over `NPM_CONFIG_PRODUCTION=false`: both work, but the
+flag says what it does at the point it does it, and does not depend on how a
+given npm version reads a config npm has already changed twice.
+
+**Set `NODE_ENV=production` anyway** — it is what gives the session and CSRF
+cookies their `Secure` flag (`src/modules/auth/auth.constants.ts`) and what
+arms the bootstrap gate in `src/modules/auth/security-config.ts`. Without it
+both degrade silently, which is the failure mode that gate exists to refuse.
+Set the variables the gate requires **before** the first build that succeeds
+with it, or the deploy simply fails one step later, at boot instead of at
+compile.
 
 Migrations belong to the API service's pre-deploy command and nowhere else: it is the one service that deploys first and exactly once per release, so the schema is already current when the web app and the workers start on the same SHA. Do not add `migrate deploy` to a build command (builds run per service and can run without deploying) or to a worker (cron services run on their own schedule, so a migration could land hours after the code that needs it — or race a second worker run).
 
