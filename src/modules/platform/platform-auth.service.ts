@@ -7,6 +7,7 @@ import type { PlatformUser } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { normalizeEmail } from "../../common/normalize";
+import { describeRequestOrigin } from "../../common/request-origin";
 import { AuthAuditService } from "../auth/auth-audit.service";
 import type { PlatformLoginMethod } from "../auth/auth-audit.service";
 import {
@@ -79,6 +80,7 @@ export class PlatformAuthService {
         platformUserId: platformUser?.id ?? null,
         email,
         requestId: request.requestId,
+        origin: describeRequestOrigin(request),
         reason: platformUser ? "inactive_account" : "unknown_account",
       });
       throwInvalidCredentials();
@@ -95,6 +97,7 @@ export class PlatformAuthService {
         platformUserId: platformUser.id,
         email,
         requestId: request.requestId,
+        origin: describeRequestOrigin(request),
         reason: "wrong_password",
       });
       throwInvalidCredentials();
@@ -182,6 +185,7 @@ export class PlatformAuthService {
         platformUserId: platformUser.id,
         email: platformUser.email,
         requestId: request.requestId,
+        origin: describeRequestOrigin(request),
         reason: "wrong_code",
         method,
       });
@@ -376,6 +380,7 @@ export class PlatformAuthService {
       platformUserId: identity.platformUserId,
       ...(identity.email ? { email: identity.email } : {}),
       requestId: request.requestId,
+      origin: describeRequestOrigin(request),
       reason: "invalid_challenge",
       method,
     });
@@ -412,6 +417,7 @@ export class PlatformAuthService {
       platformUserId: platformUser.id,
       email: platformUser.email,
       requestId: request.requestId,
+      origin: describeRequestOrigin(request),
       method,
     });
 

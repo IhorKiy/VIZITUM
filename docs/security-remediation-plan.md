@@ -258,9 +258,23 @@ same shape as `apps/web/lib/client-address.ts` and needs no plan upgrade.
 
 **Revisit when** any of: the pilot opens to users outside a known set of
 companies; a second API instance or a paid Render plan arrives for other
-reasons; or auth audit events (3.5) land and show direct-to-API credential
-traffic — which today would leave no trace at all, and is the reason 3.5 is the
-item to do first if this one is ever reopened.
+reasons; or the sign-in trail shows direct-to-API credential traffic.
+
+**That last condition is now measurable, and was not when it was written.**
+3.5 shipped recording who and why, but nothing about where a request came
+from — so "show direct-to-API traffic" had nothing to read. Sign-in events now
+carry `ipHash` (SHA-256 of the resolved address, matching `sessions.ipHash` so
+the two join) and `forwardedHopCount`. Traffic through the web layer arrives
+with a characteristic chain length — that layer forwards exactly one entry and
+the edges in front of the API append theirs — so failures clustering at a
+count the web layer cannot produce are the signal. `npm run auth:trail` prints
+the split; it reports counts only, never an address or a hash.
+
+Both fields are attacker-influenced — a caller can pad the chain — so this is
+evidence, not proof, and deliberately so: the question the plan asks is
+whether such traffic *exists*, not whether it can be blocked. Someone
+imitating the web layer's shape will not stand out, and closing that needs the
+shared-secret header described above.
 
 ---
 

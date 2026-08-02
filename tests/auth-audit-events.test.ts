@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 
 import { AuthAuditService } from "../src/modules/auth/auth-audit.service";
+import { hashValue } from "../src/modules/auth/auth-crypto";
 import { AuthService } from "../src/modules/auth/auth.service";
 import { PlatformAuthService } from "../src/modules/platform/platform-auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
@@ -33,6 +34,9 @@ describe("auth audit events", () => {
           userId: "user-a",
           email: "rep@example.com",
           requestId: "request-a",
+          // Recorded so the plan's "does direct-to-API credential traffic
+          // exist" question has something to read.
+          origin: { ipHash: hashValue("203.0.113.10"), forwardedHopCount: 0 },
         },
       ]);
     });
@@ -188,6 +192,7 @@ describe("auth audit events", () => {
           email: "owner@vizitum.dev",
           method: "totp",
           requestId: "request-a",
+          origin: { ipHash: hashValue("203.0.113.10"), forwardedHopCount: 0 },
         },
       ]);
     });

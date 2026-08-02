@@ -13,6 +13,7 @@ export type RecordedAuthEvent = {
   reason?: string;
   method?: string;
   requestId?: string;
+  origin?: { ipHash?: string; forwardedHopCount: number };
 };
 
 // AuthAuditService with the database removed. Every login test needs the
