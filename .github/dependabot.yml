@@ -36,5 +36,14 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+    groups:
+      # Grouped for the same reason the npm updates are, and the omission was
+      # caught the hard way: enabling this file produced three separate PRs to
+      # bump three GitHub-maintained actions by a major each. That is one
+      # decision — "move the workflow to the current actions" — split across
+      # three reviews, which is how a review turns into a rubber stamp.
+      actions:
+        patterns:
+          - "*"
     labels:
       - dependencies
