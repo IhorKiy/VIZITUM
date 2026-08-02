@@ -47,6 +47,7 @@ export function WorkspaceEntry({
   lang,
   messages,
   remembered,
+  submitted,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   error: WorkspaceEntryError | null;
@@ -54,6 +55,7 @@ export function WorkspaceEntry({
   lang: WorkspaceEntryLocale;
   messages: WorkspaceEntryMessages;
   remembered: RememberedWorkspace | null;
+  submitted: string | null;
 }) {
   const t = createTranslator({
     locale: lang,
@@ -103,6 +105,10 @@ export function WorkspaceEntry({
               autoCapitalize="none"
               autoComplete="off"
               autoCorrect="off"
+              // What the last attempt carried, so a near-miss is edited
+              // rather than re-typed. Uncontrolled: the reader owns the
+              // field from here, and a rerender must not overwrite them.
+              defaultValue={submitted ?? undefined}
               maxLength={INPUT_LIMITS.slug}
               name="workspace"
               placeholder={t("workspacePlaceholder")}

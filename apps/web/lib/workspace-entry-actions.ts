@@ -38,12 +38,16 @@ export async function openWorkspace(
   const path = isWorkspaceEntryPath(entryPath)
     ? entryPath
     : WORKSPACE_ENTRY_PATHS.uk;
-  const tenantSlug = normalizeWorkspaceInput(
-    getFormString(formData, "workspace"),
-  );
+  const typed = getFormString(formData, "workspace").trim();
+  const tenantSlug = normalizeWorkspaceInput(typed);
 
   if (!tenantSlug) {
-    redirect(`${path}?error=invalid`);
+    // Carried back so the screen can put it in the field again. A redirect
+    // returns an empty form otherwise, and re-typing (or re-pasting, on a
+    // phone, from wherever the link was) is a lot to ask of someone whose
+    // answer was probably one character wrong. Nothing secret about it — it
+    // is a workspace address, and the input's own maxLength bounds it.
+    redirect(`${path}?error=invalid&workspace=${encodeURIComponent(typed)}`);
   }
 
   // Only a confirmed 404 sends them back. An unreachable API resolves to
@@ -53,7 +57,12 @@ export async function openWorkspace(
   const branding = await resolveTenantBranding(tenantSlug);
 
   if (branding.existence === "missing") {
-    redirect(`${path}?error=notFound`);
+    // The normalized slug rather than what was typed: a pasted link resolved
+    // to something, and showing what was actually looked up is more use than
+    // handing back the URL it came out of.
+    redirect(
+      `${path}?error=notFound&workspace=${encodeURIComponent(tenantSlug)}`,
+    );
   }
 
   redirect(`/${tenantSlug}/login`);

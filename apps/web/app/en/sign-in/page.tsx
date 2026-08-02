@@ -5,7 +5,10 @@ import {
   WorkspaceEntry,
 } from "../../../components/workspace-entry";
 import { resolveRememberedWorkspace } from "../../../lib/remembered-workspace";
-import { WORKSPACE_ENTRY_PATHS } from "../../../lib/workspace-address";
+import {
+  readSubmittedWorkspace,
+  WORKSPACE_ENTRY_PATHS,
+} from "../../../lib/workspace-address";
 import { openWorkspace } from "../../../lib/workspace-entry-actions";
 import enMessages from "../../../messages/en.json";
 
@@ -22,9 +25,9 @@ export const metadata: Metadata = {
 export default async function EnglishSignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; workspace?: string | string[] }>;
 }) {
-  const [{ error }, remembered] = await Promise.all([
+  const [{ error, workspace }, remembered] = await Promise.all([
     searchParams,
     resolveRememberedWorkspace(),
   ]);
@@ -37,6 +40,7 @@ export default async function EnglishSignInPage({
       lang="en"
       messages={t}
       remembered={remembered}
+      submitted={readSubmittedWorkspace(workspace)}
     />
   );
 }

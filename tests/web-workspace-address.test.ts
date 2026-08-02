@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { INPUT_LIMITS } from "../apps/web/lib/input-limits";
 import {
   isWorkspaceEntryPath,
   normalizeWorkspaceInput,
+  readSubmittedWorkspace,
   WORKSPACE_ENTRY_PATHS,
   workspaceEntryPath,
 } from "../apps/web/lib/workspace-address";
@@ -71,6 +73,33 @@ describe("normalizeWorkspaceInput", () => {
     ]) {
       assert.equal(normalizeWorkspaceInput(rejected), null, rejected);
     }
+  });
+});
+
+describe("readSubmittedWorkspace", () => {
+  it("hands the last attempt back so a near-miss is edited, not re-typed", () => {
+    assert.equal(readSubmittedWorkspace("vizitum-stagin"), "vizitum-stagin");
+    // Deliberately not validated: the whole point is to show back something
+    // that failed to resolve.
+    assert.equal(readSubmittedWorkspace("vizitum.com"), "vizitum.com");
+  });
+
+  it("treats nothing worth showing as nothing", () => {
+    assert.equal(readSubmittedWorkspace(undefined), null);
+    assert.equal(readSubmittedWorkspace(""), null);
+    assert.equal(readSubmittedWorkspace("   "), null);
+  });
+
+  it("bounds what a hand-edited URL can put in the field", () => {
+    const submitted = readSubmittedWorkspace("m".repeat(500));
+
+    assert.equal(submitted?.length, INPUT_LIMITS.slug);
+  });
+
+  it("survives a repeated ?workspace=, which arrives as an array", () => {
+    // Same case lib/back-navigation.ts guards for ?from=: the page's props
+    // declare `string`, and a duplicated param does not honor that.
+    assert.equal(readSubmittedWorkspace(["mg", "other"]), null);
   });
 });
 

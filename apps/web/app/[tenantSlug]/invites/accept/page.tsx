@@ -7,6 +7,7 @@ import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl } from "../../../../lib/api-client";
 import { getFormString } from "../../../../lib/form";
 import { INPUT_LIMITS } from "../../../../lib/input-limits";
+import { rememberWorkspace } from "../../../../lib/remembered-workspace";
 import { resolveTenantBranding } from "../../../../lib/tenant-branding";
 
 type AcceptInvitePageProps = {
@@ -52,6 +53,12 @@ export default async function AcceptInvitePage({
     }
 
     await forwardSetCookies(response.headers);
+    // Accepting an invite is a first sign-in, not a lesser one — it mints the
+    // account and its session in one step. For a field rep it is usually the
+    // *only* entry they make before installing to the Home Screen, so leaving
+    // it out would mean the entry screen forgot the one workspace they have
+    // until they happened to sign in a second time.
+    await rememberWorkspace(tenantSlug);
     redirect(`/${tenantSlug}/field`);
   }
 

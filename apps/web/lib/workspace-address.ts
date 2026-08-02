@@ -1,3 +1,4 @@
+import { INPUT_LIMITS } from "./input-limits";
 import { isTenantSlug } from "./tenant-locale";
 
 // The workspace entry screen, per pinned landing language — `/sign-in` (uk)
@@ -22,6 +23,27 @@ export function isWorkspaceEntryPath(
   value: string,
 ): value is WorkspaceEntryPath {
   return Object.values(WORKSPACE_ENTRY_PATHS).some((path) => path === value);
+}
+
+/**
+ * The previous attempt's input, handed back through the query string so a
+ * near-miss is edited rather than re-typed — on a phone, re-pasting a link
+ * from wherever it came from is the alternative.
+ *
+ * Bounded to the same cap the input itself carries, and tolerant of a
+ * repeated `?workspace=`, which reaches a page as an array rather than the
+ * `string` its props declare (the same case `lib/back-navigation.ts` guards
+ * for `?from=`). Not validated beyond that: the point is to show back
+ * something that did *not* resolve, so rejecting it would defeat the purpose.
+ */
+export function readSubmittedWorkspace(
+  value: string | string[] | undefined,
+): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  return value.trim().slice(0, INPUT_LIMITS.slug) || null;
 }
 
 /**

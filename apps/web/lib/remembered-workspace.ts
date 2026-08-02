@@ -9,9 +9,11 @@ export type RememberedWorkspace = {
 };
 
 // The workspace this browser last signed in to, so the entry screen can offer
-// it back instead of asking a returning reader to remember a slug. Written on
-// a successful sign-in only (see the login page's action) — a slug someone
-// merely typed is not evidence of anything — and deliberately *not* cleared on
+// it back instead of asking a returning reader to remember a slug. Written
+// wherever the API has actually issued a session — the login action and the
+// invite-accept action, the latter being the only entry a newly invited rep
+// makes before installing to the Home Screen — and never from a slug someone
+// merely typed, which is evidence of nothing. Deliberately *not* cleared on
 // sign-out, since "come back tomorrow and sign in again" is exactly the case
 // it exists for.
 //
