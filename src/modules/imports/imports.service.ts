@@ -11,11 +11,13 @@ import { buildUserNameFields } from "../../common/person-name";
 import { normalizePhoneInput } from "../../common/phone";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
+import { resolveLimit, type TextLimitKey } from "../../common/input-limits";
 import type {
   CreateImportValidationJobOptions,
   ImportApplyResult,
   ImportJobHistoryItem,
   ImportPreviewIssue,
+  ImportTemplateColumn,
   ImportTemplateDefinition,
   ImportTemplateDownload,
   ImportTemplateSummary,
@@ -56,19 +58,37 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         key: "email",
         required: true,
         description: "User email, unique within the tenant.",
+        limit: "email",
       },
-      { key: "first_name", required: true, description: "User given name." },
-      { key: "last_name", required: true, description: "User family name." },
+      {
+        key: "first_name",
+        required: true,
+        description: "User given name.",
+        limit: "name",
+      },
+      {
+        key: "last_name",
+        required: true,
+        description: "User family name.",
+        limit: "name",
+      },
       {
         key: "roles",
         required: true,
         description: "Comma-separated role codes allowed for this tenant.",
+        limit: "title",
       },
-      { key: "phone", required: false, description: "Optional phone number." },
+      {
+        key: "phone",
+        required: false,
+        description: "Optional phone number.",
+        limit: "phone",
+      },
       {
         key: "external_code",
         required: false,
         description: "Optional source-system user identifier.",
+        limit: "code",
       },
     ],
     validations: [
@@ -84,29 +104,43 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
     label: "Locations",
     fileName: "vizitum-locations-template.csv",
     columns: [
-      { key: "name", required: true, description: "Location name." },
+      {
+        key: "name",
+        required: true,
+        description: "Location name.",
+        limit: "name",
+      },
       {
         key: "address_line",
         required: true,
         description: "Street address or address line.",
+        limit: "addressLine",
       },
-      { key: "city", required: true, description: "Location city." },
+      {
+        key: "city",
+        required: true,
+        description: "Location city.",
+        limit: "city",
+      },
       {
         key: "external_code",
         required: false,
         description: "Optional source-system location identifier.",
+        limit: "code",
       },
       {
         key: "category",
         required: false,
         description:
           "Optional category name from the tenant's location category dictionary; unresolved names are created automatically on confirm.",
+        limit: "name",
       },
       {
         key: "chain",
         required: false,
         description:
           "Optional retail chain/network name; created on first use and reused by name.",
+        limit: "name",
       },
       {
         key: "latitude",
@@ -122,8 +156,14 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         key: "assigned_representative_email",
         required: false,
         description: "Optional assigned field representative email.",
+        limit: "email",
       },
-      { key: "notes", required: false, description: "Optional notes." },
+      {
+        key: "notes",
+        required: false,
+        description: "Optional notes.",
+        limit: "notes",
+      },
     ],
     validations: [
       "name and city are required",
@@ -141,22 +181,45 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         key: "location_external_code",
         required: false,
         description: "Preferred location reference.",
+        limit: "code",
       },
       {
         key: "location_name",
         required: false,
         description:
           "Fallback location reference when external code is absent.",
+        limit: "name",
       },
-      { key: "name", required: true, description: "Contact full name." },
+      {
+        key: "name",
+        required: true,
+        description: "Contact full name.",
+        limit: "name",
+      },
       {
         key: "role_title",
         required: false,
         description: "Contact role or title.",
+        limit: "title",
       },
-      { key: "phone", required: false, description: "Optional phone number." },
-      { key: "email", required: false, description: "Optional email address." },
-      { key: "notes", required: false, description: "Optional notes." },
+      {
+        key: "phone",
+        required: false,
+        description: "Optional phone number.",
+        limit: "phone",
+      },
+      {
+        key: "email",
+        required: false,
+        description: "Optional email address.",
+        limit: "email",
+      },
+      {
+        key: "notes",
+        required: false,
+        description: "Optional notes.",
+        limit: "notes",
+      },
     ],
     validations: [
       "location_external_code or location_name is required",
@@ -170,17 +233,29 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
     label: "Products",
     fileName: "vizitum-products-template.csv",
     columns: [
-      { key: "name", required: true, description: "Product name." },
+      {
+        key: "name",
+        required: true,
+        description: "Product name.",
+        limit: "name",
+      },
       {
         key: "external_code",
         required: false,
         description: "Optional source-system product identifier.",
+        limit: "code",
       },
-      { key: "sku", required: false, description: "Optional SKU." },
+      {
+        key: "sku",
+        required: false,
+        description: "Optional SKU.",
+        limit: "code",
+      },
       {
         key: "category",
         required: false,
         description: "Optional product category.",
+        limit: "name",
       },
     ],
     validations: [
@@ -198,17 +273,20 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         key: "representative_email",
         required: true,
         description: "Assigned field representative email.",
+        limit: "email",
       },
       {
         key: "location_external_code",
         required: false,
         description: "Preferred location reference.",
+        limit: "code",
       },
       {
         key: "location_name",
         required: false,
         description:
           "Fallback location reference when external code is absent.",
+        limit: "name",
       },
       {
         key: "plan_date",
@@ -234,6 +312,7 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         key: "task_title",
         required: false,
         description: "Optional task title to create with the plan.",
+        limit: "title",
       },
       {
         key: "task_due_date",
@@ -244,6 +323,7 @@ const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
         key: "task_priority",
         required: false,
         description: "Optional task priority: normal or priority.",
+        limit: "code",
       },
     ],
     validations: [
@@ -618,6 +698,28 @@ export class ImportsService {
 
     const parsedFile = parseStoredParsedFile(importJob.type, importJob.summary);
     const createdCounts = await prisma.$transaction(async (transaction) => {
+      // The status check above happened outside this transaction, so two
+      // confirms of the same job could both reach here and apply every row
+      // twice — duplicate users, duplicate locations, a second set of route
+      // plans. Claiming the job with a conditional update makes exactly one
+      // of them the winner: the loser blocks on the row until the first
+      // commits, then matches nothing.
+      const { count } = await transaction.importJob.updateMany({
+        where: { id: importJob.id, status: "validated" },
+        data: {
+          status: "confirmed",
+          confirmedByUserId,
+          confirmedAt: new Date(),
+        },
+      });
+
+      if (count === 0) {
+        throw new ConflictException({
+          code: "IMPORT_ALREADY_APPLIED",
+          message: "Import job has already been applied.",
+        });
+      }
+
       const counts = { ...DEFAULT_IMPORT_COUNTS };
 
       switch (parsedFile.templateType) {
@@ -1999,6 +2101,11 @@ function buildPreview(
   parsedFile: ParsedImportFile,
   issues: ImportPreviewIssue[],
 ): ImportValidationPreview {
+  // Applied here rather than in each of the five validators: a new template
+  // gets the caps by declaring them on its columns, and cannot forget to call
+  // anything.
+  addLengthIssues(parsedFile, issues);
+
   const errorRows = new Set(
     issues
       .filter((issue) => issue.severity === "error")
@@ -2019,6 +2126,51 @@ function buildPreview(
     canConfirm: errorRows.size === 0,
     issues,
   };
+}
+
+/**
+ * Caps every cell whose column declares a limit.
+ *
+ * The manual endpoints enforce the same caps in their `normalize*` helpers,
+ * and the import path writes the same columns without them — so a scripted
+ * caller could post a location name bounded only by the 100 kB body limit,
+ * where `POST /locations` stops at 120 characters.
+ *
+ * An issue rather than a thrown error, because that is what the import flow
+ * is: the person gets a row-and-column report of everything wrong with their
+ * file, and a length problem belongs in it next to a malformed email rather
+ * than failing the whole upload with one message.
+ */
+function addLengthIssues(
+  parsedFile: ParsedImportFile,
+  issues: ImportPreviewIssue[],
+): void {
+  const limitedColumns = getTemplateDefinition(
+    parsedFile.templateType,
+  ).columns.filter(
+    (column): column is ImportTemplateColumn & { limit: TextLimitKey } =>
+      column.limit !== undefined,
+  );
+
+  parsedFile.rows.forEach((row, index) => {
+    for (const column of limitedColumns) {
+      const value = normalizeValue(row[column.key]);
+      const maximum = resolveLimit(column.limit);
+
+      if (value.length > maximum) {
+        issues.push(
+          createIssue(
+            index + 2,
+            column.key,
+            "error",
+            "VALUE_TOO_LONG",
+            `Value must be at most ${maximum} characters.`,
+            row[column.key],
+          ),
+        );
+      }
+    }
+  });
 }
 
 function createIssue(

@@ -320,11 +320,19 @@ export class StorageService {
     const canReadImport =
       storageObject.purpose === "import_file" &&
       context.permissions.includes(PERMISSIONS.IMPORTS_READ);
+    // Mirrors the write path's `Boolean(createdByUserId)` check, which was
+    // added when the same "nobody owns it, so nobody is wronged" reading was
+    // found to be wrong there. It is wrong here for the same reason: the AI
+    // worker creates `temporary_transcript` rows with no creator (it acts for
+    // the tenant, not for a user), so treating a missing creator as "yours"
+    // let any representative mint a presigned GET for another
+    // representative's visit transcript. Intra-tenant, but still a document
+    // about a visit they had nothing to do with.
     const canReadOwnVisitArtifact =
       VISIT_ARTIFACT_PURPOSES.includes(storageObject.purpose) &&
       context.permissions.includes(PERMISSIONS.VISITS_READ_OWN) &&
-      (!storageObject.createdByUserId ||
-        storageObject.createdByUserId === context.userId);
+      Boolean(storageObject.createdByUserId) &&
+      storageObject.createdByUserId === context.userId;
     // A manager reviewing the report needs the photo too, exactly as they can
     // already reach the visit's audio.
     const canReadTeamVisitArtifact =

@@ -104,7 +104,12 @@ describe("readiness proxy diagnostic", () => {
       // infrastructure. Handing that to anyone who curls a public endpoint
       // would be the leak, and the two numbers together also say precisely
       // how many entries to prepend to forge an address.
-      assert.equal(readiness.checks.authHardening.proxyResolution, undefined);
+      //
+      // The whole block is withheld, not just this field: which of the
+      // hardening controls are switched off is itself an answer about when
+      // the login routes are unopposed, and `trustProxyHops` is half the same
+      // forgery recipe.
+      assert.equal(readiness.checks.authHardening, undefined);
       assert.ok(!JSON.stringify(readiness).includes("10.0.0.4"));
       assert.ok(!JSON.stringify(readiness).includes("10.0.0.9"));
     });

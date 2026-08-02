@@ -90,6 +90,39 @@ describe("production security configuration", () => {
     assert.match(errors[0], /TRUST_PROXY_HOPS/);
   });
 
+  it('refuses to start in production with EMAIL_PROVIDER="console"', () => {
+    // That driver writes the whole email to the log, including invite and
+    // password-reset links with their one-time tokens. Its own comment says
+    // never to deploy it; this is that instruction somewhere a deploy runs
+    // into it.
+    const errors = collectSecurityConfigurationErrors({
+      ...COMPLETE_PRODUCTION_ENV,
+      EMAIL_PROVIDER: "console",
+    } as NodeJS.ProcessEnv);
+
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /EMAIL_PROVIDER/);
+
+    // Case and spacing are how it would actually be mistyped into a
+    // dashboard field.
+    assert.equal(
+      collectSecurityConfigurationErrors({
+        ...COMPLETE_PRODUCTION_ENV,
+        EMAIL_PROVIDER: "  Console  ",
+      } as NodeJS.ProcessEnv).length,
+      1,
+    );
+
+    // The provider that should be there raises nothing.
+    assert.deepEqual(
+      collectSecurityConfigurationErrors({
+        ...COMPLETE_PRODUCTION_ENV,
+        EMAIL_PROVIDER: "resend",
+      } as NodeJS.ProcessEnv),
+      [],
+    );
+  });
+
   it("reports every problem at once rather than one per restart", () => {
     const errors = collectSecurityConfigurationErrors({
       NODE_ENV: "production",

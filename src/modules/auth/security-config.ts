@@ -67,6 +67,16 @@ export function collectSecurityConfigurationErrors(
       `${requirement.name} is required in production: ${requirement.reason}.`,
   );
 
+  // The console driver prints the whole email — including invite and
+  // password-reset links with their one-time tokens — to the log. Its own
+  // comment says never to deploy it; this is that instruction expressed
+  // somewhere a deploy actually runs into.
+  if (env.EMAIL_PROVIDER?.trim().toLowerCase() === "console") {
+    errors.push(
+      'EMAIL_PROVIDER must not be "console" in production: that driver writes every email, including one-time invite and password-reset tokens, to the application log.',
+    );
+  }
+
   // A test-only escape hatch reaching production would disable every per-IP
   // limit and the per-account backoff at once, without any other symptom.
   if (env.RATE_LIMIT_DISABLED?.trim() === "true") {

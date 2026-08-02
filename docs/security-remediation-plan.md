@@ -152,6 +152,36 @@ are controls that were *present* and looked complete. "MFA is implemented" and
 "the tenant status is enforced" were both true statements that stopped short
 of the property anyone actually wanted.
 
+### Found outside this plan: four smaller gaps, all closed
+
+Recorded together because none is individually interesting and the pattern
+across them is: a control that was applied on one path and not on its twin.
+
+- **`/health/readiness` answered the hardening question anonymously.**
+  `proxyResolution` was operator-gated from the start, with a comment calling
+  the hop numbers a forgery recipe; `trustProxyHops`, `captchaEnabled` and
+  `rateLimitEnabled` sat outside the gate saying half the same thing and
+  naming the moment credential stuffing is unopposed. The whole
+  `authHardening` block is now operator-only.
+- **The import path bypassed the 2.4 length caps.** `POST /locations` stops a
+  name at 120 characters; the same column reached through an import was
+  bounded only by the 100 kB body limit. Caps are now declared on the template
+  columns and enforced in one generic validation pass, so a new template gets
+  them by declaring them.
+- **Import confirm was a TOCTOU.** The status check ran outside the
+  transaction that applies the rows, so two confirms of one job both applied
+  it. Now claimed with a conditional update inside the transaction.
+- **Creatorless visit artifacts were readable by any representative.** The
+  *write* path had already been fixed to stop treating "no creator" as
+  "unowned, so yours" — the AI worker writes `temporary_transcript` rows with
+  no creator — and the read path was left as it was. It is now the mirror of
+  the write path.
+- **`EMAIL_PROVIDER=console` was not refused in production.** That driver
+  writes every email, including one-time invite and reset tokens, to the
+  application log; its own comment says never to deploy it, which is not a
+  place a deploy looks. `security-config.ts` now refuses it, alongside the
+  controls it already guards.
+
 ### Accepted risk: the API is directly reachable, so per-IP keying is advisory
 
 **Decision, 2026-08-01: accepted for the pilot, not fixed.** Recorded here so it
