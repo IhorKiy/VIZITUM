@@ -77,6 +77,7 @@ export class StorageService {
       objectKey: storageObject.objectKey,
       method: "PUT",
       contentType: storageObject.contentType,
+      contentLength: assertPresignableSize(storageObject.sizeBytes),
       expiresInSeconds: expiresInSeconds ?? DEFAULT_SIGNED_URL_TTL_SECONDS,
     });
 
@@ -390,6 +391,24 @@ function assertActiveStorageObject(storageObject: StorageObject): void {
       message: "Storage object is not active.",
     });
   }
+}
+
+// A presigned PUT can only sign Content-Length when the declared size is
+// known. Every registration path now requires one, but an object registered
+// before that requirement existed has none — re-signing it would mean either
+// lying about the length or signing an unbounded PUT, silently reopening the
+// gap this closes. Refusing outright, rather than falling back to an
+// unsigned PUT for just that object, means the size cap holds for every
+// presigned upload without exception.
+function assertPresignableSize(sizeBytes: bigint | null): number {
+  if (sizeBytes === null) {
+    throw new BadRequestException({
+      code: "STORAGE_OBJECT_SIZE_UNKNOWN",
+      message: "This upload must be re-registered before it can be signed.",
+    });
+  }
+
+  return Number(sizeBytes);
 }
 
 function throwMissingStoragePermission(): never {

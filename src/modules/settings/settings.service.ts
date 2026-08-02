@@ -341,7 +341,7 @@ export class SettingsService {
             objectKey,
             purpose: "branding_logo",
             contentType,
-            sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
+            sizeBytes: BigInt(sizeBytes),
             status: "active",
             createdByUserId: context.userId ?? null,
           },
@@ -686,11 +686,11 @@ function normalizeLogoContentTypeFromFileName(
   return null;
 }
 
-function normalizeLogoSizeBytes(value: unknown): number | null {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
-
+// Required, not optional: signed as the presigned PUT's Content-Length
+// (s3-storage.client.ts), so a missing value is refused the same way an
+// invalid one already was — see the audio/photo upload registrations for the
+// same change.
+function normalizeLogoSizeBytes(value: unknown): number {
   const parsedValue =
     typeof value === "number"
       ? value
