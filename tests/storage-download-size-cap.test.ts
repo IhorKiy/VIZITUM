@@ -55,8 +55,23 @@ describe("storage download size cap", () => {
     assert.equal(stub.bodyCancelled, true);
   });
 
-  it("refuses a size that is not a whole number of bytes", async () => {
-    for (const contentLength of ["not-a-number", "12.5", "-1"]) {
+  it("refuses a size that is not canonical decimal digits", async () => {
+    // `Number` accepts a good deal more than a Content-Length can be: "1e3"
+    // is 1000, "0x10" is 16, and surrounding whitespace is ignored. Reading
+    // any of those as a size would mean believing a header we did not
+    // actually understand, on the one check standing between an oversized
+    // object and an out-of-memory kill.
+    for (const contentLength of [
+      "not-a-number",
+      "12.5",
+      "-1",
+      "1e3",
+      "0x10",
+      " 5",
+      "5 ",
+      "+5",
+      "",
+    ]) {
       stubFetch({ contentLength, body: "x" });
 
       await assert.rejects(

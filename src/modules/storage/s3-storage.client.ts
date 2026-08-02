@@ -155,14 +155,20 @@ export class S3StorageClient {
   }
 }
 
+// Canonical decimal digits only. `Number` alone accepts a good deal more than
+// a Content-Length can be — `"1e3"` becomes 1000, `"0x10"` becomes 16, and
+// surrounding whitespace is ignored — so a response whose header is not a
+// plain integer would be read as though its size were understood. Anything
+// else is treated as "size not reported", which refuses the download rather
+// than guessing at it.
 function parseContentLength(value: string | null): number | null {
-  if (!value) {
+  if (!value || !/^\d+$/.test(value)) {
     return null;
   }
 
   const parsed = Number(value);
 
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 // Releases the connection instead of leaving an unread body dangling. A
