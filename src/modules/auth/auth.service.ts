@@ -4,7 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, type Session } from "@prisma/client";
 import type { Request, Response } from "express";
 
 import { TEXT_LIMITS, withinLimit } from "../../common/input-limits";
@@ -597,17 +597,7 @@ export class AuthService {
       pilotActive: boolean;
     }
   > {
-    const token = readSessionToken(request);
-
-    if (!token) {
-      throwAuthenticationRequired();
-    }
-
-    const session = await this.sessionService.findActiveSessionByToken(token);
-
-    if (!session) {
-      throwAuthenticationRequired();
-    }
+    const session = await this.requireActiveSession(request);
 
     const [user, tenantSettings, tenant] = await Promise.all([
       this.prisma.user.findFirst({
@@ -685,17 +675,7 @@ export class AuthService {
       });
     }
 
-    const token = readSessionToken(request);
-
-    if (!token) {
-      throwAuthenticationRequired();
-    }
-
-    const session = await this.sessionService.findActiveSessionByToken(token);
-
-    if (!session) {
-      throwAuthenticationRequired();
-    }
+    const session = await this.requireActiveSession(request);
 
     const user = await this.prisma.user.findFirst({
       where: {
@@ -754,17 +734,7 @@ export class AuthService {
     }
 
     const selectedZone = body.zone;
-    const token = readSessionToken(request);
-
-    if (!token) {
-      throwAuthenticationRequired();
-    }
-
-    const session = await this.sessionService.findActiveSessionByToken(token);
-
-    if (!session) {
-      throwAuthenticationRequired();
-    }
+    const session = await this.requireActiveSession(request);
 
     const user = await this.prisma.user.findFirst({
       where: {
@@ -809,6 +779,38 @@ export class AuthService {
       roleCodes,
       permissions,
     };
+  }
+
+  /**
+   * Resolves the caller's active tenant session or throws
+   * AUTHENTICATION_REQUIRED — the shared shape behind getCurrentUser,
+   * switchRole and switchZone, which all needed the same two checks (a
+   * session cookie present, and it naming a still-active session) before
+   * doing anything method-specific with it.
+   *
+   * Deliberately not PermissionGuard: the guard resolves whichever of a
+   * platform session, tenant session or operations bearer token is present
+   * and builds a full RequestContext (tenant + user + role lookup) to answer
+   * a permission check — these three methods already know they want the
+   * tenant session specifically and have their own, different follow-up
+   * queries, so routing through the guard would mean building a
+   * RequestContext none of them use, to reach the one field (the session)
+   * they actually need.
+   */
+  private async requireActiveSession(request: Request): Promise<Session> {
+    const token = readSessionToken(request);
+
+    if (!token) {
+      throwAuthenticationRequired();
+    }
+
+    const session = await this.sessionService.findActiveSessionByToken(token);
+
+    if (!session) {
+      throwAuthenticationRequired();
+    }
+
+    return session;
   }
 
   /**

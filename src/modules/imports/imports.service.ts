@@ -7,6 +7,7 @@ import {
 import type { Prisma, RoleCode } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
+import { isValidEmail } from "../../common/normalize";
 import { buildUserNameFields } from "../../common/person-name";
 import { normalizePhoneInput } from "../../common/phone";
 import { PrismaService } from "../prisma/prisma.service";
@@ -2431,10 +2432,6 @@ function normalizeValue(value: string | null | undefined): string {
 
 function isPresent(value: string): value is string {
   return value !== "";
-}
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function parseRoleCodes(value: string | undefined): string[] {
