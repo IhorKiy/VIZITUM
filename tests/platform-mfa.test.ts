@@ -107,7 +107,8 @@ describe("platform TOTP", () => {
     const secret = generateSecret();
 
     assert.equal(
-      service.verifyTotpCode(secret, generateSync({ strategy: "totp", secret })),
+      service.verifyTotpCode(secret, generateSync({ strategy: "totp", secret }))
+        .valid,
       true,
     );
   });
@@ -117,15 +118,15 @@ describe("platform TOTP", () => {
     const secret = generateSecret();
     const otherSecret = generateSecret();
 
-    assert.equal(service.verifyTotpCode(secret, "000000"), false);
-    assert.equal(service.verifyTotpCode(secret, "12345"), false);
-    assert.equal(service.verifyTotpCode(secret, "abcdef"), false);
-    assert.equal(service.verifyTotpCode(secret, undefined), false);
+    assert.equal(service.verifyTotpCode(secret, "000000").valid, false);
+    assert.equal(service.verifyTotpCode(secret, "12345").valid, false);
+    assert.equal(service.verifyTotpCode(secret, "abcdef").valid, false);
+    assert.equal(service.verifyTotpCode(secret, undefined).valid, false);
     assert.equal(
       service.verifyTotpCode(
         secret,
         generateSync({ strategy: "totp", secret: otherSecret }),
-      ),
+      ).valid,
       false,
     );
   });
@@ -137,7 +138,8 @@ describe("platform TOTP", () => {
     const code = generateSync({ strategy: "totp", secret });
 
     assert.equal(
-      service.verifyTotpCode(secret, `${code.slice(0, 3)} ${code.slice(3)}`),
+      service.verifyTotpCode(secret, `${code.slice(0, 3)} ${code.slice(3)}`)
+        .valid,
       true,
     );
   });

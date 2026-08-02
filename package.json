@@ -31,6 +31,7 @@
     "seed:staging-admin": "node scripts/seed-staging-admin.mjs",
     "seed:platform-owner": "node scripts/seed-platform-owner.mjs",
     "backfill:phone-e164": "node scripts/backfill-phone-e164.mjs",
+    "encrypt:totp-secrets": "node scripts/encrypt-totp-secrets.mjs",
     "start": "node dist/main.js",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
     "worker:cleanup": "WORKER_TASK=cleanup node --require ts-node/register src/worker.ts",

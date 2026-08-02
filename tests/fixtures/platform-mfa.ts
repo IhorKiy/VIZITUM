@@ -21,6 +21,7 @@ export type TestPlatformMfa = PlatformMfaService & {
     pendingSecret: string;
   }[];
   readonly consumedRecoveryCodes: unknown[];
+  readonly acceptedCodes: unknown[];
 };
 
 // PlatformMfaService without the database or a real clock. The suite runs
@@ -35,10 +36,12 @@ export function createTestPlatformMfa(
     pendingSecret: string;
   }[] = [];
   const consumedRecoveryCodes: unknown[] = [];
+  const acceptedCodes: unknown[] = [];
 
   const stub = {
     confirmedEnrollments,
     consumedRecoveryCodes,
+    acceptedCodes,
 
     isEnrolled: () => options.enrolled ?? true,
 
@@ -71,7 +74,22 @@ export function createTestPlatformMfa(
       };
     },
 
-    verifyTotpCode: () => options.codeValid ?? true,
+    verifyTotpCode: () =>
+      (options.codeValid ?? true)
+        ? { valid: true as const, timeStep: 59_522_180 }
+        : { valid: false as const },
+
+    // What the login path actually calls: verify plus spend the code's step.
+    // The step arithmetic and the replay refusal are covered against the real
+    // service in tests/platform-mfa-replay.test.ts.
+    acceptTotpCode: async (
+      _platformUser: { id: string; totpSecret: string },
+      code: unknown,
+    ) => {
+      acceptedCodes.push(code);
+
+      return options.codeValid ?? true;
+    },
 
     confirmEnrollment: async (platformUserId: string, pendingSecret: string) => {
       confirmedEnrollments.push({ platformUserId, pendingSecret });
