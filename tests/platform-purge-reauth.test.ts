@@ -9,6 +9,8 @@ import {
 import { PlatformService } from "../src/modules/platform/platform.service";
 import type { PrismaService } from "../src/modules/prisma/prisma.service";
 import type { UsersService } from "../src/modules/users/users.service";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
+import { createTestLoginBackoff } from "./fixtures/login-backoff";
 
 // Marking a tenant for purge is the one action that ends in data being gone.
 // Until now the only thing standing in front of it was a permission every
@@ -56,6 +58,59 @@ describe("purge requires a fresh second factor", () => {
 
     assert.equal(store.tenant.purgeRequestedAt, null);
     assert.equal(store.events.length, 0);
+  });
+
+  it("charges a wrong code the same backoff and trail the login step does", async () => {
+    // The asymmetry this closes: the login code step earns a growing delay
+    // and an audit row on a wrong code, and this endpoint earned neither —
+    // so a stolen session could pump codes at a destructive endpoint bounded
+    // only by the global per-IP throttle, leaving nothing for the 3.5
+    // alerting to fire on.
+    const store = createStore();
+    const service = createService(store, { codeAccepted: false });
+
+    await assert.rejects(
+      () =>
+        service.requestTenantPurge("tenant-1", {
+          confirmSlug: "pilot-a",
+          mfaCode: "000000",
+          actorUserId: "owner-1",
+          requestId: "request-a",
+        }),
+      BadRequestException,
+    );
+
+    // Shared with the login scope on purpose: same account, same secret, so
+    // guessing here must not buy an allowance the login page already spent.
+    assert.deepEqual(
+      store.backoff.delays.map((entry) => entry.scope),
+      ["platform-login"],
+    );
+    assert.equal(store.backoff.delays[0]?.identity, "owner@vizitum.dev");
+
+    assert.deepEqual(store.audit.events, [
+      {
+        eventType: "platform.reauth_failed",
+        platformUserId: "owner-1",
+        email: "owner@vizitum.dev",
+        tenantId: "tenant-1",
+        requestId: "request-a",
+      },
+    ]);
+  });
+
+  it("leaves the backoff and the trail alone when the code is right", async () => {
+    const store = createStore();
+    const service = createService(store);
+
+    await service.requestTenantPurge("tenant-1", {
+      confirmSlug: "pilot-a",
+      mfaCode: "123456",
+      actorUserId: "owner-1",
+    });
+
+    assert.deepEqual(store.backoff.delays, []);
+    assert.deepEqual(store.audit.events, []);
   });
 
   it("refuses a missing code, so an omitted field is not a way past", async () => {
@@ -131,10 +186,10 @@ describe("purge requires a fresh second factor", () => {
   it("refuses when the actor cannot be resolved to an active owner", async () => {
     for (const platformUser of [
       null,
-      { id: "owner-1", totpSecret: "SECRET", status: "suspended" },
+      { id: "owner-1", email: "o@v.dev", totpSecret: "SECRET", status: "suspended" },
       // Enrolment is required before a session exists, so this is unreachable
       // through login — but a purge is not where to find out otherwise.
-      { id: "owner-1", totpSecret: null, status: "active" },
+      { id: "owner-1", email: "o@v.dev", totpSecret: null, status: "active" },
     ]) {
       const store = createStore({}, platformUser);
       const service = createService(store);
@@ -172,6 +227,7 @@ function createStore(
   seed: Record<string, unknown> = {},
   platformUser: Record<string, unknown> | null = {
     id: "owner-1",
+    email: "owner@vizitum.dev",
     totpSecret: "SECRET",
     status: "active",
   },
@@ -189,6 +245,8 @@ function createStore(
   };
   const events: Array<Record<string, unknown>> = [];
   const codesChecked: unknown[] = [];
+  const backoff = createTestLoginBackoff();
+  const audit = createTestAuthAudit();
 
   const client = {
     platformUser: {
@@ -217,7 +275,7 @@ function createStore(
       callback(client),
   };
 
-  return { prisma, tenant, events, codesChecked };
+  return { prisma, tenant, events, codesChecked, backoff, audit };
 }
 
 function createService(
@@ -235,5 +293,7 @@ function createService(
         return options.codeAccepted ?? true;
       },
     } as never,
+    store.backoff,
+    store.audit,
   );
 }

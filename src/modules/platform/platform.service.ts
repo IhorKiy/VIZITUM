@@ -26,6 +26,8 @@ import { canTenantServeRequests } from "../tenancy/tenant-serving-status";
 import { resolveInviteStatus, UsersService } from "../users/users.service";
 import { adminCapForStatus, resolveAdminCap } from "../users/users.types";
 import type { InviteHistoryItem, UserResponse } from "../users/users.types";
+import { AuthAuditService } from "../auth/auth-audit.service";
+import { LoginBackoffService } from "../rate-limit/login-backoff.service";
 import { PlatformMfaService } from "./platform-mfa.service";
 import { TEAM_MODE_CAPABILITIES } from "./product-capabilities";
 import type {
@@ -75,6 +77,8 @@ export class PlatformService {
     private readonly usersService: UsersService,
     private readonly auditService: AuditService,
     private readonly platformMfaService: PlatformMfaService,
+    private readonly loginBackoffService: LoginBackoffService,
+    private readonly authAuditService: AuthAuditService,
   ) {}
 
   async listTenants() {
@@ -701,6 +705,7 @@ export class PlatformService {
    * data can wait for a re-enrolled authenticator.
    */
   private async assertFreshSecondFactor(
+    tenantId: string,
     input: PlatformRequestPurgeInput,
   ): Promise<void> {
     if (!input.actorUserId) {
@@ -712,7 +717,7 @@ export class PlatformService {
 
     const platformUser = await this.prisma.platformUser.findUnique({
       where: { id: input.actorUserId },
-      select: { id: true, totpSecret: true, status: true },
+      select: { id: true, email: true, totpSecret: true, status: true },
     });
 
     if (!platformUser || platformUser.status !== "active") {
@@ -738,6 +743,28 @@ export class PlatformService {
     );
 
     if (!accepted) {
+      // The same two controls the login code step earns, for the same reason:
+      // this is a six-digit secret being presented, and a stolen session
+      // would otherwise turn a destructive endpoint into a free code oracle —
+      // bounded only by the global per-IP throttle, and leaving no trace for
+      // the alerting added in 3.5 to fire on.
+      //
+      // The backoff shares the `platform-login` scope rather than taking one
+      // of its own: it is the same account and the same secret, so guessing
+      // here must not buy a fresh allowance that guessing at the login page
+      // has already spent. It delays and never refuses, so it cannot be used
+      // to lock the owner out.
+      await this.loginBackoffService.penalizeFailure(
+        "platform-login",
+        platformUser.email,
+      );
+      await this.authAuditService.recordPlatformReauthFailed({
+        platformUserId: platformUser.id,
+        email: platformUser.email,
+        tenantId,
+        requestId: input.requestId,
+      });
+
       throw new BadRequestException({
         code: "TENANT_PURGE_REAUTH_INVALID",
         message: "That code is not valid. Nothing was changed.",
@@ -966,7 +993,7 @@ export class PlatformService {
     // slug or a tenant that turns out not to be archived must not cost the
     // owner a code and a thirty-second wait — those refusals happen above,
     // before anything is consumed.
-    await this.assertFreshSecondFactor(input);
+    await this.assertFreshSecondFactor(tenantId, input);
 
     return this.prisma.$transaction(async (tx) => {
       // Conditional write closes the race with a concurrent purge request,
