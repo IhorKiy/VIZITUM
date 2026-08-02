@@ -11,6 +11,10 @@ import { resolveTenantBranding } from "../../../lib/tenant-branding";
 import { resolveZoneLanding, zoneHomePath } from "../../../lib/navigation";
 import { getFormString } from "../../../lib/form";
 import { INPUT_LIMITS } from "../../../lib/input-limits";
+import {
+  loginErrorMessageKey,
+  loginErrorReason,
+} from "../../../lib/login-error";
 
 type LoginPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -69,11 +73,7 @@ export default async function LoginPage({
         // Non-JSON error body; fall through to the generic message.
       }
 
-      redirect(
-        `/${tenantSlug}/login?error=${
-          code === "CAPTCHA_INVALID" ? "captcha" : "invalid"
-        }`,
-      );
+      redirect(`/${tenantSlug}/login?error=${loginErrorReason(code)}`);
     }
 
     await forwardSetCookies(response.headers);
@@ -132,11 +132,7 @@ export default async function LoginPage({
 
         {error ? (
           <div className="form-error" role="alert">
-            {error === "network"
-              ? t("errorNetwork")
-              : error === "captcha"
-                ? t("errorCaptcha")
-                : t("errorInvalid")}
+            {t(loginErrorMessageKey(error))}
           </div>
         ) : null}
 
