@@ -27,6 +27,14 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "@prisma/*"
         update-types: ["version-update:semver-major"]
+      # A TypeScript major cannot install: typescript-eslint caps its peer
+      # range below the next one (8.65.0, the latest as of 2026-08-02, asks
+      # for `>=4.8.4 <6.1.0`), so `npm ci` fails on ERESOLVE before any check
+      # runs — #194 failed all three that way. Nothing here can fix it; the
+      # bump becomes possible when typescript-eslint ships support, and this
+      # entry should be removed then.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     labels:
       - dependencies
 
