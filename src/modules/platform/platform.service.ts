@@ -763,6 +763,7 @@ export class PlatformService {
         email: platformUser.email,
         tenantId,
         requestId: input.requestId,
+        origin: input.origin,
       });
 
       throw new BadRequestException({

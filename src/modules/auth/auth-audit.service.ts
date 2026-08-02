@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
 import { JsonLogger } from "../../common/json-logger.service";
+import type { RequestOrigin } from "../../common/request-origin";
 import { SentryService } from "../../common/sentry.service";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -50,6 +51,10 @@ export type PlatformLoginMethod = "totp" | "recovery_code" | "enrollment";
 
 export type TenantLoginAuditInput = {
   tenantId: string;
+  // Where the request appeared to come from. Recorded so the plan's condition
+  // for revisiting the "API is directly reachable" risk — *do the auth events
+  // show direct-to-API credential traffic* — can actually be evaluated.
+  origin?: RequestOrigin;
   // Null when the address matched no account — the case the trail most needs
   // to keep, since that is what credential stuffing looks like.
   userId: string | null;
@@ -60,6 +65,7 @@ export type TenantLoginAuditInput = {
 
 export type PlatformLoginAuditInput = {
   platformUserId: string | null;
+  origin?: RequestOrigin;
   // Absent when the attempt was refused before any account was resolved — a
   // rejected challenge token carries no identity of its own.
   email?: string;
@@ -104,13 +110,14 @@ export class AuthAuditService {
     tenantId: string;
     userId: string;
     requestId?: string;
+    origin?: RequestOrigin;
   }): Promise<void> {
     await this.writeTenantEvent({
       eventType: AUTH_AUDIT_EVENTS.tenantLoggedOut,
       tenantId: input.tenantId,
       userId: input.userId,
       requestId: input.requestId,
-      metadata: {},
+      metadata: buildMetadata({ origin: input.origin }),
     });
   }
 
@@ -147,6 +154,7 @@ export class AuthAuditService {
     email?: string;
     tenantId: string;
     requestId?: string;
+    origin?: RequestOrigin;
   }): Promise<void> {
     await this.writePlatformEvent({
       eventType: AUTH_AUDIT_EVENTS.platformReauthFailed,
@@ -156,6 +164,7 @@ export class AuthAuditService {
       metadata: buildMetadata({
         email: input.email,
         reason: "wrong_code",
+        origin: input.origin,
       }),
     });
   }
@@ -163,12 +172,13 @@ export class AuthAuditService {
   async recordPlatformLoggedOut(input: {
     platformUserId: string;
     requestId?: string;
+    origin?: RequestOrigin;
   }): Promise<void> {
     await this.writePlatformEvent({
       eventType: AUTH_AUDIT_EVENTS.platformLoggedOut,
       platformUserId: input.platformUserId,
       requestId: input.requestId,
-      metadata: {},
+      metadata: buildMetadata({ origin: input.origin }),
     });
   }
 
@@ -264,8 +274,13 @@ function buildMetadata(input: {
   email?: string;
   reason?: AuthFailureReason;
   method?: PlatformLoginMethod;
+  origin?: RequestOrigin;
 }): Record<string, string> {
   return {
+    ...(input.origin?.ipHash ? { ipHash: input.origin.ipHash } : {}),
+    ...(input.origin
+      ? { forwardedHopCount: String(input.origin.forwardedHopCount) }
+      : {}),
     // The address the attempt was made against, so the trail reads without a
     // join to a user row that may not exist.
     ...(input.email ? { email: input.email } : {}),

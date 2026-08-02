@@ -19,6 +19,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { LoginBackoffService } from "../rate-limit/login-backoff.service";
 import { RolesService } from "../roles/roles.service";
 import { TenancyService } from "../tenancy/tenancy.service";
+import { describeRequestOrigin } from "../../common/request-origin";
 import { AuthAuditService } from "./auth-audit.service";
 import { hashValue } from "./auth-crypto";
 import { PasswordService } from "./password.service";
@@ -112,6 +113,7 @@ export class AuthService {
         userId: user?.id ?? null,
         email,
         requestId: request.requestId,
+        origin: describeRequestOrigin(request),
         reason: user ? "inactive_account" : "unknown_account",
       });
       throwInvalidCredentials();
@@ -132,6 +134,7 @@ export class AuthService {
         userId: user.id,
         email,
         requestId: request.requestId,
+        origin: describeRequestOrigin(request),
         reason: "wrong_password",
       });
       throwInvalidCredentials();
@@ -164,6 +167,7 @@ export class AuthService {
       userId: user.id,
       email,
       requestId: request.requestId,
+      origin: describeRequestOrigin(request),
     });
 
     const roleCodes = user.roles.map((role) => role.roleCode);
@@ -201,6 +205,7 @@ export class AuthService {
           tenantId: session.tenantId,
           userId: session.userId,
           requestId: request.requestId,
+          origin: describeRequestOrigin(request),
         });
       }
     }

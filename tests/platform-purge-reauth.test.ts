@@ -76,6 +76,7 @@ describe("purge requires a fresh second factor", () => {
           mfaCode: "000000",
           actorUserId: "owner-1",
           requestId: "request-a",
+          origin: { ipHash: "hash-of-203.0.113.10", forwardedHopCount: 3 },
         }),
       BadRequestException,
     );
@@ -95,6 +96,10 @@ describe("purge requires a fresh second factor", () => {
         email: "owner@vizitum.dev",
         tenantId: "tenant-1",
         requestId: "request-a",
+        // The origin matters most on this event of all of them: this endpoint
+        // takes a fresh TOTP code, so codes being guessed here from outside
+        // the web layer are precisely what the trail's measurement is for.
+        origin: { ipHash: "hash-of-203.0.113.10", forwardedHopCount: 3 },
       },
     ]);
   });

@@ -11,6 +11,7 @@ import {
 import { Throttle } from "@nestjs/throttler";
 import type { Request } from "express";
 
+import { describeRequestOrigin } from "../../common/request-origin";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PLATFORM_REAUTH_THROTTLE } from "../rate-limit/rate-limit.constants";
@@ -107,6 +108,7 @@ export class PlatformController {
       mfaCode: body?.mfaCode,
       actorUserId: request.context?.userId,
       requestId: request.requestId,
+      origin: describeRequestOrigin(request),
     });
   }
 }

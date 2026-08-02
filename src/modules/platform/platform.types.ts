@@ -1,5 +1,7 @@
 import type { SegmentTemplate, TenantStatus } from "@prisma/client";
 
+import type { RequestOrigin } from "../../common/request-origin";
+
 export type CreateTenantInput = {
   name: string;
   slug: string;
@@ -47,6 +49,11 @@ export type PlatformRequestPurgeInput = {
   mfaCode?: unknown;
   actorUserId?: string;
   requestId?: string;
+  // Extracted from the request by the controller, like `actorUserId` and
+  // `requestId` are. A refused code here is credential traffic at an endpoint
+  // that accepts a fresh TOTP code, so it is exactly what the trail's
+  // direct-to-API measurement exists to see.
+  origin?: RequestOrigin;
 };
 
 export type PlatformInviteSuperadminInput = {
