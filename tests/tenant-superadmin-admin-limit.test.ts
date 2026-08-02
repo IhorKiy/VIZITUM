@@ -6,6 +6,7 @@ import { AuthService } from "../src/modules/auth/auth.service";
 import { RolesService } from "../src/modules/roles/roles.service";
 import { UsersService } from "../src/modules/users/users.service";
 import { createTestLoginBackoff } from "./fixtures/login-backoff";
+import { createTestAuthAudit } from "./fixtures/auth-audit";
 
 const superadminContext = {
   requestId: "request-a",
@@ -240,6 +241,7 @@ describe("tenant superadmin admin limit", () => {
       {} as never,
       { assertValidToken: async () => {} } as never,
       createTestLoginBackoff(),
+      createTestAuthAudit(),
     );
 
     await assert.rejects(
