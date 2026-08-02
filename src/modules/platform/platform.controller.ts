@@ -90,10 +90,11 @@ export class PlatformController {
   requestTenantPurge(
     @Req() request: Request,
     @Param("tenantId") tenantId: string,
-    @Body() body: Pick<PlatformRequestPurgeInput, "confirmSlug">,
+    @Body() body: Pick<PlatformRequestPurgeInput, "confirmSlug" | "mfaCode">,
   ) {
     return this.platformService.requestTenantPurge(tenantId, {
       confirmSlug: body?.confirmSlug,
+      mfaCode: body?.mfaCode,
       actorUserId: request.context?.userId,
       requestId: request.requestId,
     });

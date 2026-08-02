@@ -1900,7 +1900,7 @@ export async function unarchivePlatformTenant(
 
 export async function requestPlatformTenantPurge(
   tenantId: string,
-  input: { confirmSlug: string },
+  input: { confirmSlug: string; mfaCode: string },
 ): Promise<ApiResult<PlatformTenant>> {
   return apiPost<PlatformTenant>(`/platform/tenants/${tenantId}/purge`, input);
 }

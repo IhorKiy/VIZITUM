@@ -24,6 +24,7 @@ describe("platform tenant purge marking", () => {
     const marked = await service.requestTenantPurge("tenant-1", {
       confirmSlug: "pilot-a",
       actorUserId: "owner-1",
+      mfaCode: "123456",
     });
 
     assert.ok(marked.purgeRequestedAt instanceof Date);
@@ -90,6 +91,8 @@ describe("platform tenant purge marking", () => {
 
     const marked = await service.requestTenantPurge("tenant-1", {
       confirmSlug: "  Pilot-A  ",
+      actorUserId: "owner-1",
+      mfaCode: "123456",
     });
 
     assert.ok(marked.purgeRequestedAt instanceof Date);
@@ -188,6 +191,8 @@ describe("platform tenant purge marking", () => {
 
     const result = await service.requestTenantPurge("tenant-1", {
       confirmSlug: "pilot-a",
+      actorUserId: "owner-1",
+      mfaCode: "123456",
     });
 
     assert.ok(result.purgeRequestedAt instanceof Date);
@@ -205,6 +210,8 @@ describe("platform tenant purge marking", () => {
 
     const result = await service.requestTenantPurge("tenant-1", {
       confirmSlug: "pilot-a",
+      actorUserId: "owner-1",
+      mfaCode: "123456",
     });
 
     assert.equal(result.status, "suspended");
@@ -337,6 +344,13 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
   };
 
   const client = {
+    platformUser: {
+      findUnique: async () => ({
+        id: "owner-1",
+        totpSecret: "SECRET",
+        status: "active",
+      }),
+    },
     platformTenant: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         where.id === tenant.id ? { ...tenant } : null,
@@ -383,10 +397,16 @@ function createStore(seed: Record<string, unknown> & { id: string }) {
   return { prisma, tenant, events, raceState };
 }
 
-function createPlatformService(store: ReturnType<typeof createStore>) {
+function createPlatformService(
+  store: ReturnType<typeof createStore>,
+  options: { codeAccepted?: boolean } = {},
+) {
   return new PlatformService(
     store.prisma as unknown as PrismaService,
     {} as UsersService,
     {} as never,
+    {
+      acceptTotpCode: async () => options.codeAccepted ?? true,
+    } as never,
   );
 }

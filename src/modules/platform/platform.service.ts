@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -25,6 +26,7 @@ import { canTenantServeRequests } from "../tenancy/tenant-serving-status";
 import { resolveInviteStatus, UsersService } from "../users/users.service";
 import { adminCapForStatus, resolveAdminCap } from "../users/users.types";
 import type { InviteHistoryItem, UserResponse } from "../users/users.types";
+import { PlatformMfaService } from "./platform-mfa.service";
 import { TEAM_MODE_CAPABILITIES } from "./product-capabilities";
 import type {
   CreateTenantInput,
@@ -72,6 +74,7 @@ export class PlatformService {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly auditService: AuditService,
+    private readonly platformMfaService: PlatformMfaService,
   ) {}
 
   async listTenants() {
@@ -685,6 +688,66 @@ export class PlatformService {
     });
   }
 
+  /**
+   * Requires a code from the owner's authenticator for this one action.
+   *
+   * The platform session lasts twelve hours and reaches every tenant's data;
+   * the slug echo proves the right tenant was chosen, not that the person
+   * choosing is still the one who signed in. This is the difference between
+   * "somebody walked past an unlocked laptop" and "somebody has the phone".
+   *
+   * A recovery code is deliberately not accepted here. It exists to get an
+   * owner who lost their device back *in*; irreversibly deleting a tenant's
+   * data can wait for a re-enrolled authenticator.
+   */
+  private async assertFreshSecondFactor(
+    input: PlatformRequestPurgeInput,
+  ): Promise<void> {
+    if (!input.actorUserId) {
+      throw new ForbiddenException({
+        code: "TENANT_PURGE_REAUTH_REQUIRED",
+        message: "Purging a tenant requires an authenticated platform owner.",
+      });
+    }
+
+    const platformUser = await this.prisma.platformUser.findUnique({
+      where: { id: input.actorUserId },
+      select: { id: true, totpSecret: true, status: true },
+    });
+
+    if (!platformUser || platformUser.status !== "active") {
+      throw new ForbiddenException({
+        code: "TENANT_PURGE_REAUTH_REQUIRED",
+        message: "Purging a tenant requires an active platform owner.",
+      });
+    }
+
+    if (!platformUser.totpSecret) {
+      // Unreachable through the login flow, which issues no session until
+      // enrolment completes — but a purge is not the place to discover that
+      // an account slipped through some other path.
+      throw new ForbiddenException({
+        code: "TENANT_PURGE_REAUTH_REQUIRED",
+        message: "Enrol an authenticator before purging a tenant.",
+      });
+    }
+
+    const accepted = await this.platformMfaService.acceptTotpCode(
+      { id: platformUser.id, totpSecret: platformUser.totpSecret },
+      input.mfaCode,
+    );
+
+    if (!accepted) {
+      throw new BadRequestException({
+        code: "TENANT_PURGE_REAUTH_INVALID",
+        message: "That code is not valid. Nothing was changed.",
+        fieldErrors: {
+          mfaCode: ["Enter the current code from your authenticator."],
+        },
+      });
+    }
+  }
+
   private async assertTenantCanManageUsers(tenantId: string) {
     const tenant = await this.prisma.platformTenant.findUnique({
       where: { id: tenantId },
@@ -897,6 +960,13 @@ export class PlatformService {
     if (tenant.purgeRequestedAt || tenant.purgeStartedAt) {
       return tenant;
     }
+
+    // Re-authentication, last of the gates on purpose. Verifying the code
+    // *spends* its step (see PlatformMfaService.acceptTotpCode), so a mistyped
+    // slug or a tenant that turns out not to be archived must not cost the
+    // owner a code and a thirty-second wait — those refusals happen above,
+    // before anything is consumed.
+    await this.assertFreshSecondFactor(input);
 
     return this.prisma.$transaction(async (tx) => {
       // Conditional write closes the race with a concurrent purge request,

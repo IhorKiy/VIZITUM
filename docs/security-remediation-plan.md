@@ -18,7 +18,7 @@ as the record of what was found and why each fix took the shape it did.
 | ---- | ------ |
 | 1.1 Rate limiting / account lockout | Done — hard per-IP throttle, progressive per-account delay, Redis-backed counters. Amended: the per-IP half was bypassable until `CLIENT_IP_HEADER` landed — see the follow-up below |
 | 1.2 Turnstile fail-closed, required in production | Done |
-| 1.3 Platform-owner hardening | Done for TOTP MFA and the shortened session TTL. Login alerting is 3.5 (wave 3); re-auth for destructive tenant operations is **not** implemented |
+| 1.3 Platform-owner hardening | Done for TOTP MFA and the shortened session TTL. Login alerting landed as 3.5; re-auth for destructive tenant operations is **done** — see the item below |
 | 2.1 Security response headers | Done — verified live, including Turnstile under the CSP |
 | 2.2 Password change + invite overwrite | Done, but **not by this branch**: PR #168 landed both halves — the authenticated change *and* the forgot-password flow the plan deferred — while this was open, so this branch dropped its duplicate change-password and kept only the invite-overwrite fix |
 | 2.3 CSRF path normalization | Done, including the Express routing flags (applied before the router is built) |
@@ -118,7 +118,7 @@ boundary is not a check on requests. Anything else resolved only at login has
 the same shape.
 
 Still open from the original review: wave 3 apart from 3.5 and the read half
-of 3.2, plus re-auth for destructive tenant operations (part of 1.3). Item 3.7 has moved and should be
+of 3.2. Re-auth for destructive tenant operations (part of 1.3) is done. Item 3.7 has moved and should be
 re-read rather than trusted as written — `next` now carries advisories of its
 own beyond the transitive `postcss`/`sharp` ones, with a patched release
 available, and `multer` (via `@nestjs/platform-express`, no multipart endpoint
@@ -303,7 +303,7 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 - **Change:**
   - Add MFA (TOTP or WebAuthn) to `PlatformUser`; require it on platform login.
   - Aggressive lockout + login alerting for the platform domain (pairs with 1.1 and 3.5).
-  - Shorten the platform session TTL (hours, not 30 days) and require re-auth for destructive tenant operations (pairs with 2.4).
+  - Shorten the platform session TTL (hours, not 30 days) and require re-auth for destructive tenant operations (pairs with 2.4). **Both done.** Re-auth applies to `POST /platform/tenants/:tenantId/purge` — the one action that ends in data being gone. It reuses the login step's `acceptTotpCode`, so the code is spent and cannot be replayed, and it is the *last* gate: every refusal decidable without a code happens first, or a mistyped slug would cost the owner a code and a thirty-second wait. Archive is deliberately not gated — it is reversible by unarchive, and a confirmation nobody can act on quickly stops being read.
 - **Verify:** e2e for the TOTP/WebAuthn challenge; unit test that a platform session older than the new TTL is rejected.
 - **Note:** Largest item in the wave — may warrant its own PR and a short design note (choose TOTP vs WebAuthn first).
 
