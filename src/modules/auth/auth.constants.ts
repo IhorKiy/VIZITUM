@@ -57,7 +57,16 @@ export const PASSWORD_RESET_IP_WINDOW_MS = 15 * 60 * 1000;
 // Secure and nothing surfaced it. COOKIE_SECURE is required in production
 // (security-config.ts) so that particular misconfiguration fails startup
 // instead of failing silently in the field.
-const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+//
+// Trimmed to match the boot gate's own check (security-config.ts) exactly —
+// a value like " true " (trailing whitespace from a dashboard field) must
+// either satisfy both or neither. It used to satisfy only the gate: the
+// gate's `.trim()` let a padded value boot, while this comparison's lack of
+// one then read it as `false`, so production could start up with cookies
+// silently missing Secure, followed by a browser refusing the `__Host-`
+// prefixed Set-Cookie outright and no one able to sign in — quieter than
+// the original NODE_ENV bug, not louder.
+const COOKIE_SECURE = process.env.COOKIE_SECURE?.trim() === "true";
 
 export const COOKIE_OPTIONS = {
   httpOnly: true,
