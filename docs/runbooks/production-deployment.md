@@ -13,6 +13,24 @@ Deploy these services from the same repository and release SHA.
 | Cleanup worker | Scheduled job / cron worker | `npm ci --include=dev && npm run prisma:generate && npm run build` | —                               | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
 | Purge worker   | Scheduled job / cron worker | `npm ci --include=dev && npm run prisma:generate && npm run build` | —                               | `npm run worker:purge:prod`   | Non-zero exit alert and `worker_purge_completed` log   |
 
+### The web deploy skips builds that cannot change it
+
+`vercel.json` at the repo root sets an `ignoreCommand`, which Vercel runs before every build — **exit 0 skips the build, exit 1 or greater proceeds**, the opposite of the usual convention:
+
+```
+git diff --quiet HEAD^ HEAD -- :/apps/web :/package.json :/package-lock.json :/tsconfig.json :/vercel.json
+```
+
+`apps/web` is an npm workspace of the root, so a Vercel build installs the whole repository — NestJS, Prisma engines, a native `argon2` compile — before it reaches `next build`. Most commits here never touch the frontend at all (in the month to 2026-08-03, 49 of 192 commits on `main`), and each of those was paying that install to produce a byte-identical deployment.
+
+Everything outside `apps/web` in the path list is there because it can still change the build's output: the root manifests through the dependency tree, and `tsconfig.json` because `apps/web/tsconfig.json` extends it and `next build` typechecks.
+
+**Known limitation: it compares one commit.** `HEAD^ HEAD` sees only the tip, so where several commits arrive in a single push, a frontend change in any but the last is invisible and the deploy is skipped. On `main` this is not reachable — every commit there is a squashed PR, so a push is always one commit — and it is the reason the comparison is meaningful at all, since `HEAD^` is then the previous `main`. It *is* reachable on a preview: push two commits to a branch at once with the frontend change in the first, and that preview does not rebuild. The next push to the branch, and the squash-merge itself, both correct it. Vercel exposes no "last deployed SHA" to compare against instead, so there is no clean fix — force a rebuild from the dashboard if a preview looks stale.
+
+**The `:/` prefixes are load-bearing.** A git pathspec resolves against the current working directory, and Vercel does not run this from the repository root — with plain `apps/web` the pathspec matched nothing, `git diff --quiet` reported "no changes" and **every** build was skipped, including ones that rewrote half the frontend (observed on the PR that introduced this file). `:/path` anchors to the top of the working tree regardless of cwd. Verify a change to this command against a `git clone --depth=10` — the depth Vercel uses — running it both from the root and from `apps/web`, and check it against one commit of each kind: a backend-only one must exit 0 and a frontend one must exit 1.
+
+`HEAD^` is the previous `main` commit on a squash-merge, which is what makes the comparison meaningful. Where it does not resolve, `git diff` exits 128 and the build proceeds, which is the safe default.
+
 ### `--include=dev` is load-bearing, because `NODE_ENV=production` reaches the build
 
 Every build command above installs dev dependencies explicitly. That is not
