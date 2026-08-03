@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { BadRequestException } from "@nestjs/common";
 
 import { VisitsService } from "../src/modules/visits/visits.service";
 
@@ -216,5 +217,57 @@ describe("visit audio upload registration", () => {
 
     assert.equal(response.storageObject.contentType, "audio/mp4");
     assert.equal(createdStorageObjects.length, 1);
+  });
+
+  it("rejects a registration with no declared size", async () => {
+    // Required, not optional: the presigned PUT signs this as Content-Length,
+    // so a registration without one would mean signing an unbounded upload.
+    const createdAt = new Date("2026-06-29T10:00:00.000Z");
+    const prisma = {
+      visit: {
+        findFirst: async () => ({
+          id: "visit-a",
+          tenantId: "tenant-a",
+          locationId: "location-a",
+          representativeUserId: "rep-a",
+          routeItemId: null,
+          visitType: "planned",
+          status: "in_progress",
+          startedAt: createdAt,
+          completedAt: null,
+          cancelledAt: null,
+          createdAt,
+          updatedAt: createdAt,
+          location: {
+            id: "location-a",
+            name: "Location A",
+            addressLine: "Street 1",
+            city: "Kyiv",
+          },
+          representative: {
+            id: "rep-a",
+            email: "rep@example.com",
+            name: "Rep A",
+          },
+        }),
+      },
+    };
+    const service = new VisitsService(prisma as never);
+
+    await assert.rejects(
+      () =>
+        service.registerTemporaryAudioUpload(context as never, "visit-a", {
+          fileName: "visit.webm",
+          contentType: "audio/webm;codecs=opus",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        assert.equal(
+          (error.getResponse() as { code: string }).code,
+          "AUDIO_UPLOAD_SIZE_INVALID",
+        );
+        return true;
+      },
+    );
   });
 });

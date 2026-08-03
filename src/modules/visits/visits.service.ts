@@ -802,7 +802,7 @@ export class VisitsService {
           objectKey,
           purpose: "temporary_audio",
           contentType,
-          sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
+          sizeBytes: BigInt(sizeBytes),
           checksum,
           status: "active",
           expiresAt,
@@ -925,7 +925,7 @@ export class VisitsService {
           objectKey: `${objectKeyPrefix}${randomUUID()}/${fileName}`,
           purpose: "visit_attachment",
           contentType,
-          sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
+          sizeBytes: BigInt(sizeBytes),
           status: "active",
           expiresAt,
           createdByUserId: context.userId,
@@ -1869,11 +1869,13 @@ function normalizeAudioContentTypeFromFileName(
   return null;
 }
 
-function normalizeAudioSizeBytes(value: unknown): number | null {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
-
+// Required, not optional: the declared size is what the presigned PUT signs
+// as Content-Length (s3-storage.client.ts), so a registration without one
+// would mean either falling back to an unsigned upload or lying about the
+// length. A missing value is rejected the same way an invalid one already
+// was — there was never a meaningful difference between "didn't say" and
+// "said something nonsensical" from the API's point of view.
+function normalizeAudioSizeBytes(value: unknown): number {
   const parsedValue =
     typeof value === "number"
       ? value
@@ -1946,11 +1948,10 @@ function normalizePhotoContentTypeFromFileName(
   return null;
 }
 
-function normalizePhotoSizeBytes(value: unknown): number | null {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
-
+// Required for the same reason as normalizeAudioSizeBytes: signed as the
+// presigned PUT's Content-Length, so a missing value is refused the same way
+// an invalid one already was.
+function normalizePhotoSizeBytes(value: unknown): number {
   const parsedValue =
     typeof value === "number"
       ? value

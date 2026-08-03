@@ -13,6 +13,10 @@ export type PresignedObjectUrlInput = {
   method: "GET" | "PUT" | "DELETE";
   expiresInSeconds: number;
   contentType?: string;
+  // Signed into a PUT so R2 refuses a body of any other length — the actual
+  // byte cap, rather than a client-declared number the API validated at
+  // registration and then had no way to enforce against the real upload.
+  contentLength?: number;
 };
 
 export type PresignedObjectUrl = {
@@ -70,7 +74,7 @@ export class S3StorageClient {
       url: baseUrl.toString(),
       method: input.method,
       expiresAt,
-      headers: omitHostHeader(headers),
+      headers: omitBrowserManagedHeaders(headers),
     };
   }
 
@@ -193,6 +197,16 @@ function buildSignedHeaders(
     headers["content-type"] = input.contentType;
   }
 
+  // Signed but never handed back to the caller (see
+  // omitBrowserManagedHeaders) — a browser's fetch/XHR computes this itself
+  // from the request body and won't let a caller override it, the same as
+  // Host below. The signature only holds if that browser-computed value
+  // matches what was signed here, which is exactly what makes an oversized
+  // body fail the PUT instead of merely failing a later read.
+  if (input.method === "PUT" && input.contentLength !== undefined) {
+    headers["content-length"] = String(input.contentLength);
+  }
+
   return headers;
 }
 
@@ -251,11 +265,18 @@ function canonicalHeaders(headers: Record<string, string>): string {
     .join("");
 }
 
-function omitHostHeader(
+// Host and Content-Length are both signed but never returned to the caller:
+// a browser's fetch/XHR sets both itself (Host from the URL, Content-Length
+// from the actual request body) and silently ignores or rejects an attempt
+// to set either explicitly. Handing them back would suggest the caller
+// should send them, which it neither can nor needs to — the signature holds
+// as long as the browser's own values match what was signed.
+function omitBrowserManagedHeaders(
   headers: Record<string, string>,
 ): Record<string, string> {
   const result = { ...headers };
   delete result.host;
+  delete result["content-length"];
 
   return result;
 }

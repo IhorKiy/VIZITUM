@@ -63,6 +63,92 @@ describe("storage service", () => {
     assert.deepEqual(response.headers, { "content-type": "audio/webm" });
   });
 
+  it("signs the object's declared size as Content-Length", async () => {
+    let signedInput: Record<string, unknown> | undefined;
+    const prisma = {
+      storageObject: {
+        findFirst: async () => ({
+          id: "storage-a",
+          tenantId: "tenant-a",
+          bucket: "vizitum",
+          objectKey: "tenants/tenant-a/visits/visit-a/audio/file.webm",
+          purpose: "temporary_audio",
+          contentType: "audio/webm",
+          sizeBytes: BigInt(1234),
+          checksum: "sha256:abc",
+          status: "active",
+          expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+          createdByUserId: "rep-a",
+          createdAt,
+          deletedAt: null,
+        }),
+      },
+    };
+    const s3Storage = {
+      createPresignedObjectUrl: (input: Record<string, unknown>) => {
+        signedInput = input;
+        return {
+          url: `https://storage.example/${input.objectKey as string}`,
+          method: input.method,
+          expiresAt: new Date("2026-06-30T10:05:00.000Z"),
+          headers: { "content-type": input.contentType as string },
+        };
+      },
+    };
+    const service = new StorageService(
+      prisma as never,
+      { getDefaultBucket: () => "vizitum" } as never,
+      s3Storage as never,
+    );
+
+    await service.createPresignedUploadUrl(context as never, "storage-a");
+
+    assert.equal(signedInput?.contentLength, 1234);
+  });
+
+  it("refuses to sign a PUT for an object with no declared size", async () => {
+    // Every registration path now requires a size, but an object registered
+    // before that requirement existed (or one whose registration path never
+    // asked for one) has none — signing it would mean either lying about the
+    // length or signing an unbounded PUT, silently reopening the gap this
+    // closes.
+    const prisma = {
+      storageObject: {
+        findFirst: async () => ({
+          id: "storage-a",
+          tenantId: "tenant-a",
+          bucket: "vizitum",
+          objectKey: "tenants/tenant-a/visits/visit-a/audio/file.webm",
+          purpose: "temporary_audio",
+          contentType: "audio/webm",
+          sizeBytes: null,
+          checksum: "sha256:abc",
+          status: "active",
+          expiresAt: new Date("2026-07-01T10:00:00.000Z"),
+          createdByUserId: "rep-a",
+          createdAt,
+          deletedAt: null,
+        }),
+      },
+    };
+    const service = new StorageService(
+      prisma as never,
+      { getDefaultBucket: () => "vizitum" } as never,
+      {
+        createPresignedObjectUrl: () => {
+          throw new Error("must not be signed");
+        },
+      } as never,
+    );
+
+    await assert.rejects(
+      () =>
+        service.createPresignedUploadUrl(context as never, "storage-a"),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "STORAGE_OBJECT_SIZE_UNKNOWN",
+    );
+  });
+
   it("refuses an upload URL for a visit artifact with no creator", async () => {
     // `temporary_transcript` rows are written by the AI worker, which has no
     // request context and therefore stamps no creator. While an absent creator

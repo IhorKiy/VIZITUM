@@ -163,6 +163,7 @@ describe("branding logo upload", () => {
         service.registerLogoUpload(context as never, {
           fileName: "   ",
           contentType: "image/png",
+          sizeBytes: 2048,
         }),
       (error: { response?: { code?: string } }) =>
         error.response?.code === "BRANDING_LOGO_INVALID",
@@ -177,12 +178,29 @@ describe("branding logo upload", () => {
         service.registerLogoUpload(context as never, {
           fileName: "logo.gif",
           contentType: "image/gif",
+          sizeBytes: 2048,
         }),
       (error: {
         response?: { code?: string; fieldErrors?: { contentType?: string[] } };
       }) =>
         error.response?.code === "BRANDING_LOGO_INVALID" &&
         (error.response?.fieldErrors?.contentType?.length ?? 0) > 0,
+    );
+  });
+
+  it("rejects a register call with no declared size", async () => {
+    // Required, not optional: the presigned PUT signs this as Content-Length,
+    // so a registration without one would mean signing an unbounded upload.
+    const { service } = buildService();
+
+    await assert.rejects(
+      () =>
+        service.registerLogoUpload(context as never, {
+          fileName: "logo.png",
+          contentType: "image/png",
+        }),
+      (error: { response?: { code?: string } }) =>
+        error.response?.code === "BRANDING_LOGO_SIZE_INVALID",
     );
   });
 
@@ -206,6 +224,7 @@ describe("branding logo upload", () => {
 
     const result = await service.registerLogoUpload(context as never, {
       fileName: "brand.svg",
+      sizeBytes: 2048,
     });
 
     assert.equal(result.storageObject.contentType, "image/svg+xml");
@@ -267,6 +286,7 @@ describe("branding logo upload", () => {
     await service.registerLogoUpload(context as never, {
       fileName: "logo.png",
       contentType: "image/png",
+      sizeBytes: 2048,
     });
 
     assert.equal(updateManyCalls.length, 1);

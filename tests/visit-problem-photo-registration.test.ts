@@ -190,6 +190,28 @@ describe("visit problem photo registration", () => {
     );
   });
 
+  it("rejects a registration with no declared size", async () => {
+    // Required, not optional: the presigned PUT signs this as Content-Length,
+    // so a registration without one would mean signing an unbounded upload.
+    const service = new VisitsService(buildPrisma([]) as never);
+
+    await assert.rejects(
+      () =>
+        service.registerProblemPhotoUpload(context as never, "visit-a", {
+          fileName: "shelf.jpg",
+          contentType: "image/jpeg",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof BadRequestException);
+        assert.equal(
+          (error.getResponse() as { code: string }).code,
+          "PHOTO_UPLOAD_SIZE_INVALID",
+        );
+        return true;
+      },
+    );
+  });
+
   it("refuses a visit that belongs to another representative", async () => {
     const service = new VisitsService(
       buildPrisma([], {
