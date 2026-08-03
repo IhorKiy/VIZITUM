@@ -22,7 +22,7 @@ import { TenancyService } from "../tenancy/tenancy.service";
 import { describeRequestOrigin } from "../../common/request-origin";
 import { AuthAuditService } from "./auth-audit.service";
 import { hashValue } from "./auth-crypto";
-import { PasswordService } from "./password.service";
+import { DUMMY_PASSWORD_HASH, PasswordService } from "./password.service";
 import { CSRF_COOKIE_NAME, MIN_PASSWORD_LENGTH } from "./auth.constants";
 import { clearCsrfCookie, createCsrfToken, writeCsrfCookie } from "./csrf";
 import {
@@ -101,6 +101,13 @@ export class AuthService {
     const backoffIdentity = `${tenant.id}:${email}`;
 
     if (!user || user.status !== "active" || !user.passwordHash) {
+      // Same argon2 cost as a wrong password on a real account, against a
+      // fixed hash rather than this (possibly nonexistent) user's own — so a
+      // missing account, an inactive one and a real one rejected on password
+      // all take the same time to answer, and response timing stops being a
+      // way to tell which of the three happened.
+      await this.passwordService.verifyPassword(DUMMY_PASSWORD_HASH, password);
+
       await this.loginBackoffService.penalizeFailure(
         "tenant-login",
         backoffIdentity,

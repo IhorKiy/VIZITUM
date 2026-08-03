@@ -25,11 +25,12 @@ as the record of what was found and why each fix took the shape it did.
 | 2.4 Backend length caps + body limit | Done. The class-validator DTO migration remains deferred |
 | 2.5 Session TTL, rotation and idle timeout | Done |
 | 2.6 Raw invite tokens | Done |
+| 3.1 Equalize login timing | Done — a dummy argon2 verify runs on the not-found/inactive path on both domains; see the item below |
 | 3.2 Upload size | Half done — the read side enforces the cap against the length the store reports; signing `Content-Length` on the PUT is still open. See the item below |
 | 3.4 `__Host-` cookie prefix + `COOKIE_SECURE` | Done — see the item below |
 | 3.5 Auth audit events | Done — login success/failure and logout on both domains, with the failure reason; see the item below |
 | 3.6 Pin argon2 params + rehash-on-login | Done — see the item below |
-| 3.1, 3.8 | Not started (wave 3) |
+| 3.8 | Not started (wave 3) |
 
 Two deviations worth knowing about, both deliberate:
 
@@ -386,9 +387,12 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 
 ## Wave 3 — Low priority / hardening
 
-### 3.1 Equalize login timing (user enumeration)
-- **Risk (LOW):** Argon2 runs only when the user exists, so response timing distinguishes valid emails/tenants (`auth.service.ts:88-99`, `platform-auth.service.ts:49-60`).
-- **Change:** Perform a dummy argon2 verify against a fixed hash on the not-found path. Consider a generic error for unknown tenant slugs on the login route.
+### 3.1 Equalize login timing (user enumeration) — **done**
+- **Risk (LOW):** Argon2 ran only when the user existed, so response timing distinguished a valid email/tenant from an invalid one (`auth.service.ts`, `platform-auth.service.ts`).
+- **Shipped:** the not-found branch on both domains (`!user`, an inactive user, and — tenant-side only — a user with no `passwordHash` set) now runs one argon2 verify against `DUMMY_PASSWORD_HASH`, a hash of an arbitrary unused password precomputed once and committed as a literal in `password.service.ts`, before penalizing and auditing exactly as the wrong-password branch already did. A literal rather than a hash computed at boot or per request: it costs nothing at startup and cannot vary between processes, so the not-found path's cost is identical everywhere it runs. `tests/auth-login-timing-equalization.test.ts` pins the structural property — exactly one `verifyPassword` call per login attempt, against the fixed hash when there is no real account to check and the account's own hash when there is — rather than measuring wall-clock time, which would be flaky and would not pin the actual guarantee.
+- **Deliberately not done:** the plan's secondary suggestion of a generic error for unknown tenant slugs on the login route. That is a different enumeration surface (the tenant-resolution step, ahead of the user lookup) and a larger behavior change than a timing fix; left for its own review if the tenant-slug case is ever prioritized.
+- **Left alone on purpose:** `password-reset.service.ts`'s forgot-password flow already avoids this class of leak differently — the response never depends on whether the address matched, since the reset email is sent out-of-band — so it needed no change here.
+- **Found in review, coupled to 3.6:** `DUMMY_PASSWORD_HASH` was originally generated under argon2's library defaults, and 3.6 separately pinned `PASSWORD_HASH_OPTIONS` to a cheaper profile. Landed as two independent PRs off the same base, each was internally consistent and each passed its own tests — but combined, a real account's wrong password would verify under the cheaper pinned profile while the not-found path still paid the (more expensive, differently-shaped) default-profile cost, reopening the exact gap this item exists to close with the sign flipped. Neither PR's own tests could have caught it: each checks its own hash structurally (which hash was passed), not the other's cost. Fixed by regenerating `DUMMY_PASSWORD_HASH` under `PASSWORD_HASH_OPTIONS` and adding a test (`tests/password-service.test.ts`) asserting `needsRehash(DUMMY_PASSWORD_HASH, PASSWORD_HASH_OPTIONS) === false`, so the two can't drift apart again without a failing build. Worth generalizing: two independently-correct changes to the same cost parameter, reviewed apart, are not the same claim as one correct combined change — review them together whenever a security fix's cost has to match another one's.
 
 ### 3.2 Enforce upload size on presigned PUTs — **half done**
 - **Risk (LOW/MEDIUM):** `s3-storage.client.ts:29-45` signs `contentType` + host but not `Content-Length`; the byte cap is validated only against the client-declared size at registration, so the actual PUT to R2 is uncapped.

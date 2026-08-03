@@ -31,6 +31,28 @@ export const PASSWORD_HASH_OPTIONS = {
   parallelism: 1,
 } as const;
 
+// Precomputed once, offline, rather than hashed at request time or at module
+// load: the login paths verify against this fixed hash when no real account
+// exists, purely to spend the same argon2 time a real verify would. Hashing it
+// fresh per request (or even once per boot) would work too, but a literal
+// needs no async work at startup and never varies between processes, which
+// keeps the not-found path's cost identical everywhere it runs. The password
+// behind it is arbitrary and unused by any account — its only property that
+// matters is that verifying against it costs one argon2 pass.
+//
+// Generated under PASSWORD_HASH_OPTIONS, not the library defaults — this has
+// to cost what a *real* verify costs, and a real verify runs against a hash
+// produced by hashPassword(), which uses PASSWORD_HASH_OPTIONS. A dummy hash
+// left at the library's own defaults would answer a real account's wrong
+// password faster or slower than a nonexistent one, reopening exactly the
+// gap this exists to close, just with the sign flipped and a test structured
+// to check *which* hash was used unable to see it (it doesn't measure time).
+// tests/password-service.test.ts pins that this hash's encoded parameters
+// still match PASSWORD_HASH_OPTIONS, so the two can't drift apart silently —
+// regenerate this literal if PASSWORD_HASH_OPTIONS ever changes.
+export const DUMMY_PASSWORD_HASH =
+  "$argon2id$v=19$m=19456,p=1,t=2$LDdizvDBOF4HNxHBxtBoFg$zqiMI7cLY5Z7RY6yUTHHLypPd/wxv6D6TothCkPNXhQ";
+
 @Injectable()
 export class PasswordService {
   hashPassword(password: string): Promise<string> {

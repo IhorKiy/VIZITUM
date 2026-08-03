@@ -15,7 +15,7 @@ import {
   createCsrfToken,
   writeCsrfCookie,
 } from "../auth/csrf";
-import { PasswordService } from "../auth/password.service";
+import { DUMMY_PASSWORD_HASH, PasswordService } from "../auth/password.service";
 import { TurnstileService } from "../auth/turnstile.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LoginBackoffService } from "../rate-limit/login-backoff.service";
@@ -75,6 +75,11 @@ export class PlatformAuthService {
     });
 
     if (!platformUser || platformUser.status !== "active") {
+      // Same rationale as the tenant login's not-found branch: one argon2
+      // verify against a fixed hash, so an unknown or inactive platform
+      // address costs the same as a wrong password on a real one.
+      await this.passwordService.verifyPassword(DUMMY_PASSWORD_HASH, password);
+
       await this.loginBackoffService.penalizeFailure("platform-login", email);
       await this.authAuditService.recordPlatformLoginFailed({
         platformUserId: platformUser?.id ?? null,

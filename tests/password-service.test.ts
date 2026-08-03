@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { hash, needsRehash } from "argon2";
 
 import {
+  DUMMY_PASSWORD_HASH,
   PASSWORD_HASH_OPTIONS,
   PasswordService,
 } from "../src/modules/auth/password.service";
@@ -55,5 +56,18 @@ describe("PasswordService", () => {
     // further rehash — otherwise every login would rehash forever.
     assert.equal(await service.verifyPassword(rehashed as string, password), true);
     assert.equal(needsRehash(rehashed as string, PASSWORD_HASH_OPTIONS), false);
+  });
+
+  // Item 3.1 (login timing equalization) verifies the not-found/inactive
+  // login path against DUMMY_PASSWORD_HASH so it costs the same as a real
+  // account rejected on password. That only holds if the dummy hash costs
+  // the same as a *real* hash — i.e. was generated under this same
+  // PASSWORD_HASH_OPTIONS, not left at whatever the library defaults were
+  // when it was created. A future change to PASSWORD_HASH_OPTIONS without
+  // regenerating the dummy hash would silently reopen the timing gap 3.1
+  // exists to close, just with the sign flipped — this is the one place that
+  // drift is checked.
+  it("keeps the dummy login-timing hash under the currently pinned parameters", () => {
+    assert.equal(needsRehash(DUMMY_PASSWORD_HASH, PASSWORD_HASH_OPTIONS), false);
   });
 });
