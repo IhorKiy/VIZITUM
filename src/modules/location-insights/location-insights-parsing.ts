@@ -60,6 +60,11 @@ export function normalizeOptionalComment(value: unknown): string | null {
   return normalizedValue || null;
 }
 
+// Shape-only check, shared with UpsertLocationPotentialDto so the DTO's
+// gate and this function's own calendar-validity check can't drift into two
+// different ideas of what a date string looks like.
+export const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 // Rejects both malformed strings ("not-a-date") and calendar-invalid ones
 // ("2026-02-31"). The regex only checks the shape — and unlike a month
 // component out of range (which the Date constructor turns into NaN), an
@@ -74,7 +79,7 @@ export function normalizeOptionalDateOnly(
     return null;
   }
 
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (typeof value !== "string" || !DATE_ONLY_PATTERN.test(value)) {
     invalidValue(field, "Must be in YYYY-MM-DD format.");
   }
 

@@ -7,9 +7,11 @@ import {
   Put,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
   RequireAnyPermissions,
@@ -17,8 +19,8 @@ import {
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { UpsertLocationPotentialDto } from "./location-potential.dto";
 import { LocationPotentialService } from "./location-potential.service";
-import type { UpsertLocationPotentialRequestBody } from "./location-insights.types";
 
 @Controller("locations")
 @UseGuards(PermissionGuard)
@@ -44,11 +46,15 @@ export class LocationPotentialController {
     PERMISSIONS.LOCATION_POTENTIAL_MANAGE,
     PERMISSIONS.LOCATION_POTENTIAL_MANAGE_OWN,
   )
+  // First module on the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route only, not a
+  // global ValidationPipe.
+  @UsePipes(createStrictValidationPipe())
   upsertPotential(
     @Req() request: Request,
     @Param("locationId") locationId: string,
     @Param("productCategoryId") productCategoryId: string,
-    @Body() body: UpsertLocationPotentialRequestBody,
+    @Body() body: UpsertLocationPotentialDto,
   ) {
     return this.locationPotentialService.upsertPotential(
       getRequestContext(request),

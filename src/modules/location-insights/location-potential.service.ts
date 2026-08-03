@@ -16,10 +16,10 @@ import {
   normalizeOptionalDateOnly,
   normalizeOptionalNonNegativeInteger,
 } from "./location-insights-parsing";
+import type { UpsertLocationPotentialDto } from "./location-potential.dto";
 import type {
   ListLocationPotentialResponse,
   LocationPotentialResponse,
-  UpsertLocationPotentialRequestBody,
 } from "./location-insights.types";
 
 type LocationPotentialRow = {
@@ -79,7 +79,7 @@ export class LocationPotentialService {
     context: RequestContext,
     locationId: string,
     productCategoryId: string,
-    body: UpsertLocationPotentialRequestBody,
+    body: UpsertLocationPotentialDto,
   ): Promise<LocationPotentialResponse> {
     await findTenantLocationOrThrow(this.prisma, context.tenantId, locationId);
     await assertCanManagePotential(context, this.prisma, locationId);
@@ -159,7 +159,7 @@ export class LocationPotentialService {
 }
 
 function parseUpsertPotentialBody(
-  body: UpsertLocationPotentialRequestBody,
+  body: UpsertLocationPotentialDto,
 ): LocationPotentialData {
   return {
     potentialDate: normalizeOptionalDateOnly(
