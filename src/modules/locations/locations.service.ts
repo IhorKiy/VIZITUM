@@ -11,6 +11,7 @@ import {
   type PaginatedResponse,
   resolvePagination,
 } from "../../common/pagination";
+import { isValidEmail } from "../../common/normalize";
 import { normalizePhoneInput } from "../../common/phone";
 import {
   assertTextWithinLimit,
@@ -363,6 +364,7 @@ export class LocationsService {
       body,
       await this.getTenantPhoneCountry(context.tenantId),
       contact.phone,
+      contact.email,
     );
     const updatedContact = await this.prisma.locationContact.update({
       where: { id: contact.id },
@@ -810,7 +812,7 @@ function parseCreateContactBody(
     name,
     roleTitle: normalizeOptionalString(body.roleTitle, "title", "roleTitle"),
     phone: normalizeContactPhone(body.phone, phoneCountry),
-    email: normalizeOptionalString(body.email, "email", "email"),
+    email: normalizeContactEmail(body.email),
     notes: normalizeOptionalString(body.notes, "notes", "notes"),
   };
 }
@@ -838,10 +840,27 @@ function normalizeContactPhone(
   return normalized.e164;
 }
 
+function normalizeContactEmail(value: unknown): string | null {
+  const normalized = normalizeOptionalString(value, "email", "email");
+
+  if (normalized && !isValidEmail(normalized)) {
+    throw new BadRequestException({
+      code: "LOCATION_CONTACT_INVALID",
+      message: "Contact email is invalid.",
+      fieldErrors: {
+        email: ["Enter a valid email address."],
+      },
+    });
+  }
+
+  return normalized;
+}
+
 function parseUpdateContactBody(
   body: UpdateLocationContactRequestBody,
   phoneCountry: string | null,
   currentPhone: string | null,
+  currentEmail: string | null,
 ): LocationContactUpdateData {
   return {
     ...(body.name !== undefined
@@ -862,8 +881,11 @@ function parseUpdateContactBody(
     ...(body.phone !== undefined && body.phone !== currentPhone
       ? { phone: normalizeContactPhone(body.phone, phoneCountry) }
       : {}),
-    ...(body.email !== undefined
-      ? { email: normalizeOptionalString(body.email, "email", "email") }
+    // Same reasoning as phone: a record whose stored email predates format
+    // validation stays editable as long as the email field itself isn't the
+    // thing being changed.
+    ...(body.email !== undefined && body.email !== currentEmail
+      ? { email: normalizeContactEmail(body.email) }
       : {}),
     ...(body.notes !== undefined
       ? { notes: normalizeOptionalString(body.notes, "notes", "notes") }
