@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { buildApiUrl } from "./api-client";
 
 export const SUPPORTED_LOCALES = ["en", "uk"] as const;
@@ -65,14 +67,34 @@ export function toSupportedLocale(language: unknown): AppLocale {
   );
 }
 
+// How long a resolved locale may be reused across requests. Every render of
+// every tenant page paid a round trip to the API for this, and no route in
+// this app is static, so that was one origin request per navigation per
+// reader — for two settings an admin changes about once. A minute still
+// reads as immediate to the admin who just switched the language (they are
+// several clicks from a tenant screen by the time it lands) while collapsing
+// essentially all of that traffic.
+const LOCALE_CACHE_SECONDS = 60;
+
 // Resolves the UI locale and timezone for a request. Tenant pages (including
 // pre-auth login/invite pages) follow the tenant's `language`/`timezone`
 // settings; platform and root pages, unknown tenants and API failures all
 // fall back to English/UTC — locale resolution must never break a page.
-export async function resolveTenantLocale(
+//
+// Wrapped in React cache() so the one render that needs this twice — i18n
+// resolution in i18n/request.ts and the page's own call, as on the admin
+// locations and field location screens — shares a single fetch, exactly as
+// resolveTenantBranding does. The slug is normalized in here rather than at
+// the call sites for the same reason it is there: cache() keys on the
+// argument, and i18n/request.ts passes an already-lowercased slug while pages
+// pass their raw route param, so a `/ACME/...` URL would otherwise miss the
+// entry and fetch twice.
+export const resolveTenantLocale = cache(async function resolveTenantLocale(
   tenantSlug: string | null,
 ): Promise<ResolvedTenantLocale> {
-  if (!tenantSlug) {
+  const slug = normalizeTenantSlug(tenantSlug ?? "");
+
+  if (!slug) {
     return {
       locale: DEFAULT_LOCALE,
       timeZone: DEFAULT_TIME_ZONE,
@@ -82,8 +104,8 @@ export async function resolveTenantLocale(
 
   try {
     const response = await fetch(
-      buildApiUrl(`/tenants/${encodeURIComponent(tenantSlug)}/locale`),
-      { cache: "no-store" },
+      buildApiUrl(`/tenants/${encodeURIComponent(slug)}/locale`),
+      { next: { revalidate: LOCALE_CACHE_SECONDS } },
     );
 
     if (!response.ok) {
@@ -118,4 +140,4 @@ export async function resolveTenantLocale(
       phoneCountry: null,
     };
   }
-}
+});

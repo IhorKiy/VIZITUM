@@ -13,6 +13,18 @@ Deploy these services from the same repository and release SHA.
 | Cleanup worker | Scheduled job / cron worker | `npm ci --include=dev && npm run prisma:generate && npm run build` | —                               | `npm run worker:cleanup:prod` | Non-zero exit alert and `worker_cleanup_completed` log |
 | Purge worker   | Scheduled job / cron worker | `npm ci --include=dev && npm run prisma:generate && npm run build` | —                               | `npm run worker:purge:prod`   | Non-zero exit alert and `worker_purge_completed` log   |
 
+### The web deploy skips builds that cannot change it
+
+`vercel.json` at the repo root sets an `ignoreCommand`, which Vercel runs before every build — **exit 0 skips the build, exit 1 proceeds**, the opposite of the usual convention:
+
+```
+git diff --quiet HEAD^ HEAD -- apps/web package.json package-lock.json vercel.json
+```
+
+`apps/web` is an npm workspace of the root, so a Vercel build installs the whole repository — NestJS, Prisma engines, a native `argon2` compile — before it reaches `next build`. Most commits here never touch the frontend at all (in the month to 2026-08-03, 49 of 192 commits on `main`), and each of those was paying that install to produce a byte-identical deployment. The root manifests are in the path list because a dependency change does affect the web build even when no file under `apps/web` moved.
+
+Two things to know before editing it. The file must live in the Vercel project's **Root Directory** — the repo root here, since the workspace install requires it; if that setting ever moves to `apps/web`, this file moves with it. And on a squash-merge `HEAD^` is the previous `main` commit, which is what makes the comparison meaningful; where `HEAD^` does not resolve, `git diff` errors non-zero and the build proceeds, which is the safe default.
+
 ### `--include=dev` is load-bearing, because `NODE_ENV=production` reaches the build
 
 Every build command above installs dev dependencies explicitly. That is not
