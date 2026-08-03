@@ -6,9 +6,11 @@ import {
   Post,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { AuditService } from "../audit/audit.service";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
@@ -17,6 +19,7 @@ import {
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { RecordDashboardViewDto } from "./pilot-review.dto";
 import {
   MANAGER_DASHBOARD_VIEWED_EVENT_TYPE,
   PilotReviewService,
@@ -24,7 +27,6 @@ import {
 import {
   DASHBOARD_VIEW_PAGES,
   type DashboardViewPage,
-  type RecordDashboardViewRequestBody,
 } from "./pilot-review.types";
 
 @Controller("pilot-review")
@@ -46,9 +48,13 @@ export class PilotReviewController {
     PERMISSIONS.DASHBOARD_MANAGER_READ,
     PERMISSIONS.PILOT_REVIEW_READ,
   )
+  // Next module on the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route only, not a
+  // global ValidationPipe.
+  @UsePipes(createStrictValidationPipe())
   async recordDashboardView(
     @Req() request: Request,
-    @Body() body: RecordDashboardViewRequestBody,
+    @Body() body: RecordDashboardViewDto,
   ): Promise<{ recorded: true }> {
     const context = getRequestContext(request);
     const page = normalizeDashboardViewPage(body.page);

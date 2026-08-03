@@ -59,12 +59,6 @@ export type ListLocationAssortmentResponse = {
   checkedCount: number;
 };
 
-// The manager authors the matrix and nothing else: shelf state (status,
-// lastCheckedAt) is written by visit reports, never through this endpoint.
-export type UpsertLocationAssortmentRequestBody = {
-  shouldBeListed?: unknown;
-};
-
 export type LocationInsightsLocationSummary = {
   locationId: string;
   name: string;
