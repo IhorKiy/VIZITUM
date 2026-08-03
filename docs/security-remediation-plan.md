@@ -1,11 +1,10 @@
 # Security Remediation Plan
 
-Status: waves 1 and 2 implemented · Date: 2026-07-31 · Scope: NestJS API (`src/`) + Next.js web (`apps/web`)
+Status: waves 1, 2 and 3 implemented · Date: 2026-08-03 · Scope: NestJS API (`src/`) + Next.js web (`apps/web`)
 
 ## Implementation status
 
-Waves 1 and 2 are done, plus 3.3 (trust proxy), which 1.1 depends on for
-correct per-IP keying. Each item below is marked; the reference docs
+All three waves are done. Each item below is marked; the reference docs
 ([environment.md](reference/environment.md),
 [api-reference.md](reference/api-reference.md),
 [data-model.md](reference/data-model.md),
@@ -120,12 +119,15 @@ Worth generalizing: the finding is that a check performed once at the session
 boundary is not a check on requests. Anything else resolved only at login has
 the same shape.
 
-Still open from the original review: wave 3 apart from 3.5 and 3.2 (both now
-done — see their own items). Re-auth for destructive tenant operations (part of 1.3) is done. Item 3.7 has moved and should be
-re-read rather than trusted as written — `next` now carries advisories of its
-own beyond the transitive `postcss`/`sharp` ones, with a patched release
-available, and `multer` (via `@nestjs/platform-express`, no multipart endpoint
-in the app) has appeared since.
+Wave 3 was tracked here as a running note while it was still in flight; by the
+time it closed, the note named two things worth recording as history instead.
+The 3.7 warning it carried — that `next` had picked up advisories of its own
+beyond the transitive `postcss`/`sharp` ones, and that `multer` had appeared
+via `@nestjs/platform-express` — was acted on and folded into 3.7's own entry
+below (`next` → 16.2.12, `@nestjs/platform-express` → 11.1.28, and the
+`audit:check` CI gate that now catches the next drift of this kind on its
+own). And 1.3's re-auth for destructive tenant operations, noted here as done,
+is recorded in 1.3's own row and item.
 
 ### Found outside this plan: the `[tenantSlug]` segment was unconstrained
 
@@ -363,8 +365,9 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 - **This item (small, ship now):**
   - Enforce backend length caps inside the existing `normalize*` helpers, mirroring `apps/web/lib/input-limits.ts` (keep the two in sync). The `normalize*` helpers already act as the anti-mass-assignment whitelist, so caps here close the real exposure (oversized rows / storage abuse) without any DTO work.
   - Set an explicit Express JSON body-size limit rather than relying on the accidental ~100 kB default.
-- **Deferred to its own gradual track (or a conscious decision to skip):** the class-validator DTO migration + global `ValidationPipe({ whitelist, forbidNonWhitelisted, transform })`. If pursued, do it module-by-module (add DTO → enable the pipe scoped to that controller), never as one global flip. Record explicitly whether this is being scheduled or intentionally declined.
-- **Files:** the shared `normalize*` helpers, `src/main.ts` (body limit). (DTOs across `src/modules/*` + `package.json` only if/when the deferred track starts.)
+- **Deferred to its own gradual track:** the class-validator DTO migration + global `ValidationPipe({ whitelist, forbidNonWhitelisted, transform })`. Pursued module-by-module (add DTO → enable the pipe scoped to that controller), never as one global flip.
+- **Decision, 2026-08-03: scheduled, not declined.** Starts with `LocationPotentialController` (`PUT /locations/:locationId/potential/:productCategoryId`) rather than `auth` — the smallest controller surface that still has a real length-capped field to migrate, and one where a whitelist/DTO mismatch costs a sales-potential edit rather than every session in the tenant. See [api-reference.md](reference/api-reference.md) for the shipped shape and this item's own PR for the recommended order for the rest of `src/modules/*`.
+- **Files:** the shared `normalize*` helpers, `src/main.ts` (body limit). (DTOs across `src/modules/*` + `package.json` land module-by-module as the deferred track proceeds, per the decision above.)
 - **Verify:** Test that an over-limit field is rejected and an oversized body is refused by the API.
 
 ### 2.5 Session TTL, rotation & idle timeout
@@ -462,8 +465,7 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 8. **PR 8 — Session TTL/rotation** (2.5).
 9. **PR 9 — Low-priority hardening batch** (3.1–3.8, split as convenient).
 
-**Off this sequence (separate gradual tracks, scheduled or explicitly declined):**
-- Class-validator DTO migration + global `ValidationPipe` (deferred half of 2.4) — module-by-module, the largest single effort in the plan.
-- Unauthenticated forgot/reset-password-via-email flow (flow (b) of 2.2).
+**Off this sequence (separate gradual track):**
+- Class-validator DTO migration + global `ValidationPipe` (deferred half of 2.4) — module-by-module, the largest single effort in the plan. See 2.4's own item for the scheduling decision.
 
 Keep `docs/reference/environment.md`, `permissions.md`, and `api-reference.md` updated in the same PRs where env vars, permissions, or endpoints change.
