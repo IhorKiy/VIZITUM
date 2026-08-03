@@ -25,15 +25,6 @@ export type ListLocationPotentialResponse = {
   canManage: boolean;
 };
 
-export type UpsertLocationPotentialRequestBody = {
-  potentialDate?: unknown;
-  potentialAmount?: unknown;
-  planMonth1?: unknown;
-  planMonth2?: unknown;
-  planMonth3?: unknown;
-  comment?: unknown;
-};
-
 export type LocationAssortmentProductSummary = {
   id: string;
   name: string;
