@@ -147,6 +147,16 @@ export class AuthService {
       backoffIdentity,
     );
 
+    // This request already proved the password correct, so a stored hash
+    // whose parameters have drifted from PASSWORD_HASH_OPTIONS (hashed before
+    // the current pin, or before some earlier one) is upgraded here rather
+    // than waiting on a separate migration — folded into the update below
+    // rather than a second write.
+    const rehashedPassword = await this.passwordService.rehashIfNeeded(
+      user.passwordHash,
+      password,
+    );
+
     const { token } = await this.sessionService.createSession({
       tenantId: tenant.id,
       userId: user.id,
@@ -156,7 +166,10 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: {
+        lastLoginAt: new Date(),
+        ...(rehashedPassword ? { passwordHash: rehashedPassword } : {}),
+      },
     });
 
     writeSessionCookie(response, token);

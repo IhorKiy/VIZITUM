@@ -19,6 +19,12 @@ type ProductionRequirement = {
 
 const PRODUCTION_REQUIREMENTS: ProductionRequirement[] = [
   {
+    name: "COOKIE_SECURE",
+    reason:
+      'session and CSRF cookies drive their "Secure" flag from this rather than from NODE_ENV — production once ran with NODE_ENV unset, which sent them without Secure and nothing surfaced it — so an unset or non-"true" value here would repeat exactly that silently',
+    isSatisfied: (env) => env.COOKIE_SECURE?.trim() === "true",
+  },
+  {
     name: "TURNSTILE_SECRET_KEY",
     reason:
       "captcha verification is skipped entirely when unset, leaving the login routes with no bot control",

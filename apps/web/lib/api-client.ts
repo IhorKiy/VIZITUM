@@ -2306,21 +2306,45 @@ async function apiDelete<TData>(path: string): Promise<ApiResult<TData>> {
   };
 }
 
+// Mirrors src/common/cookie-naming.ts's resolveCookieName — duplicated
+// rather than imported because this workspace can't reach across into the
+// root one. Both sides must apply the same rule: production hardcodes the
+// __Host- prefixed name (which requires Secure, and local HTTP dev can't set
+// it), and only SESSION_COOKIE_NAME takes a dev-only override, matching
+// auth.constants.ts's own comment on why the CSRF cookies don't get one.
+function resolveCookieName(baseName: string, devOverride?: string): string {
+  if (process.env.NODE_ENV === "production") {
+    return `__Host-${baseName}`;
+  }
+
+  return devOverride?.trim() || baseName;
+}
+
 // Platform and tenant auth each have their own CSRF cookie (the backend
 // namespaces them the same way, see src/modules/auth/csrf.ts) so that
 // authenticating into one domain can't invalidate the other's still-valid
 // session. Pick the cookie that matches which domain `path` targets.
-export const TENANT_CSRF_COOKIE_NAME = "vizitum_csrf";
-export const PLATFORM_CSRF_COOKIE_NAME = "vizitum_platform_csrf";
+export const TENANT_CSRF_COOKIE_NAME = resolveCookieName("vizitum_csrf");
+export const PLATFORM_CSRF_COOKIE_NAME = resolveCookieName(
+  "vizitum_platform_csrf",
+);
 // Mirrors SESSION_COOKIE_NAME in src/modules/auth/auth.constants.ts, exported
 // for the same reason as its platform twin below: signing out must clear the
-// cookie itself, not just trust the API's response to have done it.
-export const TENANT_SESSION_COOKIE_NAME = "vizitum_session";
+// cookie itself, not just trust the API's response to have done it. Reads
+// its own SESSION_COOKIE_NAME (this workspace's env, not the API's process)
+// so a worktree slot's override reaches both sides — see CLAUDE.md →
+// worktree slots.
+export const TENANT_SESSION_COOKIE_NAME = resolveCookieName(
+  "vizitum_session",
+  process.env.SESSION_COOKIE_NAME,
+);
 // Exported alongside the CSRF cookie name so callers that must clear the
 // platform session directly (logout — which can't trust a CSRF-rejected or
 // network-failed response to have cleared anything) don't have to duplicate
 // this literal from src/modules/platform/platform-auth.constants.ts.
-export const PLATFORM_SESSION_COOKIE_NAME = "vizitum_platform_session";
+export const PLATFORM_SESSION_COOKIE_NAME = resolveCookieName(
+  "vizitum_platform_session",
+);
 
 function isPlatformApiPath(path: string): boolean {
   return path === "/platform" || path.startsWith("/platform/");

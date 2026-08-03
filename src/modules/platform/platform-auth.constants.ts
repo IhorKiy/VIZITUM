@@ -1,5 +1,14 @@
-export const PLATFORM_SESSION_COOKIE_NAME = "vizitum_platform_session";
-export const PLATFORM_CSRF_COOKIE_NAME = "vizitum_platform_csrf";
+import { resolveCookieName } from "../../common/cookie-naming";
+
+// Neither cookie takes a dev-only override: unlike the tenant session
+// cookie, no worktree slot varies these per port today. Both still get the
+// __Host- prefix in production, same as the tenant pair.
+export const PLATFORM_SESSION_COOKIE_NAME = resolveCookieName(
+  "vizitum_platform_session",
+);
+export const PLATFORM_CSRF_COOKIE_NAME = resolveCookieName(
+  "vizitum_platform_csrf",
+);
 
 // Hours, not the 30 days the platform session used to inherit from the tenant
 // constants. One account reaches every tenant's data, and nothing about the

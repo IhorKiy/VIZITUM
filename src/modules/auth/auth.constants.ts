@@ -1,5 +1,16 @@
-export const SESSION_COOKIE_NAME = "vizitum_session";
-export const CSRF_COOKIE_NAME = "vizitum_csrf";
+import { resolveCookieName } from "../../common/cookie-naming";
+
+// SESSION_COOKIE_NAME takes a dev-only override (SESSION_COOKIE_NAME in
+// .env) so parallel worktree dev sessions on different ports don't clobber
+// each other's cookie — browsers share cookies across localhost ports
+// regardless of which one set them (see CLAUDE.md → worktree slots). CSRF's
+// cookie isn't given the same override: worktree slots don't set one for it
+// today, so it keeps its plain name outside production.
+export const SESSION_COOKIE_NAME = resolveCookieName(
+  "vizitum_session",
+  process.env.SESSION_COOKIE_NAME,
+);
+export const CSRF_COOKIE_NAME = resolveCookieName("vizitum_csrf");
 export const CSRF_HEADER_NAME = "x-csrf-token";
 
 // Absolute lifetime of a tenant session. Was 30 days, which meant a stolen
@@ -41,16 +52,32 @@ export const PASSWORD_RESET_MAX_ACTIVE_TOKENS = 3;
 export const PASSWORD_RESET_IP_LIMIT = 10;
 export const PASSWORD_RESET_IP_WINDOW_MS = 15 * 60 * 1000;
 
+// Explicit rather than inferred from NODE_ENV: production had at one point
+// run with NODE_ENV unset, which silently sent the session cookie without
+// Secure and nothing surfaced it. COOKIE_SECURE is required in production
+// (security-config.ts) so that particular misconfiguration fails startup
+// instead of failing silently in the field.
+//
+// Trimmed to match the boot gate's own check (security-config.ts) exactly —
+// a value like " true " (trailing whitespace from a dashboard field) must
+// either satisfy both or neither. It used to satisfy only the gate: the
+// gate's `.trim()` let a padded value boot, while this comparison's lack of
+// one then read it as `false`, so production could start up with cookies
+// silently missing Secure, followed by a browser refusing the `__Host-`
+// prefixed Set-Cookie outright and no one able to sign in — quieter than
+// the original NODE_ENV bug, not louder.
+const COOKIE_SECURE = process.env.COOKIE_SECURE?.trim() === "true";
+
 export const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  secure: COOKIE_SECURE,
   path: "/",
 };
 
 export const CSRF_COOKIE_OPTIONS = {
   httpOnly: false,
   sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  secure: COOKIE_SECURE,
   path: "/",
 };

@@ -80,7 +80,8 @@ Configure these variables for API and worker services unless marked otherwise.
 | `DATABASE_URL`                     | yes      | yes    | no       | Managed PostgreSQL connection string                                            |
 | `REDIS_URL`                        | yes      | yes    | no       | Required when queue workers are enabled                                         |
 | `SESSION_SECRET`                   | yes      | no     | no       | Must be long and random                                                         |
-| `SESSION_COOKIE_NAME`              | yes      | no     | no       | Defaults can match `.env.example`                                               |
+| `COOKIE_SECURE`                    | yes      | no     | no       | Must be the literal `true`; the service refuses to start in production without it |
+| `SESSION_COOKIE_NAME`              | no       | no     | no       | Dev-only override for worktree slots. Production always uses the hardcoded `__Host-vizitum_session` name regardless of this variable |
 | `OPENAI_API_KEY`                   | yes      | yes    | no       | Required for AI jobs                                                            |
 | `S3_ENDPOINT`                      | yes      | yes    | no       | R2/S3-compatible endpoint                                                       |
 | `S3_REGION`                        | yes      | yes    | no       | Use `auto` for Cloudflare R2                                                    |
