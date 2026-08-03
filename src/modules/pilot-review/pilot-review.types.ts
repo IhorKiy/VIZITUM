@@ -23,7 +23,3 @@ export type PilotReviewSummaryResponse = {
 export const DASHBOARD_VIEW_PAGES = ["manager", "admin_review"] as const;
 
 export type DashboardViewPage = (typeof DASHBOARD_VIEW_PAGES)[number];
-
-export type RecordDashboardViewRequestBody = {
-  page?: unknown;
-};

@@ -16,10 +16,10 @@ import {
   computeCoveragePct,
   normalizeOptionalBoolean,
 } from "./location-insights-parsing";
+import type { UpsertLocationAssortmentDto } from "./location-assortment.dto";
 import type {
   ListLocationAssortmentResponse,
   LocationAssortmentResponse,
-  UpsertLocationAssortmentRequestBody,
 } from "./location-insights.types";
 
 type LocationAssortmentRow = {
@@ -100,7 +100,7 @@ export class LocationAssortmentService {
     context: RequestContext,
     locationId: string,
     productId: string,
-    body: UpsertLocationAssortmentRequestBody,
+    body: UpsertLocationAssortmentDto,
   ): Promise<LocationAssortmentResponse> {
     await findTenantLocationOrThrow(this.prisma, context.tenantId, locationId);
     assertCanManageAssortment(context);
@@ -187,7 +187,7 @@ export class LocationAssortmentService {
 }
 
 function parseUpsertAssortmentBody(
-  body: UpsertLocationAssortmentRequestBody,
+  body: UpsertLocationAssortmentDto,
 ): LocationAssortmentData {
   return {
     shouldBeListed: normalizeOptionalBoolean(
