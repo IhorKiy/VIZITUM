@@ -20,6 +20,17 @@ export type AuthSession = {
   productsEnabled: boolean;
   locationCategoriesEnabled: boolean;
   tenantTimezone: string;
+  // The workspace this session belongs to, which is not necessarily the one
+  // whose slug is in the URL: the session cookie carries the tenant and no
+  // request header names one, so `/other-co/field` read with a session for
+  // `acme` is answered with acme's data. Anything that acts on a session
+  // rather than merely rendering it has to check this first — see
+  // lib/login-redirect.ts.
+  //
+  // Optional for the same reason `period`/`statusTotals` below are: during a
+  // deploy this frontend talks to the previous API for a minute or two, and
+  // absent must mean "don't act", not "matches".
+  tenantSlug?: string | null;
   // Tenant is still on the pilot plan (status "pilot"); gates the temporary
   // "Pilot" admin nav area.
   pilotActive: boolean;
