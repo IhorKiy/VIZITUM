@@ -8,18 +8,17 @@ import {
   Post,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { UpsertProductCategoryDto } from "./product-categories.dto";
 import { ProductCategoriesService } from "./product-categories.service";
-import type {
-  CreateProductCategoryRequestBody,
-  UpdateProductCategoryRequestBody,
-} from "./products.types";
 
 @Controller("product-categories")
 @UseGuards(PermissionGuard)
@@ -38,9 +37,12 @@ export class ProductCategoriesController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.PRODUCTS_MANAGE)
+  // Flat-CRUD tier of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
   createCategory(
     @Req() request: Request,
-    @Body() body: CreateProductCategoryRequestBody,
+    @Body() body: UpsertProductCategoryDto,
   ) {
     return this.productCategoriesService.createCategory(
       getRequestContext(request),
@@ -50,10 +52,11 @@ export class ProductCategoriesController {
 
   @Patch(":categoryId")
   @RequirePermissions(PERMISSIONS.PRODUCTS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   updateCategory(
     @Req() request: Request,
     @Param("categoryId") categoryId: string,
-    @Body() body: UpdateProductCategoryRequestBody,
+    @Body() body: UpsertProductCategoryDto,
   ) {
     return this.productCategoriesService.updateCategory(
       getRequestContext(request),

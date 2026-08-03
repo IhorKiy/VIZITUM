@@ -36,6 +36,26 @@ Paginated list responses share one shape: `{ items, page, pageSize, total, total
 
 Legend: **all** = `@RequirePermissions` (every permission required); **any** = `@RequireAnyPermissions` (one is enough). Public = no guard.
 
+### Routes on the class-validator DTO track
+
+Item 2.4 in `docs/security-remediation-plan.md` deferred a global `ValidationPipe` and migrates modules one at a time instead, so at any moment some write routes have a DTO in front of them and most still type `@Body()` against a plain interface. There is **no global pipe**: every gated route carries its own `@UsePipes(createStrictValidationPipe())` (`src/common/strict-validation-pipe.ts` — `whitelist: true, forbidNonWhitelisted: true, transform: true`). Gated so far:
+
+| Routes | DTO |
+| ------ | --- |
+| `PUT /locations/:locationId/potential/:productCategoryId` | `UpsertLocationPotentialDto` |
+| `PUT /locations/:locationId/assortment/:productId` | `UpsertLocationAssortmentDto` |
+| `POST /pilot-review/dashboard-views` | `RecordDashboardViewDto` |
+| `POST` and `PATCH` on `/chains` | `CreateChainDto` / `UpdateChainDto` |
+| `POST` and `PATCH` on `/location-categories` | `UpsertLocationCategoryDto` |
+| `POST` and `PATCH` on `/product-categories` | `UpsertProductCategoryDto` |
+| `POST` and `PATCH` on `/products` | `CreateProductDto` / `UpdateProductDto` |
+| `POST` and `PATCH` on `/announcements` | `UpsertAnnouncementDto` |
+| `POST` and `PATCH` on `/tasks` | `CreateTaskDto` / `UpdateTaskDto` |
+
+What a gated route does differently, uniformly: a property the DTO does not declare is refused with 400 `VALIDATION_FAILED` and a `fieldErrors` entry naming it, before the handler runs. Beyond that the DTO is a **coarser gate in front of the service, not a replacement** — the module's own `normalize*`/`parse*` helpers still run unchanged afterward and remain the source of truth for required-ness, trimming, uniqueness and calendar validity, so their existing error codes (`CHAIN_INVALID`, `TASK_INVALID`, `ANNOUNCEMENT_INVALID`, …) are unchanged. Each section below notes what its own DTO adds; the sections for ungated routes describe the service's validation alone.
+
+Two shapes of change are shared by the flat-CRUD group (chains, both category vocabularies, products, announcements, tasks) and worth stating once. **Caps moved earlier:** where a normalizer folded an over-length value into the same answer as a missing one, the DTO now reports it as over-length. **Silently-ignored values became refusals:** an enum-ish field outside the set the service recognises used to be mapped to null and dropped (or, for `PATCH /tasks`, to `in_progress` — a typo'd status reopened a finished task), all under a 200; those are now 400 `VALIDATION_FAILED`. Non-boolean values for `isPriority`/`notApplicable` are the same story.
+
 ### Auth — `/auth` (public, `auth.controller.ts`)
 
 | Method & path               | Body                                             | Returns                                                                                                            |
@@ -145,6 +165,8 @@ The platform owner manages only the tenant's superadmin now — Company Admin in
 
 A task starts `in_progress` (the default on create) and the only status transition is to `done` — there is no `open` or `cancelled` anymore. Priority is a plain boolean flag (`isPriority`), not a graded scale. Every response below includes `history: TaskStatusHistoryEntry[]` (`{ id, changedByUserId, changedBy, oldStatus, newStatus, createdAt }`, oldest first) — one row from task creation (`oldStatus: null`) plus one per status change, each written in the same transaction as the write it records (see [data-model.md](data-model.md)'s `TaskStatusHistory`). Tasks that predate this table simply return an empty `history` array.
 
+`POST /tasks` and `PATCH /tasks/:taskId` are on the [class-validator DTO track](#routes-on-the-class-validator-dto-track). The DTO caps `title` at 200 and `description` at 2000, requires `isPriority` to be a real boolean, and refuses a `status` outside `in_progress`/`done` — the sharpest of the tier's tightenings, since `parseUpdateTaskBody` read an unrecognised status as `in_progress`, so a typo reopened a finished task under a 200. `dueDate` still accepts `""` alongside a `YYYY-MM-DD` day, which is how the field app clears a deadline. The four id fields carry no length cap on purpose: every other cap here mirrors one the service already enforces, and there is no cap on an id anywhere — they are looked up against the tenant's own rows immediately after, which is the check that matters. The own-scope `assignedToUserId` rules below are unchanged and stay in the service.
+
 | Method & path          | Permissions                                  | Body / query                                                                                                                     | Returns                                                                    |
 | ---------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `GET /tasks`           | any: `tasks.read_own`, `tasks.read_team`     | query: `page, pageSize, assignedToUserId, status (in_progress\|done), isPriority (true\|false), locationId, visitId, routePlanId, dueFrom, dueTo, completedFrom, completedTo`. `completedFrom`/`completedTo` are calendar days bounding when a task was **finished**; the window is trimmed to at most 12 months measured back from its own upper bound (see `TASK_COMPLETED_PERIOD_MAX_MONTHS`) — clamped, never rejected — and a backwards range is read as the range it meant rather than answered with an empty set, re-deriving the day boundaries as it swaps the ends. Unlike `GET /visits`, a task query with no window stays unbounded: an open task belongs to no moment, so a floor would hide exactly the stale work a list exists to surface. On a `status=done` list the window cuts the list itself; on a mixed list it cuts only the finished half (`completedAt IS NULL OR completedAt IN range`), so open work rides through. Ordering follows the list: `status=done` reads newest-completion-first (`completedAt desc`), every other list by deadline (`dueDate asc`). | paginated `Task` (includes `assignedTo`, `createdBy`, `location` summaries and `history`). A windowed request also returns `completedPeriod` (the window as actually read, after trimming). `completedHistoryStart` — when the earliest task in this exact scope was finished, unbounded in time, `null` for a scope that has finished nothing — is returned only for a **windowed `status=done`** request: it exists to stop the walk back through windows, and only a done-only list can reach an end (a mixed list always has its open half in view). Both fields are **absent** otherwise, which is a third answer from `null` and must not be read as one. |
@@ -155,6 +177,8 @@ A task starts `in_progress` (the default on create) and the only status transiti
 ### Announcements — `/announcements` (`announcements.controller.ts`)
 
 The tenant notice board: a manager publishes something that holds for a period, every field representative sees it while it is in force, and acknowledging it leaves a receipt. `state` is **derived** on every read from the inclusive, date-only window against today in the tenant's timezone plus `archivedAt` (`scheduled` / `active` / `finished` / `archived`) — it is never sent on a write and nothing has to run for an announcement to start or expire. `startsAt`/`endsAt` are `YYYY-MM-DD` and both included; an `endsAt` before `startsAt` 400s (`ANNOUNCEMENT_INVALID`). `title` is capped at 200 characters and `body` at 2000, mirroring `INPUT_LIMITS` in the web app. There is no delete: withdrawing sets `archivedAt`, which keeps the read record intact. Both write paths that change a published announcement — editing and withdrawing — are audited, so a live notice can't be reworded without a trail.
+
+`POST /announcements` and `PATCH /announcements/:announcementId` are on the [class-validator DTO track](#routes-on-the-class-validator-dto-track), through one `UpsertAnnouncementDto` marking all four fields optional — create requires all four and patch none, and that difference stays in the service. The DTO enforces the 200/2000 caps (imported from `announcements.types.ts`, the same constants the service reads) and the `YYYY-MM-DD` shape of both window ends; calendar validity and the `startsAt <= endsAt` ordering stay in the service, which is where the current row is available to compare a patch against. `POST /:announcementId/archive` and `/read` have no body and are outside the track.
 
 | Method & path | Permissions | Body / query | Returns |
 | --- | --- | --- | --- |
@@ -210,6 +234,8 @@ Both sub-resources 404 `LOCATION_NOT_FOUND` for a wrong-tenant, nonexistent **or
 
 Retail chains/networks a location can belong to. Reuses the locations permissions (`locations.read`/`locations.manage`) — chains are part of the location domain, so no dedicated permission or role change is required.
 
+Both write routes are on the [class-validator DTO track](#routes-on-the-class-validator-dto-track). The DTO caps `name`/`externalCode`/`notes` at 120/64/2000 (the `name`/`code`/`notes` keys of `TEXT_LIMITS`) ahead of the service's own `assertTextWithinLimit`, and refuses a `status` outside `active`/`archived` — previously mapped to null and dropped, so a typo returned 200 having changed nothing.
+
 | Method & path            | Permissions             | Body / query                                                                    |
 | ------------------------ | ----------------------- | ------------------------------------------------------------------------------- |
 | `GET /chains`            | all: `locations.read`   | query: `page, pageSize, status (active\|archived), search`                      |
@@ -221,6 +247,8 @@ Retail chains/networks a location can belong to. Reuses the locations permission
 
 Strict, admin-managed vocabulary of category labels per tenant (unlike `ProductCategory`, `Location.categoryId` is a real FK — locations can only reference a category that exists in the tenant's dictionary). Reuses the locations permissions (`locations.read`/`locations.manage`), same as Chains. A per-tenant `location_categories_enabled` setting (see Admin settings below) controls only whether the category UI/field is shown — the API keeps working and data is preserved regardless.
 
+Both write routes are on the [class-validator DTO track](#routes-on-the-class-validator-dto-track), through one `UpsertLocationCategoryDto` covering create and rename alike. Its only effect beyond the whitelist is the 120-character cap on `name`: `normalizeCategoryName` folds an over-length name into the same null as a missing one, so an over-long name used to come back as "Name is required." Uniqueness and the required-ness itself are unchanged (`LOCATION_CATEGORY_INVALID` / 409 `LOCATION_CATEGORY_EXISTS`).
+
 | Method & path                             | Permissions             | Body / query        |
 | ------------------------------------------ | ----------------------- | -------------------- |
 | `GET /location-categories`                | all: `locations.read`   | — (all, name asc)   |
@@ -229,6 +257,8 @@ Strict, admin-managed vocabulary of category labels per tenant (unlike `ProductC
 | `DELETE /location-categories/:categoryId` | all: `locations.manage` | — → `{ deleted: true }`; 409 `LOCATION_CATEGORY_IN_USE` (with `details.locationCount`) if any location still references it, including archived ones |
 
 ### Products — `/products` (`products.controller.ts`)
+
+Both write routes are on the [class-validator DTO track](#routes-on-the-class-validator-dto-track). The DTO caps `name`/`category` at 120 and `externalCode`/`sku` at 64, requires `notApplicable` to actually be a boolean (`normalizeBoolean` used to fold anything else into `false`, so a string `"true"` set the opposite under a 200), and refuses a `status` outside `active`/`inactive`/`archived`. `externalCode` is declared even though the admin UI never posts it — imports write that column, and a whitelist mirroring one client would have refused a documented field.
 
 | Method & path                | Permissions            | Body / query                                                                   |
 | ---------------------------- | ---------------------- | ------------------------------------------------------------------------------ |
@@ -243,6 +273,8 @@ Strict, admin-managed vocabulary of category labels per tenant (unlike `ProductC
 ### Product categories — `/product-categories` (`product-categories.controller.ts`)
 
 Managed vocabulary of category labels per tenant, used by the admin Products screen to tag products. `Product.category` stays a free-text string; these rows are the curated list surfaced in the "Add product" and "Manage categories" modals. Delete is a hard delete (no FK from products, so existing products keep their category string).
+
+Both write routes are on the [class-validator DTO track](#routes-on-the-class-validator-dto-track), through `UpsertProductCategoryDto` — the twin of the location-categories one above, with the same single 120-character `name` field and the same over-length-vs-missing correction.
 
 | Method & path                          | Permissions            | Body / query        |
 | -------------------------------------- | ---------------------- | ------------------- |

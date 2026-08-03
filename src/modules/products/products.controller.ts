@@ -9,19 +9,18 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { ProductStatus } from "@prisma/client";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { CreateProductDto, UpdateProductDto } from "./products.dto";
 import { ProductsService } from "./products.service";
-import type {
-  CreateProductRequestBody,
-  UpdateProductRequestBody,
-} from "./products.types";
 
 @Controller("products")
 @UseGuards(PermissionGuard)
@@ -54,19 +53,20 @@ export class ProductsController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.PRODUCTS_MANAGE)
-  createProduct(
-    @Req() request: Request,
-    @Body() body: CreateProductRequestBody,
-  ) {
+  // Flat-CRUD tier of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
+  createProduct(@Req() request: Request, @Body() body: CreateProductDto) {
     return this.productsService.createProduct(getRequestContext(request), body);
   }
 
   @Patch(":productId")
   @RequirePermissions(PERMISSIONS.PRODUCTS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   updateProduct(
     @Req() request: Request,
     @Param("productId") productId: string,
-    @Body() body: UpdateProductRequestBody,
+    @Body() body: UpdateProductDto,
   ) {
     return this.productsService.updateProduct(
       getRequestContext(request),
