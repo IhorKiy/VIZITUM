@@ -9,10 +9,12 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { TaskStatus } from "@prisma/client";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
   RequireAnyPermissions,
@@ -20,11 +22,8 @@ import {
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { CreateTaskDto, UpdateTaskDto } from "./tasks.dto";
 import { TasksService } from "./tasks.service";
-import type {
-  CreateTaskRequestBody,
-  UpdateTaskRequestBody,
-} from "./tasks.types";
 
 @Controller("tasks")
 @UseGuards(PermissionGuard)
@@ -55,7 +54,10 @@ export class TasksController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.TASKS_CREATE)
-  createTask(@Req() request: Request, @Body() body: CreateTaskRequestBody) {
+  // Flat-CRUD tier of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
+  createTask(@Req() request: Request, @Body() body: CreateTaskDto) {
     return this.tasksService.createTask(getRequestContext(request), body);
   }
 
@@ -64,10 +66,11 @@ export class TasksController {
     PERMISSIONS.TASKS_UPDATE_OWN,
     PERMISSIONS.TASKS_UPDATE_TEAM,
   )
+  @UsePipes(createStrictValidationPipe())
   updateTask(
     @Req() request: Request,
     @Param("taskId") taskId: string,
-    @Body() body: UpdateTaskRequestBody,
+    @Body() body: UpdateTaskDto,
   ) {
     return this.tasksService.updateTask(
       getRequestContext(request),

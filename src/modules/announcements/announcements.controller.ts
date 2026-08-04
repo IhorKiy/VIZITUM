@@ -8,19 +8,18 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { UpsertAnnouncementDto } from "./announcements.dto";
 import { AnnouncementsService } from "./announcements.service";
-import type {
-  AnnouncementState,
-  CreateAnnouncementRequestBody,
-  UpdateAnnouncementRequestBody,
-} from "./announcements.types";
+import type { AnnouncementState } from "./announcements.types";
 
 @Controller("announcements")
 @UseGuards(PermissionGuard)
@@ -56,9 +55,12 @@ export class AnnouncementsController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.ANNOUNCEMENTS_MANAGE)
+  // Flat-CRUD tier of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
   createAnnouncement(
     @Req() request: Request,
-    @Body() body: CreateAnnouncementRequestBody,
+    @Body() body: UpsertAnnouncementDto,
   ) {
     return this.announcementsService.createAnnouncement(
       getRequestContext(request),
@@ -68,10 +70,11 @@ export class AnnouncementsController {
 
   @Patch(":announcementId")
   @RequirePermissions(PERMISSIONS.ANNOUNCEMENTS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   updateAnnouncement(
     @Req() request: Request,
     @Param("announcementId") announcementId: string,
-    @Body() body: UpdateAnnouncementRequestBody,
+    @Body() body: UpsertAnnouncementDto,
   ) {
     return this.announcementsService.updateAnnouncement(
       getRequestContext(request),

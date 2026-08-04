@@ -8,18 +8,17 @@ import {
   Post,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { UpsertLocationCategoryDto } from "./location-categories.dto";
 import { LocationCategoriesService } from "./location-categories.service";
-import type {
-  CreateLocationCategoryRequestBody,
-  UpdateLocationCategoryRequestBody,
-} from "./locations.types";
 
 @Controller("location-categories")
 @UseGuards(PermissionGuard)
@@ -38,9 +37,12 @@ export class LocationCategoriesController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.LOCATIONS_MANAGE)
+  // Flat-CRUD tier of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
   createCategory(
     @Req() request: Request,
-    @Body() body: CreateLocationCategoryRequestBody,
+    @Body() body: UpsertLocationCategoryDto,
   ) {
     return this.locationCategoriesService.createCategory(
       getRequestContext(request),
@@ -50,10 +52,11 @@ export class LocationCategoriesController {
 
   @Patch(":categoryId")
   @RequirePermissions(PERMISSIONS.LOCATIONS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   updateCategory(
     @Req() request: Request,
     @Param("categoryId") categoryId: string,
-    @Body() body: UpdateLocationCategoryRequestBody,
+    @Body() body: UpsertLocationCategoryDto,
   ) {
     return this.locationCategoriesService.updateCategory(
       getRequestContext(request),

@@ -8,19 +8,18 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { ChainStatus } from "@prisma/client";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { CreateChainDto, UpdateChainDto } from "./chains.dto";
 import { ChainsService } from "./chains.service";
-import type {
-  CreateChainRequestBody,
-  UpdateChainRequestBody,
-} from "./chains.types";
 
 @Controller("chains")
 @UseGuards(PermissionGuard)
@@ -46,16 +45,20 @@ export class ChainsController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.LOCATIONS_MANAGE)
-  createChain(@Req() request: Request, @Body() body: CreateChainRequestBody) {
+  // Flat-CRUD tier of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
+  createChain(@Req() request: Request, @Body() body: CreateChainDto) {
     return this.chainsService.createChain(getRequestContext(request), body);
   }
 
   @Patch(":chainId")
   @RequirePermissions(PERMISSIONS.LOCATIONS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   updateChain(
     @Req() request: Request,
     @Param("chainId") chainId: string,
-    @Body() body: UpdateChainRequestBody,
+    @Body() body: UpdateChainDto,
   ) {
     return this.chainsService.updateChain(
       getRequestContext(request),

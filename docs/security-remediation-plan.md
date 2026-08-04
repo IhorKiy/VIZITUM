@@ -1,10 +1,13 @@
 # Security Remediation Plan
 
-Status: waves 1, 2 and 3 implemented · Date: 2026-08-03 · Scope: NestJS API (`src/`) + Next.js web (`apps/web`)
+Status: waves 1, 2 and 3 implemented; 2.4's deferred DTO migration in progress · Date: 2026-08-03 · Scope: NestJS API (`src/`) + Next.js web (`apps/web`)
 
 ## Implementation status
 
-All three waves are done. Each item below is marked; the reference docs
+All three waves are done. The one thing still open is the class-validator DTO
+migration deliberately deferred out of 2.4 — a refactor rather than a security
+fix, tracked as its own row at the foot of the table. Each item below is
+marked; the reference docs
 ([environment.md](reference/environment.md),
 [api-reference.md](reference/api-reference.md),
 [data-model.md](reference/data-model.md),
@@ -21,15 +24,18 @@ as the record of what was found and why each fix took the shape it did.
 | 2.1 Security response headers | Done — verified live, including Turnstile under the CSP |
 | 2.2 Password change + invite overwrite | Done, but **not by this branch**: PR #168 landed both halves — the authenticated change *and* the forgot-password flow the plan deferred — while this was open, so this branch dropped its duplicate change-password and kept only the invite-overwrite fix |
 | 2.3 CSRF path normalization | Done, including the Express routing flags (applied before the router is built) |
-| 2.4 Backend length caps + body limit | Done. The class-validator DTO migration remains deferred |
+| 2.4 Backend length caps + body limit | Done. The class-validator DTO migration is deferred to its own track — last row of this table |
 | 2.5 Session TTL, rotation and idle timeout | Done |
 | 2.6 Raw invite tokens | Done |
 | 3.1 Equalize login timing | Done — a dummy argon2 verify runs on the not-found/inactive path on both domains; see the item below |
 | 3.2 Upload size | Done — the read side enforces the cap against the length the store reports, and the PUT itself now signs `Content-Length`. See the item below |
+| 3.3 `trust proxy` | Done — `src/main.ts` sets it to the hop count read from `TRUST_PROXY_HOPS`, and the forwarded address comes from `CLIENT_IP_HEADER` rather than the raw chain. Both the `TRUST_PROXY_HOPS` deviation and the first follow-up below are about this item |
 | 3.4 `__Host-` cookie prefix + `COOKIE_SECURE` | Done — see the item below |
 | 3.5 Auth audit events | Done — login success/failure and logout on both domains, with the failure reason; see the item below |
 | 3.6 Pin argon2 params + rehash-on-login | Done — see the item below |
+| 3.7 Dependency advisories | Done — `next` → 16.3.0, `@nestjs/platform-express` → 11.1.28, and `npm run audit:check` gates CI on advisory id. As of 2026-08-04 nothing high or critical is open and the accepted list is empty. Re-read the item below rather than trusting this cell: the recorded verdict has been overtaken twice, once by advisories getting worse and once by them being fixed upstream |
 | 3.8 Miscellaneous | Done — see the item below |
+| 2.4 deferred half — class-validator DTO migration | **In progress**, and the only item here that is not done. 9 of the 22 controllers taking a `@Body()` have migrated: `location-potential` (#204), `location-assortment` and `pilot-review` (#206), and the flat-CRUD tier — `chains`, `location-categories`, `product-categories`, `products`, `announcements`, `tasks`. Off the sequencing below on purpose, module-by-module; 2.4 carries the order for the rest |
 
 Two deviations worth knowing about, both deliberate:
 
@@ -366,7 +372,14 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
   - Enforce backend length caps inside the existing `normalize*` helpers, mirroring `apps/web/lib/input-limits.ts` (keep the two in sync). The `normalize*` helpers already act as the anti-mass-assignment whitelist, so caps here close the real exposure (oversized rows / storage abuse) without any DTO work.
   - Set an explicit Express JSON body-size limit rather than relying on the accidental ~100 kB default.
 - **Deferred to its own gradual track:** the class-validator DTO migration + global `ValidationPipe({ whitelist, forbidNonWhitelisted, transform })`. Pursued module-by-module (add DTO → enable the pipe scoped to that controller), never as one global flip.
-- **Decision, 2026-08-03: scheduled, not declined.** Starts with `LocationPotentialController` (`PUT /locations/:locationId/potential/:productCategoryId`) rather than `auth` — the smallest controller surface that still has a real length-capped field to migrate, and one where a whitelist/DTO mismatch costs a sales-potential edit rather than every session in the tenant. See [api-reference.md](reference/api-reference.md) for the shipped shape and this item's own PR for the recommended order for the rest of `src/modules/*`.
+- **Decision, 2026-08-03: scheduled, not declined.** Starts with `LocationPotentialController` (`PUT /locations/:locationId/potential/:productCategoryId`) rather than `auth` — the smallest controller surface that still has a real length-capped field to migrate, and one where a whitelist/DTO mismatch costs a sales-potential edit rather than every session in the tenant. See [api-reference.md](reference/api-reference.md) for the shipped shape.
+- **Order for the rest of `src/modules/*`, by ascending blast radius.** Ported here from #204 so it is not read out of a merged PR description. The tiers are the point; the sequence within a tier is not. All 22 controllers taking a `@Body()` appear exactly once.
+  1. **Single `@Body()` route, no session surface — done.** `location-potential` (#204), `location-assortment` and `pilot-review` (#206). One route each and nothing auth-critical: enough to prove `createStrictValidationPipe()` generalizes before anything expensive depends on it.
+  2. **Flat CRUD — done except `locations`:** `chains`, `location-categories`, `product-categories`, `products`, `announcements`, `tasks` shipped together; `locations` (six `@Body()` routes against these twelve, and the module the two category vocabularies and chains all hang off) is held back for its own change. More fields per DTO, still no nesting and no auth surface. Two things this tier taught, both now in [api-reference.md](reference/api-reference.md): a cap declared on the DTO reports an over-length value *as* over-length, where several normalizers folded it into the same answer as a missing one; and an enum-ish field the service did not recognise was being coerced rather than refused — worst on `PATCH /tasks`, where an unrecognised status was read as `in_progress`, so a typo reopened a finished task under a 200. Those are silent wrong writes, which is the class of defect this track is worth doing for, quite apart from mass assignment.
+  3. **Nested or opaque bodies:** `routes`, `route-templates`, then `visits`. The first to need `@ValidateNested`/`@Type`, since route items arrive as arrays. `visits` goes last of the three and is the hardest thing in this track: eleven `@Body()` routes, the field app's entire reporting path (a false rejection is a rep who cannot file a visit), and `confirmedData` — the structured report whose shape is the AI extraction schema rather than a field list, so a whitelist cannot reach inside it without duplicating that schema. Its two upload-registration routes also carry the `sizeBytes` that 3.2 made *mandatory*: a DTO that fails to declare it makes the presigned PUT unsignable.
+  4. **Administrative surfaces:** `admin-settings`, `admin-users`, `storage`, `platform`, `platform-tenant-superadmin`. A mismatch costs an admin action rather than a tenant's sessions.
+  5. **`imports`**, deliberately late: `csvText` is a large, intentionally loose body (bounded only by the JSON body limit), and `templateType`/`fileName` are the only fields that fit a DTO cleanly. Worth its own short design note on what "whitelisted" even means for a body that is mostly a text blob — the same question `visits`'s `confirmedData` raises.
+  6. **`auth`, `password`, `platform-auth` last**, once the pattern has held up everywhere else. These are the ones this repo can least afford a false rejection on: a whitelist mismatch on `/auth/login`, `/auth/password/*` or the platform login's TOTP step is a lockout, not a bug report.
 - **Files:** the shared `normalize*` helpers, `src/main.ts` (body limit). (DTOs across `src/modules/*` + `package.json` land module-by-module as the deferred track proceeds, per the decision above.)
 - **Verify:** Test that an over-limit field is rejected and an oversized body is refused by the API.
 
@@ -405,9 +418,10 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 - **Verified the field app's retry path needed no change.** `apps/web`'s resend/retry flow (`createStorageObjectUploadUrl` → `POST /storage/objects/:id/upload-url`) re-signs the PUT for an *already-registered* object rather than registering again, reusing the `sizeBytes` stored at the original registration — and the retry always re-sends the same captured `Blob`/`File` (`field-visit-report-form.tsx` keeps it in `pendingAudio`/equivalent state for exactly this), so the byte length signed at registration always matches what the retry actually sends.
 - **Verify:** `tests/storage-signed-url.test.ts` (Content-Length is signed when declared, absent when not), `tests/storage-service.test.ts` (the size is read from the object and passed through; an object with no size is refused), and the three registration test files (`tests/visit-audio-upload-registration.test.ts`, `tests/visit-problem-photo-registration.test.ts`, `tests/branding-logo-upload.test.ts`) each pin the missing-size rejection at their own registration path.
 
-### 3.3 Set `trust proxy`
+### 3.3 Set `trust proxy` — **done**
 - **Risk (LOW):** No `app.set('trust proxy', …)`; `request.ip` is the proxy address, degrading session forensics and undermining any IP-based rate limit (1.1).
-- **Change:** Set `trust proxy` to the exact hop count; forward `x-forwarded-for` from the Next layer (`buildRequestHeaders`).
+- **Shipped:** `src/main.ts` sets `trust proxy` to the hop count `resolveTrustProxyHops()` reads from `TRUST_PROXY_HOPS` (`src/common/trust-proxy.ts`), on the Express instance the adapter is built from. A count and never `true`: `true` trusts the whole chain, and since a client can send `X-Forwarded-For` itself, that lets anyone pick the address they are limited under — worse than not trusting it at all. There is no production default and the process refuses to start without one; measure each environment with the readiness diagnostic rather than deriving it, per the deviation at the top of this file.
+- **The plan's second half was rewritten in the doing.** It said to forward `x-forwarded-for` from the Next layer, which is exactly the caller-controlled entry the follow-up above found to be resting on the host rather than on the code. The address now comes from the header named per deployment by `CLIENT_IP_HEADER` (`apps/web/lib/client-address.ts`), with nothing forwarded at all when that header is absent. `tests/trust-proxy-resolution.test.ts` and `tests/web-client-address.test.ts` pin the two halves.
 
 ### 3.4 `__Host-` cookie prefix — **done**
 - **Risk (LOW):** Session/CSRF cookies lacked the `__Host-` prefix → cookie-tossing from a sibling subdomain. Separately, the `Secure` flag was inferred from `NODE_ENV` rather than set explicitly — and production had at one point run with `NODE_ENV` unset, which silently sent the session cookie without `Secure` and nothing noticed.
@@ -468,6 +482,6 @@ Work is grouped into three waves by priority. Each item lists the finding, the t
 9. **PR 9 — Low-priority hardening batch** (3.1–3.8, split as convenient).
 
 **Off this sequence (separate gradual track):**
-- Class-validator DTO migration + global `ValidationPipe` (deferred half of 2.4) — module-by-module, the largest single effort in the plan. See 2.4's own item for the scheduling decision.
+- Class-validator DTO migration + global `ValidationPipe` (deferred half of 2.4) — module-by-module, the largest single effort in the plan. See 2.4's own item for the scheduling decision and the tiered order for the remaining controllers, and the last row of the status table for where it has got to.
 
 Keep `docs/reference/environment.md`, `permissions.md`, and `api-reference.md` updated in the same PRs where env vars, permissions, or endpoints change.
