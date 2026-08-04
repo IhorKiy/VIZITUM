@@ -20,8 +20,9 @@ import { fileURLToPath } from "node:url";
 
 const SEVERITIES_THAT_BLOCK = new Set(["high", "critical"]);
 
-// Reviewed 2026-08-02. See docs/security-remediation-plan.md item 3.7 for the
-// full reasoning; the short version is with each entry.
+// Reviewed 2026-08-02, and again 2026-08-04 for the entry added last. See
+// docs/security-remediation-plan.md item 3.7 for the full reasoning; the short
+// version is with each entry.
 const ACCEPTED_ADVISORIES = [
   {
     id: 1117015,
@@ -43,6 +44,13 @@ const ACCEPTED_ADVISORIES = [
     reference: "GHSA-r28c-9q8g-f849",
     reason:
       "Path traversal. Same reach as above: build-time, first-party input, no fix short of downgrading next.",
+  },
+  {
+    id: 1130709,
+    package: "postcss",
+    reference: "GHSA-fxqj-rqcc-2cmp",
+    reason:
+      "Incomplete fix of GHSA-6g55-p6wh-862q, already accepted above: the same arbitrary .map read, reachable when `from` is unset. Identical reach for identical reasons — build time, first-party CSS only — and identically unfixable here: `next` depends on `postcss` at the exact pin `8.4.31` (not a range), so no lockfile bump can reach the patched 8.5.23. Verified while adding this that the reasoning has not gone stale: apps/web has no postcss config of its own, and the one place tenant input becomes CSS (buildSchemeStyle) is a runtime <style> built from a fixed TENANT_COLOR_SCHEMES allowlist via toColorScheme, which never goes near postcss.",
   },
   {
     id: 1124066,
