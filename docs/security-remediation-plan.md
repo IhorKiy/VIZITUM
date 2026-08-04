@@ -33,7 +33,7 @@ as the record of what was found and why each fix took the shape it did.
 | 3.4 `__Host-` cookie prefix + `COOKIE_SECURE` | Done — see the item below |
 | 3.5 Auth audit events | Done — login success/failure and logout on both domains, with the failure reason; see the item below |
 | 3.6 Pin argon2 params + rehash-on-login | Done — see the item below |
-| 3.7 Dependency advisories | Done as far as it goes — `next` → 16.2.12, `@nestjs/platform-express` → 11.1.28, and `npm run audit:check` now gates CI on advisory id. Three high advisories in `postcss`/`sharp` remain with no remedy short of downgrading Next to a 2020 release; see the item below |
+| 3.7 Dependency advisories | Done — `next` → 16.3.0, `@nestjs/platform-express` → 11.1.28, and `npm run audit:check` gates CI on advisory id. As of 2026-08-04 nothing high or critical is open and the accepted list is empty. Re-read the item below rather than trusting this cell: the recorded verdict has been overtaken twice, once by advisories getting worse and once by them being fixed upstream |
 | 3.8 Miscellaneous | Done — see the item below |
 | 2.4 deferred half — class-validator DTO migration | **In progress**, and the only item here that is not done. 9 of the 22 controllers taking a `@Body()` have migrated: `location-potential` (#204), `location-assortment` and `pilot-review` (#206), and the flat-CRUD tier — `chains`, `location-categories`, `product-categories`, `products`, `announcements`, `tasks`. Off the sequencing below on purpose, module-by-module; 2.4 carries the order for the rest |
 
