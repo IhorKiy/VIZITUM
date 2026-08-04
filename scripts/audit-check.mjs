@@ -20,44 +20,22 @@ import { fileURLToPath } from "node:url";
 
 const SEVERITIES_THAT_BLOCK = new Set(["high", "critical"]);
 
-// Reviewed 2026-08-02. See docs/security-remediation-plan.md item 3.7 for the
-// full reasoning; the short version is with each entry.
-const ACCEPTED_ADVISORIES = [
-  {
-    id: 1117015,
-    package: "postcss",
-    reference: "GHSA-qx2v-qp2m-jg93",
-    reason:
-      "XSS via unescaped </style> in stringify output. postcss runs at build time over first-party CSS only; no untrusted stylesheet reaches it. Pinned transitively by next, whose only offered remedy is a downgrade to next@9.3.3.",
-  },
-  {
-    id: 1124252,
-    package: "postcss",
-    reference: "GHSA-6g55-p6wh-862q",
-    reason:
-      "Arbitrary file read / information disclosure. Same reach as above: build-time, first-party input, no fix short of downgrading next.",
-  },
-  {
-    id: 1124288,
-    package: "postcss",
-    reference: "GHSA-r28c-9q8g-f849",
-    reason:
-      "Path traversal. Same reach as above: build-time, first-party input, no fix short of downgrading next.",
-  },
-  {
-    id: 1124066,
-    package: "sharp",
-    reference: "GHSA-f88m-g3jw-g9cj",
-    reason:
-      "libvips CVEs reached through sharp, which only `next/image` uses. This app renders logos with plain <img> and never calls next/image, so no user-supplied bytes reach libvips. Verified by grep; the only next/image references are comments explaining why it is avoided.",
-  },
-];
+// Empty as of 2026-08-03, and that is the healthy state: every advisory this
+// list used to carry (three in postcss, one in sharp) now has a fix, taken in
+// the same change that emptied this. Add an entry only for an advisory that
+// genuinely cannot be fixed, with the reasoning, and delete it the moment a
+// fix lands — a stale acceptance silently waives a package that no longer
+// needs waiving.
+const ACCEPTED_ADVISORIES = [];
 
 // Packages that appear in the report solely because they depend on an accepted
 // one. They are accepted only while that stays true: npm reports a parent's own
 // advisories as objects in `via`, so an object there means this package has
 // grown a problem of its own and must be read rather than waved through.
-const ACCEPTED_PARENTS = ["next"];
+//
+// Empty since the postcss advisories were fixed: `next` was here only as their
+// parent, and leaving it would have waved through whatever next inherits next.
+const ACCEPTED_PARENTS = [];
 
 export function evaluateAudit(report) {
   const acceptedIds = new Set(ACCEPTED_ADVISORIES.map((entry) => entry.id));
