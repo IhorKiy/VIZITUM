@@ -44,6 +44,14 @@ const ACCEPTED_ADVISORIES = [
     reason:
       "Path traversal. Same reach as above: build-time, first-party input, no fix short of downgrading next.",
   },
+  // Reviewed 2026-08-04.
+  {
+    id: 1130709,
+    package: "postcss",
+    reference: "GHSA-fxqj-rqcc-2cmp",
+    reason:
+      "The incomplete-fix follow-up to GHSA-6g55-p6wh-862q above, and the same file read by the same route: a sourceMappingURL in the input is followed when `from` is unset. Reach is unchanged — build time, over this repo's own CSS — so what would have to be true for it to bite is that an attacker can write the stylesheets, by which point they are running our build. Still no in-range remedy: next@16.2.12 pins postcss to exactly 8.4.31 (not a range), and the advisory is open through 8.5.22, so there is no version to move to without overriding next's own pin.",
+  },
   {
     id: 1124066,
     package: "sharp",
