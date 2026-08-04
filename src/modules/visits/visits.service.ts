@@ -38,6 +38,11 @@ import {
   MAX_PROBLEM_PHOTO_SIZE_BYTES,
   MAX_TEMPORARY_AUDIO_SIZE_BYTES,
 } from "./visit-media-limits";
+import {
+  MAX_CLIENT_REQUEST_ID_LENGTH,
+  MAX_UPLOAD_FILE_NAME_LENGTH,
+  MAX_VISIT_CANCELLATION_COMMENT_LENGTH,
+} from "./visit-request-limits";
 import type {
   AddTextVisitNoteRequestBody,
   CancelVisitRequestBody,
@@ -59,18 +64,12 @@ import type {
   VisitStatusTotals,
 } from "./visits.types";
 
-// Mirrors INPUT_LIMITS.comment in apps/web/lib/input-limits.ts.
-export const MAX_VISIT_CANCELLATION_COMMENT_LENGTH = 500;
 const VISIT_CANCELLATION_REASONS: readonly VisitCancellationReason[] = [
   "location_closed",
   "client_unavailable",
   "route_changed",
   "other",
 ];
-
-// Long enough for any UUID scheme a client might use, short enough that the
-// token cannot be used to smuggle a payload into an index.
-const MAX_CLIENT_REQUEST_ID_LENGTH = 128;
 
 // How stale a device-supplied visit start may be. Matches the on-device retention
 // for unsent work (PENDING_MEDIA_MAX_AGE_MS in apps/web/lib/field-db.ts): a start
@@ -1809,7 +1808,11 @@ function normalizeOptionalString(
 }
 
 function normalizeUploadFileName(value: unknown): string | null {
-  const normalizedValue = normalizeRequiredString(value, 1_024, "fileName");
+  const normalizedValue = normalizeRequiredString(
+    value,
+    MAX_UPLOAD_FILE_NAME_LENGTH,
+    "fileName",
+  );
 
   if (!normalizedValue) {
     return null;
