@@ -60,19 +60,6 @@ export function AbandonVisitStartControl({
   const confirmRef = useRef<HTMLButtonElement>(null);
   const wasConfirming = useRef(false);
 
-  // Closing the prompt clears what it would have reported, so a later re-open
-  // never flashes stale data before the fresh read (below) lands. Adjusted
-  // during render (React's documented pattern for resetting state when a
-  // prop changes) rather than in the fetch effect itself — `confirming`
-  // starts false, so this never fires on mount, matching the fetch effect
-  // below which only ever ran its reset branch after the prompt had actually
-  // been open.
-  const [prevConfirming, setPrevConfirming] = useState(confirming);
-  if (confirming !== prevConfirming) {
-    setPrevConfirming(confirming);
-    if (!confirming) setImpact(null);
-  }
-
   // On opening the prompt, not on mount: what this has to report on — a photo
   // taken, a report confirmed while still offline — only comes into existence
   // after this control has been sitting on the screen for a while. Same
@@ -131,6 +118,13 @@ export function AbandonVisitStartControl({
 
     setWorking(false);
     setConfirming(false);
+    // Clears what the prompt would have reported, so a later re-open never
+    // flashes stale data before the fresh read above lands. Co-located with
+    // the two places `confirming` itself becomes false rather than watched
+    // for via a render-time comparison — unlike a prop, this component owns
+    // `confirming` outright, so every transition to false already happens in
+    // code we control.
+    setImpact(null);
     onAbandoned();
   }
 
@@ -174,7 +168,11 @@ export function AbandonVisitStartControl({
         <button
           className="secondary-button"
           disabled={working}
-          onClick={() => setConfirming(false)}
+          onClick={() => {
+            setConfirming(false);
+            // See the matching comment in run() above.
+            setImpact(null);
+          }}
           type="button"
         >
           {tCommon("cancel")}
