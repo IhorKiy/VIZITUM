@@ -9,9 +9,11 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
   RequireAnyPermissions,
@@ -19,17 +21,16 @@ import {
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  AssignRouteTemplateDto,
+  CopyRoutePlansDto,
+  CreateRouteTemplateDto,
+  MoveRouteTemplateItemDto,
+  ReorderRouteTemplateItemsDto,
+  UpdateRouteTemplateDto,
+  UpsertRouteTemplateItemDto,
+} from "./route-templates.dto";
 import { RouteTemplatesService } from "./route-templates.service";
-import type {
-  AssignRouteTemplateRequestBody,
-  CopyRouteTemplatePlansRequestBody,
-  CreateRouteTemplateItemRequestBody,
-  CreateRouteTemplateRequestBody,
-  MoveRouteTemplateItemRequestBody,
-  ReorderRouteTemplateItemsRequestBody,
-  UpdateRouteTemplateItemRequestBody,
-  UpdateRouteTemplateRequestBody,
-} from "./routes.types";
 
 @Controller("routes/templates")
 @UseGuards(PermissionGuard)
@@ -69,9 +70,12 @@ export class RouteTemplatesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  // Tier 3 of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
   createRouteTemplate(
     @Req() request: Request,
-    @Body() body: CreateRouteTemplateRequestBody,
+    @Body() body: CreateRouteTemplateDto,
   ) {
     return this.routeTemplatesService.createRouteTemplate(
       getRequestContext(request),
@@ -84,10 +88,8 @@ export class RouteTemplatesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
-  copyRoutePlans(
-    @Req() request: Request,
-    @Body() body: CopyRouteTemplatePlansRequestBody,
-  ) {
+  @UsePipes(createStrictValidationPipe())
+  copyRoutePlans(@Req() request: Request, @Body() body: CopyRoutePlansDto) {
     return this.routeTemplatesService.copyRoutePlans(
       getRequestContext(request),
       body,
@@ -99,10 +101,11 @@ export class RouteTemplatesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   updateRouteTemplate(
     @Req() request: Request,
     @Param("templateId") templateId: string,
-    @Body() body: UpdateRouteTemplateRequestBody,
+    @Body() body: UpdateRouteTemplateDto,
   ) {
     return this.routeTemplatesService.updateRouteTemplate(
       getRequestContext(request),
@@ -131,10 +134,11 @@ export class RouteTemplatesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   createRouteTemplateItem(
     @Req() request: Request,
     @Param("templateId") templateId: string,
-    @Body() body: CreateRouteTemplateItemRequestBody,
+    @Body() body: UpsertRouteTemplateItemDto,
   ) {
     return this.routeTemplatesService.createRouteTemplateItem(
       getRequestContext(request),
@@ -148,11 +152,12 @@ export class RouteTemplatesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   updateRouteTemplateItem(
     @Req() request: Request,
     @Param("templateId") templateId: string,
     @Param("itemId") itemId: string,
-    @Body() body: UpdateRouteTemplateItemRequestBody,
+    @Body() body: UpsertRouteTemplateItemDto,
   ) {
     return this.routeTemplatesService.updateRouteTemplateItem(
       getRequestContext(request),
@@ -167,10 +172,11 @@ export class RouteTemplatesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   reorderRouteTemplateItems(
     @Req() request: Request,
     @Param("templateId") templateId: string,
-    @Body() body: ReorderRouteTemplateItemsRequestBody,
+    @Body() body: ReorderRouteTemplateItemsDto,
   ) {
     return this.routeTemplatesService.reorderRouteTemplateItems(
       getRequestContext(request),
@@ -184,11 +190,12 @@ export class RouteTemplatesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   moveRouteTemplateItem(
     @Req() request: Request,
     @Param("templateId") templateId: string,
     @Param("itemId") itemId: string,
-    @Body() body: MoveRouteTemplateItemRequestBody,
+    @Body() body: MoveRouteTemplateItemDto,
   ) {
     return this.routeTemplatesService.moveRouteTemplateItem(
       getRequestContext(request),
@@ -220,10 +227,11 @@ export class RouteTemplatesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   assignRouteTemplate(
     @Req() request: Request,
     @Param("templateId") templateId: string,
-    @Body() body: AssignRouteTemplateRequestBody,
+    @Body() body: AssignRouteTemplateDto,
   ) {
     return this.routeTemplatesService.assignRouteTemplate(
       getRequestContext(request),
