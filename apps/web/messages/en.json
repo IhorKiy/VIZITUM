@@ -124,7 +124,9 @@
       "noAccess": {
         "eyebrow": "No access",
         "title": "No workspace area is available",
-        "body": "Your account doesn't currently have permission to any area of this workspace. Contact your administrator to request access."
+        "body": "Your account doesn't currently have permission to any area of this workspace. Contact your administrator to request access.",
+        "signOut": "Sign out",
+        "signingOut": "Signing out..."
       }
     },
     "notice": {
