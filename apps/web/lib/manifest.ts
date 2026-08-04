@@ -42,11 +42,21 @@ export const MANIFEST_ICONS: MetadataRoute.Manifest["icons"] = [
 //      marketing page) is a dead end with no way to navigate out of it.
 //   2. It has to sit inside the service worker's navigation-fallback scope
 //      (FIELD_ZONE_PATH in public/sw.js, which matches /{slug}/field only).
-//      A cold launch with no signal is a full-page navigation: outside that
-//      scope it gets the browser's own error page instead of offline.html,
-//      and the offline shell reads the tenant slug straight off the first
-//      path segment (public/offline.html), so the slug has to be in the URL
-//      rather than in a cookie or a redirect the launch never gets to run.
+//      Outside that scope a failed full-page navigation gets the browser's
+//      own error page instead of offline.html, and the offline shell reads
+//      the tenant slug straight off the first path segment
+//      (public/offline.html), so the slug has to be in the URL rather than in
+//      a cookie or a redirect that a signal-less load never gets to run.
+//
+// Constraint 2 buys less than it was originally written to buy, and the
+// difference is worth knowing before anyone re-tunes this. It covers full-page
+// loads made from a context the worker already controls — a warm installed app
+// that loses signal and reloads. It does *not* rescue a cold launch with no
+// network: WebKit fails that navigation before the worker sees it, whatever
+// the start_url is (measured on iOS 18.7.9 — see public/sw.js's "What this
+// does not cover"). Keeping the start_url in scope is still right, and
+// constraint 1 is untouched by any of this; just don't read this line as a
+// promise that the installed app opens offline from cold.
 //
 // tests/web-app-manifest.test.ts pins both against sw.js itself.
 export function tenantStartUrl(tenantSlug: string): string {

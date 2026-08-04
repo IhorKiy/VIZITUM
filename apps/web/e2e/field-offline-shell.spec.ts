@@ -1,10 +1,26 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // End-to-end contract for the service worker's navigation fallback
-// (apps/web/public/sw.js + offline.html): a cold reload of the field zone
-// with no signal at all must show today's route from the last on-device
-// snapshot instead of the browser's own "no internet" page — and must not
-// then strand the rep on it once the signal comes back.
+// (apps/web/public/sw.js + offline.html): a full-page load of the field zone
+// with no signal, *from a browsing context the worker already controls*, must
+// show today's route from the last on-device snapshot instead of the browser's
+// own "no internet" page — and must not then strand the rep on it once the
+// signal comes back.
+//
+// Read that scope literally — it is the whole coverage claim, and it is
+// narrower than the feature's original promise. These tests drive an
+// already-loaded Chromium context: they sign in, wait for the worker to
+// control the page, and only then go offline. The *cold-start* case — the app
+// launched from a Home Screen icon (or a restored tab) with no network and no
+// live client — is not exercised here and cannot be, because
+// context.setOffline(true) only applies to a context that already exists.
+//
+// That distinction is not academic. On a real iPhone (iOS 18.7.9, runbook
+// scenario T2b) the warm case below passes and the cold-start case fails:
+// WebKit fails the launch navigation before the worker's fetch handler is
+// ever consulted, so Safari's own error page wins. Chromium does not
+// reproduce that, which is exactly why a green run here is not evidence about
+// it. See public/sw.js's "What this does not cover" note for the full finding.
 //
 // Every other offline simulation in this suite (field-pending-media.spec.ts,
 // field-offline-visit-start.spec.ts) aborts specific request methods via
@@ -88,7 +104,7 @@ async function awaitServiceWorkerControl(page: Page): Promise<void> {
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
 }
 
-test("a cold reload with no signal shows today's route from the last snapshot", async ({
+test("a reload with no signal, in a page the worker controls, shows today's route from the last snapshot", async ({
   page,
   context,
 }) => {

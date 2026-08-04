@@ -13,8 +13,12 @@ was queued for it, a visit can now be started with no signal at all, worked
 on before it ever syncs, and cancelled again without ever having reached the
 server, and — the last item on this doc's own priority list — the field
 zone's *pages themselves* now load with zero connectivity, not just the data
-on them: a cold reload with no signal shows today's route from the last
-on-device snapshot instead of the browser's own "no internet" page. That is
+on them — **for an app that is already open**: a reload with no signal, from a
+page the worker already controls, shows today's route from the last on-device
+snapshot instead of the browser's own "no internet" page. The stronger version
+of this claim that stood here until 2026-08-03 ("a cold reload…") did not
+survive the real-phone pass and has been withdrawn; see known gap 1 below for
+what was measured and what it costs. That is
 phases 1, 2 and 3 in full, plus both cancel-visit gap fixes, the outbox
 phantom-replay fix, the route snapshot + service worker, and — since — the
 three residual gaps that last round had deferred: a rekey no longer leaves an
@@ -25,20 +29,83 @@ built" below for the exact file map — read it before touching anything,
 several of the plans in the sections further down are now **stale** (kept for
 historical context, not as instructions).
 
-**Not done, and not doable by a coding session**: the real-phone pass — the
-first item below. Everything else this doc originally scoped is now shipped,
-pending that real-device confirmation.
+**Not done, and not doable by a coding session**: the rest of the real-phone
+pass — the first item below, where what has run so far is recorded. Everything
+else this doc originally scoped is now shipped, pending that confirmation.
 
 **Known gaps, not yet fixed:**
 
-1. **Real-phone verification has never been done.** Every PR in this series
-   was verified against the real API/DB from a desktop browser (no
-   microphone), plus unit tests and, since the cancel-visit fix, one
-   Playwright spec per gap closed that way. Nobody has run the audio-capture
-   path, the IndexedDB 7-day eviction, a cold-start outbox flush, or starting
-   a visit in airplane mode on an actual iOS Safari. Do this before calling
-   the offline story release-ready — iOS is exactly where the emulated
-   checks lie.
+1. **Real-phone verification has partly run, and one of its findings is a
+   withdrawn promise.** `docs/runbooks/field-offline-iphone-test.md` is the
+   record and the place to read first — T1–T5 and T7 ran, T6 and T8–T12 did
+   not, and the queues came out of it intact. This entry covers only the one
+   finding that lands on the service worker and had to be corrected in code
+   comments and reference docs; the offline-navigation failures that the same
+   pass found on the start/continue/save paths are recorded there and raised
+   separately. iOS is exactly where the emulated checks lie, and this is what
+   that cost.
+
+   **Scenario T2b (cold offline load) fails, and cannot be fixed from this
+   codebase.** Measured on a real iPhone (iOS 18.7.9, standalone Home Screen
+   install, www.vizitum.com — see the runbook for the pass metadata):
+
+   - Warm app, page controlled by the worker, airplane mode on,
+     `location.reload()` → `offline.html` renders the route snapshot, first
+     attempt. This is the case the feature actually delivers.
+   - Force-quit, then launch from the Home Screen icon still offline →
+     Safari's own error page; reloading from it does not recover. Identical in
+     a plain Safari tab, so it is not about the standalone display mode.
+
+   The worker is not at fault and this is not a scope bug: in that same state
+   registration is `activated`, `sw.js` is the controller at scope `/`,
+   `vizitum-shell-v1` holds `/offline.html`, and an offline `fetch()` of a
+   `/_next/static/` chunk is served from `vizitum-static-v1` — the fetch
+   handler runs fine with no network. WebKit fails the *launch* navigation
+   before ever dispatching it to a worker, so no `start_url`, precache or
+   install-time warm-up changes the outcome — the worker is reached too late
+   to have a say.
+
+   That last sentence is the inference, and it is worth separating from the
+   measurement above it: the mechanism (the provisional load failing at the
+   network layer, `NSURLErrorDomain -1009`, with the worker never consulted)
+   comes from long-standing reports of the same failure shape against WebKit,
+   whose one documented workaround is WKWebView-only — load a local HTML
+   document, then navigate — which a Home Screen install cannot do. Nobody has
+   traced it inside WebKit from here. What is certain is the observed
+   behavior and that every lever this repo controls sits downstream of it.
+
+   This matters because it is the shape the feature was for — a rep opening
+   the app after walking into a dead zone, not one who kept it open — and iOS
+   evicting a backgrounded app from memory produces the same cold start as a
+   deliberate force-quit. The promise has therefore been narrowed everywhere
+   it was stated (this doc's Status, `module-map.md`, `executable-spec.md`,
+   `sw.js`, `lib/manifest.ts`, `tests/web-app-manifest.test.ts`, the e2e spec's
+   own header and the runbook's T2a/T2b and T6) rather than left standing.
+
+   **Letting Safari's HTTP cache answer that navigation was considered and
+   rejected on security grounds, not caching ones.** `GET /{tenantSlug}/field`
+   is authenticated, per-session, tenant HTML, and today responds
+   `cache-control: private, no-cache, no-store, max-age=0, must-revalidate`.
+   Reps share phones; this repo already treats that as the threat model
+   (`deleteRouteSnapshot` runs on sign-out for exactly this reason). Any
+   relaxation that lets a stored copy answer a later navigation risks
+   rendering one rep's route to whoever opens the app next, including after
+   sign-out — strictly worse than an error page, which is honest and leaks
+   nothing. Those headers stay as they are.
+
+   **The one untried candidate**, if this is ever revisited: a *static,
+   public, tenant-agnostic* launch document at `/{slug}/launch` carrying no
+   authenticated data (only the slug, which is already public and already in
+   the manifest), served `Cache-Control: public`, made the `start_url`, doing
+   `offline.html`'s IndexedDB read when it cannot reach the network and
+   replacing itself with `/{slug}/field` when it can. It sidesteps the worker
+   entirely, which is the point — Safari's HTTP cache can answer a cold
+   navigation the worker never sees, and a document with no user data in it is
+   safe to cache in a way the field page is not. Unverified: nobody has
+   confirmed WebKit serves a fresh cached document for a cold offline
+   top-level navigation, and it costs every launch an extra hop. Worth a
+   device test before any code, since a wrong guess degrades the online launch
+   for every rep.
 2. **A capture written in the gap between `rekeyPendingMedia` and the redirect
    still lands under the old id.** The exact sibling of the draft orphan
    closed below, in the store that did *not* get a forwarding address, and
@@ -126,7 +193,7 @@ Everything below is real, merged, and documented in `docs/reference/module-map.m
 
 Verified by `tests/web-offline-drafts.test.ts` and `tests/web-report-outbox.test.ts` — the first tests in this repo to run the on-device stores against a real IndexedDB (a new `fake-indexeddb` devDependency) rather than a pure slice of themselves — plus four reworked/new cases in `tests/offline-visit-start.test.ts`. The full suite (913) passes, as do `build`, `web:typecheck`, `lint`, `format:check` and `web:i18n:check`.
 
-**Also shipped: the route snapshot + minimal service worker** (closes item 2 of the previous version of this doc's "What's next", proceeding without the real-phone pass — see "Status" above for why): `apps/web/lib/route-snapshot.ts` is a fifth `field-db.ts` store, `route-snapshot`, holding today's rendered stops plus pre-resolved, tenant-language display text (`labels`). `apps/web/components/route-snapshot-writer.tsx`, mounted from `field/page.tsx` for a real signed-in, non-demo render, writes it on every mount. `apps/web/public/sw.js` — hand-rolled, no dependency, registered by `apps/web/components/service-worker-registration.tsx` from `field/layout.tsx` — intercepts a failed navigation into any `/field` path and serves the cached `apps/web/public/offline.html` instead of the browser's own offline page; a separate branch cache-first-serves `/_next/static/` assets (content-hashed, so a cached response for a given URL never goes stale). No other response is ever cached — API/JSON/RSC payloads pass through untouched, exactly the non-goal this doc already stated. Verified two ways: manually against the real dev server (registration, cache population, and the fallback all confirmed via DevTools-equivalent JS calls, both for a tenant with a snapshot and one without), and by `apps/web/e2e/field-offline-shell.spec.ts`, using `context.setOffline(true)` rather than this suite's usual `page.route` request-abort trick — the worker's own `fetch(event.request)` has to actually reject for its fallback to fire, which needs the real thing.
+**Also shipped: the route snapshot + minimal service worker** (closes item 2 of the previous version of this doc's "What's next", proceeding without the real-phone pass — see "Status" above for why): `apps/web/lib/route-snapshot.ts` is a fifth `field-db.ts` store, `route-snapshot`, holding today's rendered stops plus pre-resolved, tenant-language display text (`labels`). `apps/web/components/route-snapshot-writer.tsx`, mounted from `field/page.tsx` for a real signed-in, non-demo render, writes it on every mount. `apps/web/public/sw.js` — hand-rolled, no dependency, registered by `apps/web/components/service-worker-registration.tsx` from `field/layout.tsx` — intercepts a failed navigation into any `/field` path and serves the cached `apps/web/public/offline.html` instead of the browser's own offline page (for a context the worker already controls — **not** on a cold launch, see known gap 1); a separate branch cache-first-serves `/_next/static/` assets (content-hashed, so a cached response for a given URL never goes stale). No other response is ever cached — API/JSON/RSC payloads pass through untouched, exactly the non-goal this doc already stated. Verified two ways: manually against the real dev server (registration, cache population, and the fallback all confirmed via DevTools-equivalent JS calls, both for a tenant with a snapshot and one without), and by `apps/web/e2e/field-offline-shell.spec.ts`, using `context.setOffline(true)` rather than this suite's usual `page.route` request-abort trick — the worker's own `fetch(event.request)` has to actually reject for its fallback to fire, which needs the real thing.
 
 Shipped with five deliberate scope calls, each narrower than this doc's own original wording — see `module-map.md`'s `route-snapshot.ts` entry and the field-home route row for the full reasoning on each, summarized here so the next reader doesn't have to reconstruct it from a diff:
 - No `manifest.json` — the goal is pages loading offline, not home-screen installability, and this repo had no icon assets to put in one yet. **Since shipped as its own follow-up**: `apps/web/app/manifest.ts` plus generated brand-glyph icons (`public/icon-192.png`, `icon-512.png`, `apple-touch-icon.png`, `icon.svg` favicon) — see `module-map.md`'s `/` route row.

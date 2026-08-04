@@ -10,9 +10,16 @@ import { WORKSPACE_ENTRY_PATHS } from "../apps/web/lib/workspace-address";
 // A Home Screen install is the supported way to run the field zone offline —
 // it is what exempts this app's IndexedDB from iOS's 7-day eviction of
 // script-writable storage. Which makes the installed app's launch destination
-// load-bearing in a way nothing else in the frontend is: get it wrong and a
-// cold offline launch shows the browser's own error page, with no address bar
+// load-bearing in a way nothing else in the frontend is: get it wrong and the
+// app launches somewhere with no offline shell behind it, with no address bar
 // to recover through.
+//
+// What a right start_url does not buy is a cold offline launch: WebKit fails
+// that navigation before the worker is consulted, so it shows the browser's
+// error page regardless (iOS 18.7.9 — see apps/web/public/sw.js). What these
+// assertions still protect is the warm case, where a full-page load inside
+// the worker's scope does reach offline.html, and the shell's ability to
+// recover the slug at all.
 //
 // Three files have to agree on it and none of them can import the others —
 // the manifest is TypeScript in the Next app, the worker and the offline
