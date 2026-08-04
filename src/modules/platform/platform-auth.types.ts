@@ -3,9 +3,14 @@ import type { PlatformRoleCode } from "../roles/role-permission.matrix";
 
 export const PLATFORM_OWNER_ROLE_CODE: PlatformRoleCode = "platform_owner";
 
+// `unknown` throughout, like every other request body in the codebase and
+// unlike the `string` these two claimed: the service reads both defensively
+// (`normalizeEmail`, a `typeof` check) precisely because a request body is
+// whatever the caller sent, and the DTO in front of this route admits an
+// explicit `null` the way `@IsOptional()` does everywhere else.
 export type PlatformLoginRequestBody = {
-  email?: string;
-  password?: string;
+  email?: unknown;
+  password?: unknown;
   captchaToken?: unknown;
 };
 

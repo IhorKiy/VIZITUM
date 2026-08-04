@@ -6,6 +6,7 @@ import {
 import type { PlatformUser } from "@prisma/client";
 import type { Request, Response } from "express";
 
+import { withinLimit } from "../../common/input-limits";
 import { normalizeEmail } from "../../common/normalize";
 import { describeRequestOrigin } from "../../common/request-origin";
 import { AuthAuditService } from "../auth/auth-audit.service";
@@ -60,7 +61,28 @@ export class PlatformAuthService {
     request: Request,
   ): Promise<PlatformLoginResponse> {
     const email = normalizeEmail(body.email);
-    const password = typeof body.password === "string" ? body.password : "";
+    // Capped like the tenant login's `normalizePassword`, and for the reason
+    // stated there: argon2 hashes whatever it is given, so an unbounded
+    // password is an unbounded amount of work per request — a cheap way to
+    // make a login endpoint expensive, and this one answers before any
+    // account is known. This was the third copy of the same helper to drift
+    // from the original; the second lost its caps in a duplication recorded in
+    // the plan's follow-up section, and this one never had them.
+    //
+    // The cap locks nobody out only because the one path that *sets* a
+    // platform password now refuses to exceed it:
+    // `scripts/seed-platform-owner.mjs` rejects an over-long
+    // PLATFORM_OWNER_PASSWORD before writing the hash, and
+    // `tests/input-limits.test.ts` fails if that script's copy of the number
+    // drifts from TEXT_LIMITS. That guard is load-bearing, not incidental —
+    // without it a seeded owner past the cap would hash fine and then be
+    // answered `INVALID_CREDENTIALS` forever by the lines below, with no
+    // administrator above them to undo it.
+    const password =
+      typeof body.password === "string" &&
+      withinLimit(body.password, "password")
+        ? body.password
+        : "";
 
     if (!email || !password) {
       throwInvalidCredentials();
