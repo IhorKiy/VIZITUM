@@ -96,13 +96,9 @@ export function StartVisitControl({
   // the undefined state, so a double-tap in the brief window before this
   // resolves can't mint a second clientVisitId for the same unlinked start,
   // which is precisely what this check exists to prevent in the first place.
-  // The lazy initializer mirrors what the mount-time effect used to converge
-  // to synchronously (null once the server already reports an active visit,
-  // undefined — "not checked yet" — otherwise), so switching the reset below
-  // to a render-time adjustment doesn't change what the first paint shows.
   const [pendingLocal, setPendingLocal] = useState<
     VisitStartOutboxEntry | null | undefined
-  >(() => (activeVisit ? null : undefined));
+  >(undefined);
 
   const scope = useMemo<VisitStartOutboxScope>(
     () => ({ tenantSlug, userId }),
