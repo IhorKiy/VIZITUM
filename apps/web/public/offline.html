@@ -19,10 +19,79 @@
       }
       p.banner {
         color: #9aa1ac;
-        margin: 0 0 24px;
+        margin: 0 0 16px;
       }
       p.empty {
         color: #9aa1ac;
+      }
+      .retry-row {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 0 0 24px;
+      }
+      button.retry {
+        align-items: center;
+        /* The app's own accent (--accent in globals.css), duplicated as a
+           literal for the same reason the store names below are: this file
+           is served straight out of public/ and shares no stylesheet with
+           the bundle. */
+        background: #176b5f;
+        border: 0;
+        border-radius: 10px;
+        color: #f2f3f5;
+        cursor: pointer;
+        display: inline-flex;
+        font: inherit;
+        font-weight: 600;
+        gap: 8px;
+        /* This page is only ever read on a phone, usually one-handed and in
+           a hurry — 44px is the smallest target iOS considers reliable. */
+        min-height: 44px;
+        padding: 12px 18px;
+      }
+      button.retry:focus-visible {
+        outline: 2px solid #7fd99a;
+        outline-offset: 2px;
+      }
+      button.retry[disabled] {
+        /* Busy is not unavailable. The button is disabled only while it is
+           already doing the thing it was tapped for, so it keeps its own
+           colours and says "Checking..." rather than greying out as though
+           it had stopped being an option — the same distinction the app's
+           PendingSubmitButton draws with is-pending. */
+        cursor: default;
+        opacity: 1;
+      }
+      .spinner {
+        animation: spinner-rotate 0.8s linear infinite;
+        border: 2px solid #ffffff59;
+        border-radius: 50%;
+        border-top-color: #f2f3f5;
+        display: none;
+        height: 14px;
+        width: 14px;
+      }
+      button.retry.is-checking .spinner {
+        display: inline-block;
+      }
+      @keyframes spinner-rotate {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      /* Hidden outright rather than merely frozen: a ring that does not turn
+         says nothing the label next to it isn't already saying. */
+      @media (prefers-reduced-motion: reduce) {
+        button.retry.is-checking .spinner {
+          display: none;
+        }
+      }
+      p.status {
+        color: #9aa1ac;
+        font-size: 0.85rem;
+        margin: 0;
       }
       ul {
         list-style: none;
@@ -67,6 +136,21 @@
   <body>
     <h1 id="heading"></h1>
     <p class="banner" id="banner"></p>
+
+    <!-- Static markup, not built by the script below, and deliberately a
+         sibling of #stops rather than a child: every failure path in that
+         script ends in renderNoData(), and the empty-route path replaces
+         #stops outright — the way out of this page must survive both. Its
+         English is the same standing exception documented on renderNoData:
+         this file has no next-intl and no tenant language to read. -->
+    <div class="retry-row">
+      <button class="retry" id="retry" type="button">
+        <span aria-hidden="true" class="spinner"></span>
+        <span id="retry-label">Try again</span>
+      </button>
+      <p class="status" id="status" role="status"></p>
+    </div>
+
     <ul id="stops"></ul>
 
     <script>
@@ -81,6 +165,76 @@
       var ROUTE_SNAPSHOT_STORE = "route-snapshot";
 
       var tenantSlug = location.pathname.split("/")[1] || "";
+
+      // How long a probe may hang before it is called a failure. A dead
+      // connection normally rejects fetch immediately, but a stalled one —
+      // weak signal, or a captive portal accepting the connection and never
+      // answering — can hold it open for a minute or more, which would park
+      // the button mid-check: a second dead end inside the fix for the first.
+      var PROBE_TIMEOUT_MS = 8000;
+
+      // Delays before each follow-up probe after an automatic attempt comes
+      // back empty. `online` is a promise about the near future rather than a
+      // report about the present: browsers fire it the moment an interface
+      // comes up, which is routinely a beat before the radio will actually
+      // carry a request — measurably so, since a single-probe version of this
+      // failed exactly this way against Playwright's own network emulation.
+      // One shot on that edge misses, and with no second event coming the rep
+      // would sit here holding a working connection.
+      //
+      // Only probes repeat, never navigations: a failed probe leaves this page
+      // exactly as it was, so this cannot become the reload loop ruled out
+      // above. Finite and short, because past a few seconds the honest answer
+      // is that the signal is not back yet, and the button covers whenever
+      // it is.
+      var FOLLOW_UP_DELAYS_MS = [1000, 3000, 8000];
+
+      var retryButton = document.getElementById("retry");
+      var retryLabel = document.getElementById("retry-label");
+      var retryStatus = document.getElementById("status");
+
+      // Tracked apart, because they are different states rather than two names
+      // for one: a tap owns the button (disabled, "Checking...") while an
+      // automatic attempt is deliberately invisible. Sharing a flag would let
+      // a background series that is mostly waiting hold the button dead for
+      // most of a minute — putting a fresh dead end inside the fix for the
+      // original one.
+      var manualProbeRunning = false;
+      var automaticProbeRunning = false;
+      var followUpTimer = null;
+      var followUpIndex = 0;
+
+      // Wired before the IndexedDB read below, not after. The snapshot is what
+      // makes this page useful, but the retry is what keeps it from being a
+      // one-way door, and every guard in that read ends in renderNoData() — a
+      // rep looking at a page with no route on it is exactly who most needs
+      // the way out to already work.
+      retryButton.addEventListener("click", function () {
+        attemptRecovery(true);
+      });
+
+      // Two triggers, because neither is reliable alone on the device this
+      // page was written for. `online` is the correct event, but iOS fires it
+      // late or not at all for a Home Screen install that was backgrounded
+      // while the signal came back — which is precisely the journey that ends
+      // up here. Returning to the foreground is the observable iOS does
+      // deliver, so it is checked too. Both funnel into the same guarded
+      // attempt, so the pair firing together costs one probe, not two.
+      //
+      // Neither fires on load, which is the point: an unconditional probe at
+      // startup could succeed, reload, fail the navigation again, and probe
+      // again — a tight loop on a rep's battery, in the one situation where
+      // the phone is already struggling. Recovery is driven by a change in
+      // the world, never by simply being on this page.
+      window.addEventListener("online", function () {
+        attemptRecovery(false);
+      });
+
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "visible") {
+          attemptRecovery(false);
+        }
+      });
 
       // Opened with no version: this script does not own the schema and must
       // never be the one to run an upgrade — only field-db.ts's openFieldDatabase
@@ -143,6 +297,150 @@
         };
       } catch (error) {
         renderNoData();
+      }
+
+      // Retrying means re-requesting the URL the reader was actually trying to
+      // reach, which is this page's own location: the worker answers a failed
+      // navigation with these bytes through respondWith(), which does not
+      // change the document's URL — the same reason tenantSlug above can be
+      // read off location.pathname at all. So this aims back at
+      // /{tenant}/field/locations/42, not at some hardcoded field home the
+      // reader never asked for.
+      //
+      // Probed before navigating, rather than reloading outright. A reload
+      // that fails is answered with this same file again, which looks
+      // identical to having done nothing at all — the reader cannot tell a
+      // dead retry from a dead button — and it throws away the route list
+      // they were reading to redraw the same screen. Probing keeps the page
+      // still while it asks, and navigates only once something answers.
+      function attemptRecovery(isManual) {
+        if (isManual) {
+          if (manualProbeRunning) return;
+
+          manualProbeRunning = true;
+          retryStatus.textContent = "";
+          setChecking(true);
+
+          probe(function () {
+            manualProbeRunning = false;
+            setChecking(false);
+            // Said only when somebody asked. An automatic attempt that comes
+            // back empty leaves the rep exactly where they already know they
+            // are, and announcing that on every foregrounding would turn the
+            // one line here that ever carries real news into noise.
+            retryStatus.textContent =
+              "Still no connection. Today's route below is unchanged.";
+          });
+
+          return;
+        }
+
+        if (automaticProbeRunning) return;
+
+        // The browser reporting no connection at all is the one answer worth
+        // trusting unasked, and skipping the probe keeps a foregrounding deep
+        // in a dead zone from costing anything. Never applied to a tap:
+        // navigator.onLine is the very thing that is unreliable here, and
+        // someone who asks deserves a real answer rather than the browser's
+        // opinion of one.
+        if (navigator.onLine === false) return;
+
+        // Something changed in the world, so the series starts over rather
+        // than a second one being laid on top of whatever is pending.
+        cancelFollowUps();
+        runAutomaticProbe();
+      }
+
+      function runAutomaticProbe() {
+        automaticProbeRunning = true;
+
+        probe(function () {
+          automaticProbeRunning = false;
+
+          if (followUpIndex >= FOLLOW_UP_DELAYS_MS.length) {
+            cancelFollowUps();
+            return;
+          }
+
+          var delay = FOLLOW_UP_DELAYS_MS[followUpIndex];
+
+          followUpIndex += 1;
+          followUpTimer = setTimeout(function () {
+            followUpTimer = null;
+
+            // Re-read rather than remembered: the signal can drop again
+            // part-way through a series, and there is nothing to learn from
+            // probing once the browser is certain there is nothing out there.
+            if (navigator.onLine === false) {
+              cancelFollowUps();
+              return;
+            }
+
+            runAutomaticProbe();
+          }, delay);
+        });
+      }
+
+      function cancelFollowUps() {
+        if (followUpTimer !== null) {
+          clearTimeout(followUpTimer);
+          followUpTimer = null;
+        }
+
+        followUpIndex = 0;
+      }
+
+      // Asks whether anything at all is out there and navigates if so, calling
+      // onFailure only when nothing answered.
+      //
+      // Any response counts as an answer, including a 404 or a 500: the
+      // question is whether the request reached a server, not whether the
+      // server liked it — the same line sw.js draws when it treats only a
+      // rejected fetch, never an error response, as being offline. HEAD
+      // because the body is discarded either way, and no-store so a cached
+      // response cannot answer on the network's behalf. The request passes the
+      // worker's own handlers untouched: one is navigations only, the other
+      // GETs under /_next/static/.
+      //
+      // Both callers share the aborting timer, since a stalled connection is
+      // the same hazard to each: without it a captive portal that accepts the
+      // connection and never answers would hold a tapped button busy for as
+      // long as the platform's own fetch timeout, which is measured in
+      // minutes.
+      function probe(onFailure) {
+        var controller = new AbortController();
+        var timer = setTimeout(function () {
+          controller.abort();
+        }, PROBE_TIMEOUT_MS);
+
+        fetch(location.href, {
+          method: "HEAD",
+          cache: "no-store",
+          signal: controller.signal,
+        })
+          .then(function () {
+            clearTimeout(timer);
+            // Nothing is reset here on purpose: the navigation is the
+            // continuation of this same wait, so a manual attempt keeps its
+            // button busy rather than going idle for the moment before the
+            // app paints.
+            location.reload();
+          })
+          .catch(function () {
+            clearTimeout(timer);
+            onFailure();
+          });
+      }
+
+      function setChecking(isChecking) {
+        retryButton.disabled = isChecking;
+        // The spinner is aria-hidden and the label is what changes, so
+        // disabled on its own would announce "unavailable" where the truth is
+        // "working" — the reason the app pairs aria-busy with a label naming
+        // the wait rather than relying on the disabled state.
+        retryButton.setAttribute("aria-busy", isChecking ? "true" : "false");
+        retryButton.className = isChecking ? "retry is-checking" : "retry";
+        retryLabel.textContent = isChecking ? "Checking..." : "Try again";
       }
 
       function render(snapshot) {
