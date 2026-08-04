@@ -124,6 +124,28 @@ test("logout still fully signs out when the CSRF cookie is missing", async ({
   await page.waitForURL("**/platform/login");
 });
 
+test("a live session opening the login screen lands in the console", async ({
+  page,
+}) => {
+  await signIn(page, E2E_PLATFORM_SESSION_EMAILS[3]);
+
+  // Same gap the tenant login screen had: every redirect here lives in an
+  // action, which only runs on submit, so opening this URL signed in drew the
+  // sign-in form. Asserted through a real navigation because what matters is
+  // that the destination terminates — /platform/tenants only sends people
+  // back here when the session check fails, which is the case that renders
+  // the form (the two tests above pin that direction).
+  await page.goto("/platform/login");
+  await expect(page).toHaveURL(/\/platform\/tenants/);
+  await expect(page.getByLabel("Password")).toHaveCount(0);
+
+  // A step left in the URL doesn't reopen the flow either: a session exists
+  // only past the second factor, so any challenge still in a cookie is spent,
+  // and "you are signed in" beats restarting with an expiry notice.
+  await page.goto("/platform/login?step=mfa");
+  await expect(page).toHaveURL(/\/platform\/tenants/);
+});
+
 test("a correct password alone does not open the console", async ({
   page,
   context,

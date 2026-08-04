@@ -591,6 +591,15 @@ export class AuthService {
       productsEnabled: boolean;
       locationCategoriesEnabled: boolean;
       tenantTimezone: string;
+      // Which workspace this session actually belongs to. The session token
+      // carries the tenant, and no request header names one, so a caller
+      // holding a session for `acme` reading a screen under `/other-co/...`
+      // is answered with acme's data — the address in the browser proves
+      // nothing about the session. The frontend needs to be able to tell the
+      // two apart before it acts on a session it found (see the login
+      // screen's already-signed-in redirect in apps/web/lib/login-redirect.ts).
+      // Null only if the session outlived its tenant row.
+      tenantSlug: string | null;
       // Tenant is still on the pilot plan tier (status "pilot"). Drives the
       // temporary "Pilot" admin nav area, which disappears once the owner
       // graduates the tenant to team/business.
@@ -623,7 +632,7 @@ export class AuthService {
       }),
       this.prisma.platformTenant.findUnique({
         where: { id: session.tenantId },
-        select: { timezone: true, status: true },
+        select: { slug: true, timezone: true, status: true },
       }),
     ]);
 
@@ -657,6 +666,7 @@ export class AuthService {
         locationCategoriesEnabledSetting,
       ),
       tenantTimezone: tenant?.timezone ?? "UTC",
+      tenantSlug: tenant?.slug ?? null,
       pilotActive: tenant?.status === "pilot",
     };
   }

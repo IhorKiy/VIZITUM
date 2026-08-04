@@ -483,6 +483,28 @@ export function resolveZoneLanding(
   return zone ? { kind: "zone", zone } : { kind: "choose", zones };
 }
 
+// Where a resolved landing actually sends someone, as a tenant-relative path.
+// Split out from resolveZoneLanding's callers because the same three-branch
+// block was written out at each of them, and the login screen now needs it
+// twice over (after a sign-in, and on render for a session that is already
+// signed in — see lib/login-redirect.ts): two copies in one file that could
+// disagree about where a successful login lands is exactly the drift this
+// avoids.
+export function zoneLandingPath(
+  tenantSlug: string,
+  landing: ZoneLanding,
+): string {
+  if (landing.kind === "zone") {
+    return `/${tenantSlug}${zoneHomePath(landing.zone)}`;
+  }
+
+  if (landing.kind === "choose") {
+    return `/${tenantSlug}/choose-zone`;
+  }
+
+  return `/${tenantSlug}/no-access`;
+}
+
 // Last-resort display name, derived from the slug ("acme-foods" -> "Acme
 // Foods"). Slugs are lowercase, so this can only ever approximate the name the
 // workspace was created under — never use it when the API answered.
