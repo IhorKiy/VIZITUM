@@ -2,7 +2,7 @@
 
 Reference for the implemented database schema. Source of truth: `prisma/schema.prisma` (migrations in `prisma/migrations/`). This is the current state; `docs/vizitum-low-level-technical-design.md` §DB describes design intent and may differ. Update this document in the same change as any schema change.
 
-**35 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
+**39 models**, one shared PostgreSQL database. Conceptual split: `platform_*` tables (tenant registry, platform identity, operations) vs tenant-owned business tables (every one carries `tenantId`). Prisma migrations are the only allowed way to change production schema.
 
 ## Conventions
 
@@ -81,7 +81,7 @@ Audio, transcript, and AI draft are **temporary processing data only**. After th
 | Model | Table | Purpose |
 | --- | --- | --- |
 | `AiJob` | `ai_jobs` | Transcription or extraction job (AiJobStatus), provider/model/prompt/schema versions, input object, temporary transcript object, `temporaryDraft` JSON, error fields, `expiresAt` for cleanup. |
-| `StorageObject` | `storage_objects` | S3/R2 object metadata: `bucket` + `objectKey` (unique pair), purpose (temporary_audio / temporary_transcript / import_file / export_file / attachment / branding_logo), status (active/deleted/expired), `expiresAt` for temporary objects (`branding_logo` is persistent — no `expiresAt`, cleaned by logo replace/remove and tenant purge). |
+| `StorageObject` | `storage_objects` | S3/R2 object metadata: `bucket` + `objectKey` (unique pair), purpose (temporary_audio / temporary_transcript / import_file / export_file / attachment / branding_logo / visit_attachment), status (active/deleted/expired), `expiresAt` for temporary objects (`branding_logo` is persistent — no `expiresAt`, cleaned by logo replace/remove and tenant purge). |
 
 ## Audit group
 
