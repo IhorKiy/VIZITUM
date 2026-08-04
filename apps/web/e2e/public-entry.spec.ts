@@ -26,6 +26,21 @@ test("the marketing landings render in their own language", async ({
   await expect(page.locator("main")).toHaveAttribute("lang", "en");
 });
 
+// The contact address is the only way a reader with no workspace can reach
+// anyone, and it is printed rather than fetched — so the failure mode is a
+// page that still renders fine while quietly offering no way to get in touch.
+test("both landings offer the contact address", async ({ page }) => {
+  for (const path of ["/", "/en"]) {
+    await page.goto(path);
+    const contact = page.locator(".landing-contact-link");
+    await expect(contact).toHaveText("support@vizitum.com");
+    await expect(contact).toHaveAttribute(
+      "href",
+      /^mailto:support@vizitum\.com\?subject=./,
+    );
+  }
+});
+
 test("both workspace entry screens render their form", async ({ page }) => {
   // The submit button is the assertion that matters: it is the one control
   // fed by the pinned provider rather than by props.
