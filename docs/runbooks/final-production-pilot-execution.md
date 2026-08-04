@@ -75,7 +75,10 @@ npm run seed:platform-owner
 Required env for that one-time seed:
 
 - `PLATFORM_OWNER_EMAIL`;
-- `PLATFORM_OWNER_PASSWORD`;
+- `PLATFORM_OWNER_PASSWORD` — **at most 128 characters**; a generated one longer
+  than that is refused by the seed, because the login endpoint would read it as
+  no password at all and the account could never sign in (see
+  [environment.md](../reference/environment.md));
 - optional `PLATFORM_OWNER_NAME`.
 
 ## Phase 4: Alerts and Endpoint Verification
