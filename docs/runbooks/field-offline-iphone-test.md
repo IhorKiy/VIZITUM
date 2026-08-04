@@ -14,12 +14,12 @@ what the code says it should.
 Fill this in as you go; the evidence column of the checklist below is what
 gets copied into the plan doc afterwards.
 
-- Date:
-- Operator:
+- Date: 2026-08-03 (setup and blockers cleared 2026-08-01)
+- Operator: Ihor Kiyanych, with Claude Code driving the checks
 - Environment: staging (`https://www.vizitum.com`, API `https://vizitum-api-staging.onrender.com`)
 - Tenant slug: `vizitum-staging` (language `uk`, timezone `Europe/Kiev`)
-- Device / iOS version:
-- Release SHA under test:
+- Device / iOS version: iPhone, iOS 18.7.9, Home Screen install (`navigator.standalone` = `true`)
+- Release SHA under test: `main` as deployed to Vercel on the day; the manifest fix (#178) landed mid-pass and the install was redone against it
 
 ## Use staging, not a laptop on the LAN
 
@@ -112,7 +112,7 @@ the session cookie and the service worker scope sit on one host.
       "Додати точку" only adds to a plan that already exists), or by re-running
       the same idempotent seeder, which reuses the existing locations and
       products and only mints the day's plan.
-- [ ] **Storage works.** Record and upload one voice note online, end to end,
+- [x] **Storage works.** Verified 2026-08-03. Record and upload one voice note online, end to end,
       before testing anything offline. If R2 or the presign path is broken on
       staging, every offline capture check below will fail for an unrelated
       reason.
@@ -170,22 +170,83 @@ after entering airplane mode.
 
 | #   | Scenario                    | Steps                                                                                                                                                                                                | Expected                                                                                                                                                                                                                                                          | Evidence | Status |
 | --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ------ |
-| T1  | Worker and shell cached     | Online, in the installed app: run the SW/cache snippets from the appendix in the inspector console.                                                                                                    | One registration scoped to `https://www.vizitum.com/`; `vizitum-shell-v1` holds `/offline.html`; `vizitum-static-v1` holds `/_next/static/` entries.                                                                                                               |          |        |
-| T2  | Cold offline load           | Airplane mode on. Force-quit the app from the app switcher. Reopen it. This reopen is a full navigation to the manifest's `start_url`, so it tests the installed app's launch destination as much as the worker.                                                                                                 | The offline shell renders today's stops with the banner "Офлайн — дані станом на HH:MM" and per-stop "Відвідано"/"Ще не відвідано" — not Safari's own "no internet" page, and not an empty screen. Safari's error page here usually means the install did not come from a field screen (see setup step 5), not that the worker is broken. |          |        |
-| T2a | Leaving the offline shell   | On the shell from T2, tap "Try again" while still in airplane mode. Then turn airplane mode off and, without touching the screen, background the app from the app switcher and bring it straight back.                                                                          | The tap answers: "Still no connection. Today's route below is unchanged.", with the route still on screen — it must neither blank nor appear to do nothing at all. Once the signal is back the shell returns to the field home by itself, within a few seconds of the app coming forward, with nothing tapped. Both strings are English on purpose: the shell carries no next-intl and has no tenant language to read. A shell with no way off it is the bug this row exists to catch — on a Home Screen install there is no address bar and no reload button, so the only other exit is force-quitting the app. |          |        |
-| T3  | Offline visit start         | Still offline: open a stop's location card, tap "Почати візит".                                                                                                                                        | Lands on a working report screen headed "Візит триває". Going back to the location card offers "Продовжити візит" with the hint that it has not reached the server yet. Tapping "Почати візит" twice must not mint a second visit.                                  |          |        |
-| T4  | Offline voice capture       | On that screen tap the record control ("Записати голосову нотатку"), allow the microphone, speak ~15s, stop.                                                                                            | Recording starts (a first-run permission prompt is expected inside the installed app), playback of the recorded blob works, and the screen says the capture is kept on this device ("Запис нікуди не зник" / "Збережено на цьому пристрої"). `pending-media` holds a record with `bytes.byteLength > 0` and an `audio/mp4` mime type. |          |        |
-| T5  | Offline manual confirm      | Tap "Заповнити вручну", fill the summary and next step, tap "Зберегти звіт".                                                                                                                            | The report is accepted locally, and the outbox indicator reads "1 звіт очікує на відправлення". `report-outbox` holds one entry; `visit-start-outbox` still holds the unsent start.                                                                                 |          |        |
-| T6  | Cold start, still offline   | Still offline: force-quit the app, reopen it, navigate back into the visit.                                                                                                                            | Queue counts and the typed draft survive the restart; nothing is re-sent, nothing is lost, no error screen.                                                                                                                                                        |          |        |
-| T7  | Automatic flush             | Airplane mode off. Leave the app in the foreground; if nothing happens within a few seconds, background it and return (the triggers are app-open, tab-visible and the `online` event — there is no Background Sync on iOS). | The start syncs first, then the confirm. The outbox indicator empties, the screen refreshes to a real visit, and the visit + report appear in `/vizitum-staging/manager/visits` (or field history) with today's timestamp and no duplicate.                                    |          |        |
-| T8  | Manual "Надіслати зараз"    | Repeat T3–T5 on a second stop, come back online, and use the button instead of waiting.                                                                                                                | Same result as T7, initiated by the tap; the button shows "Надсилаємо…" while it runs.                                                                                                                                                                            |          |        |
-| T9  | Abandon a queued start      | Offline, start a visit on a third stop, capture something, then tap "Скасувати візит" on the pending screen.                                                                                            | The prompt explains nothing is sent and no reason is collected, warns about the unsent capture, and after confirming the visit is gone from this phone. Back online, no such visit ever appears on the server.                                                       |          |        |
-| T10 | Cancel a real visit         | Online, start a visit; offline, record something; back online, cancel the visit through "Скасувати візит" on the visit screen.                                                                          | The modal names the unsent capture before you commit; after cancelling, `pending-media` no longer holds bytes for that visit and nothing for it stays queued.                                                                                                       |          |        |
-| T11 | Dead zone, not airplane mode | Join a Wi-Fi network with no working internet (a hotspot with data off works). Repeat a start + capture + confirm.                                                                                     | `navigator.onLine` is `true` and every request hangs or fails — the case airplane mode does not reproduce. Work must still queue rather than surface as a hard error, and must flush once real connectivity returns.                                                 |          |        |
-| T12 | 7-day eviction (day 8)      | In the **Safari tab** (not the installed app), leave a pending capture and an unsent report. Do not open the site for 7+ days, then check the appendix counts.                                          | Expected on iOS: script-writable storage is evicted for the un-installed site, which is exactly why `pending-media` is swept at 7 days and why the Home Screen install is the supported case. The installed app's own queue must still be intact.                    |          |        |
+| T1  | Worker and shell cached     | Online, in the installed app: run the SW/cache snippets from the appendix in the inspector console.                                                                                                    | One registration scoped to `https://www.vizitum.com/`; `vizitum-shell-v1` holds `/offline.html`; `vizitum-static-v1` holds `/_next/static/` entries.                                                                                                               | `navigator.standalone` = `true`, `location.href` on a field path. One registration, scope `https://www.vizitum.com/`, `active` = `activated`, `waiting` = null, `controller` = `/sw.js`. `caches.keys()` = `["vizitum-shell-v1", "vizitum-static-v1"]`, shell holding exactly `/offline.html`. First confirmation that iOS registers, keeps and uses the worker in a standalone install. | Pass |
+| T2  | Cold offline load           | Airplane mode on. Force-quit the app from the app switcher. Reopen it. This reopen is a full navigation to the manifest's `start_url`, so it tests the installed app's launch destination as much as the worker.                                                                                                 | The offline shell renders today's stops with the banner "Офлайн — дані станом на HH:MM" and per-stop "Відвідано"/"Ще не відвідано" — not Safari's own "no internet" page, and not an empty screen. Safari's error page here usually means the install did not come from a field screen (see setup step 5), not that the worker is broken. | Cold launch offline → Safari's own error page; reloading from it does not recover; a Safari tab behaves the same. The worker is not what is broken: while offline a `/_next/static/` chunk fetched **200** from `vizitum-static-v1`, so its fetch handler runs with no network, and with the app already warm `location.reload()` offline served the shell on the **first** attempt. So the fallback works for a client that has already loaded a page this session, and never for a cold launch — which is the case the feature exists for. Raised as its own work. | **Fail** |
+| T2c | Leaving the offline shell   | On the shell from T2, tap "Try again" while still in airplane mode. Then turn airplane mode off and, without touching the screen, background the app from the app switcher and bring it straight back.                                                                          | The tap answers: "Still no connection. Today's route below is unchanged.", with the route still on screen — it must neither blank nor appear to do nothing at all. Once the signal is back the shell returns to the field home by itself, within a few seconds of the app coming forward, with nothing tapped. Both strings are English on purpose: the shell carries no next-intl and has no tenant language to read. A shell with no way off it is the bug this row exists to catch — on a Home Screen install there is no address bar and no reload button, so the only other exit is force-quitting the app. | Not run — this affordance did not exist at the 2026-08-01 pass; added with the shell recovery fix. | Not run |
+| T3  | Offline visit start         | Still offline: open a stop's location card, tap "Почати візит".                                                                                                                                        | Lands on a working report screen headed "Візит триває". Going back to the location card offers "Продовжити візит" with the hint that it has not reached the server yet. Tapping "Почати візит" twice must not mint a second visit.                                  | The queued start is durable and self-heals. `visit-start-outbox` held `clientVisitId 046bcde1…`; after returning online, `remoteVisitId` = `resolvedVisitId` = `cmsde5m5y…` in **one** attempt, `lastError` null, `rejectedAt` null, `routeItemId` intact and `startedAt` preserved as the offline `15:32:45Z` rather than the sync time — 3m07s between the tap and the resolution. The screen half fails: the navigation the start triggers cannot complete offline, so the rep lands on the offline shell instead of "Візит триває" and cannot work the visit at all. | Pass (data) / **Fail** (screen) |
+| T4  | Offline voice capture       | On that screen tap the record control ("Записати голосову нотатку"), allow the microphone, speak ~15s, stop.                                                                                            | Recording starts (a first-run permission prompt is expected inside the installed app), playback of the recorded blob works, and the screen says the capture is kept on this device ("Запис нікуди не зник" / "Збережено на цьому пристрої"). `pending-media` holds a record with `bytes.byteLength > 0` and a real audio mime type — iOS 18.7.9 records `audio/webm; codecs=opus`; only older iOS falls back to `audio/mp4`. | 455894 bytes in `pending-media`, keyed tenant/user/visit/`audio`/`bytes`. Mime `audio/webm; codecs=opus`, and the first bytes are `1a 45 df a3` — EBML, so a real WebM container rather than a mislabelled one. iOS 18.7.9 therefore records WebM/Opus and the documented `audio/mp4` fallback no longer applies to current iOS. The screen said the capture was kept on the device, offered playback and retry, and moved to manual entry by itself. | Pass |
+| T5  | Offline manual confirm      | Tap "Заповнити вручну", fill the summary and next step, tap "Зберегти звіт".                                                                                                                            | The report is accepted locally, and the outbox indicator reads "1 звіт очікує на відправлення". `report-outbox` holds one entry; `visit-start-outbox` still holds the unsent start.                                                                                 | `report-outbox` held one entry for the visit, `attempts: 0`, `rejectedAt` null. Saving redirects, and that navigation stranded the rep on the offline shell — the third path to do so, after starting and after continuing a visit. `pending-media` came back empty: the confirm deletes both captures deliberately (see the comment above the redirect in `field-visit-report-form.tsx`), which offline means a dictation that never reached the server is destroyed without warning — raised as its own work. The single `report-drafts` record left behind was the rekey's forwarding address (`redirectTo` = the server visit id), not an orphan, confirming that mechanism on a real device. | Pass (data) / **Fail** (screen) |
+| T6  | Cold start, still offline   | Still offline: force-quit the app, reopen it, navigate back into the visit.                                                                                                                            | Queue counts and the typed draft survive the restart; nothing is re-sent, nothing is lost, no error screen.                                                                                                                                                        | Not run. Partly answered by T2: a cold launch with no network reaches Safari's error page, so "reopen and navigate back into the visit" cannot be exercised until that is fixed. The queues did survive several app kills across T3–T5 with nothing lost or re-sent. | Not run |
+| T7  | Automatic flush             | Airplane mode off. Leave the app in the foreground; if nothing happens within a few seconds, background it and return (the triggers are app-open, tab-visible and the `online` event — there is no Background Sync on iOS). | The start syncs first, then the confirm. The outbox indicator empties, the screen refreshes to a real visit, and the visit + report appear in `/vizitum-staging/manager/visits` (or field history) with today's timestamp and no duplicate.                                    | After airplane mode off and returning to the app, `report-outbox` emptied on its own with no tap. The start had already resolved the same way during T3, so both queues flushed unattended. | Pass |
+| T8  | Manual "Надіслати зараз"    | Repeat T3–T5 on a second stop, come back online, and use the button instead of waiting.                                                                                                                | Same result as T7, initiated by the tap; the button shows "Надсилаємо…" while it runs.                                                                                                                                                                            | Not run — session ended. | Not run |
+| T9  | Abandon a queued start      | Offline, start a visit on a third stop, capture something, then tap "Скасувати візит" on the pending screen.                                                                                            | The prompt explains nothing is sent and no reason is collected, warns about the unsent capture, and after confirming the visit is gone from this phone. Back online, no such visit ever appears on the server.                                                       | Not run — session ended. Note the pending screen named in the steps is unreachable offline (T3); use the location card's own abandon control instead. | Not run |
+| T10 | Cancel a real visit         | Online, start a visit; offline, record something; back online, cancel the visit through "Скасувати візит" on the visit screen.                                                                          | The modal names the unsent capture before you commit; after cancelling, `pending-media` no longer holds bytes for that visit and nothing for it stays queued.                                                                                                       | Not run — session ended. | Not run |
+| T11 | Dead zone, not airplane mode | Join a Wi-Fi network with no working internet (a hotspot with data off works). Repeat a start + capture + confirm.                                                                                     | `navigator.onLine` is `true` and every request hangs or fails — the case airplane mode does not reproduce. Work must still queue rather than surface as a hard error, and must flush once real connectivity returns.                                                 | Not run — session ended. Highest value of what remains: airplane mode does not reproduce a lying `navigator.onLine`. | Not run |
+| T12 | 7-day eviction (day 8)      | In the **Safari tab** (not the installed app), leave a pending capture and an unsent report. Do not open the site for 7+ days, then check the appendix counts.                                          | Expected on iOS: script-writable storage is evicted for the un-installed site, which is exactly why `pending-media` is swept at 7 days and why the Home Screen install is the supported case. The installed app's own queue must still be intact.                    | Not run — earliest 2026-08-10. | Not run |
 
 Record what actually happened even when it matches — "Pass" with a screenshot
 and the console counts is the evidence this pass exists to produce.
+
+## What the 2026-08-03 run established
+
+**The durability layer is real, and now proven rather than assumed.** A visit
+started with no signal reached the server with its offline `startedAt` and its
+route-item link intact, in one attempt, without being asked to. A voice note
+recorded offline survived as bytes on the device. A report confirmed offline
+queued and then flushed itself the moment the app came back with a network.
+The rekey's forwarding address — the fix for the orphaned draft, until now
+verified only against `fake-indexeddb` — was observed doing its job on a real
+phone, 17ms after the start resolved. Nothing in five scenarios was lost or
+duplicated.
+
+**The reachability layer is not.** No navigation completes without a network,
+and three separate paths proved it in one session: starting a visit,
+continuing one, and saving a report all end on the offline shell instead of
+the screen they were going to. The shell itself only appears for a client that
+has already loaded a page in this session; a cold launch in a dead zone — the
+shape the feature was built for — gets Safari's error page. So a rep who walks
+into a basement with the app closed cannot open it; one who walks in with a
+screen open can work on that screen and nowhere else.
+
+That asymmetry is the finding. Everything the offline effort built to keep
+work safe does keep it safe. Everything built to let a rep *reach* that work
+without a network does not hold on iOS, and the emulated coverage could not
+have shown it: `apps/web/e2e/field-offline-shell.spec.ts` drives an
+already-loaded Chromium context, which is precisely the state that works here
+too.
+
+**Method note for the remaining scenarios.** Because of the above, run each
+one screen-first: open the screen online, then drop connectivity from Control
+Centre without leaving it. That is not a softened test — it is the real dead
+zone, where a rep opens the location card upstairs and loses signal in the
+basement.
+
+### Raised as separate work
+
+Two were fixed and deployed the same day, before the pass could continue:
+
+- A tenant on the legacy `ready` status refused every request, and the login
+  screen reported that as wrong credentials (seed fixed in #176; the tenant
+  moved to `pilot` by hand).
+- A Home Screen install had no route to any workspace: iOS honours the
+  manifest's `start_url`, not the page the shortcut was made from, and the
+  origin-wide manifest pointed at marketing copy whose only sign-in link named
+  a tenant that exists in no deployed database (#178).
+
+Three came out of the pass itself and are open:
+
+- The offline shell never loads on a cold start (T2).
+- The offline shell is a one-way door — no retry control, no `online`
+  listener, and on an installed app no address bar either, so the only exit is
+  force-quitting. Observed twice. Note for whoever fixes it: navigating to the
+  **same** URL does not escape it, so a retry cannot be a plain
+  `location.reload()`.
+- Confirming a report deletes an unsent recording without warning (T5).
+
+And one correction to this document's own expectations: iOS 18.7.9 records
+`audio/webm; codecs=opus`, not the `audio/mp4` the design notes still describe
+as the Safari fallback. Verified by the container's own bytes, not just the
+reported mime type.
 
 ## Inspector console snippets
 
@@ -269,6 +330,12 @@ has a single home:
    filled in.
 2. Tick the real-phone line in `docs/vizitum-action-plan.md` and update the
    "Known gaps" section of `docs/plans/offline-field-drafts-plan-prompt.md` —
-   gap #1 is exactly this pass.
+   gap #1 is exactly this pass. **Not yet done, deliberately.** The 2026-08-03
+   run covered T1–T5 and T7 and left T6 and T8–T12 unrun, and two of what it
+   did cover failed. Ticking a line that reads "verify the whole story on a
+   real phone" off a partial run with open failures would put the plan doc
+   back to claiming something untrue, which is the exact habit that gap
+   existed to break. Tick it when the remaining scenarios have run and the
+   failures are closed or consciously accepted.
 3. File anything that failed as its own issue with the store counts and the
    module from the map above; do not fold a fix into this document.

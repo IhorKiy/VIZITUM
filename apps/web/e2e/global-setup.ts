@@ -51,6 +51,15 @@ export const OFFLINE_VISIT_START_SEED_ARGS = [
   "E2E Offline Start Market",
 ];
 
+// A FIFTH, for login-signed-in. Its own for the usual parallel reason plus one
+// of its own: the spec is about what a *live session* does to a login screen,
+// so it needs a rep nothing else is signing in as at the same moment.
+export const LOGIN_REDIRECT_SEED_ARGS = [
+  "e2e-login-redirect",
+  "Vizitum E2E Login Redirect",
+  "E2E Login Redirect Market",
+];
+
 // Test-only, and only ever applied to a localhost database by the seed
 // script's own guard. The specs generate codes from it exactly as an
 // authenticator app would.
@@ -67,6 +76,7 @@ export const E2E_PLATFORM_SESSION_EMAILS = [
   "session-owner-1@platform.local",
   "session-owner-2@platform.local",
   "session-owner-3@platform.local",
+  "session-owner-4@platform.local",
 ] as const;
 
 // The account the enrolment spec drives, kept apart from the rest so nothing
@@ -114,6 +124,12 @@ export default function globalSetup(): void {
       script: [
         "scripts/seed-e2e-field-revisit.mjs",
         ...OFFLINE_VISIT_START_SEED_ARGS,
+      ],
+    },
+    {
+      script: [
+        "scripts/seed-e2e-field-revisit.mjs",
+        ...LOGIN_REDIRECT_SEED_ARGS,
       ],
     },
   ];
