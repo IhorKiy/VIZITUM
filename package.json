@@ -18,7 +18,7 @@
     "dev": "node --watch --require ts-node/register src/main.ts",
     "format": "prettier --write \"src/**/*.ts\" \"apps/web/**/*.{ts,tsx,css,json}\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
     "format:check": "prettier --check \"src/**/*.ts\" \"apps/web/**/*.{ts,tsx,css,json}\" prisma.config.ts eslint.config.mjs package.json tsconfig.json .prettierrc.json",
-    "lint": "eslint src apps/web prisma.config.ts",
+    "lint": "eslint src apps/web prisma.config.ts --max-warnings 0",
     "prebuild": "npm run prisma:generate",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
