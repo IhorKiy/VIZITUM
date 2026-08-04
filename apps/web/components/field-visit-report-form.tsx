@@ -351,7 +351,13 @@ export function FieldVisitReportForm({
   // retry finally landing all count. The next save asks again, against whatever
   // is actually left. Nothing here fires between the prompt opening and the rep
   // answering it: opening touches none of these.
+  //
+  // Left as an effect rather than adjusted during render: doing that would need
+  // four parallel "previous value" state variables in an already very large
+  // component, for a reset whose only job is closing a confirmation dialog —
+  // not worth the added surface area on this screen in particular.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     setDiscardPrompt(null);
   }, [pendingAudio, pendingPhoto, isTranscribing, isUploadingPhoto]);
 
@@ -496,17 +502,30 @@ export function FieldVisitReportForm({
     // Mount/unmount only: the callbacks it uses read refs, not state.
   }, []);
 
+  // Adjusted during render (React's documented pattern for resetting state
+  // when a prop changes) rather than in the object-URL effect below —
+  // pendingAudio starts null, so this never fires on mount, matching
+  // pendingAudioUrl's own null initial state.
+  const [prevPendingAudio, setPrevPendingAudio] = useState(pendingAudio);
+  if (pendingAudio !== prevPendingAudio) {
+    setPrevPendingAudio(pendingAudio);
+    if (!pendingAudio) setPendingAudioUrl(null);
+  }
+
   // Lets the rep hear what is waiting to be sent before deciding to retry it.
   // Revoked when the recording is replaced or the screen closes, since this can
   // happen several times in one visit.
   useEffect(() => {
     if (!pendingAudio) {
-      setPendingAudioUrl(null);
       return;
     }
 
     const url = URL.createObjectURL(pendingAudio.body.blob);
 
+    // url only exists once createObjectURL (an effect-only browser API) has
+    // run, so unlike the null-reset above this can't be derived during
+    // render — it has to be set here, paired with the revoke below.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     setPendingAudioUrl(url);
 
     return () => URL.revokeObjectURL(url);

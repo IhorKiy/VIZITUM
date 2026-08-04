@@ -42,9 +42,14 @@ export function ConfirmActionButton({
   const confirmRef = useRef<HTMLButtonElement>(null);
   const wasConfirming = useRef(false);
 
-  useEffect(() => {
+  // Adjusted during render (React's documented pattern for resetting state
+  // when a prop changes) rather than in an effect, so there is no extra
+  // render showing the stale confirming state.
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (resetKey !== prevResetKey) {
+    setPrevResetKey(resetKey);
     setConfirming(false);
-  }, [resetKey]);
+  }
 
   // Opening the confirm row unmounts the trigger (and Cancel unmounts the
   // row again), so move focus by hand or it drops to the document body.
@@ -69,6 +74,11 @@ export function ConfirmActionButton({
   }
 
   if (!confirming) {
+    // renderTrigger is always a caller-supplied JSX render prop (forwarding
+    // the ref straight onto a <button>), never a function that dereferences
+    // .current itself — but that isn't visible to the linter across the
+    // component boundary.
+    // eslint-disable-next-line react-hooks/refs -- see comment above
     return renderTrigger({
       onClick: () => setConfirming(true),
       ref: triggerRef,

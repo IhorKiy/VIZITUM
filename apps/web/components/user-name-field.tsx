@@ -43,9 +43,14 @@ export function UserNameField({
   // A successful rename redirects and RSC-refreshes the page without
   // remounting this component, so `editing` would otherwise stay true and
   // leave the inputs open. Exit edit mode whenever the name changes.
-  useEffect(() => {
+  // Adjusted during render (React's documented pattern for resetting state
+  // when a prop changes) rather than in an effect, so there is no extra
+  // render showing the stale editing state.
+  const [prevDisplayName, setPrevDisplayName] = useState(displayName);
+  if (displayName !== prevDisplayName) {
+    setPrevDisplayName(displayName);
     setEditing(false);
-  }, [displayName]);
+  }
 
   // The name sits inside the <summary>, which toggles the disclosure on any
   // click or Space/Enter — so every control here stops the event from reaching

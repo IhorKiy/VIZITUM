@@ -18,7 +18,13 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
 import {
   CheckIcon,
@@ -136,14 +142,28 @@ function TodayRouteGroup({
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
 
-  orderRef.current = order;
+  // A passive effect flushes in its own scheduler task after commit, which
+  // leaves a real gap between paint and the ref actually updating; a native
+  // event (a second, fast ArrowDown on the handle) landing in that gap would
+  // read orderRef.current stale and compute the reorder from the wrong array.
+  // useLayoutEffect runs synchronously in the commit, before the browser can
+  // dispatch the next event, so it closes that gap the way the render-time
+  // assignment this replaced always did.
+  useLayoutEffect(() => {
+    orderRef.current = order;
+  }, [order]);
 
   // Resyncs only when the server's own item set/order actually changes
   // (a redirect after a persisted reorder) — not on every incidental
   // re-render, which would otherwise stomp a drag in progress.
-  useEffect(() => {
+  // Adjusted during render (React's documented pattern for state that must
+  // follow a derived key) rather than in an effect, so the corrected order is
+  // what actually paints instead of flashing the stale one for a frame.
+  const [prevStopsKey, setPrevStopsKey] = useState(stopsKey);
+  if (stopsKey !== prevStopsKey) {
+    setPrevStopsKey(stopsKey);
     setOrder(stops);
-  }, [stopsKey]);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -184,6 +204,11 @@ function TodayRouteGroup({
     },
   };
 
+  // Same unsequenced-write race as the route template editor's own
+  // commitOrder (route-stop-drag-list.tsx): one independent request per move,
+  // each sending the full absolute order, so two moves in flight at once
+  // resolve to whichever lands last rather than whichever was newer. See
+  // #226.
   function commitOrder(nextOrder: TodayStop[]) {
     const changed = nextOrder.some(
       (item, index) => item.id !== stops[index]?.id,
@@ -341,15 +366,31 @@ function TodayRouteStopRow({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const offsetRef = useRef(0);
   const swipedRef = useRef(false);
-  offsetRef.current = offset;
+
+  // See the orderRef comment above: offsetRef is read from handleStart, a
+  // native touchstart handler, so it needs the same synchronous-in-commit
+  // guarantee — a passive effect would leave a gap where a fast re-touch
+  // after a snap could read a stale startOffset.
+  useLayoutEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
 
   // A remove needs a second, deliberate tap; closing the row cancels that
-  // pending confirmation so it never lingers invisibly.
-  useEffect(() => {
-    if (offset === 0) {
-      setConfirmRemove(false);
-    }
-  }, [offset]);
+  // pending confirmation so it never lingers — reopening the same row later
+  // must start unconfirmed too, or one stray tap on a row that was confirmed
+  // (but never submitted) in an earlier open would remove the stop straight
+  // away. That means confirmRemove itself has to go back to false here, not
+  // just a display value derived from it while leaving it stuck true
+  // underneath. Adjusted during render (React's documented pattern for state
+  // that must follow a derived condition) rather than in an effect: offset
+  // changes on every touchmove of an active swipe, so the tracked "previous
+  // offset" differs on nearly every render, but the render body here is cheap
+  // enough that the extra invocation isn't worth an effect and a disable.
+  const [prevOffset, setPrevOffset] = useState(offset);
+  if (offset !== prevOffset) {
+    setPrevOffset(offset);
+    if (offset === 0) setConfirmRemove(false);
+  }
 
   // Touch listeners are attached imperatively so touchmove can be non-passive
   // (preventDefault stops the page from scrolling mid-swipe — React's synthetic

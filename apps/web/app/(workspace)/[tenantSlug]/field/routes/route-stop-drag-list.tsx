@@ -18,7 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 
 import {
   GripIcon,
@@ -68,14 +68,28 @@ export function RouteStopDragList({
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
 
-  orderRef.current = order;
+  // A passive effect flushes in its own scheduler task after commit, which
+  // leaves a real gap between paint and the ref actually updating; a native
+  // event (a second, fast ArrowDown on the handle) landing in that gap would
+  // read orderRef.current stale and compute the reorder from the wrong array.
+  // useLayoutEffect runs synchronously in the commit, before the browser can
+  // dispatch the next event, so it closes that gap the way the render-time
+  // assignment this replaced always did.
+  useLayoutEffect(() => {
+    orderRef.current = order;
+  }, [order]);
 
   // Resyncs only when the server's own item set/order actually changes
   // (add/remove, or a redirect after a persisted reorder) — not on every
   // incidental re-render, which would otherwise stomp a drag in progress.
-  useEffect(() => {
+  // Adjusted during render (React's documented pattern for state that must
+  // follow a derived key) rather than in an effect, so the corrected order is
+  // what actually paints instead of flashing the stale one for a frame.
+  const [prevStopsKey, setPrevStopsKey] = useState(stopsKey);
+  if (stopsKey !== prevStopsKey) {
+    setPrevStopsKey(stopsKey);
     setOrder(stops);
-  }, [stopsKey]);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -116,6 +130,13 @@ export function RouteStopDragList({
     },
   };
 
+  // One independent request per move, with no sequencing, cancellation or
+  // generation check — and each one sends the full absolute order, not a
+  // delta. Two moves made before the first settles put two writes in flight,
+  // and the server keeps whichever lands last rather than whichever was
+  // newer, so a rep pressing the handle twice in a row can silently persist
+  // the intermediate order. Pre-existing and deliberately not fixed here;
+  // #226 has the reproduction and weighs the options.
   function commitOrder(nextOrder: StopItem[]) {
     const changed = nextOrder.some(
       (item, index) => item.id !== stops[index]?.id,

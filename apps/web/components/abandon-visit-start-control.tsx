@@ -68,7 +68,6 @@ export function AbandonVisitStartControl({
   // counter.
   useEffect(() => {
     if (!confirming) {
-      setImpact(null);
       return;
     }
 
@@ -119,6 +118,13 @@ export function AbandonVisitStartControl({
 
     setWorking(false);
     setConfirming(false);
+    // Clears what the prompt would have reported, so a later re-open never
+    // flashes stale data before the fresh read above lands. Co-located with
+    // the two places `confirming` itself becomes false rather than watched
+    // for via a render-time comparison — unlike a prop, this component owns
+    // `confirming` outright, so every transition to false already happens in
+    // code we control.
+    setImpact(null);
     onAbandoned();
   }
 
@@ -162,7 +168,11 @@ export function AbandonVisitStartControl({
         <button
           className="secondary-button"
           disabled={working}
-          onClick={() => setConfirming(false)}
+          onClick={() => {
+            setConfirming(false);
+            // See the matching comment in run() above.
+            setImpact(null);
+          }}
           type="button"
         >
           {tCommon("cancel")}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import { INPUT_LIMITS } from "../lib/input-limits";
+import { useIsMounted } from "../lib/use-is-mounted";
 import { CheckIcon, NoteIcon } from "./icons";
 
 type LocationNotesModalProps = {
@@ -33,8 +34,7 @@ export function LocationNotesModal({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useIsMounted();
 
   const initialNote = notes ?? "";
   const [value, setValue] = useState(initialNote);

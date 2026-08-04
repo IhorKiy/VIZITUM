@@ -30,6 +30,11 @@ import path from "node:path";
 //   tenant: `Visit.routeItemId` is unique, so whichever of them reaches the
 //   planned stop second cannot start a visit at all — which is exactly how
 //   they failed together while passing alone.
+// - scripts/seed-e2e-field-route-reorder.mjs: its own tenant/rep/template,
+//   not built on seed-e2e-field-revisit.mjs — a route TEMPLATE with two
+//   stops is a different shape (RouteTemplate/RouteTemplateItem) from that
+//   script's single-stop RoutePlan for today, and field-route-reorder.spec.ts
+//   doesn't touch visits at all.
 //
 // All seeds are idempotent upserts, so re-running against the shared local
 // database is safe.
@@ -132,6 +137,7 @@ export default function globalSetup(): void {
         ...LOGIN_REDIRECT_SEED_ARGS,
       ],
     },
+    { script: ["scripts/seed-e2e-field-route-reorder.mjs"] },
   ];
 
   for (const { script, env } of seeds) {

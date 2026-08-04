@@ -105,12 +105,20 @@ export function StartVisitControl({
     [tenantSlug, userId],
   );
 
+  // Adjusted during render (React's documented pattern for resetting state
+  // when a prop changes) rather than in the fetch effect itself, so there is
+  // no extra render showing the stale pendingLocal value.
+  const [prevActiveVisit, setPrevActiveVisit] = useState(activeVisit);
+  if (activeVisit !== prevActiveVisit) {
+    setPrevActiveVisit(activeVisit);
+    if (activeVisit) setPendingLocal(null);
+  }
+
   // The server's "is there an active visit" list only knows about visits it
   // has heard of, so without this a rep who backs out and re-taps "start"
   // while still offline would mint a second id for the same stop.
   useEffect(() => {
     if (activeVisit) {
-      setPendingLocal(null);
       return;
     }
 

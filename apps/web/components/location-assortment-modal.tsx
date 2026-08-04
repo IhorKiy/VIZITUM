@@ -13,6 +13,7 @@ import { useTranslations } from "next-intl";
 
 import type { LocationAssortment } from "../lib/api-client";
 import { INPUT_LIMITS } from "../lib/input-limits";
+import { useIsMounted } from "../lib/use-is-mounted";
 import { PencilIcon, PlusIcon, SearchIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 
@@ -28,6 +29,9 @@ type LocationAssortmentModalProps = {
 );
 
 const PRODUCT_LIMIT = 50;
+// Stable reference so the "add" vs "edit" fallback below doesn't create a new
+// array (and re-trigger the useMemo that depends on it) on every render.
+const EMPTY_PRODUCTS: ProductOption[] = [];
 
 function productLabel(name: string, sku: string | null): string {
   return sku ? `${name} · ${sku}` : name;
@@ -54,7 +58,8 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
   const titleId = useId();
   const listId = useId();
 
-  const products = props.mode === "add" ? props.availableProducts : [];
+  const products =
+    props.mode === "add" ? props.availableProducts : EMPTY_PRODUCTS;
   const initialMatrixRequired =
     props.mode === "add" ? true : Boolean(props.row.shouldBeListed);
 
@@ -63,9 +68,7 @@ export function LocationAssortmentModal(props: LocationAssortmentModalProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [matrixRequired, setMatrixRequired] = useState(initialMatrixRequired);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useIsMounted();
 
   const { filtered, totalMatches } = useMemo(() => {
     const needle = query.trim().toLowerCase();
