@@ -361,8 +361,10 @@ test("saving the report says it will delete an unsent recording, and only does s
   await expect(prompt).toContainText("Send again");
 
   // Backing out sends nothing and deletes nothing: the recording is still on
-  // the device, with its retry, and the report is still unsaved.
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  // the device, with its retry, and the report is still unsaved. The way out
+  // is deliberately not labelled "Cancel" — this screen has a "Cancel visit"
+  // of its own — so the exact name is part of what this pins.
+  await page.getByRole("button", { name: "Don't save yet" }).click();
   await expect(page.getByRole("button", { name: "Save report" })).toBeVisible();
   await expect(pending).toBeVisible();
   expect(await pendingMediaCount(page)).toBeGreaterThan(0);

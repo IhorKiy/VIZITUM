@@ -232,7 +232,6 @@ export function FieldVisitReportForm({
   voiceHint,
 }: FieldVisitReportFormProps) {
   const t = useTranslations("field.visit");
-  const tCommon = useTranslations("common");
   const router = useRouter();
 
   // Two screens: "capture" is just the mic plus the tenant's speaking
@@ -1998,13 +1997,17 @@ export function FieldVisitReportForm({
                   >
                     {isSubmitting ? t("saving") : t("saveDiscardsConfirm")}
                   </button>
+                  {/* Not the shared "Cancel": this screen carries a "Cancel
+                      visit" control of its own a little further down, and a
+                      bare Cancel beside a destructive save is the one place
+                      that collision would be read the wrong way. */}
                   <button
                     className="secondary-button"
                     disabled={isSubmitting}
                     onClick={() => setDiscardPrompt(null)}
                     type="button"
                   >
-                    {tCommon("cancel")}
+                    {t("saveDiscardsCancel")}
                   </button>
                 </div>
               </div>

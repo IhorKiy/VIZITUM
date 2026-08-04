@@ -1413,6 +1413,7 @@
       "saveDiscardsBoth": "The recording and the photo still haven't been sent. Saving the report finishes the visit and deletes them from this phone — you won't be able to send them afterwards.",
       "saveDiscardsSendFirst": "If you have signal now, tap \"Send again\" at the top of this screen first.",
       "saveDiscardsConfirm": "Save and delete",
+      "saveDiscardsCancel": "Don't save yet",
       "confirmedTitle": "Confirmed report",
       "confirmedAt": "Confirmed {date}",
       "confirmedSummary": "Summary",
