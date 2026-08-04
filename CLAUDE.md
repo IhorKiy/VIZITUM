@@ -47,6 +47,8 @@ npm run web:e2e               # Playwright e2e (apps/web/e2e); boots API+web on 
 
 `web:e2e` needs the local Postgres up and a one-time `npx playwright install chromium`; it seeds the platform owner itself (global setup) and starts both servers on E2E-only ports, so it can run next to dev servers and worktree slots. Override ports with `E2E_API_PORT`/`E2E_WEB_PORT` if 4100/3100 are taken.
 
+`apps/web/next-env.d.ts` is generated, gitignored and absent from a fresh checkout — don't add it back. Next rewrites it on every run to point at the dist dir of the command that ran (`next dev` → `.next/dev/types/*`, `next build` → `.next/types/*`), so tracking it meant whichever ran last left the tree dirty and `format:check` flagged a file nobody edited. `web:typecheck` runs `next typegen` first so it regenerates the file and the route types before `tsc` sees them; any of dev, build or typecheck restores it if it goes missing.
+
 Worker and ops:
 
 ```sh
