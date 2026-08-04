@@ -6,6 +6,7 @@ import {
 import type { PlatformUser } from "@prisma/client";
 import type { Request, Response } from "express";
 
+import { withinLimit } from "../../common/input-limits";
 import { normalizeEmail } from "../../common/normalize";
 import { describeRequestOrigin } from "../../common/request-origin";
 import { AuthAuditService } from "../auth/auth-audit.service";
@@ -60,7 +61,20 @@ export class PlatformAuthService {
     request: Request,
   ): Promise<PlatformLoginResponse> {
     const email = normalizeEmail(body.email);
-    const password = typeof body.password === "string" ? body.password : "";
+    // Capped like the tenant login's `normalizePassword`, and for the reason
+    // stated there: argon2 hashes whatever it is given, so an unbounded
+    // password is an unbounded amount of work per request — a cheap way to
+    // make a login endpoint expensive, and this one answers before any
+    // account is known. It locks nobody out, since every path that *sets* a
+    // platform password caps it at the same length. This was the third copy
+    // of the same helper to drift from the original; the second lost its caps
+    // in a duplication recorded in the plan's follow-up section, and this one
+    // never had them.
+    const password =
+      typeof body.password === "string" &&
+      withinLimit(body.password, "password")
+        ? body.password
+        : "";
 
     if (!email || !password) {
       throwInvalidCredentials();

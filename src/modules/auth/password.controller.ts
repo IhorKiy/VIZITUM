@@ -1,17 +1,26 @@
-import { Body, Controller, HttpCode, Post, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UsePipes,
+} from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import type { Request, Response } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import {
   PASSWORD_CHANGE_THROTTLE,
   PASSWORD_RESET_THROTTLE,
 } from "../rate-limit/rate-limit.constants";
 
-import type {
-  ChangePasswordRequestBody,
-  ForgotPasswordRequestBody,
-  ResetPasswordRequestBody,
-} from "./auth.types";
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from "./password.dto";
 import { PasswordResetService } from "./password-reset.service";
 
 /**
@@ -40,7 +49,12 @@ export class PasswordController {
     },
   })
   @HttpCode(200)
-  forgot(@Body() body: ForgotPasswordRequestBody, @Req() request: Request) {
+  // Tier 6 (the credential surfaces) of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped per route, not global, and
+  // validating types only: see password.dto.ts for why this endpoint's uniform
+  // acknowledgement must not gain a second kind of answer.
+  @UsePipes(createStrictValidationPipe())
+  forgot(@Body() body: ForgotPasswordDto, @Req() request: Request) {
     return this.passwordResetService.requestReset(body, request);
   }
 
@@ -52,7 +66,8 @@ export class PasswordController {
     },
   })
   @HttpCode(200)
-  reset(@Body() body: ResetPasswordRequestBody, @Req() request: Request) {
+  @UsePipes(createStrictValidationPipe())
+  reset(@Body() body: ResetPasswordDto, @Req() request: Request) {
     return this.passwordResetService.resetPassword(body, request);
   }
 
@@ -64,8 +79,9 @@ export class PasswordController {
     },
   })
   @HttpCode(200)
+  @UsePipes(createStrictValidationPipe())
   change(
-    @Body() body: ChangePasswordRequestBody,
+    @Body() body: ChangePasswordDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {

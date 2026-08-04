@@ -1,12 +1,19 @@
 # Task: Finish the class-validator DTO migration — tiers 4, 5 and 6
 
+> **Complete as of 2026-08-04. All three tiers shipped; the track is closed and
+> so is item 2.4.** Kept as the record of what each tier was asked to do and
+> what it found — the findings are folded into
+> [`security-remediation-plan.md`](../security-remediation-plan.md),
+> [`api-reference.md`](../reference/api-reference.md) and the DTO files' own
+> docblocks, which are the places to read now. Nothing here is outstanding.
+
 ## Context
 
 VIZITUM is a multi-tenant field-visit SaaS: NestJS API at repo root (`src/`), Next.js frontend in `apps/web`, PostgreSQL via Prisma. Read `CLAUDE.md` and `AGENTS.md` first, then `docs/reference/api-reference.md` and `docs/reference/executable-spec.md`.
 
 This finishes the deferred half of item 2.4 in [`docs/security-remediation-plan.md`](../security-remediation-plan.md) — the only part of that plan still open. Read 2.4's own item there before starting: it carries the tier order and the reasoning for the split.
 
-**Where the track stands: 19 of 22 controllers taking a `@Body()` are gated. Tiers 1–5 are closed** (`location-potential`, `location-assortment`, `pilot-review`, `chains`, `location-categories`, `product-categories`, `products`, `announcements`, `tasks`, `locations`, `routes`, `route-templates`, `visits`, `admin-settings`, `admin-users`, `storage`, `platform`, `platform-tenant-superadmin`, `imports`). **Only tier 6 remains** — `auth` (4 routes), `password` (3) and `platform-auth` (3).
+**Where the track ended: all 22 controllers taking a `@Body()` are gated, across six tiers.** There is still no global `ValidationPipe`, and that is now a decision rather than a pending step — see the 2.4 row in the plan.
 
 **There is no global `ValidationPipe` and there must not be one until every controller has DTOs.** Each gated route carries its own `@UsePipes(createStrictValidationPipe())`. Enabling `whitelist: true` globally would strip the entire body of every route that still types `@Body()` against a plain interface.
 
@@ -60,13 +67,13 @@ Shipped as one change: twelve DTO classes over `admin-settings` (3), `admin-user
 
 One rule worth carrying into tier 6: **where a service deliberately tolerates a value, the DTO must not be the layer that stops tolerating it.** `fileName` here is uncapped because `parseFileName` truncates by design — same call as `phone` in `locations`/`admin-users`.
 
-### Tier 6 — `auth`, `password`, `platform-auth` (10 routes), last
+### Tier 6 — `auth`, `password`, `platform-auth` (10 routes) — **done**
 
-`auth` (4), `password` (3), `platform-auth` (3). **These are the routes this repo can least afford a false rejection on**: a whitelist mismatch on `/auth/login`, `/auth/password/*` or the platform login's TOTP step is a lockout, not a bug report. Do these only once the pattern has held everywhere else, and prefer leaving a judgement to the service in every case where it is arguable.
+`auth` (4), `password` (3), `platform-auth` (3), pinned by `tests/auth-dto-validation.test.ts`. These were the routes this repo could least afford a false rejection on, and the answer was to make the DTOs do less than anywhere else on the track: **declare the envelope and the types, judge nothing else.** The three reasons — refusals that are deliberately uniform, deliberately non-enumerating, or recorded — are set out in the tier-6 item of the plan and in `auth.dto.ts`'s own docblock. `platform-auth`'s two code steps go furthest, carrying `@Allow()` and validating nothing, which is the tier-4 `mfaCode` rule applied where it was always headed.
 
-Specific traps here:
-- `password.controller.ts`'s helpers were duplicated from `auth.service.ts` by a concurrent PR once already and lost their length caps in the copy (recorded in the plan's follow-up section). Check both copies agree before declaring caps.
-- Login bodies feed rate limiting and audit events (items 1.1 and 3.5). A refusal at the pipe happens *before* the service, so make sure a body refused by the DTO cannot become an unlogged login attempt or bypass the per-account backoff. **Half of this is already answered.** Nest's order is middleware → guards → interceptors → pipes, so every *guard* runs before the DTO: measured against the live API on 2026-08-04, `POST /platform/tenants/:tenantId/purge` with no session answers 401 `AUTHENTICATION_REQUIRED` for a body the pipe would also have refused, and a tenant session on `POST /platform/tenants` answers 403 before validation. The throttle is a guard too, so a refused body still costs its request. What is *not* covered is the per-account backoff and the audit event, both of which live in the service — which is exactly why tier 4 left `mfaCode` unvalidated (see tier 4 above), and the same reasoning should decide `password` and the login bodies field by field.
+Both traps this section listed were real, and both are resolved:
+- **The duplicated helpers now agree.** `normalizeToken`, `normalizeNewPassword` and `normalizeTenantSlug` carry identical caps in `auth.service.ts` and `password-reset.service.ts` — the follow-up fix landed. But tracing them turned up a *third* copy that had drifted and was never mentioned: `PlatformAuthService.login` read its password with a bare `typeof` check and **no length cap at all**, where the tenant login caps it and explains why (argon2 hashes whatever it is given). Fixed in the same change.
+- **The ordering question is settled, by measurement.** Nest's order is middleware → guards → interceptors → pipes, so every guard runs before the DTO. Measured on 2026-08-04: `POST /platform/tenants/:tenantId/purge` with no session answers 401 for a body the pipe would also have refused; a tenant session on `POST /platform/tenants` answers 403 before validation; and **ten malformed platform logins in a row answer `400 × 9` then `429`** — the per-IP throttle charges for bodies the pipe rejects, so a refused body is not a free attempt. The audit and the per-account backoff live in the service and are *not* covered by that, which is precisely why the code steps stayed unvalidated: a malformed challenge token still produces `platform.login_failed (invalid_challenge)` in the trail, confirmed by `npm run auth:trail` after sending one.
 
 ## How to verify — the bar this track has held
 

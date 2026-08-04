@@ -6,21 +6,23 @@ import {
   Post,
   Req,
   Res,
+  UsePipes,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import type { Request, Response } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import {
   INVITE_ACCEPT_THROTTLE,
   LOGIN_THROTTLE,
 } from "../rate-limit/rate-limit.constants";
+import {
+  AcceptInviteDto,
+  LoginDto,
+  SwitchRoleDto,
+  SwitchZoneDto,
+} from "./auth.dto";
 import { AuthService } from "./auth.service";
-import type {
-  AcceptInviteRequestBody,
-  LoginRequestBody,
-  SwitchRoleRequestBody,
-  SwitchZoneRequestBody,
-} from "./auth.types";
 
 @Controller("auth")
 export class AuthController {
@@ -38,8 +40,15 @@ export class AuthController {
     },
   })
   @HttpCode(200)
+  // Tier 6 (the credential surfaces) of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  // The pipe runs *after* the throttle above, which is a guard, so a refused
+  // body has still been charged for; and AuthService refuses the same class of
+  // body before it records anything, so nothing here can become an unlogged
+  // attempt. See auth.dto.ts.
+  @UsePipes(createStrictValidationPipe())
   login(
-    @Body() body: LoginRequestBody,
+    @Body() body: LoginDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
@@ -55,8 +64,9 @@ export class AuthController {
   // the session token and therefore need the response to set cookies on.
   @Post("role")
   @HttpCode(200)
+  @UsePipes(createStrictValidationPipe())
   switchRole(
-    @Body() body: SwitchRoleRequestBody,
+    @Body() body: SwitchRoleDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
@@ -65,8 +75,9 @@ export class AuthController {
 
   @Post("zone")
   @HttpCode(200)
+  @UsePipes(createStrictValidationPipe())
   switchZone(
-    @Body() body: SwitchZoneRequestBody,
+    @Body() body: SwitchZoneDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
@@ -81,8 +92,9 @@ export class AuthController {
     },
   })
   @HttpCode(200)
+  @UsePipes(createStrictValidationPipe())
   acceptInvite(
-    @Body() body: AcceptInviteRequestBody,
+    @Body() body: AcceptInviteDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {

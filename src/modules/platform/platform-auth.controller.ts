@@ -6,17 +6,19 @@ import {
   Post,
   Req,
   Res,
+  UsePipes,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import type { Request, Response } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PLATFORM_LOGIN_THROTTLE } from "../rate-limit/rate-limit.constants";
+import {
+  PlatformLoginDto,
+  PlatformMfaEnrollDto,
+  PlatformMfaVerifyDto,
+} from "./platform-auth.dto";
 import { PlatformAuthService } from "./platform-auth.service";
-import type {
-  PlatformLoginRequestBody,
-  PlatformMfaEnrollRequestBody,
-  PlatformMfaVerifyRequestBody,
-} from "./platform-auth.types";
 
 @Controller("platform/auth")
 export class PlatformAuthController {
@@ -32,7 +34,12 @@ export class PlatformAuthController {
     },
   })
   @HttpCode(200)
-  login(@Body() body: PlatformLoginRequestBody, @Req() request: Request) {
+  // Tier 6 (the credential surfaces) of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped per route, not global. The two
+  // code steps below validate nothing beyond the envelope on purpose; see
+  // platform-auth.dto.ts.
+  @UsePipes(createStrictValidationPipe())
+  login(@Body() body: PlatformLoginDto, @Req() request: Request) {
     // No response to write: the password step no longer issues a session, so
     // there are no cookies to set until the code step. The request is here for
     // the audit trail's request id, not for a cookie.
@@ -49,8 +56,9 @@ export class PlatformAuthController {
     },
   })
   @HttpCode(200)
+  @UsePipes(createStrictValidationPipe())
   verifyMfa(
-    @Body() body: PlatformMfaVerifyRequestBody,
+    @Body() body: PlatformMfaVerifyDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
@@ -65,8 +73,9 @@ export class PlatformAuthController {
     },
   })
   @HttpCode(200)
+  @UsePipes(createStrictValidationPipe())
   completeEnrollment(
-    @Body() body: PlatformMfaEnrollRequestBody,
+    @Body() body: PlatformMfaEnrollDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
