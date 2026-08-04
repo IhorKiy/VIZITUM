@@ -37,8 +37,16 @@ const ACCEPTED_ADVISORIES = [];
 // parent, and leaving it would have waved through whatever next inherits next.
 const ACCEPTED_PARENTS = [];
 
-export function evaluateAudit(report) {
-  const acceptedIds = new Set(ACCEPTED_ADVISORIES.map((entry) => entry.id));
+// The two lists are parameters with the real ones as defaults, not closed-over
+// constants: the rules this function encodes outlive whatever happens to be
+// accepted today, and tests that had to name real advisory ids broke the moment
+// a fix landed and the list emptied — turning a green suite into a reason not to
+// clean the list up.
+export function evaluateAudit(
+  report,
+  { acceptedAdvisories = ACCEPTED_ADVISORIES, acceptedParents = ACCEPTED_PARENTS } = {},
+) {
+  const acceptedIds = new Set(acceptedAdvisories.map((entry) => entry.id));
   const blocking = [];
   const accepted = [];
 
@@ -54,7 +62,7 @@ export function evaluateAudit(report) {
 
     if (ownAdvisories.length === 0) {
       // Reported only as the parent of something else.
-      if (ACCEPTED_PARENTS.includes(name)) {
+      if (acceptedParents.includes(name)) {
         accepted.push({
           package: name,
           reason: "parent of an accepted advisory",
@@ -91,9 +99,9 @@ export function evaluateAudit(report) {
       .filter((entry) => typeof entry === "object")
       .map((entry) => entry.source),
   );
-  const stale = ACCEPTED_ADVISORIES.filter(
-    (entry) => !seenIds.has(entry.id),
-  ).map((entry) => entry.reference);
+  const stale = acceptedAdvisories
+    .filter((entry) => !seenIds.has(entry.id))
+    .map((entry) => entry.reference);
 
   return { blocking, accepted, stale };
 }
