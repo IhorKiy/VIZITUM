@@ -29,22 +29,22 @@ export class CreateLocationDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  name?: string;
+  name?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.addressLine)
-  addressLine?: string;
+  addressLine?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.city)
-  city?: string;
+  city?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  externalCode?: string;
+  externalCode?: string | null;
 
   // The two dictionary links, and the sharpest tightening in this module.
   // normalizeId folds a non-string into null, which on PATCH does not mean
@@ -59,11 +59,11 @@ export class CreateLocationDto {
   // actually matters.
   @IsOptional()
   @IsString()
-  categoryId?: string;
+  categoryId?: string | null;
 
   @IsOptional()
   @IsString()
-  chainId?: string;
+  chainId?: string | null;
 
   // A number or a numeric string. normalizeCoordinate accepts both — it
   // parseFloat()s a string and answers `LOCATION_COORDINATE_INVALID` for
@@ -77,17 +77,17 @@ export class CreateLocationDto {
   @IsOptional()
   @ValidateIf((_dto, value) => typeof value !== "string")
   @IsNumber()
-  latitude?: number | string;
+  latitude?: number | string | null;
 
   @IsOptional()
   @ValidateIf((_dto, value) => typeof value !== "string")
   @IsNumber()
-  longitude?: number | string;
+  longitude?: number | string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.notes)
-  notes?: string;
+  notes?: string | null;
 }
 
 export class UpdateLocationDto extends CreateLocationDto {
@@ -98,7 +98,7 @@ export class UpdateLocationDto extends CreateLocationDto {
   // told 200 and the status did not move. It is now a 400.
   @IsOptional()
   @IsIn(["active", "inactive"])
-  status?: string;
+  status?: string | null;
 }
 
 /**
@@ -114,7 +114,7 @@ export class UpdateLocationNotesDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.notes)
-  notes?: string;
+  notes?: string | null;
 }
 
 /**
@@ -128,12 +128,12 @@ export class UpsertLocationContactDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  name?: string;
+  name?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.title)
-  roleTitle?: string;
+  roleTitle?: string | null;
 
   // The one field in this module with no cap, deliberately. Nothing behind it
   // caps a phone either: normalizePhoneInput hands the value to
@@ -144,17 +144,17 @@ export class UpsertLocationContactDto {
   // exactly what the update path goes out of its way to keep editable.
   @IsOptional()
   @IsString()
-  phone?: string;
+  phone?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.email)
-  email?: string;
+  email?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.notes)
-  notes?: string;
+  notes?: string | null;
 }
 
 export class CreateLocationAssignmentDto {
@@ -164,5 +164,5 @@ export class CreateLocationAssignmentDto {
   // case that answer got wrong — a non-string id read as "missing".
   @IsOptional()
   @IsString()
-  representativeUserId?: string;
+  representativeUserId?: string | null;
 }

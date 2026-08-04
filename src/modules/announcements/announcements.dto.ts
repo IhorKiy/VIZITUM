@@ -30,22 +30,22 @@ export class UpsertAnnouncementDto {
   @IsOptional()
   @IsString()
   @MaxLength(ANNOUNCEMENT_TITLE_MAX_LENGTH)
-  title?: string;
+  title?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(ANNOUNCEMENT_BODY_MAX_LENGTH)
-  body?: string;
+  body?: string | null;
 
   @IsOptional()
   @Matches(DATE_ONLY_PATTERN, {
     message: "startsAt must be in YYYY-MM-DD format.",
   })
-  startsAt?: string;
+  startsAt?: string | null;
 
   @IsOptional()
   @Matches(DATE_ONLY_PATTERN, {
     message: "endsAt must be in YYYY-MM-DD format.",
   })
-  endsAt?: string;
+  endsAt?: string | null;
 }

@@ -34,30 +34,30 @@ export class UpsertLocationPotentialDto {
   @Matches(DATE_ONLY_PATTERN, {
     message: "potentialDate must be in YYYY-MM-DD format.",
   })
-  potentialDate?: string;
+  potentialDate?: string | null;
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  potentialAmount?: number;
+  potentialAmount?: number | null;
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  planMonth1?: number;
+  planMonth1?: number | null;
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  planMonth2?: number;
+  planMonth2?: number | null;
 
   @IsOptional()
   @IsInt()
   @Min(0)
-  planMonth3?: number;
+  planMonth3?: number | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(MAX_COMMENT_LENGTH)
-  comment?: string;
+  comment?: string | null;
 }

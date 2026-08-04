@@ -25,35 +25,35 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  name?: string;
+  name?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  externalCode?: string;
+  externalCode?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  sku?: string;
+  sku?: string | null;
 
   // A free-text category label, not the ProductCategory relation — it shares
   // the `name` cap with that vocabulary rather than having one of its own.
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  category?: string;
+  category?: string | null;
 
   // Tightening, same shape as the status fields below: normalizeBoolean folds
   // any non-boolean into `false`, so a caller sending the string "true" got
   // the opposite of what it asked for, with a 200.
   @IsOptional()
   @IsBoolean()
-  notApplicable?: boolean;
+  notApplicable?: boolean | null;
 }
 
 export class UpdateProductDto extends CreateProductDto {
   @IsOptional()
   @IsIn(["active", "inactive", "archived"])
-  status?: string;
+  status?: string | null;
 }

@@ -32,40 +32,40 @@ export class CreateTaskDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.title)
-  title?: string;
+  title?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.notes)
-  description?: string;
+  description?: string | null;
 
   // Tightening: normalizeIsPriority is `value === true`, so a caller sending
   // the string "true" silently created a non-priority task.
   @IsOptional()
   @IsBoolean()
-  isPriority?: boolean;
+  isPriority?: boolean | null;
 
   @IsOptional()
   @IsString()
-  assignedToUserId?: string;
+  assignedToUserId?: string | null;
 
   @IsOptional()
   @IsString()
-  locationId?: string;
+  locationId?: string | null;
 
   @IsOptional()
   @IsString()
-  visitId?: string;
+  visitId?: string | null;
 
   @IsOptional()
   @IsString()
-  reportId?: string;
+  reportId?: string | null;
 
   @IsOptional()
   @Matches(OPTIONAL_DATE_ONLY_PATTERN, {
     message: "dueDate must be in YYYY-MM-DD format.",
   })
-  dueDate?: string;
+  dueDate?: string | null;
 }
 
 export class UpdateTaskDto extends CreateTaskDto {
@@ -75,7 +75,7 @@ export class UpdateTaskDto extends CreateTaskDto {
   // reopened a completed task. That is a wrong write answered with a 200.
   @IsOptional()
   @IsIn(["in_progress", "done"])
-  status?: string;
+  status?: string | null;
 
   // Deliberately only a string. parseOptionalDateTime accepts anything
   // `new Date()` can read and answers `DATETIME_INVALID` for the rest, so
@@ -84,5 +84,5 @@ export class UpdateTaskDto extends CreateTaskDto {
   // handles.
   @IsOptional()
   @IsString()
-  completedAt?: string;
+  completedAt?: string | null;
 }

@@ -2,6 +2,7 @@ import "reflect-metadata";
 import {
   IsIn,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -16,12 +17,11 @@ import {
 } from "./visit-request-limits";
 
 /**
- * First of the two PRs the design note
- * (docs/plans/visits-dto-migration-note.md) splits `visits` into: the six
- * bodies `VisitsService` owns. The five `AiService` bodies — including both
- * `confirmedData` envelopes and the one genuinely nested `products[]` — follow
- * in their own change, because the question they raise is replay
- * compatibility rather than validators.
+ * The bodies `VisitsService` owns, gated across the two PRs
+ * docs/plans/visits-dto-migration-note.md splits `visits` into: six here from
+ * the first, plus `ConfirmReportDto` at the foot of this file from the second.
+ * The four `AiService` bodies live in `ai/ai.dto.ts`, next to the request
+ * types they mirror.
  *
  * `visits` is the last module of tier 3 and the field app's entire reporting
  * path runs through it, so the note's rule applies throughout and more
@@ -33,24 +33,24 @@ import {
 export class CreateVisitDto {
   @IsOptional()
   @IsString()
-  locationId?: string;
+  locationId?: string | null;
 
   // Optional in every sense: omitted, it means "me" (createVisit falls back to
   // context.userId), which is what the field app relies on.
   @IsOptional()
   @IsString()
-  representativeUserId?: string;
+  representativeUserId?: string | null;
 
   // normalizeOptionalId reads "" as "no route item", so the empty string has
   // to survive the gate; @IsString() admits it.
   @IsOptional()
   @IsString()
-  routeItemId?: string;
+  routeItemId?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  visitType?: string;
+  visitType?: string | null;
 
   // parseOptionalDateTime owns what a timestamp may be here, as it does on
   // routes.dto.ts's publishedAt: it accepts anything `new Date()` can read and
@@ -59,12 +59,12 @@ export class CreateVisitDto {
   // An ISO pattern here would narrow that and buy nothing.
   @IsOptional()
   @IsString()
-  startedAt?: string;
+  startedAt?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(MAX_CLIENT_REQUEST_ID_LENGTH)
-  clientVisitId?: string;
+  clientVisitId?: string | null;
 }
 
 export class UpdateVisitDto {
@@ -77,15 +77,15 @@ export class UpdateVisitDto {
   // did. See Q5 in the design note.
   @IsOptional()
   @IsIn(["draft", "in_progress", "completed", "cancelled"])
-  status?: string;
+  status?: string | null;
 
   @IsOptional()
   @IsString()
-  startedAt?: string;
+  startedAt?: string | null;
 
   @IsOptional()
   @IsString()
-  completedAt?: string;
+  completedAt?: string | null;
 }
 
 export class CancelVisitDto {
@@ -94,19 +94,19 @@ export class CancelVisitDto {
   // which a whitelist rejection would not. The other half of Q5.
   @IsOptional()
   @IsString()
-  reason?: string;
+  reason?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(MAX_VISIT_CANCELLATION_COMMENT_LENGTH)
-  comment?: string;
+  comment?: string | null;
 }
 
 export class AddTextVisitNoteDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.notes)
-  textContent?: string;
+  textContent?: string | null;
 }
 
 /**
@@ -134,7 +134,7 @@ export class RegisterAudioUploadDto {
   @IsOptional()
   @IsString()
   @MaxLength(MAX_UPLOAD_FILE_NAME_LENGTH)
-  fileName?: string;
+  fileName?: string | null;
 
   // Not an enum, though a supported-types set exists: an unsupported or absent
   // contentType is not an error, it falls back to the file extension
@@ -143,31 +143,65 @@ export class RegisterAudioUploadDto {
   // working because of it.
   @IsOptional()
   @IsString()
-  contentType?: string;
+  contentType?: string | null;
 
   @IsOptional()
   @ValidateIf((_dto, value) => typeof value !== "string")
   @IsNumber()
-  sizeBytes?: number | string;
+  sizeBytes?: number | string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  checksum?: string;
+  checksum?: string | null;
 }
 
 export class RegisterProblemPhotoDto {
   @IsOptional()
   @IsString()
   @MaxLength(MAX_UPLOAD_FILE_NAME_LENGTH)
-  fileName?: string;
+  fileName?: string | null;
 
   @IsOptional()
   @IsString()
-  contentType?: string;
+  contentType?: string | null;
 
   @IsOptional()
   @ValidateIf((_dto, value) => typeof value !== "string")
   @IsNumber()
-  sizeBytes?: number | string;
+  sizeBytes?: number | string | null;
+}
+
+/**
+ * The manual (non-AI) confirm, and the route the design note's Q1 was really
+ * about: this is the one an offline device queues and replays. The envelope is
+ * declared and closed; `confirmedData` is opaque for the reasons set out at
+ * length on `ConfirmAiDraftDto` (`ai/ai.dto.ts`), which this field mirrors
+ * exactly — no `@ValidateNested`, no `@Type`, so class-transformer copies the
+ * payload through untouched and the whitelist never walks inside it.
+ *
+ * Worth stating plainly, since a reviewer will look for it: this route carries
+ * two unrelated shapes chosen by `schemaVersion` — `field-report.v1` from the
+ * voice flow and `manual.v1`, whose field list comes from the tenant's own
+ * `segmentTemplate` and therefore differs per tenant. Neither could be
+ * declared here without being wrong for the other.
+ *
+ * `REPORT_INVALID` ("Confirmed report data must be a JSON object.") stays the
+ * service's answer for a missing or non-object payload; `@IsObject()` only
+ * moves the same verdict one layer earlier for the non-object case.
+ */
+export class ConfirmReportDto {
+  @IsOptional()
+  @IsObject()
+  confirmedData?: Record<string, unknown> | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(TEXT_LIMITS.code)
+  schemaVersion?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CLIENT_REQUEST_ID_LENGTH)
+  clientRequestId?: string | null;
 }

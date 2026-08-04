@@ -19,5 +19,5 @@ export class UpsertProductCategoryDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  name?: string;
+  name?: string | null;
 }
