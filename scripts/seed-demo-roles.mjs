@@ -18,8 +18,24 @@ const tenantName = required(
 );
 const password = process.env.DEMO_ROLE_PASSWORD || "Demo12345!";
 
+// Mirrors TEXT_LIMITS.password in src/common/input-limits.ts; pinned against
+// the source by `tests/input-limits.test.ts`, which reads this file as text
+// because nothing in scripts/ can import the TypeScript.
+const MAX_PASSWORD_LENGTH = 128;
+
 if (password.length < 8) {
   throw new Error("DEMO_ROLE_PASSWORD must be at least 8 characters.");
+}
+
+// The other end of the same range: login's normalizePassword reads anything
+// longer as no password at all, so seeding one writes hashes for demo accounts
+// that then answer 401 INVALID_CREDENTIALS forever.
+if (password.length > MAX_PASSWORD_LENGTH) {
+  throw new Error(
+    `DEMO_ROLE_PASSWORD must be at most ${MAX_PASSWORD_LENGTH} characters ` +
+      `(got ${password.length}). Login rejects anything longer, so these demo ` +
+      `accounts would not be able to sign in.`,
+  );
 }
 
 const capabilities = [

@@ -151,7 +151,7 @@ DATABASE_URL="<production-url>" npx prisma migrate status
 6. Deploy web with the same release SHA.
 7. Trigger or wait for one cleanup worker run.
 8. Verify logs contain `worker_cleanup_completed`.
-9. On first deploy, seed the platform owner (`npm run seed:platform-owner` with `PLATFORM_OWNER_EMAIL`/`PLATFORM_OWNER_PASSWORD`) and confirm `/platform/login` grants access to the tenant console. Confirm a newly created tenant is immediately `pilot` — no provision worker to schedule.
+9. On first deploy, seed the platform owner (`npm run seed:platform-owner` with `PLATFORM_OWNER_EMAIL`/`PLATFORM_OWNER_PASSWORD`, the password at most 128 characters — the seed refuses a longer one rather than creating an account that can never sign in) and confirm `/platform/login` grants access to the tenant console. Confirm a newly created tenant is immediately `pilot` — no provision worker to schedule.
 10. Verify Sentry release/environment tags appear for API, worker and web.
 11. Record deployment timestamp, release SHA, operator and verification notes.
 

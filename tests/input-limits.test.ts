@@ -44,6 +44,36 @@ describe("input limits", () => {
     assert.deepEqual(readWebLimits(), { ...TEXT_LIMITS });
   });
 
+  it("mirrors the password cap into every seed script that sets one", () => {
+    // Same argument as the web table above, one layer further out. The seed
+    // scripts are plain node ESM with no build step, so they cannot import
+    // this module and each declares its own MAX_PASSWORD_LENGTH. A copy that
+    // drifted *upward* would let a seed write a password the login endpoint
+    // reads as no password at all — a hash that stores fine and then answers
+    // 401 INVALID_CREDENTIALS forever. On `seed-platform-owner.mjs` that is
+    // unrecoverable: there is no administrator above the platform owner.
+    for (const script of [
+      "scripts/seed-platform-owner.mjs",
+      "scripts/seed-staging-admin.mjs",
+      "scripts/seed-demo-roles.mjs",
+    ]) {
+      const source = readFileSync(path.join(process.cwd(), script), "utf8");
+      const declared = source.match(/MAX_PASSWORD_LENGTH = (\d+);/)?.[1];
+
+      assert.ok(declared, `${script} should declare MAX_PASSWORD_LENGTH`);
+      assert.equal(
+        Number(declared),
+        TEXT_LIMITS.password,
+        `${script} has drifted from TEXT_LIMITS.password`,
+      );
+      assert.match(
+        source,
+        /must be at most \$\{MAX_PASSWORD_LENGTH\} characters/,
+        `${script} should refuse an over-long password rather than truncate it`,
+      );
+    }
+  });
+
   it("resolves a key or a plain number", () => {
     assert.equal(resolveLimit("name"), TEXT_LIMITS.name);
     assert.equal(resolveLimit(42), 42);

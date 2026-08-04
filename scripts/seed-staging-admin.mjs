@@ -12,6 +12,11 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
 
+// Mirrors TEXT_LIMITS.password in src/common/input-limits.ts; see the check
+// below. Pinned against the source by `tests/input-limits.test.ts`, which
+// reads this file as text — nothing in scripts/ can import the TypeScript.
+const MAX_PASSWORD_LENGTH = 128;
+
 const TEAM_MODE_CAPABILITIES = [
   "team.basic_roles",
   "team.fixed_imports",
@@ -59,6 +64,21 @@ const confirmSmokeReport = parseBoolean(
 
 if (adminPassword.length < 8) {
   throw new Error("SEED_ADMIN_PASSWORD must be at least 8 characters.");
+}
+
+// The other end of the same range, and the one that bites silently: the login
+// endpoint's normalizePassword treats anything past TEXT_LIMITS.password
+// (src/common/input-limits.ts, mirrored as MAX_PASSWORD_LENGTH below) as no
+// password at all, so seeding a longer one writes a hash for an account that
+// then answers 401 INVALID_CREDENTIALS forever. Less severe than the same bug
+// on the platform owner — a tenant admin can still be recovered through
+// password reset or the superadmin — but the seed has no reason to create it.
+if (adminPassword.length > MAX_PASSWORD_LENGTH) {
+  throw new Error(
+    `SEED_ADMIN_PASSWORD must be at most ${MAX_PASSWORD_LENGTH} characters ` +
+      `(got ${adminPassword.length}). Login rejects anything longer, so this ` +
+      `admin would not be able to sign in.`,
+  );
 }
 
 try {
