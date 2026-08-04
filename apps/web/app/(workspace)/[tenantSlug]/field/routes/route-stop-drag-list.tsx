@@ -65,8 +65,9 @@ export function RouteStopDragList({
 }: RouteStopDragListProps) {
   const t = useTranslations("field.routes");
   const [order, setOrder] = useState(stops);
-  const commitReorder = useSerializedReorder((itemIds) =>
-    reorderAction(templateId, itemIds),
+  const commitReorder = useSerializedReorder(
+    (itemIds) => reorderAction(templateId, itemIds),
+    stops.map((item) => item.id),
   );
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
@@ -134,13 +135,7 @@ export function RouteStopDragList({
   };
 
   function commitOrder(nextOrder: StopItem[]) {
-    const changed = nextOrder.some(
-      (item, index) => item.id !== stops[index]?.id,
-    );
-
-    if (changed) {
-      commitReorder(nextOrder.map((item) => item.id));
-    }
+    commitReorder(nextOrder.map((item) => item.id));
   }
 
   function handleDragEnd(event: DragEndEvent) {

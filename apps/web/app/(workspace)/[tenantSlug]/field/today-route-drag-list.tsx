@@ -133,8 +133,9 @@ function TodayRouteGroup({
 }: TodayRouteGroupProps) {
   const t = useTranslations("field.home");
   const [order, setOrder] = useState(stops);
-  const commitReorder = useSerializedReorder((itemIds) =>
-    reorderAction(routePlanId, itemIds),
+  const commitReorder = useSerializedReorder(
+    (itemIds) => reorderAction(routePlanId, itemIds),
+    stops.map((item) => item.id),
   );
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
@@ -202,13 +203,7 @@ function TodayRouteGroup({
   };
 
   function commitOrder(nextOrder: TodayStop[]) {
-    const changed = nextOrder.some(
-      (item, index) => item.id !== stops[index]?.id,
-    );
-
-    if (changed) {
-      commitReorder(nextOrder.map((item) => item.id));
-    }
+    commitReorder(nextOrder.map((item) => item.id));
   }
 
   function handleDragEnd(event: DragEndEvent) {
