@@ -61,36 +61,28 @@ test("a fast second keyboard move reorders from the just-moved array, and the re
     page.getByRole("heading", { name: ROUTE_TEMPLATE_NAME }),
   ).toBeVisible();
 
-  await expect.poll(() => stopNames(page)).toEqual([
-    STOP_A_NAME,
-    STOP_B_NAME,
-    STOP_C_NAME,
-  ]);
+  await expect
+    .poll(() => stopNames(page))
+    .toEqual([STOP_A_NAME, STOP_B_NAME, STOP_C_NAME]);
 
   const handleA = page.getByRole("button", {
     name: `Reorder ${STOP_A_NAME}`,
   });
 
-  // Deliberately no wait between these two presses — Playwright re-locates
-  // and re-focuses the handle each time by its accessible name (stable
-  // across a reorder, since it's keyed to stop A itself, not to whichever
-  // DOM position currently holds it), and dispatches the second keydown as
-  // fast as the first, which is what actually exercises the commit-to-ref
-  // timing this test exists for. Waiting for the first move's server
-  // round trip here would make the gap useLayoutEffect closes moot: that
-  // round trip takes far longer than the scheduling gap a passive effect
-  // would have left.
+  // No wait between these two presses: Playwright re-locates and re-focuses
+  // the handle each time by its accessible name (stable across a reorder,
+  // since it's keyed to stop A itself, not to whichever DOM position
+  // currently holds it). Not waiting doesn't land inside the specific race
+  // window described above (see the file header) — it's just the more
+  // realistic simulation of a rep tapping the arrow key twice in quick
+  // succession, which the assertion below still has to compute correctly.
   await handleA.press("ArrowDown");
   await handleA.press("ArrowDown");
 
-  // A moved down twice: B, C, A. A stale orderRef on the second move would
-  // instead recompute the same first move and leave B, A, C — A stuck in
-  // the middle.
-  await expect.poll(() => stopNames(page)).toEqual([
-    STOP_B_NAME,
-    STOP_C_NAME,
-    STOP_A_NAME,
-  ]);
+  // A moved down twice: B, C, A.
+  await expect
+    .poll(() => stopNames(page))
+    .toEqual([STOP_B_NAME, STOP_C_NAME, STOP_A_NAME]);
 
   // Both moves persist via a Server Action (see reorderTemplateStopsAction
   // in page.tsx); wait for that traffic to settle before reloading, or the
@@ -98,9 +90,7 @@ test("a fast second keyboard move reorders from the just-moved array, and the re
   await page.waitForLoadState("networkidle");
 
   await page.reload();
-  await expect.poll(() => stopNames(page)).toEqual([
-    STOP_B_NAME,
-    STOP_C_NAME,
-    STOP_A_NAME,
-  ]);
+  await expect
+    .poll(() => stopNames(page))
+    .toEqual([STOP_B_NAME, STOP_C_NAME, STOP_A_NAME]);
 });
