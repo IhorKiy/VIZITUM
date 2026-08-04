@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
+import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import { getCurrentSession } from "../../../../lib/api-client";
 import { resolveZoneLanding, zoneHomePath } from "../../../../lib/navigation";
+import { logoutAction } from "../../../../lib/session-actions";
 import { resolveTenantBranding } from "../../../../lib/tenant-branding";
 
 type NoAccessPageProps = {
@@ -57,6 +59,23 @@ export default async function NoAccessPage({ params }: NoAccessPageProps) {
           <h1 id="no-access-title">{t("title")}</h1>
           <p className="login-copy">{t("body")}</p>
         </div>
+
+        {/* The only thing to act on here, and the only way off the screen.
+            Every workspace route resolves back to this one for an account with
+            no permissions — `resolveZoneLanding` is shared by the tenant home,
+            the AppShell deep-link guard and the login screen's own redirect —
+            so getting out means signing in as somebody else, and a Home Screen
+            install has no address bar to reach the login form with. Without
+            this button the only way out is clearing site data. */}
+        <form action={logoutAction} className="form-stack">
+          <input name="tenantSlug" type="hidden" value={tenantSlug} />
+          <PendingSubmitButton
+            className="secondary-button"
+            pendingLabel={t("signingOut")}
+          >
+            {t("signOut")}
+          </PendingSubmitButton>
+        </form>
       </section>
     </main>
   );
