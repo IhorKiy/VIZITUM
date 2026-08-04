@@ -9,10 +9,12 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { RouteStatus } from "@prisma/client";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
   RequireAnyPermissions,
@@ -20,14 +22,14 @@ import {
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  CreateRouteItemDto,
+  CreateRoutePlanDto,
+  ReorderRouteItemsDto,
+  UpdateRouteItemDto,
+  UpdateRoutePlanDto,
+} from "./routes.dto";
 import { RoutesService } from "./routes.service";
-import type {
-  CreateRouteItemRequestBody,
-  CreateRoutePlanRequestBody,
-  ReorderRouteItemsRequestBody,
-  UpdateRouteItemRequestBody,
-  UpdateRoutePlanRequestBody,
-} from "./routes.types";
 
 @Controller("routes")
 @UseGuards(PermissionGuard)
@@ -57,10 +59,10 @@ export class RoutesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
-  createRoutePlan(
-    @Req() request: Request,
-    @Body() body: CreateRoutePlanRequestBody,
-  ) {
+  // Tier 3 of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
+  createRoutePlan(@Req() request: Request, @Body() body: CreateRoutePlanDto) {
     return this.routesService.createRoutePlan(getRequestContext(request), body);
   }
 
@@ -69,10 +71,11 @@ export class RoutesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   updateRoutePlan(
     @Req() request: Request,
     @Param("routePlanId") routePlanId: string,
-    @Body() body: UpdateRoutePlanRequestBody,
+    @Body() body: UpdateRoutePlanDto,
   ) {
     return this.routesService.updateRoutePlan(
       getRequestContext(request),
@@ -101,10 +104,11 @@ export class RoutesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   createRouteItem(
     @Req() request: Request,
     @Param("routePlanId") routePlanId: string,
-    @Body() body: CreateRouteItemRequestBody,
+    @Body() body: CreateRouteItemDto,
   ) {
     return this.routesService.createRouteItem(
       getRequestContext(request),
@@ -118,11 +122,12 @@ export class RoutesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   updateRouteItem(
     @Req() request: Request,
     @Param("routePlanId") routePlanId: string,
     @Param("routeItemId") routeItemId: string,
-    @Body() body: UpdateRouteItemRequestBody,
+    @Body() body: UpdateRouteItemDto,
   ) {
     return this.routesService.updateRouteItem(
       getRequestContext(request),
@@ -154,10 +159,11 @@ export class RoutesController {
     PERMISSIONS.ROUTES_MANAGE_TEAM,
     PERMISSIONS.ROUTES_MANAGE_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   reorderRouteItems(
     @Req() request: Request,
     @Param("routePlanId") routePlanId: string,
-    @Body() body: ReorderRouteItemsRequestBody,
+    @Body() body: ReorderRouteItemsDto,
   ) {
     return this.routesService.reorderRouteItems(
       getRequestContext(request),

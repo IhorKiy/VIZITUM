@@ -24,6 +24,7 @@ import {
 } from "./route-access";
 import {
   isUniqueConstraintViolation,
+  MONTH_PATTERN,
   normalizeId,
   normalizeIdList,
   normalizePositiveInteger,
@@ -780,7 +781,7 @@ function normalizeDirection(value: unknown): "up" | "down" | null {
 }
 
 function normalizeMonth(value: unknown): string | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}$/.test(value)) {
+  if (typeof value !== "string" || !MONTH_PATTERN.test(value)) {
     return null;
   }
 
