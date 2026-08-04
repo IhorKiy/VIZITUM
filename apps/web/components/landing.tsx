@@ -1,4 +1,5 @@
 import type enMessages from "../messages/en.json";
+import { CONTACT_EMAIL } from "../lib/site";
 
 export type LandingMessages = (typeof enMessages)["landing"];
 
@@ -49,6 +50,29 @@ export function Landing({
           <p className="landing-badge">{t.badge}</p>
           <h1 id="landing-title">{t.title}</h1>
           <p className="login-copy">{t.copy}</p>
+        </div>
+
+        {/* The one thing a reader who is *not* a customer can do here. It sits
+            above the sign-in row on purpose: the badge says the platform is
+            still in development, so most of this page's traffic has no
+            workspace to sign in to, and the only other control on the card
+            answers every one of those readers with a login screen.
+
+            The link's text is the address itself rather than a "Write to us"
+            label: a visible address can be copied into whatever mail client
+            the reader actually uses, and reads as a real inbox in a way a
+            button hiding a mailto: does not. The prefilled subject is a
+            convenience for both ends — one less blank field for the sender,
+            a filterable marker for the inbox. */}
+        <div className="landing-contact">
+          <p className="landing-contact-title">{t.contactTitle}</p>
+          <p className="landing-contact-copy">{t.contactCopy}</p>
+          <a
+            className="landing-contact-link"
+            href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(t.contactSubject)}`}
+          >
+            {CONTACT_EMAIL}
+          </a>
         </div>
 
         <div className="landing-signin">

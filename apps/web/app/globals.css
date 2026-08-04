@@ -4219,6 +4219,68 @@ textarea {
   padding: 4px 12px;
 }
 
+/* "Interested? Write to us" — the pre-launch landing's actual call to
+   action, tinted rather than turned into a second solid button so it reads
+   as an invitation next to the sign-in CTA instead of competing with it. */
+.landing-contact {
+  background: var(--accent-soft);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 18px 20px;
+}
+
+.landing-contact-title {
+  font-weight: 800;
+  margin: 0;
+}
+
+.landing-contact-copy {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* A chip on the tint rather than a bold line of text: on a phone there is no
+   hover to reveal that the address is a control, and as plain text it was a
+   20px-tall tap target — under the 24px minimum, on what is this page's whole
+   point for a reader with no workspace. 40px is .landing-cta's height, so the
+   card's two actions start on the same scale; min- rather than a fixed height
+   because overflow-wrap below lets this one wrap to two lines on a narrow
+   phone, which a fixed height would clip. */
+.landing-contact-link {
+  align-items: center;
+  background: var(--surface);
+  border-radius: 8px;
+  color: var(--accent-strong);
+  display: inline-flex;
+  font-size: 16px;
+  font-weight: 700;
+  justify-self: start;
+  margin-top: 10px;
+  min-height: 40px;
+  /* An address is one unbreakable token to a line-breaker; without this it
+     overflows the card on the narrowest phones rather than wrapping. */
+  overflow-wrap: anywhere;
+  padding: 8px 14px;
+}
+
+.landing-contact-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* Both landing controls ring explicitly rather than leaning on the browser
+   default. This card is the one screen a keyboard reader can arrive at with
+   no session, and its two actions go to different places — the default ring
+   varies by browser and, on the CTA, draws a thin line against a dark green
+   fill it barely separates from. */
+.landing-contact-link:focus-visible,
+.landing-cta:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
 .landing-signin {
   align-items: center;
   border-top: 1px solid var(--line);
