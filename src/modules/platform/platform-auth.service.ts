@@ -65,11 +65,19 @@ export class PlatformAuthService {
     // stated there: argon2 hashes whatever it is given, so an unbounded
     // password is an unbounded amount of work per request — a cheap way to
     // make a login endpoint expensive, and this one answers before any
-    // account is known. It locks nobody out, since every path that *sets* a
-    // platform password caps it at the same length. This was the third copy
-    // of the same helper to drift from the original; the second lost its caps
-    // in a duplication recorded in the plan's follow-up section, and this one
-    // never had them.
+    // account is known. This was the third copy of the same helper to drift
+    // from the original; the second lost its caps in a duplication recorded in
+    // the plan's follow-up section, and this one never had them.
+    //
+    // The cap locks nobody out only because the one path that *sets* a
+    // platform password now refuses to exceed it:
+    // `scripts/seed-platform-owner.mjs` rejects an over-long
+    // PLATFORM_OWNER_PASSWORD before writing the hash, and
+    // `tests/input-limits.test.ts` fails if that script's copy of the number
+    // drifts from TEXT_LIMITS. That guard is load-bearing, not incidental —
+    // without it a seeded owner past the cap would hash fine and then be
+    // answered `INVALID_CREDENTIALS` forever by the lines below, with no
+    // administrator above them to undo it.
     const password =
       typeof body.password === "string" &&
       withinLimit(body.password, "password")
