@@ -32,16 +32,38 @@ import { expect, test, type Page } from "@playwright/test";
 // commitOrder fires an independent reorderAction call per move with no
 // request sequencing (see its own comment), so two in flight at once race
 // each other to the server, and whichever's redirect lands last overwrites
-// the database regardless of which move was semantically newer. That race
-// is real, not hypothetical: an earlier, unthrottled version of this test
-// (pressing ArrowDown twice with no wait, matching the original review
-// request) reproduced it in CI — stop A landing back in the middle instead
-// of the bottom, only some of the time, only under CI's timing, never
-// locally. It's a pre-existing gap in commitOrder (this is only the first
-// thing to ever exercise two rapid reorders, keyboard or drag), not
-// something introduced here, and out of scope for this test to fix —
-// tracked in #226. Waiting between moves here keeps this spec asserting
-// what it can actually guarantee instead of being flaky on an unrelated bug.
+// the database (or, client-side, whichever's RSC-refresh triggers the
+// stopsKey resync last overwrites `order`) regardless of which move was
+// semantically newer. That race is real, not hypothetical: an earlier,
+// unthrottled version of this test (pressing ArrowDown twice with no wait,
+// matching the original review request) reproduced it in CI — stop A
+// landing back in the middle instead of the bottom, only under CI's
+// timing, never locally. It's a pre-existing gap in commitOrder (this is
+// only the first thing to ever exercise two rapid reorders, keyboard or
+// drag), not something introduced here, and out of scope for this test to
+// fix — tracked in #226.
+//
+// Two attempts at waiting between moves without a reload both still failed
+// in CI: waitForLoadState("networkidle") first, then waitForResponse for
+// the reorderTemplateStopsAction POST specifically. Both prove the action's
+// own request completed; neither proves the *client* has finished
+// processing its redirect and re-rendering with the fresh order — that
+// happens via a separate RSC fetch Next.js issues client-side after the
+// action response arrives, and nothing in Playwright's network-observation
+// APIs distinguishes "still waiting on that" from "nothing more is
+// coming". A stale one arriving after the second press starts stomps it
+// the same way a stale server write would.
+//
+// Reloading between moves sidesteps all of that: a real navigation always
+// re-fetches the current server state fresh, so the assertion right after
+// it is an unambiguous read of what actually got persisted — not a guess
+// about whether the client has caught up yet. Each press still waits for
+// its own reorderTemplateStopsAction POST to complete before reloading,
+// though — not as proof the write landed (the reload's own assertion is
+// what proves that), but because navigating away can abort a request the
+// unloading page hasn't finished sending yet, and an aborted write would
+// fail this test for a completely different reason than the one it exists
+// to guard against.
 
 const TENANT_SLUG = "e2e-field-route-reorder";
 const REP_EMAIL = `rep@${TENANT_SLUG}.local`;
@@ -66,6 +88,25 @@ function stopNames(page: Page) {
   return page.locator("li.route-stop h3").allTextContents();
 }
 
+// Presses ArrowDown on the given handle and waits for that move's own
+// reorderTemplateStopsAction POST to complete before returning — not as
+// proof the write landed (a caller that wants that reloads afterward and
+// asserts on the fresh page), but so a reload right after this doesn't
+// abort a request the page hasn't finished sending yet.
+async function pressArrowDownAndAwaitRequest(
+  handle: ReturnType<Page["getByRole"]>,
+  page: Page,
+): Promise<void> {
+  const reorderResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes("/field/routes"),
+  );
+
+  await handle.press("ArrowDown");
+  await reorderResponse;
+}
+
 test("two consecutive keyboard moves compute correctly relative to each other, and the result persists across a reload", async ({
   page,
 }) => {
@@ -81,29 +122,27 @@ test("two consecutive keyboard moves compute correctly relative to each other, a
     .poll(() => stopNames(page))
     .toEqual([STOP_A_NAME, STOP_B_NAME, STOP_C_NAME]);
 
+  // Playwright re-resolves a locator against whatever the page currently
+  // is at call time, reload included, so this one recipe covers both
+  // presses below even though the handle is keyed to stop A's own
+  // accessible name (stable across a reorder), not a fixed DOM position.
   const handleA = page.getByRole("button", {
     name: `Reorder ${STOP_A_NAME}`,
   });
 
-  // Playwright re-locates and re-focuses the handle each time by its
-  // accessible name (stable across a reorder, since it's keyed to stop A
-  // itself, not to whichever DOM position currently holds it). The wait
-  // after each press is for commitOrder's unsequenced requests, not for
-  // React's own effect timing — see the file header.
-  await handleA.press("ArrowDown");
-  await page.waitForLoadState("networkidle");
+  await pressArrowDownAndAwaitRequest(handleA, page);
+
+  // Reload before the second move — see the file header for why this,
+  // not a network wait, is what actually proves the first move's write
+  // landed before the second one starts.
+  await page.reload();
   await expect
     .poll(() => stopNames(page))
     .toEqual([STOP_B_NAME, STOP_A_NAME, STOP_C_NAME]);
 
-  await handleA.press("ArrowDown");
-  await page.waitForLoadState("networkidle");
+  await pressArrowDownAndAwaitRequest(handleA, page);
 
   // A moved down twice: B, C, A.
-  await expect
-    .poll(() => stopNames(page))
-    .toEqual([STOP_B_NAME, STOP_C_NAME, STOP_A_NAME]);
-
   await page.reload();
   await expect
     .poll(() => stopNames(page))
