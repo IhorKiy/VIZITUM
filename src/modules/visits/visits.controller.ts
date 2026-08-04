@@ -15,14 +15,14 @@ import type { VisitStatus } from "@prisma/client";
 import type { Request } from "express";
 
 import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
+import {
+  ConfirmAiDraftDto,
+  CreateExtractionJobDto,
+  CreateTranscriptionJobDto,
+  TranscribeFieldReportDto,
+} from "../ai/ai.dto";
 import { AiService } from "../ai/ai.service";
-import type {
-  ConfirmAiDraftRequestBody,
-  CreateExtractionJobRequestBody,
-  CreateTranscriptionJobRequestBody,
-  FieldReportProductCatalogEntry,
-  TranscribeFieldReportRequestBody,
-} from "../ai/ai.types";
+import type { FieldReportProductCatalogEntry } from "../ai/ai.types";
 import { PermissionGuard } from "../auth/permission.guard";
 import {
   RequireAnyPermissions,
@@ -33,13 +33,13 @@ import type { RequestContext } from "../tenancy/request-context";
 import {
   AddTextVisitNoteDto,
   CancelVisitDto,
+  ConfirmReportDto,
   CreateVisitDto,
   RegisterAudioUploadDto,
   RegisterProblemPhotoDto,
   UpdateVisitDto,
 } from "./visits.dto";
 import { VisitsService } from "./visits.service";
-import type { ConfirmReportRequestBody } from "./visits.types";
 
 @Controller("visits")
 @UseGuards(PermissionGuard)
@@ -200,10 +200,11 @@ export class VisitsController {
     PERMISSIONS.VISITS_UPDATE_OWN,
     PERMISSIONS.AI_USE_REPORTING,
   )
+  @UsePipes(createStrictValidationPipe())
   createTranscriptionJob(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: CreateTranscriptionJobRequestBody,
+    @Body() body: CreateTranscriptionJobDto,
   ) {
     return this.aiService.createTranscriptionJob(
       getRequestContext(request),
@@ -217,10 +218,11 @@ export class VisitsController {
     PERMISSIONS.VISITS_UPDATE_OWN,
     PERMISSIONS.AI_USE_REPORTING,
   )
+  @UsePipes(createStrictValidationPipe())
   createExtractionJob(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: CreateExtractionJobRequestBody,
+    @Body() body: CreateExtractionJobDto,
   ) {
     return this.aiService.createExtractionJob(
       getRequestContext(request),
@@ -235,10 +237,11 @@ export class VisitsController {
     PERMISSIONS.AI_USE_REPORTING,
     PERMISSIONS.REPORTS_CONFIRM_OWN,
   )
+  @UsePipes(createStrictValidationPipe())
   confirmAiDraft(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: ConfirmAiDraftRequestBody,
+    @Body() body: ConfirmAiDraftDto,
   ) {
     return this.aiService.confirmAiDraft(
       getRequestContext(request),
@@ -253,10 +256,11 @@ export class VisitsController {
     PERMISSIONS.VISITS_UPDATE_OWN,
     PERMISSIONS.AI_USE_REPORTING,
   )
+  @UsePipes(createStrictValidationPipe())
   transcribeFieldReport(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: TranscribeFieldReportRequestBody,
+    @Body() body: TranscribeFieldReportDto,
   ) {
     return this.aiService.transcribeFieldReport(
       getRequestContext(request),
@@ -273,10 +277,11 @@ export class VisitsController {
 
   @Post(":visitId/reports/confirm")
   @RequirePermissions(PERMISSIONS.REPORTS_CONFIRM_OWN)
+  @UsePipes(createStrictValidationPipe())
   confirmReport(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: ConfirmReportRequestBody,
+    @Body() body: ConfirmReportDto,
   ) {
     return this.visitsService.confirmReport(
       getRequestContext(request),

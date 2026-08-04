@@ -35,13 +35,38 @@ export function createStrictValidationPipe(): ValidationPipe {
 function toFieldErrors(errors: ValidationError[]): Record<string, string[]> {
   const fieldErrors: Record<string, string[]> = {};
 
+  collectFieldErrors(errors, "", fieldErrors);
+
+  return fieldErrors;
+}
+
+/**
+ * Walks `children` as well as `constraints`, keying a nested failure by its
+ * path (`products.0.id`).
+ *
+ * Flat DTOs are unaffected — they have no children, so this produces exactly
+ * what the previous single-level loop did. It matters from the first DTO that
+ * uses `@ValidateNested` (`TranscribeFieldReportDto`), because class-validator
+ * puts no `constraints` on the *parent* error of a nested failure: everything
+ * is on the child. Reading only the top level therefore answered
+ * `VALIDATION_FAILED` with an empty `fieldErrors` — a refusal that declined to
+ * say what was wrong with the request.
+ */
+function collectFieldErrors(
+  errors: ValidationError[],
+  prefix: string,
+  fieldErrors: Record<string, string[]>,
+): void {
   for (const error of errors) {
+    const path = prefix ? `${prefix}.${error.property}` : error.property;
     const messages = error.constraints ? Object.values(error.constraints) : [];
 
     if (messages.length) {
-      fieldErrors[error.property] = messages;
+      fieldErrors[path] = [...(fieldErrors[path] ?? []), ...messages];
+    }
+
+    if (error.children?.length) {
+      collectFieldErrors(error.children, path, fieldErrors);
     }
   }
-
-  return fieldErrors;
 }

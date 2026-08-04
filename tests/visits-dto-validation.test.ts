@@ -20,11 +20,10 @@ import {
   UpdateVisitDto,
 } from "../src/modules/visits/visits.dto";
 
-// Tier 3's last module, first of the two PRs docs/plans/visits-dto-migration-note.md
-// splits it into: the six bodies VisitsService owns. The five AiService bodies
-// (both confirmedData envelopes and the nested products[]) are gated
-// separately and are asserted here to be *un*gated, so this file also pins the
-// split itself.
+// Tier 3's last module: the six bodies VisitsService owns, gated by the first
+// of the two PRs docs/plans/visits-dto-migration-note.md splits it into. The
+// five AiService bodies (both confirmedData envelopes and the nested
+// products[]) have their own file, visits-ai-dto-validation.test.ts.
 //
 // The note's rule is what most of these cases check: the DTO declares what a
 // body may contain, and every judgement whose refusal carries a useful message
@@ -86,7 +85,7 @@ const EVERY_DTO: DtoClass[] = [
   RegisterProblemPhotoDto,
 ];
 
-describe("the six VisitsService routes carry the pipe, and the AI five do not yet", () => {
+describe("the six VisitsService routes carry the pipe", () => {
   const gatedHandlers: Array<[string, (...args: never[]) => unknown]> = [
     ["createVisit", VisitsController.prototype.createVisit],
     ["updateVisit", VisitsController.prototype.updateVisit],
@@ -102,26 +101,19 @@ describe("the six VisitsService routes carry the pipe, and the AI five do not ye
     ],
   ];
 
-  // The four reads, plus the five bodies the second PR covers. Listing the
-  // latter here is the point: this file should fail the day one of them is
-  // gated without its own DTO and its own cases, rather than silently
-  // covering less than the controller does.
+  // Only the four reads now. This list used to hold the five bodies the
+  // second PR covers as well, and it earned its keep: the moment they were
+  // gated, this file failed rather than silently covering less than the
+  // controller does. Their cases live in visits-ai-dto-validation.test.ts,
+  // which pins that all eleven bodies carry a pipe.
   const ungatedHandlers: Array<[string, (...args: never[]) => unknown]> = [
     ["listVisits", VisitsController.prototype.listVisits],
     ["getVisitDaySummary", VisitsController.prototype.getVisitDaySummary],
     ["getVisit", VisitsController.prototype.getVisit],
     ["getVisitReport", VisitsController.prototype.getVisitReport],
-    ["confirmReport", VisitsController.prototype.confirmReport],
-    [
-      "createTranscriptionJob",
-      VisitsController.prototype.createTranscriptionJob,
-    ],
-    ["createExtractionJob", VisitsController.prototype.createExtractionJob],
-    ["confirmAiDraft", VisitsController.prototype.confirmAiDraft],
-    ["transcribeFieldReport", VisitsController.prototype.transcribeFieldReport],
   ];
 
-  it("attaches a pipe to exactly the six handlers in this PR's scope", () => {
+  it("attaches a pipe to the six bodies this file covers, and to no read", () => {
     for (const [name, handler] of gatedHandlers) {
       const pipes: unknown[] =
         Reflect.getMetadata(PIPES_METADATA, handler) ?? [];
@@ -133,7 +125,7 @@ describe("the six VisitsService routes carry the pipe, and the AI five do not ye
       assert.equal(
         Reflect.getMetadata(PIPES_METADATA, handler),
         undefined,
-        `${name} is out of this PR's scope and should carry no pipe yet`,
+        `${name} takes no body and should carry no pipe`,
       );
     }
   });

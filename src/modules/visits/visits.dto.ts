@@ -2,6 +2,7 @@ import "reflect-metadata";
 import {
   IsIn,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -16,12 +17,11 @@ import {
 } from "./visit-request-limits";
 
 /**
- * First of the two PRs the design note
- * (docs/plans/visits-dto-migration-note.md) splits `visits` into: the six
- * bodies `VisitsService` owns. The five `AiService` bodies — including both
- * `confirmedData` envelopes and the one genuinely nested `products[]` — follow
- * in their own change, because the question they raise is replay
- * compatibility rather than validators.
+ * The bodies `VisitsService` owns, gated across the two PRs
+ * docs/plans/visits-dto-migration-note.md splits `visits` into: six here from
+ * the first, plus `ConfirmReportDto` at the foot of this file from the second.
+ * The four `AiService` bodies live in `ai/ai.dto.ts`, next to the request
+ * types they mirror.
  *
  * `visits` is the last module of tier 3 and the field app's entire reporting
  * path runs through it, so the note's rule applies throughout and more
@@ -170,4 +170,38 @@ export class RegisterProblemPhotoDto {
   @ValidateIf((_dto, value) => typeof value !== "string")
   @IsNumber()
   sizeBytes?: number | string;
+}
+
+/**
+ * The manual (non-AI) confirm, and the route the design note's Q1 was really
+ * about: this is the one an offline device queues and replays. The envelope is
+ * declared and closed; `confirmedData` is opaque for the reasons set out at
+ * length on `ConfirmAiDraftDto` (`ai/ai.dto.ts`), which this field mirrors
+ * exactly — no `@ValidateNested`, no `@Type`, so class-transformer copies the
+ * payload through untouched and the whitelist never walks inside it.
+ *
+ * Worth stating plainly, since a reviewer will look for it: this route carries
+ * two unrelated shapes chosen by `schemaVersion` — `field-report.v1` from the
+ * voice flow and `manual.v1`, whose field list comes from the tenant's own
+ * `segmentTemplate` and therefore differs per tenant. Neither could be
+ * declared here without being wrong for the other.
+ *
+ * `REPORT_INVALID` ("Confirmed report data must be a JSON object.") stays the
+ * service's answer for a missing or non-object payload; `@IsObject()` only
+ * moves the same verdict one layer earlier for the non-object case.
+ */
+export class ConfirmReportDto {
+  @IsOptional()
+  @IsObject()
+  confirmedData?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(TEXT_LIMITS.code)
+  schemaVersion?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_CLIENT_REQUEST_ID_LENGTH)
+  clientRequestId?: string;
 }
