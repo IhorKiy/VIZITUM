@@ -204,6 +204,11 @@ function TodayRouteGroup({
     },
   };
 
+  // Same unsequenced-write race as the route template editor's own
+  // commitOrder (route-stop-drag-list.tsx): one independent request per move,
+  // each sending the full absolute order, so two moves in flight at once
+  // resolve to whichever lands last rather than whichever was newer. See
+  // #226.
   function commitOrder(nextOrder: TodayStop[]) {
     const changed = nextOrder.some(
       (item, index) => item.id !== stops[index]?.id,

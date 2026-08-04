@@ -40,7 +40,7 @@ import { expect, test, type Page } from "@playwright/test";
 // locally. It's a pre-existing gap in commitOrder (this is only the first
 // thing to ever exercise two rapid reorders, keyboard or drag), not
 // something introduced here, and out of scope for this test to fix —
-// tracked separately. Waiting between moves here keeps this spec asserting
+// tracked in #226. Waiting between moves here keeps this spec asserting
 // what it can actually guarantee instead of being flaky on an unrelated bug.
 
 const TENANT_SLUG = "e2e-field-route-reorder";
