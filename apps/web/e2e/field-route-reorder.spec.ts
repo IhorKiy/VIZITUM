@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Response } from "@playwright/test";
 
 // Nothing else in this suite drives route-stop-drag-list.tsx's keyboard
 // reorder at all, so this pins the basic contract: two consecutive moves on
@@ -113,6 +113,40 @@ async function pressArrowDownAndAwaitRequest(
   await reorderResponse;
 }
 
+// Waits for `count` reorder POST responses, however far apart they land —
+// unlike waitForLoadState("networkidle"), which only watches requests
+// already in flight and has no way to know a further one is coming.
+// useSerializedReorder queues a second rapid move behind the first rather
+// than sending it immediately, and the gap between the first response and
+// the second request's dispatch is real network-request-count-blind time
+// (see the file header), not just network latency — long enough that
+// networkidle's 500ms-of-silence check already resolved once, here, before
+// the second request had even been sent. Counting responses instead of
+// watching for silence has no such blind spot.
+function waitForReorderResponses(page: Page, count: number): Promise<void> {
+  let seen = 0;
+
+  return new Promise((resolve) => {
+    function onResponse(response: Response) {
+      if (
+        response.request().method() !== "POST" ||
+        !response.url().includes("/field/routes")
+      ) {
+        return;
+      }
+
+      seen += 1;
+
+      if (seen >= count) {
+        page.off("response", onResponse);
+        resolve();
+      }
+    }
+
+    page.on("response", onResponse);
+  });
+}
+
 test("two consecutive keyboard moves compute correctly relative to each other, and the result persists across a reload", async ({
   page,
 }) => {
@@ -175,6 +209,17 @@ test("two consecutive keyboard moves compute correctly relative to each other, a
 // this stays exactly the shape that already reproduced the bug for real —
 // no synthetic help — trusting that evidence over a synthetic setup that
 // turned out to demonstrate a different thing than intended.
+//
+// First CI run of this test (still failed, but a different failure than the
+// one it's here to catch): waitForLoadState("networkidle") resolved, and the
+// reload right after it aborted the second reorder request mid-dispatch —
+// confirmed from the trace (a second POST that started ~1.5s after the
+// first response and got status -1). That gap is exactly the action-queue
+// coupling noted above: useSerializedReorder queues the second move behind
+// the first rather than sending it immediately, and networkidle only
+// watches requests already in flight — it has no way to know a further one
+// is coming once the first has gone quiet. waitForReorderResponses below
+// counts responses instead, so it keeps waiting across that gap.
 test("two rapid keyboard moves with no wait between them still persist the last move, not a stale one that raced it", async ({
   page,
 }) => {
@@ -194,15 +239,21 @@ test("two rapid keyboard moves with no wait between them still persist the last 
     name: `Reorder ${RAPID_STOP_A_NAME}`,
   });
 
+  // Armed before either press, not after: the two presses have no wait
+  // between them, so the first request can already be under way by the time
+  // this line runs, and a listener attached afterward could miss it.
+  const bothReordersSettled = waitForReorderResponses(page, 2);
+
   // No wait between these two presses, and no reload either — see the file
   // header for why this specific shape is what actually exercises the fix.
   await handleA.press("ArrowDown");
   await handleA.press("ArrowDown");
 
-  // Not proof either request landed (see the file header on why a network
-  // wait can't prove the client caught up) — only that reloading now won't
-  // abort one that's still sending.
-  await page.waitForLoadState("networkidle");
+  // Not proof either request's write landed the way the assertion below
+  // expects (see the file header on why a network wait can't prove the
+  // client caught up) — only that reloading now won't abort one that's
+  // still sending, or hasn't even been sent yet.
+  await bothReordersSettled;
   await page.reload();
 
   // A moved down twice: B, C, A — the only outcome a correct
