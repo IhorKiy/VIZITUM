@@ -6,18 +6,17 @@ import {
   Post,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequireAnyPermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { CreatePresignedUrlDto } from "./storage.dto";
 import { normalizeSignedUrlTtl, StorageService } from "./storage.service";
-import type {
-  CreatePresignedDownloadUrlRequestBody,
-  CreatePresignedUploadUrlRequestBody,
-} from "./storage.types";
 
 @Controller("storage/objects")
 @UseGuards(PermissionGuard)
@@ -45,10 +44,13 @@ export class StorageController {
     PERMISSIONS.VISITS_UPDATE_OWN,
     PERMISSIONS.IMPORTS_UPLOAD,
   )
+  // Tier 4 (administrative surfaces) of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
   createPresignedUploadUrl(
     @Req() request: Request,
     @Param("storageObjectId") storageObjectId: string,
-    @Body() body: CreatePresignedUploadUrlRequestBody,
+    @Body() body: CreatePresignedUrlDto,
   ) {
     return this.storageService.createPresignedUploadUrl(
       getRequestContext(request),
@@ -63,10 +65,11 @@ export class StorageController {
     PERMISSIONS.VISITS_READ_TEAM,
     PERMISSIONS.IMPORTS_READ,
   )
+  @UsePipes(createStrictValidationPipe())
   createPresignedDownloadUrl(
     @Req() request: Request,
     @Param("storageObjectId") storageObjectId: string,
-    @Body() body: CreatePresignedDownloadUrlRequestBody,
+    @Body() body: CreatePresignedUrlDto,
   ) {
     return this.storageService.createPresignedDownloadUrl(
       getRequestContext(request),

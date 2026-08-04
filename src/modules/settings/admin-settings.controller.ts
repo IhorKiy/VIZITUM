@@ -7,19 +7,21 @@ import {
   Post,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  ConfirmLogoUploadDto,
+  RegisterLogoUploadDto,
+  UpdateTenantSettingsDto,
+} from "./settings.dto";
 import { SettingsService } from "./settings.service";
-import type {
-  ConfirmLogoUploadRequestBody,
-  RegisterLogoUploadRequestBody,
-  UpdateTenantSettingsRequestBody,
-} from "./settings.types";
 
 @Controller("admin/settings")
 @UseGuards(PermissionGuard)
@@ -34,9 +36,12 @@ export class AdminSettingsController {
 
   @Patch()
   @RequirePermissions(PERMISSIONS.TENANT_SETTINGS_MANAGE)
+  // Tier 4 (administrative surfaces) of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
   updateSettings(
     @Req() request: Request,
-    @Body() body: UpdateTenantSettingsRequestBody,
+    @Body() body: UpdateTenantSettingsDto,
   ) {
     return this.settingsService.updateSettings(
       getRequestContext(request),
@@ -46,9 +51,10 @@ export class AdminSettingsController {
 
   @Post("logo/register")
   @RequirePermissions(PERMISSIONS.TENANT_SETTINGS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   registerLogoUpload(
     @Req() request: Request,
-    @Body() body: RegisterLogoUploadRequestBody,
+    @Body() body: RegisterLogoUploadDto,
   ) {
     return this.settingsService.registerLogoUpload(
       getRequestContext(request),
@@ -58,9 +64,10 @@ export class AdminSettingsController {
 
   @Post("logo/confirm")
   @RequirePermissions(PERMISSIONS.TENANT_SETTINGS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   confirmLogoUpload(
     @Req() request: Request,
-    @Body() body: ConfirmLogoUploadRequestBody,
+    @Body() body: ConfirmLogoUploadDto,
   ) {
     return this.settingsService.confirmLogoUpload(
       getRequestContext(request),

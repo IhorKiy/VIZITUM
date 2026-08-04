@@ -9,19 +9,17 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PERMISSIONS } from "../roles/permissions";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import type { RequestContext } from "../tenancy/request-context";
+import { AddUserRoleDto, InviteUserDto, UpdateUserDto } from "./users.dto";
 import { UsersService } from "./users.service";
-import type {
-  AddUserRoleRequestBody,
-  InviteUserRequestBody,
-  UpdateUserRequestBody,
-} from "./users.types";
 
 @Controller("admin/users")
 @UseGuards(PermissionGuard)
@@ -39,7 +37,10 @@ export class AdminUsersController {
 
   @Post("invite")
   @RequirePermissions(PERMISSIONS.USERS_INVITE)
-  inviteUser(@Req() request: Request, @Body() body: InviteUserRequestBody) {
+  // Tier 4 (administrative surfaces) of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
+  inviteUser(@Req() request: Request, @Body() body: InviteUserDto) {
     return this.usersService.inviteUser(getRequestContext(request), body);
   }
 
@@ -57,10 +58,11 @@ export class AdminUsersController {
 
   @Patch(":userId")
   @RequirePermissions(PERMISSIONS.USERS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   updateUser(
     @Req() request: Request,
     @Param("userId") userId: string,
-    @Body() body: UpdateUserRequestBody,
+    @Body() body: UpdateUserDto,
   ) {
     return this.usersService.updateUser(
       getRequestContext(request),
@@ -71,10 +73,11 @@ export class AdminUsersController {
 
   @Post(":userId/roles")
   @RequirePermissions(PERMISSIONS.ROLES_ASSIGN)
+  @UsePipes(createStrictValidationPipe())
   addRole(
     @Req() request: Request,
     @Param("userId") userId: string,
-    @Body() body: AddUserRoleRequestBody,
+    @Body() body: AddUserRoleDto,
   ) {
     return this.usersService.addRole(getRequestContext(request), userId, body);
   }

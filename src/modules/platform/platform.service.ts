@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { RoleCode, SegmentTemplate, TenantStatus } from "@prisma/client";
+import { RoleCode, TenantStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
 import {
@@ -30,12 +30,13 @@ import { AuthAuditService } from "../auth/auth-audit.service";
 import { LoginBackoffService } from "../rate-limit/login-backoff.service";
 import { PlatformMfaService } from "./platform-mfa.service";
 import { TEAM_MODE_CAPABILITIES } from "./product-capabilities";
-import type {
-  CreateTenantInput,
-  PlatformInviteSuperadminInput,
-  PlatformPromoteSuperadminInput,
-  PlatformRequestPurgeInput,
-  UpdateTenantInput,
+import {
+  SEGMENT_TEMPLATES,
+  type CreateTenantInput,
+  type PlatformInviteSuperadminInput,
+  type PlatformPromoteSuperadminInput,
+  type PlatformRequestPurgeInput,
+  type UpdateTenantInput,
 } from "./platform.types";
 import { MILLISECONDS_PER_DAY } from "../../common/time";
 import {
@@ -52,7 +53,6 @@ const DEFAULT_LANGUAGE = "uk";
 // canonicalizes to.
 const DEFAULT_TIMEZONE = normalizeTimezone("Europe/Kyiv") ?? "Europe/Kiev";
 const DEFAULT_DATABASE_KEY = "shared-primary";
-const SEGMENT_TEMPLATES = Object.values(SegmentTemplate);
 // Statuses a platform owner may set directly via update. `archived` is reserved
 // for the dedicated archive endpoint so archiving always stamps `archivedAt`.
 // `draft`/`provisioning`/`ready`/`active` are excluded too: tenants are created
@@ -604,13 +604,20 @@ export class PlatformService {
     let assignedStatus: TenantStatus | undefined;
 
     if (input.status !== undefined) {
-      if (!ASSIGNABLE_STATUSES.includes(input.status)) {
+      // Matched rather than `includes`-checked so the result carries the
+      // TenantStatus type: `input.status` is the caller's raw string, and this
+      // is the one place that decides it names a status we assign.
+      const status = ASSIGNABLE_STATUSES.find(
+        (assignable) => assignable === input.status,
+      );
+
+      if (!status) {
         fieldErrors.status = [
           "A valid status is required. Use the archive action to archive a tenant; draft, provisioning, ready and active cannot be assigned — status is the plan (pilot/team/business) or suspended.",
         ];
       } else {
-        data.status = input.status;
-        assignedStatus = input.status;
+        data.status = status;
+        assignedStatus = status;
       }
     }
 
@@ -1034,7 +1041,7 @@ export class PlatformService {
   }
 
   async createTenant(input: CreateTenantInput) {
-    const name = input.name?.trim();
+    const name = input.name?.trim() ?? "";
     const slug = normalizeSlug(input.slug ?? "");
     const fieldErrors: Record<string, string[]> = {};
 
@@ -1052,10 +1059,11 @@ export class PlatformService {
       fieldErrors.slug = ["Tenant slug is required."];
     }
 
-    if (
-      !input.segmentTemplate ||
-      !SEGMENT_TEMPLATES.includes(input.segmentTemplate)
-    ) {
+    const segmentTemplate = SEGMENT_TEMPLATES.find(
+      (template) => template === input.segmentTemplate,
+    );
+
+    if (!segmentTemplate) {
       fieldErrors.segmentTemplate = ["A valid segment template is required."];
     }
 
@@ -1140,7 +1148,10 @@ export class PlatformService {
       }
     }
 
-    if (Object.keys(fieldErrors).length) {
+    // `!segmentTemplate` is redundant with the field error recorded above and
+    // stated anyway: it is what tells the compiler the value reaching the
+    // create below is a SegmentTemplate rather than possibly undefined.
+    if (Object.keys(fieldErrors).length || !segmentTemplate) {
       throw new BadRequestException({
         code: "TENANT_INVALID",
         message:
@@ -1176,7 +1187,7 @@ export class PlatformService {
           contactEmail,
           contactPhone,
           phoneCountry,
-          segmentTemplate: input.segmentTemplate,
+          segmentTemplate,
           databaseKey: DEFAULT_DATABASE_KEY,
           primaryDomain,
           // Tenants go live immediately: there is no per-tenant infrastructure

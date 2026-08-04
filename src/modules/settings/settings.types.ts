@@ -11,6 +11,15 @@ export const SUPPORTED_TENANT_LANGUAGES = ["en", "uk"] as const;
 
 export type TenantLanguage = (typeof SUPPORTED_TENANT_LANGUAGES)[number];
 
+// The tenant's own display name, which is wider than TEXT_LIMITS.name (120):
+// it names a company rather than a person, and tenants created before this
+// endpoint existed may already carry a longer one. Declared here rather than
+// inside settings.service.ts so the class-validator DTO in front of
+// `PATCH /admin/settings` can import the same number instead of restating it —
+// a DTO importing a Nest service module would be the wrong direction of
+// dependency for a value neither layer owns more than the other.
+export const MAX_TENANT_NAME_LENGTH = 200;
+
 export type TenantLogoResponse = {
   storageObjectId: string;
   contentType: string;
