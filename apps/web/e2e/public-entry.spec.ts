@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+import enMessages from "../messages/en.json";
+import ukMessages from "../messages/uk.json";
+import { CONTACT_EMAIL } from "../lib/site";
+
 // The four public pages — two marketing landings, two workspace entry screens
 // — render with no session, no tenant and no API call between them.
 //
@@ -29,17 +33,32 @@ test("the marketing landings render in their own language", async ({
 // The contact address is the only way a reader with no workspace can reach
 // anyone, and it is printed rather than fetched — so the failure mode is a
 // page that still renders fine while quietly offering no way to get in touch.
-test("both landings offer the contact address", async ({ page }) => {
-  for (const path of ["/", "/en"]) {
-    await page.goto(path);
+//
+// One test per landing rather than one test looping over both: a loop stops
+// at the first failure, so a broken `/` would leave `/en` unchecked and the
+// report would not name which language lost its address.
+for (const landing of [
+  { path: "/", locale: "uk", messages: ukMessages },
+  { path: "/en", locale: "en", messages: enMessages },
+]) {
+  test(`the ${landing.locale} landing offers the contact address`, async ({
+    page,
+  }) => {
+    await page.goto(landing.path);
+
     const contact = page.locator(".landing-contact-link");
-    await expect(contact).toHaveText("support@vizitum.com");
+    await expect(contact).toHaveText(CONTACT_EMAIL);
+    // Asserted against *this* landing's own dictionary rather than against
+    // "some subject": the two pinned imports being swapped is exactly the
+    // mistake a `subject=.` pattern would wave through.
     await expect(contact).toHaveAttribute(
       "href",
-      /^mailto:support@vizitum\.com\?subject=./,
+      `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(
+        landing.messages.landing.contactSubject,
+      )}`,
     );
-  }
-});
+  });
+}
 
 test("both workspace entry screens render their form", async ({ page }) => {
   // The submit button is the assertion that matters: it is the one control
