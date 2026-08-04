@@ -286,3 +286,94 @@ test("a recording that never reached storage survives the page going away", asyn
     page.getByRole("region", { name: "Recording waiting to be sent" }),
   ).toBeHidden();
 });
+
+// How many records the capture store is holding, read in the browser rather
+// than through the app's own module graph. Deliberately a count and not a
+// lookup of one key: a capture is one record where the registration never
+// landed (CI, with no storage configured at all) and two where it did, and both
+// environments have to answer the same question the same way.
+//
+// A near-copy of the same reader in field-cancel-visit.spec.ts rather than a
+// shared import: importing anything out of a spec file executes its top-level
+// `test()` calls while this file is being collected, which registers that
+// file's tests a second time under this one.
+async function pendingMediaCount(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      new Promise<number>((resolve, reject) => {
+        const request = indexedDB.open("vizitum-field");
+
+        request.onerror = () =>
+          reject(request.error ?? new Error("IndexedDB open failed"));
+        request.onsuccess = () => {
+          const database = request.result;
+          const store = database
+            .transaction("pending-media", "readonly")
+            .objectStore("pending-media");
+          const countRequest = store.count();
+
+          countRequest.onsuccess = () => resolve(countRequest.result);
+          countRequest.onerror = () =>
+            reject(countRequest.error ?? new Error("IndexedDB count failed"));
+        };
+      }),
+  );
+}
+
+test("saving the report says it will delete an unsent recording, and only does so once the rep agrees", async ({
+  page,
+}) => {
+  // The one path that destroys a capture the rep cannot make again. Confirming
+  // ends the visit, so the screen holding the retry stops rendering and the
+  // bytes would sit unreachable — deleting them is right, and doing it without
+  // saying so was not: the panel above promises the recording will still be
+  // here on the way back, and this is the single thing that makes that untrue.
+  // Found on a real iPhone in the offline pass (docs/runbooks/
+  // field-offline-iphone-test.md, 2026-08-03), where a rep who dictated a
+  // visit, lost it to a dead zone, typed the whole report by hand and saved it
+  // was left with an empty `pending-media` store and nothing said.
+  await page.addInitScript(STUB_RECORDER);
+
+  const visitUrl = await startVisit(page);
+
+  await page.getByRole("button", { name: "Record voice note" }).click();
+  await page.getByRole("button", { name: "Stop recording" }).click();
+
+  const pending = page.getByRole("region", {
+    name: "Recording waiting to be sent",
+  });
+  await expect(pending).toBeVisible();
+  // The panel's own promise now carries the exception to it, not just the half
+  // that holds.
+  await expect(pending).toContainText("Saving the report deletes it");
+
+  // The manual path is where the rep ends up when the recording cannot be
+  // sent, and it is the path that used to discard it in silence.
+  await page.getByRole("button", { name: "No order", exact: true }).click();
+  await page.getByRole("button", { name: "No money" }).click();
+  await page.getByRole("button", { name: "Save report" }).click();
+
+  const prompt = page.getByRole("alert").filter({ hasText: "recording" });
+  await expect(prompt).toContainText("still hasn't been sent");
+  // Named with the way out, not just the consequence: the recording is only
+  // unsendable for as long as there is no signal, and the panel above still
+  // holds the retry.
+  await expect(prompt).toContainText("Send again");
+
+  // Backing out sends nothing and deletes nothing: the recording is still on
+  // the device, with its retry, and the report is still unsaved.
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Save report" })).toBeVisible();
+  await expect(pending).toBeVisible();
+  expect(await pendingMediaCount(page)).toBeGreaterThan(0);
+  expect(page.url()).toBe(visitUrl);
+
+  // Agreeing is what spends it. The report goes through and the rep lands back
+  // on today's route — the same ending the silent version had, and the whole
+  // difference this test exists for is that they were asked first.
+  await page.getByRole("button", { name: "Save report" }).click();
+  await page.getByRole("button", { name: "Save and delete" }).click();
+  await page.waitForURL("**/field?report=*");
+
+  expect(await pendingMediaCount(page)).toBe(0);
+});
