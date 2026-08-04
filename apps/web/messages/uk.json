@@ -2,8 +2,10 @@
   "common": {
     "appName": "Vizitum",
     "signIn": "Увійти",
+    "signOut": "Вийти",
     "save": "Зберегти",
     "signingIn": "Вхід...",
+    "signingOut": "Вихід...",
     "saving": "Збереження...",
     "cancel": "Скасувати",
     "close": "Закрити",
@@ -1186,9 +1188,7 @@
       "help": "Довідка",
       "helpHint": "Відповіді про нотатки, чернетки та звіти",
       "account": "Обліковий запис",
-      "accountHint": "Змінити пароль",
-      "signOut": "Вийти",
-      "signingOut": "Вихід..."
+      "accountHint": "Змінити пароль"
     },
     "help": {
       "title": "Довідка",
