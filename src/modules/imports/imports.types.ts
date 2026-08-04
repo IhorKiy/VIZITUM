@@ -1,7 +1,19 @@
 import type { TextLimitKey } from "../../common/input-limits";
 
-export type ImportTemplateType =
-  "users" | "locations" | "contacts" | "products" | "initial_visit_task_plan";
+// The five templates a validation job may be created against. One list rather
+// than a union plus a hand-written copy in the controller's parser: this value
+// is the discriminator that selects both the header allowlist and the row
+// validator, and the DTO in front of `POST /imports/jobs/validate` gates on it,
+// so a sixth template must appear in exactly one place.
+export const IMPORT_TEMPLATE_TYPES = [
+  "users",
+  "locations",
+  "contacts",
+  "products",
+  "initial_visit_task_plan",
+] as const;
+
+export type ImportTemplateType = (typeof IMPORT_TEMPLATE_TYPES)[number];
 
 export type ImportTemplateColumn = {
   key: string;
@@ -77,11 +89,8 @@ export type CreateImportValidationJobOptions = {
   sourceFileName?: string;
 };
 
-export type CreateImportValidationJobRequestBody = {
-  templateType?: unknown;
-  csvText?: unknown;
-  fileName?: unknown;
-};
+// The validation-job request body is now `CreateImportValidationJobDto` in
+// imports.dto.ts — the class the pipe on that route validates against.
 
 export type StoredImportValidationPreview = ImportValidationPreview & {
   importJobId: string;

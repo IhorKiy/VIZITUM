@@ -8,17 +8,20 @@ import {
   Req,
   Res,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request, Response } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import { CreateImportValidationJobDto } from "./imports.dto";
 import { ImportsService } from "./imports.service";
-import type {
-  CreateImportValidationJobRequestBody,
-  ImportTemplateType,
+import {
+  IMPORT_TEMPLATE_TYPES,
+  type ImportTemplateType,
 } from "./imports.types";
 
 @Controller("imports")
@@ -51,9 +54,14 @@ export class ImportsController {
 
   @Post("jobs/validate")
   @RequirePermissions(PERMISSIONS.IMPORTS_UPLOAD)
+  // Tier 5 of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global, and
+  // narrower than it looks: see docs/plans/imports-dto-migration-note.md for
+  // what it does *not* buy. The three parsers below run unchanged behind it.
+  @UsePipes(createStrictValidationPipe())
   createValidationJob(
     @Req() request: Request,
-    @Body() body: CreateImportValidationJobRequestBody,
+    @Body() body: CreateImportValidationJobDto,
   ) {
     const templateType = parseImportTemplateType(body.templateType);
     const csvText = parseCsvText(body.csvText);
@@ -102,14 +110,10 @@ export class ImportsController {
 }
 
 function parseImportTemplateType(value: unknown): ImportTemplateType {
-  if (
-    value === "users" ||
-    value === "locations" ||
-    value === "contacts" ||
-    value === "products" ||
-    value === "initial_visit_task_plan"
-  ) {
-    return value;
+  const templateType = IMPORT_TEMPLATE_TYPES.find((type) => type === value);
+
+  if (templateType) {
+    return templateType;
   }
 
   throw new BadRequestException({
