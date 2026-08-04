@@ -88,6 +88,11 @@ export function PhoneInput({
 
   // The platform create-tenant form lets the owner change the phone country
   // while the phone is already filled in — revalidate against the new country.
+  // The deps below include applyValue, which itself depends on
+  // invalidMessage/countryRequiredMessage as well as phoneCountry — those are
+  // string props, stable in practice, but if they ever do change identity
+  // this effect revalidates again rather than silently reusing a stale
+  // message.
   useEffect(() => {
     if (inputRef.current) {
       applyValue(inputRef.current.value, true);
