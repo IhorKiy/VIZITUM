@@ -9,10 +9,12 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { VisitStatus } from "@prisma/client";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { AiService } from "../ai/ai.service";
 import type {
   ConfirmAiDraftRequestBody,
@@ -28,16 +30,16 @@ import {
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
+import {
+  AddTextVisitNoteDto,
+  CancelVisitDto,
+  CreateVisitDto,
+  RegisterAudioUploadDto,
+  RegisterProblemPhotoDto,
+  UpdateVisitDto,
+} from "./visits.dto";
 import { VisitsService } from "./visits.service";
-import type {
-  AddTextVisitNoteRequestBody,
-  CancelVisitRequestBody,
-  ConfirmReportRequestBody,
-  CreateVisitRequestBody,
-  RegisterAudioUploadRequestBody,
-  RegisterProblemPhotoRequestBody,
-  UpdateVisitRequestBody,
-} from "./visits.types";
+import type { ConfirmReportRequestBody } from "./visits.types";
 
 @Controller("visits")
 @UseGuards(PermissionGuard)
@@ -109,16 +111,22 @@ export class VisitsController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.VISITS_CREATE)
-  createVisit(@Req() request: Request, @Body() body: CreateVisitRequestBody) {
+  // Tier 3 of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md), first of the two PRs
+  // docs/plans/visits-dto-migration-note.md splits this module into — scoped
+  // to this route, not global.
+  @UsePipes(createStrictValidationPipe())
+  createVisit(@Req() request: Request, @Body() body: CreateVisitDto) {
     return this.visitsService.createVisit(getRequestContext(request), body);
   }
 
   @Patch(":visitId")
   @RequirePermissions(PERMISSIONS.VISITS_UPDATE_OWN)
+  @UsePipes(createStrictValidationPipe())
   updateVisit(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: UpdateVisitRequestBody,
+    @Body() body: UpdateVisitDto,
   ) {
     return this.visitsService.updateVisit(
       getRequestContext(request),
@@ -129,10 +137,11 @@ export class VisitsController {
 
   @Post(":visitId/cancel")
   @RequirePermissions(PERMISSIONS.VISITS_CANCEL_OWN)
+  @UsePipes(createStrictValidationPipe())
   cancelVisit(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: CancelVisitRequestBody,
+    @Body() body: CancelVisitDto,
   ) {
     return this.visitsService.cancelVisit(
       getRequestContext(request),
@@ -143,10 +152,11 @@ export class VisitsController {
 
   @Post(":visitId/notes/text")
   @RequirePermissions(PERMISSIONS.VISITS_UPDATE_OWN)
+  @UsePipes(createStrictValidationPipe())
   addTextNote(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: AddTextVisitNoteRequestBody,
+    @Body() body: AddTextVisitNoteDto,
   ) {
     return this.visitsService.addTextNote(
       getRequestContext(request),
@@ -157,10 +167,11 @@ export class VisitsController {
 
   @Post(":visitId/notes/audio/register")
   @RequirePermissions(PERMISSIONS.VISITS_UPDATE_OWN)
+  @UsePipes(createStrictValidationPipe())
   registerTemporaryAudioUpload(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: RegisterAudioUploadRequestBody,
+    @Body() body: RegisterAudioUploadDto,
   ) {
     return this.visitsService.registerTemporaryAudioUpload(
       getRequestContext(request),
@@ -171,10 +182,11 @@ export class VisitsController {
 
   @Post(":visitId/problem-photos/register")
   @RequirePermissions(PERMISSIONS.VISITS_UPDATE_OWN)
+  @UsePipes(createStrictValidationPipe())
   registerProblemPhotoUpload(
     @Req() request: Request,
     @Param("visitId") visitId: string,
-    @Body() body: RegisterProblemPhotoRequestBody,
+    @Body() body: RegisterProblemPhotoDto,
   ) {
     return this.visitsService.registerProblemPhotoUpload(
       getRequestContext(request),
