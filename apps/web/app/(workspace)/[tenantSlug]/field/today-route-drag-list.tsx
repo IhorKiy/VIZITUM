@@ -136,14 +136,21 @@ function TodayRouteGroup({
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
 
-  orderRef.current = order;
+  useEffect(() => {
+    orderRef.current = order;
+  }, [order]);
 
   // Resyncs only when the server's own item set/order actually changes
   // (a redirect after a persisted reorder) — not on every incidental
   // re-render, which would otherwise stomp a drag in progress.
-  useEffect(() => {
+  // Adjusted during render (React's documented pattern for state that must
+  // follow a derived key) rather than in an effect, so the corrected order is
+  // what actually paints instead of flashing the stale one for a frame.
+  const [prevStopsKey, setPrevStopsKey] = useState(stopsKey);
+  if (stopsKey !== prevStopsKey) {
+    setPrevStopsKey(stopsKey);
     setOrder(stops);
-  }, [stopsKey]);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -341,12 +348,21 @@ function TodayRouteStopRow({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const offsetRef = useRef(0);
   const swipedRef = useRef(false);
-  offsetRef.current = offset;
+
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
 
   // A remove needs a second, deliberate tap; closing the row cancels that
-  // pending confirmation so it never lingers invisibly.
+  // pending confirmation so it never lingers invisibly. Kept as an effect
+  // rather than adjusted during render: offset changes on every touchmove of
+  // an active swipe, and the render-time-adjustment pattern would force a
+  // second synchronous render on each of those (it re-renders whenever its
+  // tracked "previous" value differs, which here is nearly every frame),
+  // instead of only when confirmRemove is actually still true.
   useEffect(() => {
     if (offset === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
       setConfirmRemove(false);
     }
   }, [offset]);

@@ -48,6 +48,7 @@ export function RouteSnapshotWriter({
     // stops/labels themselves are deliberately not in this list — stopsKey/
     // labelsKey are their stand-ins, so the effect fires on content change
     // rather than on every render's fresh array/object identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above
   }, [tenantSlug, stopsKey, labelsKey]);
 
   return null;

@@ -68,14 +68,21 @@ export function RouteStopDragList({
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
 
-  orderRef.current = order;
+  useEffect(() => {
+    orderRef.current = order;
+  }, [order]);
 
   // Resyncs only when the server's own item set/order actually changes
   // (add/remove, or a redirect after a persisted reorder) — not on every
   // incidental re-render, which would otherwise stomp a drag in progress.
-  useEffect(() => {
+  // Adjusted during render (React's documented pattern for state that must
+  // follow a derived key) rather than in an effect, so the corrected order is
+  // what actually paints instead of flashing the stale one for a frame.
+  const [prevStopsKey, setPrevStopsKey] = useState(stopsKey);
+  if (stopsKey !== prevStopsKey) {
+    setPrevStopsKey(stopsKey);
     setOrder(stops);
-  }, [stopsKey]);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),

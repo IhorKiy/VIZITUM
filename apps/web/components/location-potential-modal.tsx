@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import type { LocationPotential } from "../lib/api-client";
 import { INPUT_LIMITS } from "../lib/input-limits";
+import { useIsMounted } from "../lib/use-is-mounted";
 import { PencilIcon, PlusIcon } from "./icons";
 import { PendingSubmitButton } from "./pending-submit-button";
 
@@ -38,8 +39,7 @@ export function LocationPotentialModal(props: LocationPotentialModalProps) {
   const dateRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useIsMounted();
 
   const row = props.mode === "edit" ? props.row : null;
 

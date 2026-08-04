@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
@@ -22,6 +15,7 @@ import {
   hasReportOutboxEntryForVisit,
   type ReportOutboxScope,
 } from "../lib/report-outbox";
+import { useIsMounted } from "../lib/use-is-mounted";
 import {
   formatCancellationReason,
   VISIT_CANCELLATION_REASONS,
@@ -61,7 +55,7 @@ export function CancelVisitModal({
   // while the queued confirm it should have cleared is still there.
   const cleanupDoneRef = useRef(false);
 
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsMounted();
   const [discarding, setDiscarding] = useState(false);
   // What cancelling would throw away, checked fresh every time the dialog
   // opens — null until that check resolves, so the notice never flashes a
@@ -76,7 +70,6 @@ export function CancelVisitModal({
   // opens, closes and reopens the dialog before the first read lands must not
   // have it land after and overwrite the second one's answer.
   const checkGenerationRef = useRef(0);
-  useEffect(() => setMounted(true), []);
 
   const draftScope = useMemo<DraftScope>(
     () => ({ tenantSlug, userId, visitId }),

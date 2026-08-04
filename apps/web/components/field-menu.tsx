@@ -124,9 +124,14 @@ export function FieldMenu({
 
   // Navigating away is what closes the menu: with client-side routing the
   // dialog element survives the transition and would otherwise still be open
-  // on the screen the user just landed on.
+  // on the screen the user just landed on. Kept as one effect rather than
+  // splitting the state update out: `setOpen` mirrors the native dialog's
+  // real, imperative close() call right above it, and separating their
+  // timing (one during render, one still in an effect) would desync the
+  // `open` state briefly from what is actually on screen.
   useEffect(() => {
     dialogRef.current?.close();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     setOpen(false);
   }, [pathname]);
 

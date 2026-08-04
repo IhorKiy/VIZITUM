@@ -117,6 +117,7 @@ export function ConfirmedFieldReportSummary({
               ) ? (
                 /* A presigned storage URL on a per-request host: nothing
                    next/image could optimize or whitelist. */
+                // eslint-disable-next-line @next/next/no-img-element -- see comment above
                 <img alt={t("confirmedProblemPhoto")} src={problemPhotoUrl} />
               ) : (
                 // HEIC is what an iPhone shoots by default and only Safari

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
 import type { LocationContact } from "../lib/api-client";
 import type { LocationKeeper } from "../lib/location-keeper";
+import { useIsMounted } from "../lib/use-is-mounted";
 import { UserIcon } from "./icons";
 import { LocationContactFormModal } from "./location-contact-form-modal";
 import { LocationContactsPanel } from "./location-contacts-panel";
@@ -49,8 +50,7 @@ export function LocationContactsModal({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useIsMounted();
 
   const dialog = (
     <dialog aria-labelledby={titleId} className="modal-dialog" ref={dialogRef}>

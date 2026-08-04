@@ -100,6 +100,13 @@ export function ReportOutboxIndicator({
     void readReportOutboxState(scope).then((initial) => {
       if (!cancelled) setState(initial);
     });
+    // send's first statement is setIsSending(true) — flagged because the
+    // linter can trace the call into this same-file closure — but send is a
+    // real async network flush (registering "online"/visibilitychange
+    // listeners alongside it), not state derivable during render, so it has
+    // to stay effect-driven; deferring that setState would delay the
+    // "sending" indicator relative to the actual send.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     void send();
 
     const onOnline = () => void send();

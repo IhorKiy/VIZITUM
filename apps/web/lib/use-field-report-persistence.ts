@@ -84,9 +84,14 @@ export function useFieldReportDraft({
   const todayRef = useRef(today);
   const onRestoreRef = useRef(onRestore);
 
-  draftRef.current = draft;
-  todayRef.current = today;
-  onRestoreRef.current = onRestore;
+  // Runs on every render (no deps array) so the refs are always current by
+  // the time any effect below reads them — declared first so it always
+  // commits before the effects that depend on its freshness.
+  useEffect(() => {
+    draftRef.current = draft;
+    todayRef.current = today;
+    onRestoreRef.current = onRestore;
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -218,7 +223,9 @@ export function usePendingCaptures({
 }: PendingCapturesOptions): void {
   const onRestoreRef = useRef(onRestore);
 
-  onRestoreRef.current = onRestore;
+  useEffect(() => {
+    onRestoreRef.current = onRestore;
+  });
 
   useEffect(() => {
     let cancelled = false;

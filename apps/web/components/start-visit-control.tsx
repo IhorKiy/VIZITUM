@@ -96,21 +96,33 @@ export function StartVisitControl({
   // the undefined state, so a double-tap in the brief window before this
   // resolves can't mint a second clientVisitId for the same unlinked start,
   // which is precisely what this check exists to prevent in the first place.
+  // The lazy initializer mirrors what the mount-time effect used to converge
+  // to synchronously (null once the server already reports an active visit,
+  // undefined — "not checked yet" — otherwise), so switching the reset below
+  // to a render-time adjustment doesn't change what the first paint shows.
   const [pendingLocal, setPendingLocal] = useState<
     VisitStartOutboxEntry | null | undefined
-  >(undefined);
+  >(() => (activeVisit ? null : undefined));
 
   const scope = useMemo<VisitStartOutboxScope>(
     () => ({ tenantSlug, userId }),
     [tenantSlug, userId],
   );
 
+  // Adjusted during render (React's documented pattern for resetting state
+  // when a prop changes) rather than in the fetch effect itself, so there is
+  // no extra render showing the stale pendingLocal value.
+  const [prevActiveVisit, setPrevActiveVisit] = useState(activeVisit);
+  if (activeVisit !== prevActiveVisit) {
+    setPrevActiveVisit(activeVisit);
+    if (activeVisit) setPendingLocal(null);
+  }
+
   // The server's "is there an active visit" list only knows about visits it
   // has heard of, so without this a rep who backs out and re-taps "start"
   // while still offline would mint a second id for the same stop.
   useEffect(() => {
     if (activeVisit) {
-      setPendingLocal(null);
       return;
     }
 

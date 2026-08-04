@@ -254,6 +254,9 @@ export default async function PlatformLoginPage({
 
         {step === "enroll" && challenge?.otpauthUrl ? (
           <form action={enrollAction} className="form-stack">
+            {/* A generated data: URL, already inline — next/image has
+                nothing to fetch, resize or cache here. */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- see comment above */}
             <img
               alt="Authenticator setup QR code"
               className="mfa-qr"

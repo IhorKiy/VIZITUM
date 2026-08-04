@@ -135,10 +135,15 @@ function CategoryRow({
   }, [editing]);
 
   // A successful rename redirects and RSC-refreshes without remounting, so
-  // close the editor whenever the incoming name changes.
-  useEffect(() => {
+  // close the editor whenever the incoming name changes. Adjusted during
+  // render (React's documented pattern for resetting state when a prop
+  // changes) rather than in an effect, so there is no extra render showing
+  // the stale editing state.
+  const [prevName, setPrevName] = useState(category.name);
+  if (category.name !== prevName) {
+    setPrevName(category.name);
     setEditing(false);
-  }, [category.name]);
+  }
 
   function save() {
     const value = inputRef.current?.value.trim() ?? "";

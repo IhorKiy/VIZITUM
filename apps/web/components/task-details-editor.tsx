@@ -48,9 +48,14 @@ export function TaskDetailsEditor({
 
   // A successful save redirects and RSC-refreshes the page without remounting
   // this component, so leave edit mode whenever the incoming value changes.
-  useEffect(() => {
+  // Adjusted during render (React's documented pattern for resetting state
+  // when a prop changes) rather than in an effect, so there is no extra
+  // render showing the stale editing state.
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
     setEditing(false);
-  }, [value]);
+  }
 
   function save() {
     const next = (textareaRef.current?.value ?? "").trim();

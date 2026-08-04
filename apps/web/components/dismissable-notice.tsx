@@ -79,8 +79,7 @@ export function DismissableNotice({
       clearTimeout(remove);
     };
     // Run once on mount; the notice content is fixed for this render.
-    // (If eslint-plugin-react-hooks is added, restore its exhaustive-deps
-    // disable directive here — the empty deps array is intentional.)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- empty deps is intentional, see comment above
   }, []);
 
   if (hidden) {

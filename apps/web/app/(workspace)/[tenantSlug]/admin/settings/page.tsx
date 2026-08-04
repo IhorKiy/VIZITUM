@@ -309,6 +309,10 @@ export default async function AdminSettingsPage({
           <p className="form-hint">{tBranding("logoHint")}</p>
           <div className="logo-preview-row">
             {settings.logo ? (
+              // Presigned storage URL on a per-request host: nothing
+              // next/image could optimize or whitelist (same reasoning as
+              // BrandMark, which renders this same logo elsewhere).
+              // eslint-disable-next-line @next/next/no-img-element -- see comment above
               <img
                 alt={tBranding("logoAlt")}
                 className="logo-preview"

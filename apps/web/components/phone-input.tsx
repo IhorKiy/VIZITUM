@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { INPUT_LIMITS } from "../lib/input-limits";
 import {
@@ -55,33 +55,36 @@ export function PhoneInput({
   );
   const [e164, setE164] = useState(defaultValue ?? "");
 
-  function applyValue(raw: string, reformat: boolean) {
-    if (!dirtyRef.current) {
+  const applyValue = useCallback(
+    (raw: string, reformat: boolean) => {
+      if (!dirtyRef.current) {
+        inputRef.current?.setCustomValidity("");
+        return;
+      }
+
+      const normalized = normalizePhoneInput(raw, phoneCountry);
+
+      if (!normalized.ok) {
+        // Keep the raw text in the submitted field so the server stays the
+        // validation authority even if the browser bubble is bypassed.
+        setE164(raw);
+        inputRef.current?.setCustomValidity(
+          normalized.reason === "country_required"
+            ? countryRequiredMessage
+            : invalidMessage,
+        );
+        return;
+      }
+
       inputRef.current?.setCustomValidity("");
-      return;
-    }
+      setE164(normalized.e164 ?? "");
 
-    const normalized = normalizePhoneInput(raw, phoneCountry);
-
-    if (!normalized.ok) {
-      // Keep the raw text in the submitted field so the server stays the
-      // validation authority even if the browser bubble is bypassed.
-      setE164(raw);
-      inputRef.current?.setCustomValidity(
-        normalized.reason === "country_required"
-          ? countryRequiredMessage
-          : invalidMessage,
-      );
-      return;
-    }
-
-    inputRef.current?.setCustomValidity("");
-    setE164(normalized.e164 ?? "");
-
-    if (reformat && normalized.e164) {
-      setDisplay(formatPhoneForDisplay(normalized.e164, phoneCountry) ?? "");
-    }
-  }
+      if (reformat && normalized.e164) {
+        setDisplay(formatPhoneForDisplay(normalized.e164, phoneCountry) ?? "");
+      }
+    },
+    [phoneCountry, countryRequiredMessage, invalidMessage],
+  );
 
   // The platform create-tenant form lets the owner change the phone country
   // while the phone is already filled in — revalidate against the new country.
@@ -89,7 +92,7 @@ export function PhoneInput({
     if (inputRef.current) {
       applyValue(inputRef.current.value, true);
     }
-  }, [phoneCountry]);
+  }, [phoneCountry, applyValue]);
 
   // form.reset() (used by the contact modal's cancel/close) fires no React
   // change event, so restore the controlled state ourselves.
