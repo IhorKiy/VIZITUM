@@ -234,15 +234,26 @@ Two were fixed and deployed the same day, before the pass could continue:
   origin-wide manifest pointed at marketing copy whose only sign-in link named
   a tenant that exists in no deployed database (#178).
 
-Three came out of the pass itself and are open:
+Three came out of the pass itself. All three have since been answered — two by
+a fix, one by withdrawing the promise:
 
-- The offline shell never loads on a cold start (T2b).
-- The offline shell is a one-way door — no retry control, no `online`
-  listener, and on an installed app no address bar either, so the only exit is
-  force-quitting. Observed twice. Note for whoever fixes it: navigating to the
-  **same** URL does not escape it, so a retry cannot be a plain
-  `location.reload()`.
+- The offline shell never loads on a cold start (T2b). **Withdrawn, not
+  fixed**: WebKit fails the launch navigation before the worker is consulted,
+  so nothing this repo controls reaches it. The claim is gone from the plan
+  doc, the module map and `apps/web/public/sw.js`, and T2b records the
+  behavior so a future iOS that changes it gets noticed.
+- The offline shell was a one-way door — no retry control, no `online`
+  listener, and on an installed app no address bar either, so the only exit was
+  force-quitting. Observed twice. **Fixed**: `offline.html` now carries a retry
+  control plus automatic recovery on `online` and `visibilitychange`. As the
+  original note warned, navigating to the **same** URL does not escape it, so
+  the retry probes with a `HEAD` request first and navigates only once
+  something answers. Covered by T2c and by
+  `apps/web/e2e/field-offline-shell.spec.ts`.
 - Confirming a report deletes an unsent recording without warning (T5).
+  **Fixed**: the report form now names what confirming is about to destroy and
+  asks first, pointing the rep at "Надіслати ще раз" while there is still
+  something to send.
 
 And one correction to this document's own expectations: iOS 18.7.9 records
 `audio/webm; codecs=opus`, not the `audio/mp4` the design notes still describe
