@@ -19,6 +19,13 @@ build/
 coverage/
 *.tsbuildinfo
 
+# Next.js rewrites this file on every dev/build/typegen run, pointing it at the
+# dist dir of whichever command ran: `next dev` writes .next/dev/types/*, `next
+# build` writes .next/types/*. Tracking it therefore left the tree dirty after
+# whichever of the two ran last. Next's own docs say to ignore it; nothing needs
+# it committed, since `npm run web:typecheck` regenerates it via `next typegen`.
+apps/web/next-env.d.ts
+
 # Playwright artifacts
 test-results/
 playwright-report/
