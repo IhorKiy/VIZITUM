@@ -2,8 +2,10 @@
   "common": {
     "appName": "Vizitum",
     "signIn": "Sign in",
+    "signOut": "Sign out",
     "save": "Save",
     "signingIn": "Signing in...",
+    "signingOut": "Signing out...",
     "saving": "Saving...",
     "cancel": "Cancel",
     "close": "Close",
@@ -1184,9 +1186,7 @@
       "help": "Help",
       "helpHint": "Answers about notes, drafts and reports",
       "account": "Account",
-      "accountHint": "Change your password",
-      "signOut": "Sign out",
-      "signingOut": "Signing out..."
+      "accountHint": "Change your password"
     },
     "help": {
       "title": "Help",

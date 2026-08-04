@@ -266,14 +266,14 @@ export function FieldMenu({
                 clearingDrafts ? " is-pending" : ""
               }`}
               disabled={clearingDrafts}
-              pendingLabel={t("signingOut")}
+              pendingLabel={tCommon("signingOut")}
             >
               {clearingDrafts ? (
-                <PendingLabel label={t("signingOut")} />
+                <PendingLabel label={tCommon("signingOut")} />
               ) : (
                 <>
                   <LogOutIcon size={18} />
-                  <span>{t("signOut")}</span>
+                  <span>{tCommon("signOut")}</span>
                 </>
               )}
             </PendingSubmitButton>

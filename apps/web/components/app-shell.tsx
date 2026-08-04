@@ -10,6 +10,7 @@ import {
 import { resolveTenantBranding } from "../lib/tenant-branding";
 import { BrandMark } from "./brand-mark";
 import { FieldMenu } from "./field-menu";
+import { LogOutIcon } from "./icons";
 import { NavIcon } from "./nav-icon";
 import { PendingSubmitButton } from "./pending-submit-button";
 import {
@@ -23,6 +24,7 @@ import {
   type RoleArea,
   type Zone,
 } from "../lib/navigation";
+import { logoutAction } from "../lib/session-actions";
 import { selectZoneAction } from "../lib/zone-actions";
 
 type AppShellProps = {
@@ -213,8 +215,27 @@ export async function AppShell({
 
             {currentUser && currentZone !== "field" ? (
               // The field zone shows the signed-in name in its page greeting
-              // ("Hi, {firstName}!"), so the topbar name would just duplicate it.
-              <p className="topbar-user-name">{currentUser.name}</p>
+              // ("Hi, {firstName}!"), so the topbar name would just duplicate it
+              // — and its own sign-out lives behind the menu button above.
+              <div className="topbar-identity">
+                <p className="topbar-user-name">{currentUser.name}</p>
+                {/* Icon-only: this end of the topbar already carries the name
+                    and, below it, the zone pills, and a labelled button would
+                    crowd both off a narrow phone. `pendingLabel={null}` leaves
+                    the spinner as the whole pending state; the aria-label is
+                    what a screen reader reads either way. */}
+                <form action={logoutAction}>
+                  <input name="tenantSlug" type="hidden" value={tenantSlug} />
+                  <PendingSubmitButton
+                    aria-label={tCommon("signOut")}
+                    className="topbar-logout-button"
+                    pendingLabel={null}
+                    title={tCommon("signOut")}
+                  >
+                    <LogOutIcon size={16} />
+                  </PendingSubmitButton>
+                </form>
+              </div>
             ) : null}
 
             {otherZones.length > 0 && currentZone !== "field" ? (
@@ -319,6 +340,34 @@ export async function AppShell({
             </Link>
           ))}
         </nav>
+
+        {currentUser && currentZone !== "field" ? (
+          // Until this existed, the manager/admin/operations areas had no way
+          // out of a session at all: the sidebar ends at the nav, and typing
+          // /{tenantSlug}/login is no longer an escape now that an already-valid
+          // session is redirected back to its landing zone — an installed
+          // workspace has no address bar to type it into either.
+          //
+          // Last in the sidebar, but sized to sit right under the nav rather
+          // than at the foot of the rail — see .sidebar-logout in globals.css
+          // for why the field menu's `margin-top: auto` is wrong here.
+          //
+          // Gated on the zone, not left to CSS: the field zone hides the
+          // sidebar, but its sign-out has to clear on-device drafts and the
+          // route snapshot first (field-menu.tsx), and a second, plainer
+          // control that skipped that must not be one stylesheet edit away
+          // from being reachable.
+          <form action={logoutAction} className="sidebar-logout">
+            <input name="tenantSlug" type="hidden" value={tenantSlug} />
+            <PendingSubmitButton
+              className="sidebar-logout-button"
+              pendingLabel={tCommon("signingOut")}
+            >
+              <LogOutIcon size={16} />
+              <span>{tCommon("signOut")}</span>
+            </PendingSubmitButton>
+          </form>
+        ) : null}
       </aside>
 
       <main className="main-surface">{children}</main>

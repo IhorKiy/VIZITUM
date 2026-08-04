@@ -140,6 +140,42 @@ textarea {
   max-width: 100%;
 }
 
+/* The name and the way out of the session share one row, so the topbar keeps
+   the two lines it had before the sign-out control existed. min-width on both
+   because a flex item defaults to min-width:auto, which would refuse to shrink
+   past the full name and push the button off the edge instead of ellipsising. */
+.topbar-identity {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.topbar-identity .topbar-user-name {
+  min-width: 0;
+}
+
+.topbar-logout-button {
+  align-items: center;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 30px;
+  justify-content: center;
+  padding: 0;
+  width: 30px;
+}
+
+.topbar-logout-button:hover {
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+
 .zone-switcher-mobile {
   display: flex;
   gap: 6px;
@@ -361,6 +397,49 @@ textarea {
   color: inherit;
 }
 
+/* Directly under the nav, and deliberately *not* pinned to the foot of the rail
+   the way .field-menu-logout is pinned to the foot of its drawer. The drawer is
+   viewport-height; this sidebar is a grid item stretched to whatever the main
+   surface needs, so `margin-top: auto` put the button a full page-scroll down
+   (~1000px on the settings screen) — the one control that has to be reachable
+   from anywhere would have been the one needing a scroll to the bottom to find.
+   The rule and the column's own 28px gap do the separating instead, so signing
+   out still doesn't read as one more nav row. */
+.sidebar-logout {
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding-top: 12px;
+}
+
+/* Not the field menu's red outline: --danger (#9f3a3a) is picked to read on the
+   drawer's light surface, and on --sidebar-bg (#11251f) it is dark-on-dark. The
+   sidebar's own palette carries the control instead, on the .zone-switcher-link
+   model, and the border is what separates it from a nav row. */
+.sidebar-logout-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: var(--sidebar-text);
+  cursor: pointer;
+  display: flex;
+  font-weight: 500;
+  gap: 10px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 6px 8px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+  width: 100%;
+}
+
+.sidebar-logout-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
 .main-surface {
   min-width: 0;
   padding: 28px 32px 96px;
@@ -540,24 +619,30 @@ textarea {
   color: var(--ink);
 }
 
-/* The zone and menu buttons are styled as links, so they miss the disabled
-   rule above — without this a tapped zone stays fully lit while its navigation
-   is still resolving, which is exactly the moment it should look busy. */
+/* The zone, menu and shell session buttons are styled as links or bare icons,
+   so they miss the disabled rule above — without this a tapped zone stays fully
+   lit while its navigation is still resolving, which is exactly the moment it
+   should look busy. Signing out is the same kind of wait: a full round trip and
+   a redirect, with nothing else on screen to show for it. */
 .zone-choice-link:disabled,
 .zone-switcher-link:disabled,
 .field-menu-zone-button:disabled,
-.field-menu-logout-button:disabled {
+.field-menu-logout-button:disabled,
+.sidebar-logout-button:disabled,
+.topbar-logout-button:disabled {
   cursor: not-allowed;
   opacity: 0.72;
 }
 
-/* Those four only ever go disabled because their own action is running, so
-   they get the busy cursor and a lighter fade — the zone being opened has to
-   stay readable, since it is the answer to "which one did I just tap?". */
+/* Those six only ever go disabled because their own action is running, so they
+   get the busy cursor and a lighter fade — the zone being opened has to stay
+   readable, since it is the answer to "which one did I just tap?". */
 .zone-choice-link.is-pending:disabled,
 .zone-switcher-link.is-pending:disabled,
 .field-menu-zone-button.is-pending:disabled,
-.field-menu-logout-button.is-pending:disabled {
+.field-menu-logout-button.is-pending:disabled,
+.sidebar-logout-button.is-pending:disabled,
+.topbar-logout-button.is-pending:disabled {
   cursor: progress;
   opacity: 0.85;
 }
