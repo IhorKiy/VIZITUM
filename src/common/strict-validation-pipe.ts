@@ -17,6 +17,13 @@ import {
  * The error shape matches the rest of the API (`code`, `message`,
  * `fieldErrors`) instead of Nest's default `{ message: string[] }`, so
  * `ApiErrorFilter` needs no special case for it.
+ *
+ * One convention every DTO on this track follows, because this pipe is what
+ * makes it true: an `@IsOptional()` property is typed `?: T | null`, not
+ * `?: T`. `@IsOptional()` skips validation for `null` as well as `undefined`,
+ * so an explicit `null` reaches the handler untouched — which several routes
+ * rely on ("send `chainId: null` to clear the link"). Typing such a property
+ * `?: T` would describe an instance that cannot occur.
  */
 export function createStrictValidationPipe(): ValidationPipe {
   return new ValidationPipe({

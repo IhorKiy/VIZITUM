@@ -33,24 +33,24 @@ import {
 export class CreateVisitDto {
   @IsOptional()
   @IsString()
-  locationId?: string;
+  locationId?: string | null;
 
   // Optional in every sense: omitted, it means "me" (createVisit falls back to
   // context.userId), which is what the field app relies on.
   @IsOptional()
   @IsString()
-  representativeUserId?: string;
+  representativeUserId?: string | null;
 
   // normalizeOptionalId reads "" as "no route item", so the empty string has
   // to survive the gate; @IsString() admits it.
   @IsOptional()
   @IsString()
-  routeItemId?: string;
+  routeItemId?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  visitType?: string;
+  visitType?: string | null;
 
   // parseOptionalDateTime owns what a timestamp may be here, as it does on
   // routes.dto.ts's publishedAt: it accepts anything `new Date()` can read and
@@ -59,12 +59,12 @@ export class CreateVisitDto {
   // An ISO pattern here would narrow that and buy nothing.
   @IsOptional()
   @IsString()
-  startedAt?: string;
+  startedAt?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(MAX_CLIENT_REQUEST_ID_LENGTH)
-  clientVisitId?: string;
+  clientVisitId?: string | null;
 }
 
 export class UpdateVisitDto {
@@ -77,15 +77,15 @@ export class UpdateVisitDto {
   // did. See Q5 in the design note.
   @IsOptional()
   @IsIn(["draft", "in_progress", "completed", "cancelled"])
-  status?: string;
+  status?: string | null;
 
   @IsOptional()
   @IsString()
-  startedAt?: string;
+  startedAt?: string | null;
 
   @IsOptional()
   @IsString()
-  completedAt?: string;
+  completedAt?: string | null;
 }
 
 export class CancelVisitDto {
@@ -94,19 +94,19 @@ export class CancelVisitDto {
   // which a whitelist rejection would not. The other half of Q5.
   @IsOptional()
   @IsString()
-  reason?: string;
+  reason?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(MAX_VISIT_CANCELLATION_COMMENT_LENGTH)
-  comment?: string;
+  comment?: string | null;
 }
 
 export class AddTextVisitNoteDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.notes)
-  textContent?: string;
+  textContent?: string | null;
 }
 
 /**
@@ -134,7 +134,7 @@ export class RegisterAudioUploadDto {
   @IsOptional()
   @IsString()
   @MaxLength(MAX_UPLOAD_FILE_NAME_LENGTH)
-  fileName?: string;
+  fileName?: string | null;
 
   // Not an enum, though a supported-types set exists: an unsupported or absent
   // contentType is not an error, it falls back to the file extension
@@ -143,33 +143,33 @@ export class RegisterAudioUploadDto {
   // working because of it.
   @IsOptional()
   @IsString()
-  contentType?: string;
+  contentType?: string | null;
 
   @IsOptional()
   @ValidateIf((_dto, value) => typeof value !== "string")
   @IsNumber()
-  sizeBytes?: number | string;
+  sizeBytes?: number | string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  checksum?: string;
+  checksum?: string | null;
 }
 
 export class RegisterProblemPhotoDto {
   @IsOptional()
   @IsString()
   @MaxLength(MAX_UPLOAD_FILE_NAME_LENGTH)
-  fileName?: string;
+  fileName?: string | null;
 
   @IsOptional()
   @IsString()
-  contentType?: string;
+  contentType?: string | null;
 
   @IsOptional()
   @ValidateIf((_dto, value) => typeof value !== "string")
   @IsNumber()
-  sizeBytes?: number | string;
+  sizeBytes?: number | string | null;
 }
 
 /**
@@ -193,15 +193,15 @@ export class RegisterProblemPhotoDto {
 export class ConfirmReportDto {
   @IsOptional()
   @IsObject()
-  confirmedData?: Record<string, unknown>;
+  confirmedData?: Record<string, unknown> | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  schemaVersion?: string;
+  schemaVersion?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(MAX_CLIENT_REQUEST_ID_LENGTH)
-  clientRequestId?: string;
+  clientRequestId?: string | null;
 }

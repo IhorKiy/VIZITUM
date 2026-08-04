@@ -16,5 +16,5 @@ import { IsBoolean, IsOptional } from "class-validator";
 export class UpsertLocationAssortmentDto {
   @IsOptional()
   @IsBoolean()
-  shouldBeListed?: boolean;
+  shouldBeListed?: boolean | null;
 }

@@ -22,17 +22,17 @@ export class CreateChainDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  name?: string;
+  name?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.code)
-  externalCode?: string;
+  externalCode?: string | null;
 
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.notes)
-  notes?: string;
+  notes?: string | null;
 }
 
 export class UpdateChainDto extends CreateChainDto {
@@ -43,5 +43,5 @@ export class UpdateChainDto extends CreateChainDto {
   // believes happened and did not is worse than a refusal.
   @IsOptional()
   @IsIn(["active", "archived"])
-  status?: string;
+  status?: string | null;
 }

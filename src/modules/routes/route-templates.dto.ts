@@ -28,7 +28,7 @@ import { DATE_ONLY_PATTERN, MONTH_PATTERN } from "./route-parsing";
 export class CreateRouteTemplateDto {
   @IsOptional()
   @IsString()
-  representativeUserId?: string;
+  representativeUserId?: string | null;
 
   // The cap moves earlier, as it did for both category vocabularies:
   // normalizeTemplateName's own comment says an over-length name is "rejected
@@ -38,7 +38,7 @@ export class CreateRouteTemplateDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  name?: string;
+  name?: string | null;
 }
 
 /**
@@ -52,7 +52,7 @@ export class UpdateRouteTemplateDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  name?: string;
+  name?: string | null;
 }
 
 /**
@@ -64,7 +64,7 @@ export class UpdateRouteTemplateDto {
 export class UpsertRouteTemplateItemDto {
   @IsOptional()
   @IsString()
-  locationId?: string;
+  locationId?: string | null;
 
   // Same tightening as the route-item twin: on the PATCH a non-integer
   // sequence was normalized to null and then spread away, so `{"sequence":
@@ -72,7 +72,7 @@ export class UpsertRouteTemplateItemDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  sequence?: number;
+  sequence?: number | null;
 }
 
 /** The twin of `ReorderRouteItemsDto`, for the template's own item list. */
@@ -80,7 +80,7 @@ export class ReorderRouteTemplateItemsDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  itemIds?: string[];
+  itemIds?: string[] | null;
 }
 
 export class MoveRouteTemplateItemDto {
@@ -89,7 +89,7 @@ export class MoveRouteTemplateItemDto {
   // whitelist rejection would not. Anything else present is refused here.
   @IsOptional()
   @IsIn(["up", "down"])
-  direction?: string;
+  direction?: string | null;
 }
 
 export class AssignRouteTemplateDto {
@@ -97,7 +97,7 @@ export class AssignRouteTemplateDto {
   @Matches(DATE_ONLY_PATTERN, {
     message: "planDate must be in YYYY-MM-DD format.",
   })
-  planDate?: string;
+  planDate?: string | null;
 }
 
 export class CopyRoutePlansDto {
@@ -106,5 +106,5 @@ export class CopyRoutePlansDto {
   // is imported from route-parsing.ts, where normalizeMonth now reads it too.
   @IsOptional()
   @Matches(MONTH_PATTERN, { message: "month must be in YYYY-MM format." })
-  month?: string;
+  month?: string | null;
 }

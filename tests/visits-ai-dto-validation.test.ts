@@ -432,4 +432,26 @@ describe("TranscribeFieldReportDto — the one nested body on the track", () => 
       "products",
     );
   });
+
+  it("names the offending index when an element is not an object at all", async () => {
+    // The sibling of the case above, and the one that used to answer with an
+    // empty fieldErrors: class-validator raises `nestedValidation` on a child
+    // error for the index rather than a constraint on `products` itself, so
+    // reading only the top level said nothing. Walking children turns it into
+    // `products.0` — the index, not just the property.
+    for (const element of [null, "product-a", 42]) {
+      await reject(
+        TranscribeFieldReportDto,
+        { products: [element] },
+        "products.0",
+      );
+    }
+
+    // And the index really is the offending one, not always zero.
+    await reject(
+      TranscribeFieldReportDto,
+      { products: [{ id: "product-a", name: "Vitamin C 500" }, null] },
+      "products.1",
+    );
+  });
 });

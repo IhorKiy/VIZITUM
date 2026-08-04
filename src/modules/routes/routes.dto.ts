@@ -35,7 +35,7 @@ import { DATE_ONLY_PATTERN } from "./route-parsing";
 export class CreateRoutePlanDto {
   @IsOptional()
   @IsString()
-  representativeUserId?: string;
+  representativeUserId?: string | null;
 
   // Shape only. parseDateOnly still rejects a calendar-invalid day that fits
   // the pattern ("2026-02-31"), which a regex cannot see; DATE_ONLY_PATTERN
@@ -44,7 +44,7 @@ export class CreateRoutePlanDto {
   @Matches(DATE_ONLY_PATTERN, {
     message: "planDate must be in YYYY-MM-DD format.",
   })
-  planDate?: string;
+  planDate?: string | null;
 }
 
 export class UpdateRoutePlanDto {
@@ -53,7 +53,7 @@ export class UpdateRoutePlanDto {
   // status was accepted with a 200 and changed nothing.
   @IsOptional()
   @IsIn(["draft", "published", "in_progress", "completed", "cancelled"])
-  status?: string;
+  status?: string | null;
 
   // Deliberately only a string, for the same reason as tasks.dto.ts's
   // `completedAt`: parseOptionalDateTime accepts anything `new Date()` can
@@ -63,13 +63,13 @@ export class UpdateRoutePlanDto {
   // publication timestamp.
   @IsOptional()
   @IsString()
-  publishedAt?: string;
+  publishedAt?: string | null;
 }
 
 export class CreateRouteItemDto {
   @IsOptional()
   @IsString()
-  locationId?: string;
+  locationId?: string | null;
 
   // Tightening on the PATCH twin below rather than here: normalizePositiveInteger
   // returns null for a non-integer, and `...(sequence ? { sequence } : {})`
@@ -78,21 +78,21 @@ export class CreateRouteItemDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  sequence?: number;
+  sequence?: number | null;
 
   @IsOptional()
   @IsString()
-  plannedStartTime?: string;
+  plannedStartTime?: string | null;
 
   @IsOptional()
   @IsString()
-  plannedEndTime?: string;
+  plannedEndTime?: string | null;
 }
 
 export class UpdateRouteItemDto extends CreateRouteItemDto {
   @IsOptional()
   @IsIn(["planned", "visited", "skipped"])
-  status?: string;
+  status?: string | null;
 
   // The cap normalizeOptionalString applies to this field is TEXT_LIMITS.title
   // (200), not `notes` — it is a one-line reason, and the two layers agree
@@ -102,7 +102,7 @@ export class UpdateRouteItemDto extends CreateRouteItemDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.title)
-  skipReason?: string;
+  skipReason?: string | null;
 }
 
 export class ReorderRouteItemsDto {
@@ -113,5 +113,5 @@ export class ReorderRouteItemsDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  itemIds?: string[];
+  itemIds?: string[] | null;
 }

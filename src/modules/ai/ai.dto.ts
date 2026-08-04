@@ -27,19 +27,19 @@ import {
 export class CreateTranscriptionJobDto {
   @IsOptional()
   @IsString()
-  inputObjectId?: string;
+  inputObjectId?: string | null;
 }
 
 export class CreateExtractionJobDto {
   @IsOptional()
   @IsString()
-  transcriptionJobId?: string;
+  transcriptionJobId?: string | null;
 }
 
 export class ConfirmAiDraftDto {
   @IsOptional()
   @IsString()
-  extractionJobId?: string;
+  extractionJobId?: string | null;
 
   /**
    * Opaque on purpose, and this is Q1 of the design note in one decorator.
@@ -81,7 +81,7 @@ export class ConfirmAiDraftDto {
    */
   @IsOptional()
   @IsObject()
-  confirmedData?: Record<string, unknown>;
+  confirmedData?: Record<string, unknown> | null;
 }
 
 /**
@@ -108,21 +108,21 @@ export class FieldReportProductDto {
   // Both nullable in the catalog the client sends; @IsOptional() skips null.
   @IsOptional()
   @IsString()
-  sku?: string;
+  sku?: string | null;
 
   @IsOptional()
   @IsString()
-  category?: string;
+  category?: string | null;
 }
 
 export class TranscribeFieldReportDto {
   @IsOptional()
   @IsString()
-  audioObjectId?: string;
+  audioObjectId?: string | null;
 
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => FieldReportProductDto)
-  products?: FieldReportProductDto[];
+  products?: FieldReportProductDto[] | null;
 }

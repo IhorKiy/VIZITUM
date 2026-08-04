@@ -28,5 +28,5 @@ export class UpsertLocationCategoryDto {
   @IsOptional()
   @IsString()
   @MaxLength(TEXT_LIMITS.name)
-  name?: string;
+  name?: string | null;
 }
