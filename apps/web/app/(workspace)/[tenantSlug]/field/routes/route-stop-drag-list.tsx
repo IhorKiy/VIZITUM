@@ -18,7 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 
 import {
   GripIcon,
@@ -68,7 +68,14 @@ export function RouteStopDragList({
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
 
-  useEffect(() => {
+  // A passive effect flushes in its own scheduler task after commit, which
+  // leaves a real gap between paint and the ref actually updating; a native
+  // event (a second, fast ArrowDown on the handle) landing in that gap would
+  // read orderRef.current stale and compute the reorder from the wrong array.
+  // useLayoutEffect runs synchronously in the commit, before the browser can
+  // dispatch the next event, so it closes that gap the way the render-time
+  // assignment this replaced always did.
+  useLayoutEffect(() => {
     orderRef.current = order;
   }, [order]);
 

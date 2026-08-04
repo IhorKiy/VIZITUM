@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   FIELD_REPORT_DRAFT_VERSION,
@@ -86,8 +86,15 @@ export function useFieldReportDraft({
 
   // Runs on every render (no deps array) so the refs are always current by
   // the time any effect below reads them — declared first so it always
-  // commits before the effects that depend on its freshness.
-  useEffect(() => {
+  // commits before the effects that depend on its freshness. A passive effect
+  // would still leave a gap between paint and the write landing; the
+  // pagehide/visibilitychange flush below reads these refs from a native
+  // browser event that isn't otherwise synchronized with React's render
+  // cycle, and a flush that lands in that gap would write a draft stale by
+  // one keystroke — exactly the data loss this hook exists to prevent.
+  // useLayoutEffect closes it: it runs synchronously in the commit, before
+  // the browser can dispatch that event.
+  useLayoutEffect(() => {
     draftRef.current = draft;
     todayRef.current = today;
     onRestoreRef.current = onRestore;
@@ -223,7 +230,10 @@ export function usePendingCaptures({
 }: PendingCapturesOptions): void {
   const onRestoreRef = useRef(onRestore);
 
-  useEffect(() => {
+  // See useFieldReportDraft's ref-sync effect above for why this has to be a
+  // layout effect: a passive effect would leave a gap where the async read
+  // below could resolve and call a stale onRestoreRef.current.
+  useLayoutEffect(() => {
     onRestoreRef.current = onRestore;
   });
 
