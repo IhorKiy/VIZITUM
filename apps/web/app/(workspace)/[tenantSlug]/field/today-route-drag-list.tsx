@@ -18,13 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   CheckIcon,
@@ -33,6 +27,7 @@ import {
   TrashIcon,
 } from "../../../../components/icons";
 import { withBackOrigin } from "../../../../lib/back-navigation";
+import { useSerializedReorder } from "../../../../lib/use-serialized-reorder";
 
 type TodayStop = {
   id: string;
@@ -138,7 +133,9 @@ function TodayRouteGroup({
 }: TodayRouteGroupProps) {
   const t = useTranslations("field.home");
   const [order, setOrder] = useState(stops);
-  const [, startTransition] = useTransition();
+  const commitReorder = useSerializedReorder((itemIds) =>
+    reorderAction(routePlanId, itemIds),
+  );
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
 
@@ -204,23 +201,13 @@ function TodayRouteGroup({
     },
   };
 
-  // Same unsequenced-write race as the route template editor's own
-  // commitOrder (route-stop-drag-list.tsx): one independent request per move,
-  // each sending the full absolute order, so two moves in flight at once
-  // resolve to whichever lands last rather than whichever was newer. See
-  // #226.
   function commitOrder(nextOrder: TodayStop[]) {
     const changed = nextOrder.some(
       (item, index) => item.id !== stops[index]?.id,
     );
 
     if (changed) {
-      startTransition(() => {
-        void reorderAction(
-          routePlanId,
-          nextOrder.map((item) => item.id),
-        );
-      });
+      commitReorder(nextOrder.map((item) => item.id));
     }
   }
 

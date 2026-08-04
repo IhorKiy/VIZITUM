@@ -27,21 +27,15 @@ import { expect, test, type Page } from "@playwright/test";
 // happens to compute the same result as one from a fresh ref, so the bug
 // would be invisible even if the timing did line up.
 //
-// The two presses below DO wait for the first move's Server Action to fully
-// settle before firing the second — for a different, unrelated reason:
-// commitOrder fires an independent reorderAction call per move with no
-// request sequencing (see its own comment), so two in flight at once race
-// each other to the server, and whichever's redirect lands last overwrites
-// the database (or, client-side, whichever's RSC-refresh triggers the
-// stopsKey resync last overwrites `order`) regardless of which move was
-// semantically newer. That race is real, not hypothetical: an earlier,
-// unthrottled version of this test (pressing ArrowDown twice with no wait,
-// matching the original review request) reproduced it in CI — stop A
-// landing back in the middle instead of the bottom, only under CI's
-// timing, never locally. It's a pre-existing gap in commitOrder (this is
-// only the first thing to ever exercise two rapid reorders, keyboard or
-// drag), not something introduced here, and out of scope for this test to
-// fix — tracked in #226.
+// The two presses below still wait for the first move's Server Action to
+// settle, and still reload in between, but not to dodge a request race —
+// commitOrder no longer fires unsequenced requests (see
+// useSerializedReorder in apps/web/lib/use-serialized-reorder.ts), so
+// there's nothing left here to race. The wait-and-reload stays because it
+// also proves persistence at each intermediate step, not only at the end —
+// see the next two paragraphs. The unthrottled case (no wait, no reload
+// between moves — exactly the shape that used to be flaky in CI) is its own
+// test further down; that one is what actually exercises the fix.
 //
 // Two attempts at waiting between moves without a reload both still failed
 // in CI: waitForLoadState("networkidle") first, then waitForResponse for
@@ -72,6 +66,18 @@ const ROUTE_TEMPLATE_NAME = "E2E Reorder Route";
 const STOP_A_NAME = "E2E Reorder Stop A";
 const STOP_B_NAME = "E2E Reorder Stop B";
 const STOP_C_NAME = "E2E Reorder Stop C";
+// A separate template with its own stops, not the one above: this file's
+// two tests would otherwise both reorder the same rows, and
+// playwright.config.ts runs with fullyParallel: true, so they can execute
+// concurrently in different workers.
+// Not "E2E Reorder Route Rapid": that has ROUTE_TEMPLATE_NAME as a prefix,
+// and getByRole's string matcher is substring-by-default, so the other
+// test's getByRole("link", { name: ROUTE_TEMPLATE_NAME }) would resolve to
+// both this card and its own.
+const RAPID_ROUTE_TEMPLATE_NAME = "E2E Rapid Reorder Route";
+const RAPID_STOP_A_NAME = "E2E Reorder Rapid Stop A";
+const RAPID_STOP_B_NAME = "E2E Reorder Rapid Stop B";
+const RAPID_STOP_C_NAME = "E2E Reorder Rapid Stop C";
 
 async function signIn(page: Page): Promise<void> {
   await page.goto(`/${TENANT_SLUG}/login`);
@@ -147,4 +153,62 @@ test("two consecutive keyboard moves compute correctly relative to each other, a
   await expect
     .poll(() => stopNames(page))
     .toEqual([STOP_B_NAME, STOP_C_NAME, STOP_A_NAME]);
+});
+
+// Regression test for the request race useSerializedReorder closes: two
+// moves fired back to back, no wait and no reload between them — the exact
+// shape that reproduced the bug in CI per #226 (whichever request's
+// transaction committed last won, regardless of which move was newer, so
+// this could persist B, A, C — the first move's order — instead of B, C, A).
+//
+// Same limitation as the ref-timing race above: this does not reproduce
+// locally. Tried forcing it by delaying the first request's response via
+// page.route() (to make a fast second request definitely race ahead of a
+// held-back first one) — that doesn't work, and not because of luck: the
+// delay measurably pushes back *when the second request is even sent*, by
+// close to the same amount (confirmed at both 800ms and 2000ms artificial
+// delays). Something in startTransition's own action-queue plumbing already
+// couples these two dispatches under normal conditions, before either
+// reaches the network — which page.route() has no way to see, let alone
+// intervene in. Whatever narrow window let the two truly race in CI, it's
+// upstream of the network layer and not one this test can force open. So
+// this stays exactly the shape that already reproduced the bug for real —
+// no synthetic help — trusting that evidence over a synthetic setup that
+// turned out to demonstrate a different thing than intended.
+test("two rapid keyboard moves with no wait between them still persist the last move, not a stale one that raced it", async ({
+  page,
+}) => {
+  await signIn(page);
+
+  await page.goto(`/${TENANT_SLUG}/field/routes`);
+  await page.getByRole("link", { name: RAPID_ROUTE_TEMPLATE_NAME }).click();
+  await expect(
+    page.getByRole("heading", { name: RAPID_ROUTE_TEMPLATE_NAME }),
+  ).toBeVisible();
+
+  await expect
+    .poll(() => stopNames(page))
+    .toEqual([RAPID_STOP_A_NAME, RAPID_STOP_B_NAME, RAPID_STOP_C_NAME]);
+
+  const handleA = page.getByRole("button", {
+    name: `Reorder ${RAPID_STOP_A_NAME}`,
+  });
+
+  // No wait between these two presses, and no reload either — see the file
+  // header for why this specific shape is what actually exercises the fix.
+  await handleA.press("ArrowDown");
+  await handleA.press("ArrowDown");
+
+  // Not proof either request landed (see the file header on why a network
+  // wait can't prove the client caught up) — only that reloading now won't
+  // abort one that's still sending.
+  await page.waitForLoadState("networkidle");
+  await page.reload();
+
+  // A moved down twice: B, C, A — the only outcome a correct
+  // implementation can produce, regardless of which request's transaction
+  // actually committed last.
+  await expect
+    .poll(() => stopNames(page))
+    .toEqual([RAPID_STOP_B_NAME, RAPID_STOP_C_NAME, RAPID_STOP_A_NAME]);
 });
