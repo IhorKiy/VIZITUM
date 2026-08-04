@@ -18,7 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslations } from "next-intl";
-import { useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import {
   GripIcon,
@@ -27,6 +27,7 @@ import {
 } from "../../../../../components/icons";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import { backOrigin, withBackOrigin } from "../../../../../lib/back-navigation";
+import { useSerializedReorder } from "../../../../../lib/use-serialized-reorder";
 
 type StopItem = {
   id: string;
@@ -64,7 +65,10 @@ export function RouteStopDragList({
 }: RouteStopDragListProps) {
   const t = useTranslations("field.routes");
   const [order, setOrder] = useState(stops);
-  const [, startTransition] = useTransition();
+  const commitReorder = useSerializedReorder(
+    (itemIds) => reorderAction(templateId, itemIds),
+    stops.map((item) => item.id),
+  );
   const orderRef = useRef(order);
   const stopsKey = stops.map((stop) => stop.id).join(",");
 
@@ -130,26 +134,8 @@ export function RouteStopDragList({
     },
   };
 
-  // One independent request per move, with no sequencing, cancellation or
-  // generation check — and each one sends the full absolute order, not a
-  // delta. Two moves made before the first settles put two writes in flight,
-  // and the server keeps whichever lands last rather than whichever was
-  // newer, so a rep pressing the handle twice in a row can silently persist
-  // the intermediate order. Pre-existing and deliberately not fixed here;
-  // #226 has the reproduction and weighs the options.
   function commitOrder(nextOrder: StopItem[]) {
-    const changed = nextOrder.some(
-      (item, index) => item.id !== stops[index]?.id,
-    );
-
-    if (changed) {
-      startTransition(() => {
-        void reorderAction(
-          templateId,
-          nextOrder.map((item) => item.id),
-        );
-      });
-    }
+    commitReorder(nextOrder.map((item) => item.id));
   }
 
   function handleDragEnd(event: DragEndEvent) {

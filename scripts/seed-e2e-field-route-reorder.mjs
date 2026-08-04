@@ -12,6 +12,13 @@ import { hash } from "argon2";
 // comment for why). Re-running restores the original 1/2/3 order, so the
 // spec always starts from the same state against the shared local database.
 //
+// Also seeds a second, independent route template (own stops, own name) for
+// the rapid-consecutive-moves regression test: playwright.config.ts runs
+// with fullyParallel: true, so that test can execute concurrently with this
+// one in a different worker, and two tests reordering the same template's
+// stops at once would race each other at the test level regardless of
+// whether the app itself has a request race.
+//
 // The tenant language is "en" on purpose — the spec matches UI strings from
 // apps/web/messages/en.json.
 
@@ -30,6 +37,12 @@ const ROUTE_TEMPLATE_NAME = "E2E Reorder Route";
 const STOP_A_NAME = "E2E Reorder Stop A";
 const STOP_B_NAME = "E2E Reorder Stop B";
 const STOP_C_NAME = "E2E Reorder Stop C";
+// Not "E2E Reorder Route Rapid": see the matching comment in
+// field-route-reorder.spec.ts on why that collides with ROUTE_TEMPLATE_NAME.
+const RAPID_ROUTE_TEMPLATE_NAME = "E2E Rapid Reorder Route";
+const RAPID_STOP_A_NAME = "E2E Reorder Rapid Stop A";
+const RAPID_STOP_B_NAME = "E2E Reorder Rapid Stop B";
+const RAPID_STOP_C_NAME = "E2E Reorder Rapid Stop C";
 
 const capabilities = [
   "team.basic_roles",
@@ -177,11 +190,64 @@ try {
       });
     }
 
+    const rapidStopA = await upsertLocation(tx, tenant.id, {
+      externalCode: "e2e-route-reorder-rapid-stop-a",
+      name: RAPID_STOP_A_NAME,
+    });
+    const rapidStopB = await upsertLocation(tx, tenant.id, {
+      externalCode: "e2e-route-reorder-rapid-stop-b",
+      name: RAPID_STOP_B_NAME,
+    });
+    const rapidStopC = await upsertLocation(tx, tenant.id, {
+      externalCode: "e2e-route-reorder-rapid-stop-c",
+      name: RAPID_STOP_C_NAME,
+    });
+
+    const existingRapidTemplate = await tx.routeTemplate.findFirst({
+      where: {
+        tenantId: tenant.id,
+        representativeUserId: representative.id,
+        name: RAPID_ROUTE_TEMPLATE_NAME,
+      },
+    });
+    const rapidRouteTemplate =
+      existingRapidTemplate ??
+      (await tx.routeTemplate.create({
+        data: {
+          tenantId: tenant.id,
+          representativeUserId: representative.id,
+          name: RAPID_ROUTE_TEMPLATE_NAME,
+        },
+      }));
+    const rapidStopsBySequence = [rapidStopA, rapidStopB, rapidStopC];
+
+    for (const [index, stop] of rapidStopsBySequence.entries()) {
+      const sequence = index + 1;
+
+      await tx.routeTemplateItem.upsert({
+        where: {
+          tenantId_routeTemplateId_sequence: {
+            tenantId: tenant.id,
+            routeTemplateId: rapidRouteTemplate.id,
+            sequence,
+          },
+        },
+        create: {
+          tenantId: tenant.id,
+          routeTemplateId: rapidRouteTemplate.id,
+          locationId: stop.id,
+          sequence,
+        },
+        update: { locationId: stop.id },
+      });
+    }
+
     console.log(
       JSON.stringify({
         status: "ok",
         tenantSlug: TENANT_SLUG,
         routeTemplateId: routeTemplate.id,
+        rapidRouteTemplateId: rapidRouteTemplate.id,
       }),
     );
   });
