@@ -365,18 +365,21 @@ function TodayRouteStopRow({
   }, [offset]);
 
   // A remove needs a second, deliberate tap; closing the row cancels that
-  // pending confirmation so it never lingers invisibly. Kept as an effect
-  // rather than adjusted during render: offset changes on every touchmove of
-  // an active swipe, and the render-time-adjustment pattern would force a
-  // second synchronous render on each of those (it re-renders whenever its
-  // tracked "previous" value differs, which here is nearly every frame),
-  // instead of only when confirmRemove is actually still true.
-  useEffect(() => {
-    if (offset === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
-      setConfirmRemove(false);
-    }
-  }, [offset]);
+  // pending confirmation so it never lingers — reopening the same row later
+  // must start unconfirmed too, or one stray tap on a row that was confirmed
+  // (but never submitted) in an earlier open would remove the stop straight
+  // away. That means confirmRemove itself has to go back to false here, not
+  // just a display value derived from it while leaving it stuck true
+  // underneath. Adjusted during render (React's documented pattern for state
+  // that must follow a derived condition) rather than in an effect: offset
+  // changes on every touchmove of an active swipe, so the tracked "previous
+  // offset" differs on nearly every render, but the render body here is cheap
+  // enough that the extra invocation isn't worth an effect and a disable.
+  const [prevOffset, setPrevOffset] = useState(offset);
+  if (offset !== prevOffset) {
+    setPrevOffset(offset);
+    if (offset === 0) setConfirmRemove(false);
+  }
 
   // Touch listeners are attached imperatively so touchmove can be non-passive
   // (preventDefault stops the page from scrolling mid-swipe — React's synthetic
