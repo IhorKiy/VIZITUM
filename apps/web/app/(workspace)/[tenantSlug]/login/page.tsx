@@ -9,13 +9,17 @@ import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { buildApiUrl, getCurrentSession } from "../../../../lib/api-client";
 import { rememberWorkspace } from "../../../../lib/remembered-workspace";
 import { resolveTenantBranding } from "../../../../lib/tenant-branding";
-import { resolveZoneLanding, zoneHomePath } from "../../../../lib/navigation";
+import {
+  resolveZoneLanding,
+  zoneLandingPath,
+} from "../../../../lib/navigation";
 import { getFormString } from "../../../../lib/form";
 import { INPUT_LIMITS } from "../../../../lib/input-limits";
 import {
   loginErrorMessageKey,
   loginErrorReason,
 } from "../../../../lib/login-error";
+import { resolveSignedInRedirect } from "../../../../lib/login-redirect";
 import { workspaceEntryPath } from "../../../../lib/workspace-address";
 
 type LoginPageProps = {
@@ -29,11 +33,15 @@ export default async function LoginPage({
 }: LoginPageProps) {
   const { tenantSlug } = await params;
   const { error, notice } = await searchParams;
-  const [t, tCommon, locale, branding] = await Promise.all([
+  const [t, tCommon, locale, branding, sessionResult] = await Promise.all([
     getTranslations("auth"),
     getTranslations("common"),
     getLocale(),
     resolveTenantBranding(tenantSlug),
+    // Rides along with the branding fetch rather than after it, so the
+    // already-signed-in check below costs the page no extra wall-clock time.
+    // For the anonymous visitor this screen is mostly for, it is one 401.
+    getCurrentSession(),
   ]);
   // Read per request (not NEXT_PUBLIC_*), so staging/production can differ
   // without a rebuild; unset means the captcha is off for this deployment.
@@ -90,23 +98,19 @@ export default async function LoginPage({
     // extra user-visible round trip. Reused (rather than growing
     // POST /auth/login's response) because /auth/me already assembles
     // productsEnabled, which login() doesn't currently look up.
-    const sessionResult = await getCurrentSession();
-    const landing = resolveZoneLanding(
-      sessionResult.ok ? sessionResult.data.permissions : undefined,
-      sessionResult.ok ? sessionResult.data.productsEnabled : true,
-      sessionResult.ok ? sessionResult.data.user.lastSelectedZone : null,
-      sessionResult.ok ? sessionResult.data.pilotActive : true,
+    const newSession = await getCurrentSession();
+
+    redirect(
+      zoneLandingPath(
+        tenantSlug,
+        resolveZoneLanding(
+          newSession.ok ? newSession.data.permissions : undefined,
+          newSession.ok ? newSession.data.productsEnabled : true,
+          newSession.ok ? newSession.data.user.lastSelectedZone : null,
+          newSession.ok ? newSession.data.pilotActive : true,
+        ),
+      ),
     );
-
-    if (landing.kind === "zone") {
-      redirect(`/${tenantSlug}${zoneHomePath(landing.zone)}`);
-    }
-
-    if (landing.kind === "choose") {
-      redirect(`/${tenantSlug}/choose-zone`);
-    }
-
-    redirect(`/${tenantSlug}/no-access`);
   }
 
   // A workspace that does not exist cannot answer a password with anything
@@ -140,6 +144,22 @@ export default async function LoginPage({
         </section>
       </main>
     );
+  }
+
+  // Already signed in here: send them where signing in would have. Checked on
+  // render because that is the gap — every redirect above lives in the action,
+  // which only runs on submit, so merely opening this URL always drew the
+  // form. A Home Screen install restores its last URL on launch and has no
+  // address bar, so after an offline episode the app read as signed out while
+  // the session was valid, and the only visible move was to retype the
+  // password. See lib/login-redirect.ts for what this refuses to act on.
+  const signedInRedirect = resolveSignedInRedirect(
+    tenantSlug,
+    sessionResult.ok ? sessionResult.data : null,
+  );
+
+  if (signedInRedirect) {
+    redirect(signedInRedirect);
   }
 
   return (

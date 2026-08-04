@@ -34,6 +34,7 @@ import {
 } from "../lib/report-send-outcome";
 import {
   deletePendingMedia,
+  hasPendingMediaBytes,
   writePendingMediaBytes,
   writePendingMediaRegistration,
   type DraftScope,
@@ -284,6 +285,13 @@ export function FieldVisitReportForm({
     string | null
   >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // What confirming is about to delete off this phone, read when the rep taps
+  // save. Non-null means the prompt is open and they have not answered it yet;
+  // the two flags only pick which sentence it shows.
+  const [discardPrompt, setDiscardPrompt] = useState<{
+    audio: boolean;
+    photo: boolean;
+  } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   // `stop()` is synchronous but the recorder's own "stop" event is not, and the
   // blob is only assembled once it fires. Without a state of its own for that
@@ -315,9 +323,37 @@ export function FieldVisitReportForm({
     null,
   );
   const productDropdownRef = useRef<HTMLDivElement>(null);
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
+  const discardConfirmRef = useRef<HTMLButtonElement>(null);
+  const wasDiscardPromptOpen = useRef(false);
   // Set when this screen goes away, so the recorder's async "stop" event stops
   // driving a component that is no longer mounted.
   const unmountedRef = useRef(false);
+
+  // Opening the prompt unmounts the save button and answering it unmounts the
+  // prompt, so focus has to be moved by hand or it drops to the document body —
+  // ConfirmActionButton's problem exactly, solved the same way. The return leg
+  // only ever runs after a refused send, since a confirmed one navigates away.
+  useEffect(() => {
+    if (discardPrompt) {
+      discardConfirmRef.current?.focus();
+    } else if (wasDiscardPromptOpen.current) {
+      submitButtonRef.current?.focus();
+    }
+
+    wasDiscardPromptOpen.current = discardPrompt !== null;
+  }, [discardPrompt]);
+
+  // Anything that changes what is pending closes the prompt, because it makes
+  // the sentence in it out of date — and the prompt itself sends the rep to the
+  // panel above to send the capture before saving, so this is the ordinary path
+  // through it rather than an edge case. Retrying, discarding by hand, or a
+  // retry finally landing all count. The next save asks again, against whatever
+  // is actually left. Nothing here fires between the prompt opening and the rep
+  // answering it: opening touches none of these.
+  useEffect(() => {
+    setDiscardPrompt(null);
+  }, [pendingAudio, pendingPhoto, isTranscribing, isUploadingPhoto]);
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
@@ -1077,6 +1113,61 @@ export function FieldVisitReportForm({
     setIsSubmitting(true);
     setError(null);
 
+    // What the rep is about to lose, asked of storage as well as of this
+    // render. The in-memory state is the answer whenever the pending panel is
+    // on screen — including the capture this device refused to store, which is
+    // held nowhere else — and the stored bytes cover the rep who came back to
+    // this visit after the panel's state had gone with the page.
+    //
+    // Same freshness discipline as CancelVisitModal's own pre-commit check, and
+    // deliberately the same failure direction: a device that does not answer in
+    // time reports nothing pending and the report goes through. A confirm the
+    // rep has already signed off must never be blocked by bookkeeping.
+    const [storedAudio, storedPhoto] = await Promise.all([
+      hasPendingMediaBytes(draftScope, "audio"),
+      hasPendingMediaBytes(draftScope, "photo"),
+    ]);
+    const discardsAudio = pendingAudio !== null || storedAudio;
+    const discardsPhoto = pendingPhoto !== null || storedPhoto;
+
+    if (discardsAudio || discardsPhoto) {
+      setIsSubmitting(false);
+      setDiscardPrompt({ audio: discardsAudio, photo: discardsPhoto });
+      return;
+    }
+
+    await submitReport(orderPlaced);
+  }
+
+  // The prompt stays open and shows its own pending state for the whole send,
+  // rather than closing on the tap: the rep answered a question about what
+  // confirming destroys, and a screen that drops that sentence mid-flight
+  // leaves them unable to check what they just agreed to. It closes only when
+  // the send comes back without navigating — refused by the server, or
+  // unstorable — which are exactly the cases where nothing was deleted and the
+  // ordinary save button, with the error above it, is what they need.
+  async function confirmDiscardAndSubmit() {
+    // Read now rather than captured when the prompt opened: the form behind it
+    // is still live, so a rep who corrects the result while reading this must
+    // get the report they are looking at. It cannot have gone back to null —
+    // `pickResult` only ever sets a boolean, and the gate above already
+    // refused an unanswered one — so there is nothing to say about that here.
+    if (orderPlaced === null) return;
+
+    await submitReport(orderPlaced);
+
+    setDiscardPrompt(null);
+  }
+
+  // Everything below the gate above, so the prompt's own confirm can run it
+  // without going back through the form's submit event. The visit result comes
+  // in as an argument because both callers have already had to establish it:
+  // it is the form's one required field, and the prompt must not open on a
+  // report that would then be refused for missing it.
+  async function submitReport(orderPlaced: boolean) {
+    setIsSubmitting(true);
+    setError(null);
+
     // Every tapped chip means one thing — this SKU was not on the shelf — so
     // the report's product updates are all `out_of_stock` with no quantities
     // to reconcile.
@@ -1228,7 +1319,11 @@ export function FieldVisitReportForm({
     // leaving them on a spinner after a report they have already signed off.
     // Anything still pending goes with it: the visit is finished from here, so
     // the screen that could retry these bytes no longer renders and they would
-    // sit on the device until they aged out, unreachable.
+    // sit on the device until they aged out, unreachable. This is the one place
+    // that throws away a capture the rep cannot make again — a conversation
+    // that already happened, a shelf they have walked away from — which is why
+    // it is the one delete here they are asked about first (see the discard
+    // prompt in handleSubmit above). Reaching this line means they answered.
     //
     // A `sent` outcome also clears the outbox entry queued above: the server
     // has already taken the report, so replaying it on the next app open would
@@ -1871,25 +1966,73 @@ export function FieldVisitReportForm({
           )}
 
           <div className="field-report-submit-bar">
-            <button
-              className="primary-button field-report-submit"
-              // `isUploadingPhoto` belongs here for the same reason as the
-              // others, and its absence was quiet: `problemPhoto` is only set
-              // once the bytes are actually stored, so confirming while the
-              // upload was still in flight wrote the report without the photo
-              // the rep had just taken, with nothing said about it.
-              disabled={
-                isSubmitting ||
-                isRecording ||
-                isStopping ||
-                isTranscribing ||
-                isUploadingPhoto
-              }
-              type="submit"
-            >
-              {isSubmitting ? <LoaderIcon /> : <SaveIcon />}
-              {isSubmitting ? t("saving") : t("saveReport")}
-            </button>
+            {discardPrompt ? (
+              // The capture is deleted a few lines into the confirm, and until
+              // now nothing said so: the panel above promises the bytes will
+              // still be here when the rep comes back, and confirming is the
+              // one thing that makes that untrue. Named before they commit,
+              // the way CancelVisitModal names the same loss on its own path.
+              //
+              // role="alert": focus lands on the confirm button as the prompt
+              // opens, so without an announcement a screen reader hears only
+              // that button's label and never the sentence saying what it will
+              // throw away.
+              <div className="confirm-action confirming">
+                <span className="confirm-action-prompt" role="alert">
+                  {discardPrompt.audio && discardPrompt.photo
+                    ? t("saveDiscardsBoth")
+                    : discardPrompt.audio
+                      ? t("saveDiscardsAudio")
+                      : t("saveDiscardsPhoto")}{" "}
+                  {t("saveDiscardsSendFirst")}
+                </span>
+                <div className="confirm-action-buttons">
+                  <button
+                    aria-busy={isSubmitting}
+                    className={`secondary-button danger${isSubmitting ? " is-pending" : ""}`}
+                    disabled={isSubmitting}
+                    onClick={() => void confirmDiscardAndSubmit()}
+                    ref={discardConfirmRef}
+                    type="button"
+                  >
+                    {isSubmitting ? t("saving") : t("saveDiscardsConfirm")}
+                  </button>
+                  {/* Not the shared "Cancel": this screen carries a "Cancel
+                      visit" control of its own a little further down, and a
+                      bare Cancel beside a destructive save is the one place
+                      that collision would be read the wrong way. */}
+                  <button
+                    className="secondary-button"
+                    disabled={isSubmitting}
+                    onClick={() => setDiscardPrompt(null)}
+                    type="button"
+                  >
+                    {t("saveDiscardsCancel")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="primary-button field-report-submit"
+                // `isUploadingPhoto` belongs here for the same reason as the
+                // others, and its absence was quiet: `problemPhoto` is only set
+                // once the bytes are actually stored, so confirming while the
+                // upload was still in flight wrote the report without the photo
+                // the rep had just taken, with nothing said about it.
+                disabled={
+                  isSubmitting ||
+                  isRecording ||
+                  isStopping ||
+                  isTranscribing ||
+                  isUploadingPhoto
+                }
+                ref={submitButtonRef}
+                type="submit"
+              >
+                {isSubmitting ? <LoaderIcon /> : <SaveIcon />}
+                {isSubmitting ? t("saving") : t("saveReport")}
+              </button>
+            )}
           </div>
         </form>
       )}

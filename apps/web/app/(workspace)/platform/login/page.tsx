@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { toDataURL } from "qrcode";
 
 import { buildApiUrl } from "../../../../lib/api-client";
-import { buildRequestHeaders } from "../../../../lib/api-client";
+import {
+  buildRequestHeaders,
+  getPlatformSession,
+} from "../../../../lib/api-client";
 import { forwardSetCookies } from "../../../../lib/backend-cookies";
 import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import { TurnstileWidget } from "../../../../components/turnstile-widget";
@@ -44,6 +47,20 @@ export default async function PlatformLoginPage({
 }: PlatformLoginPageProps) {
   const { error, step } = await searchParams;
   const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY?.trim() || null;
+
+  // Same gap the tenant login screen had: every redirect below lives in an
+  // action, so opening this URL with a working session drew the sign-in form
+  // regardless. Ahead of the step handling on purpose — a session already
+  // exists only *past* the second factor, so any challenge still sitting in a
+  // cookie is spent, and "you are signed in" beats starting the flow over
+  // with an expiry notice. No loop: /platform/tenants only sends people back
+  // here when this call fails, which is the case that renders the form.
+  // There is no tenant slug to match here — the platform session cookie is
+  // its own (lib/api-client.ts), and the console is a single destination.
+  if ((await getPlatformSession()).ok) {
+    redirect("/platform/tenants");
+  }
+
   const challenge =
     step === "mfa" || step === "enroll"
       ? await readPlatformMfaChallenge()
