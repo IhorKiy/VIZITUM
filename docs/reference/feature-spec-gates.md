@@ -52,7 +52,7 @@ Spec: `docs/specs/ai-quality-spec.md` and `docs/specs/report-templates-spec.md`
 
 Current executable contracts:
 
-- Supported MVP templates are `distribution`, `service` and `partner_account`.
+- Supported MVP templates are `distribution`, `service`, `partner_account` and `medical`.
 - AI output schemas are strict and require user confirmation.
 - AI output does not create final reports or tasks until confirmation.
 - Manual confirmation remains available when AI fails.
