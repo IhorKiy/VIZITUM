@@ -37,6 +37,7 @@ import {
 import {
   FIELD_REPORT_VOICE_HINT_SETTING_KEY,
   LOCATION_CATEGORIES_ENABLED_SETTING_KEY,
+  MAX_TENANT_NAME_LENGTH,
   PRODUCTS_ENABLED_SETTING_KEY,
   SUPPORTED_TENANT_LANGUAGES,
   type ConfirmLogoUploadRequestBody,
@@ -563,7 +564,9 @@ function normalizeName(value: unknown): string | null {
 
   const trimmed = value.trim();
 
-  return trimmed.length > 0 && trimmed.length <= 200 ? trimmed : null;
+  return trimmed.length > 0 && trimmed.length <= MAX_TENANT_NAME_LENGTH
+    ? trimmed
+    : null;
 }
 
 function normalizeLanguage(value: unknown): TenantLanguage | null | undefined {

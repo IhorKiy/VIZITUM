@@ -40,6 +40,21 @@ export function resolveAdminCap(tenant: {
   return tenant.adminLimit ?? adminCapForStatus(tenant.status);
 }
 
+// The roles a tenant admin may hand out through `/admin/users`. Deliberately
+// not every RoleCode Prisma knows: `tenant_superadmin` is the platform owner's
+// to grant (platform.service.ts), and no tenant-side route may assign it.
+//
+// Lifted out of users.service.ts's normalizeRoleCode so the class-validator
+// DTOs in front of the invite and add-role routes can gate on the same list
+// instead of restating it — one vocabulary, two layers reading it.
+export const INVITABLE_ROLE_CODES = [
+  "company_admin",
+  "team_manager",
+  "field_representative",
+] as const;
+
+export type InvitableRoleCode = (typeof INVITABLE_ROLE_CODES)[number];
+
 export type UserResponse = {
   id: string;
   email: string;

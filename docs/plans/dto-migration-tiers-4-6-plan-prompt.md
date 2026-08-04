@@ -6,7 +6,7 @@ VIZITUM is a multi-tenant field-visit SaaS: NestJS API at repo root (`src/`), Ne
 
 This finishes the deferred half of item 2.4 in [`docs/security-remediation-plan.md`](../security-remediation-plan.md) — the only part of that plan still open. Read 2.4's own item there before starting: it carries the tier order and the reasoning for the split.
 
-**Where the track stands: 13 of 22 controllers taking a `@Body()` are gated. Tiers 1–3 are closed** (`location-potential`, `location-assortment`, `pilot-review`, `chains`, `location-categories`, `product-categories`, `products`, `announcements`, `tasks`, `locations`, `routes`, `route-templates`, `visits`). Nine controllers and 24 write routes remain.
+**Where the track stands: 18 of 22 controllers taking a `@Body()` are gated. Tiers 1–4 are closed** (`location-potential`, `location-assortment`, `pilot-review`, `chains`, `location-categories`, `product-categories`, `products`, `announcements`, `tasks`, `locations`, `routes`, `route-templates`, `visits`, `admin-settings`, `admin-users`, `storage`, `platform`, `platform-tenant-superadmin`). Four controllers and 11 write routes remain: `imports` (tier 5) and `auth`/`password`/`platform-auth` (tier 6).
 
 **There is no global `ValidationPipe` and there must not be one until every controller has DTOs.** Each gated route carries its own `@UsePipes(createStrictValidationPipe())`. Enabling `whitelist: true` globally would strip the entire body of every route that still types `@Body()` against a plain interface.
 
@@ -47,17 +47,12 @@ Most of these were bought with a bug. Do not rediscover them.
 
 Counts verified 2026-08-04; re-check against code.
 
-### Tier 4 — administrative surfaces (13 routes)
+### Tier 4 — administrative surfaces (13 routes) — **done**
 
-A mismatch costs an admin action rather than a tenant's sessions.
+Shipped as one change: twelve DTO classes over `admin-settings` (3), `admin-users` (3), `storage` (2), `platform` (3) and `platform-tenant-superadmin` (2), pinned by `tests/admin-platform-dto-validation.test.ts`. Two of its findings change how tier 6 should be approached, so read them before starting there:
 
-| Controller | `@Body()` routes | Notes |
-| ---------- | ---------------- | ----- |
-| `settings/admin-settings.controller.ts` | 3 | includes the logo registration — same mandatory-`sizeBytes` rule as the visit uploads (item 3.2), and its own cap constant |
-| `users/admin-users.controller.ts` | 3 | invite/role changes; check what `apps/web` admin screens post |
-| `storage/storage.controller.ts` | 2 | presigned upload/download URL minting |
-| `platform/platform.controller.ts` | 3 | platform-owner tenant management |
-| `platform/platform-tenant-superadmin.controller.ts` | 2 | invite/promote |
+- **`@IsOptional()` is not automatically right.** It admits `null`, and `platform.service.ts` reads a *present* tenant field as a string (`input.name.trim()`) — so `{"name": null}` was a 500, not a "clear this field". Those fields use `@ValidateIf((_dto, value) => value !== undefined)` instead; only `primaryDomain` and `adminLimit`, where `null` genuinely clears something, keep `@IsOptional()`. Check which one a field actually wants before reaching for the idiom.
+- **A route whose refusal is itself a security event must not be refused by the DTO.** `mfaCode` on `POST /platform/tenants/:tenantId/purge` carries `@Allow()` and no type check: the pipe runs before the service, and it is the service that charges the shared `platform-login` backoff and records `platform.reauth_failed`. An `@IsString()` there would have turned `{"mfaCode": 123456}` — the shape a naive scripted guess produces — into an unlogged, unpenalized 400, while buying nothing (`verifyTotpCode` already takes `unknown`). This is the tier-6 trap below, met one tier early; the answer generalizes directly to the login bodies.
 
 ### Tier 5 — `imports` (1 route), deliberately late
 
@@ -71,7 +66,7 @@ A mismatch costs an admin action rather than a tenant's sessions.
 
 Specific traps here:
 - `password.controller.ts`'s helpers were duplicated from `auth.service.ts` by a concurrent PR once already and lost their length caps in the copy (recorded in the plan's follow-up section). Check both copies agree before declaring caps.
-- Login bodies feed rate limiting and audit events (items 1.1 and 3.5). A refusal at the pipe happens *before* the service, so make sure a body refused by the DTO cannot become an unlogged login attempt or bypass the per-account backoff — check `PermissionGuard`/throttler ordering against the pipe and pin whatever you conclude.
+- Login bodies feed rate limiting and audit events (items 1.1 and 3.5). A refusal at the pipe happens *before* the service, so make sure a body refused by the DTO cannot become an unlogged login attempt or bypass the per-account backoff. **Half of this is already answered.** Nest's order is middleware → guards → interceptors → pipes, so every *guard* runs before the DTO: measured against the live API on 2026-08-04, `POST /platform/tenants/:tenantId/purge` with no session answers 401 `AUTHENTICATION_REQUIRED` for a body the pipe would also have refused, and a tenant session on `POST /platform/tenants` answers 403 before validation. The throttle is a guard too, so a refused body still costs its request. What is *not* covered is the per-account backoff and the audit event, both of which live in the service — which is exactly why tier 4 left `mfaCode` unvalidated (see tier 4 above), and the same reasoning should decide `password` and the login bodies field by field.
 
 ## How to verify — the bar this track has held
 

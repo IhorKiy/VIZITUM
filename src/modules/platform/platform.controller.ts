@@ -7,21 +7,23 @@ import {
   Post,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import type { Request } from "express";
 
 import { describeRequestOrigin } from "../../common/request-origin";
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PLATFORM_REAUTH_THROTTLE } from "../rate-limit/rate-limit.constants";
 import { PERMISSIONS } from "../roles/permissions";
+import {
+  CreateTenantDto,
+  RequestTenantPurgeDto,
+  UpdateTenantDto,
+} from "./platform.dto";
 import { PlatformService } from "./platform.service";
-import type {
-  CreateTenantInput,
-  PlatformRequestPurgeInput,
-  UpdateTenantInput,
-} from "./platform.types";
 
 @Controller("platform/tenants")
 @UseGuards(PermissionGuard)
@@ -42,10 +44,13 @@ export class PlatformController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
-  createTenant(
-    @Req() request: Request,
-    @Body() body: Omit<CreateTenantInput, "actorUserId" | "requestId">,
-  ) {
+  // Tier 4 (administrative surfaces) of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  // The pipe also closes the `...body` spread below: `actorUserId` and
+  // `requestId` are read from the request, and a body carrying either is now
+  // refused rather than overwritten.
+  @UsePipes(createStrictValidationPipe())
+  createTenant(@Req() request: Request, @Body() body: CreateTenantDto) {
     return this.platformService.createTenant({
       ...body,
       actorUserId: request.context?.userId,
@@ -55,10 +60,11 @@ export class PlatformController {
 
   @Patch(":tenantId")
   @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   updateTenant(
     @Req() request: Request,
     @Param("tenantId") tenantId: string,
-    @Body() body: Omit<UpdateTenantInput, "actorUserId" | "requestId">,
+    @Body() body: UpdateTenantDto,
   ) {
     return this.platformService.updateTenant(tenantId, {
       ...body,
@@ -98,10 +104,11 @@ export class PlatformController {
     },
   })
   @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   requestTenantPurge(
     @Req() request: Request,
     @Param("tenantId") tenantId: string,
-    @Body() body: Pick<PlatformRequestPurgeInput, "confirmSlug" | "mfaCode">,
+    @Body() body: RequestTenantPurgeDto,
   ) {
     return this.platformService.requestTenantPurge(tenantId, {
       confirmSlug: body?.confirmSlug,

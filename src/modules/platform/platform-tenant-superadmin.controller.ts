@@ -6,17 +6,19 @@ import {
   Post,
   Req,
   UseGuards,
+  UsePipes,
 } from "@nestjs/common";
 import type { Request } from "express";
 
+import { createStrictValidationPipe } from "../../common/strict-validation-pipe";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
+import {
+  InviteTenantSuperadminDto,
+  PromoteTenantSuperadminDto,
+} from "./platform.dto";
 import { PlatformService } from "./platform.service";
-import type {
-  PlatformInviteSuperadminInput,
-  PlatformPromoteSuperadminInput,
-} from "./platform.types";
 
 @Controller("platform/tenants/:tenantId/superadmin")
 @UseGuards(PermissionGuard)
@@ -31,11 +33,13 @@ export class PlatformTenantSuperadminController {
 
   @Post("invite")
   @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
+  // Tier 4 (administrative surfaces) of the class-validator DTO track (2.4 in
+  // docs/security-remediation-plan.md) — scoped to this route, not global.
+  @UsePipes(createStrictValidationPipe())
   inviteOrReplaceSuperadmin(
     @Req() request: Request,
     @Param("tenantId") tenantId: string,
-    @Body()
-    body: Omit<PlatformInviteSuperadminInput, "actorUserId" | "requestId">,
+    @Body() body: InviteTenantSuperadminDto,
   ) {
     return this.platformService.inviteOrReplaceTenantSuperadmin(tenantId, {
       ...body,
@@ -46,11 +50,11 @@ export class PlatformTenantSuperadminController {
 
   @Post("promote")
   @RequirePermissions(PERMISSIONS.PLATFORM_TENANTS_MANAGE)
+  @UsePipes(createStrictValidationPipe())
   promoteToSuperadmin(
     @Req() request: Request,
     @Param("tenantId") tenantId: string,
-    @Body()
-    body: Omit<PlatformPromoteSuperadminInput, "actorUserId" | "requestId">,
+    @Body() body: PromoteTenantSuperadminDto,
   ) {
     return this.platformService.promoteToSuperadmin(tenantId, {
       ...body,

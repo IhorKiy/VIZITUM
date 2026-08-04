@@ -38,6 +38,7 @@ import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import {
   DEFAULT_ADMIN_LIMIT,
+  INVITABLE_ROLE_CODES,
   resolveAdminCap,
   type AddUserRoleRequestBody,
   type DeleteUserResponse,
@@ -1075,15 +1076,7 @@ function normalizeRoleCodes(value: unknown): RoleCode[] {
 }
 
 function normalizeRoleCode(value: unknown): RoleCode | null {
-  if (
-    value === "company_admin" ||
-    value === "team_manager" ||
-    value === "field_representative"
-  ) {
-    return value;
-  }
-
-  return null;
+  return INVITABLE_ROLE_CODES.find((roleCode) => roleCode === value) ?? null;
 }
 
 function normalizeUserStatus(value: unknown): UserStatus | null {

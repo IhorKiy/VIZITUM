@@ -21,13 +21,9 @@ export type PresignedStorageUrlResponse = {
   headers: Record<string, string>;
 };
 
-export type CreatePresignedUploadUrlRequestBody = {
-  expiresInSeconds?: unknown;
-};
-
-export type CreatePresignedDownloadUrlRequestBody = {
-  expiresInSeconds?: unknown;
-};
+// The two presigned-URL request bodies that used to live here are now
+// `CreatePresignedUrlDto` in storage.dto.ts — one class, since both routes
+// take the same single field.
 
 export type StorageCleanupResult = {
   scannedObjectCount: number;

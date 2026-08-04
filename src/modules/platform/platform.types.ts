@@ -1,10 +1,20 @@
-import type { SegmentTemplate, TenantStatus } from "@prisma/client";
+import { SegmentTemplate } from "@prisma/client";
 
 import type { RequestOrigin } from "../../common/request-origin";
 
+// The segment templates a new tenant may be created with — Prisma's own enum,
+// read once here so the class-validator DTO in front of `POST /platform/tenants`
+// and platform.service.ts gate on the same list rather than each building it.
+export const SEGMENT_TEMPLATES = Object.values(SegmentTemplate);
+
+// Every field optional, matching what createTenant actually accepts: it
+// validates name, slug and segmentTemplate itself and answers TENANT_INVALID
+// with a per-field error for each missing one. Typing the three as required
+// described a call the endpoint never guaranteed — the request body is
+// whatever the caller sent.
 export type CreateTenantInput = {
-  name: string;
-  slug: string;
+  name?: string;
+  slug?: string;
   country?: string;
   timezone?: string;
   language?: string;
@@ -12,7 +22,7 @@ export type CreateTenantInput = {
   contactEmail?: string;
   contactPhone?: string;
   phoneCountry?: string;
-  segmentTemplate: SegmentTemplate;
+  segmentTemplate?: SegmentTemplate;
   primaryDomain?: string;
   actorUserId?: string;
   requestId?: string;
@@ -28,14 +38,20 @@ export type UpdateTenantInput = {
   contactPhone?: string;
   phoneCountry?: string;
   primaryDomain?: string | null;
-  status?: TenantStatus;
+  // A plain string, not TenantStatus: updateTenant refuses anything outside
+  // ASSIGNABLE_STATUSES with a message that explains *why* each excluded
+  // status is excluded, which is worth more than a whitelist rejection, so
+  // the DTO in front of this route does not narrow it either.
+  status?: string;
   // A positive integer sets an explicit per-tenant override; null clears it so
   // the cap follows the plan tier again.
   adminLimit?: number | null;
   // Toggles the tenant's `products_enabled` setting (stored in tenantSetting,
   // not on the platformTenant row). Owner-only control over whether the tenant
-  // tracks products/SKUs — it gates the admin "Products" nav area.
-  productsEnabled?: boolean;
+  // tracks products/SKUs — it gates the admin "Products" nav area. `null` is
+  // not "clear it" (there is nothing to clear), so updateTenant reports it as
+  // a field error like any other non-boolean.
+  productsEnabled?: boolean | null;
   actorUserId?: string;
   requestId?: string;
 };
