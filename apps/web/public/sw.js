@@ -21,6 +21,40 @@
 // response is ever cached here. The IndexedDB snapshot is the one data cache;
 // a second one with its own invalidation is how offline apps rot.
 //
+// What this does not cover: a cold start with no network.
+//
+// Measured on a real iPhone (iOS 18.7.9, standalone Home Screen install) —
+// docs/runbooks/field-offline-iphone-test.md scenario T2b is the record, and
+// T2a the warm one that passes. Point 1 above holds only for a browsing
+// context this worker already controls — a warm app that loses signal and
+// reloads gets offline.html, first try. An app that was force-quit (or that
+// iOS evicted from memory, which is the same thing from here) and is then
+// launched offline gets Safari's own error page instead, and reloading from
+// that page does not recover. A plain Safari tab fails identically, so it is
+// not about the standalone display mode.
+//
+// The worker is not broken in that state and this is not a scope bug: with
+// the app warm, registration is `activated`, this file is the controller at
+// scope `/`, vizitum-shell-v1 holds /offline.html, and an offline fetch of a
+// /_next/static/ chunk is served from vizitum-static-v1 — the fetch handler
+// runs fine with no network. WebKit simply fails the *launch* navigation
+// before dispatching it here, so no branch below gets a say. Nothing in this
+// file can fix that: it is reached too late.
+//
+// What was measured here is the behavior above. The mechanism is inferred
+// from that plus long-standing reports of the same shape against WebKit —
+// the provisional load failing at the network layer (NSURLErrorDomain -1009)
+// with the worker never consulted — whose only documented workaround is
+// WKWebView-only (load a local HTML document first, then navigate). A Home
+// Screen install has no equivalent lever, which is why this is recorded
+// rather than worked around.
+//
+// So the honest promise is "a warm app that walks into a dead zone", not "a
+// cold launch with no signal". The plan doc, module-map and the runbook's
+// T2a/T2b all say so now; don't restore the stronger claim without a real
+// device re-test, and note that apps/web/e2e/field-offline-shell.spec.ts
+// cannot settle it either way (Chromium does not reproduce the failure).
+//
 // Two separate caches, not one: the shell cache holds exactly one entry
 // (offline.html) that must never be evicted, and the static cache is capped
 // and trimmed — sharing a cache would risk a trim deleting the one file the
