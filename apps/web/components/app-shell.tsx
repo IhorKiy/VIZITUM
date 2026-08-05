@@ -2,11 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
-import {
-  getCurrentSession,
-  listActiveAnnouncements,
-  listTasks,
-} from "../lib/api-client";
+import { getCurrentSession, listActiveAnnouncements } from "../lib/api-client";
 import { resolveTenantBranding } from "../lib/tenant-branding";
 import { BrandMark } from "./brand-mark";
 import { FieldMenu } from "./field-menu";
@@ -31,12 +27,19 @@ type AppShellProps = {
   tenantSlug: string;
   activeArea: RoleArea;
   children: React.ReactNode;
+  // Lets a screen give up the pinned brand row and take the top edge for
+  // itself. Only the field task list does: it collapses its own header into a
+  // bar that has to sit at the very top of the phone, and two pinned rows would
+  // spend a third of the screen naming the app rather than showing the work.
+  // Everywhere else the brand row stays where a reader expects it.
+  scrollingTopbar?: boolean;
 };
 
 export async function AppShell({
   tenantSlug,
   activeArea,
   children,
+  scrollingTopbar = false,
 }: AppShellProps) {
   const currentZone = zoneForArea(activeArea);
 
@@ -48,7 +51,6 @@ export async function AppShell({
     tAccount,
     tZoneNames,
     tZoneSwitcher,
-    fieldTasksInProgressResult,
     activeAnnouncementsResult,
   ] = await Promise.all([
     getCurrentSession(),
@@ -58,23 +60,15 @@ export async function AppShell({
     getTranslations("account"),
     getTranslations("common.zone.names"),
     getTranslations("common.zone.switcher"),
-    // Feeds the "Tasks" nav badge below. Fetched here (rather than per-page)
-    // since the bottom nav is the one thing every field page renders; gated
-    // on zone, not on session, so it stays a single parallel round-trip
-    // instead of a second await once the session resolves.
-    currentZone === "field"
-      ? listTasks("status=in_progress&pageSize=1")
-      : Promise.resolve(null),
-    // Feeds the unread badge on the "Home" nav item, fetched the same way and
-    // for the same reason: the board lives on the home screen, so the count
-    // has to be visible from wherever in the field zone the rep currently is.
+    // Feeds the unread badge on the "Home" nav item. Fetched here (rather than
+    // per-page) since the bottom nav is the one thing every field page renders;
+    // gated on zone, not on session, so it stays a single parallel round-trip
+    // instead of a second await once the session resolves. The board lives on
+    // the home screen, so the count has to be visible from wherever in the
+    // field zone the rep currently is.
     currentZone === "field" ? listActiveAnnouncements() : Promise.resolve(null),
   ]);
 
-  const fieldTasksInProgressCount =
-    fieldTasksInProgressResult && fieldTasksInProgressResult.ok
-      ? fieldTasksInProgressResult.data.total
-      : 0;
   const unreadAnnouncementCount =
     activeAnnouncementsResult && activeAnnouncementsResult.ok
       ? activeAnnouncementsResult.data.unreadCount
@@ -143,24 +137,16 @@ export async function AppShell({
         )
       : [];
 
-  // Counts hanging off a field nav item, sidebar and mobile alike: tasks still
-  // in progress on "Tasks", announcements not yet acknowledged on "Home".
-  // Null for every other item, and for each of those two once its own count
-  // reaches zero.
+  // A count hanging off a field nav item, sidebar and mobile alike:
+  // announcements not yet acknowledged, on "Home". Null for every other item,
+  // and for that one once its own count reaches zero.
+  //
+  // "Tasks" carried one too, until the list itself started saying it: its
+  // filter row opens on "In progress" with the same number on the pill, and now
+  // repeats it in the collapsed bar at any scroll depth. A badge that only ever
+  // agreed with the screen it points at is a number to keep in sync, not
+  // information.
   const navBadge = (area: RoleArea) => {
-    if (area === "field-tasks" && fieldTasksInProgressCount > 0) {
-      return (
-        <span
-          aria-label={tNav("taskBadgeAria", {
-            count: fieldTasksInProgressCount,
-          })}
-          className="nav-badge"
-        >
-          {fieldTasksInProgressCount > 99 ? "99+" : fieldTasksInProgressCount}
-        </span>
-      );
-    }
-
     if (area === "field" && unreadAnnouncementCount > 0) {
       return (
         <span
@@ -179,8 +165,13 @@ export async function AppShell({
 
   // The field (representative) zone is phone-only: it always renders the
   // mobile layout, framed in a centered phone-width column on wider screens.
-  const shellClassName =
-    currentZone === "field" ? "app-shell app-shell--mobile-only" : "app-shell";
+  const shellClassName = [
+    "app-shell",
+    currentZone === "field" ? "app-shell--mobile-only" : null,
+    scrollingTopbar ? "app-shell--topbar-scrolls" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className={shellClassName}>

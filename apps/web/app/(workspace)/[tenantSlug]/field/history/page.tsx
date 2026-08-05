@@ -8,7 +8,7 @@ import { FilterFooter } from "../../../../../components/filter-footer";
 import { FilterForm } from "../../../../../components/filter-form";
 import { FilterPills } from "../../../../../components/filter-pills";
 import { ChevronDownIcon } from "../../../../../components/icons";
-import { PeriodPills } from "../../../../../components/period-pills";
+import { PeriodLinks } from "../../../../../components/period-links";
 import {
   getCurrentSession,
   listVisitDaySummary,
@@ -319,21 +319,6 @@ export default async function FieldHistoryPage({
       <section aria-label={t("myVisits")} className="panel drilldown-panel">
         <FilterForm action={`/${tenantSlug}/field/history`}>
           <div className="panel-toolbar panel-toolbar-filters">
-            {/* How deep the list reads sits above what it is cut by: the
-                period is the denominator every count below is measured
-                against, the status pill only narrows the cards. */}
-            <PeriodPills
-              action={`/${tenantSlug}/field/history`}
-              ariaLabel={t("visitPeriod")}
-              names={VISIT_PERIOD_PARAMS}
-              otherParams={
-                new URLSearchParams(
-                  selectedStatus ? { status: selectedStatus } : {},
-                )
-              }
-              period={period}
-              timeZone={timeZone}
-            />
             <FilterPills
               ariaLabel={t("statusFiltersAria")}
               name="status"
@@ -345,6 +330,20 @@ export default async function FieldHistoryPage({
                 })),
               ]}
               value={selectedStatus ?? ""}
+            />
+            {/* Under the pills, in text: they say which visits are on screen,
+                this says how far back the screen reads. */}
+            <PeriodLinks
+              action={`/${tenantSlug}/field/history`}
+              ariaLabel={t("visitPeriod")}
+              names={VISIT_PERIOD_PARAMS}
+              otherParams={
+                new URLSearchParams(
+                  selectedStatus ? { status: selectedStatus } : {},
+                )
+              }
+              period={period}
+              timeZone={timeZone}
             />
           </div>
 

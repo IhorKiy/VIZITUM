@@ -182,18 +182,22 @@ export function EditTaskModal({
     dialogRef.current?.close();
   }
 
-  // The date the task already carries, offered as a chip so keeping it takes
-  // no thought — unless it is today, which has a chip of its own.
-  const keptDate =
-    draft.dueDate && draft.dueDate !== todayIsoDate ? draft.dueDate : "";
+  // The date the task already carries, always offered as a chip naming that
+  // date, so the lit chip is the deadline rather than a word that happens to
+  // match it. It used to stand down when the task was due today and let the
+  // "Today" chip cover it, which read as a form that had defaulted to today
+  // instead of one showing the date the task actually has.
+  const keptDate = draft.dueDate;
   const dueChoice = pickingDate
     ? "custom"
     : dueDate === ""
       ? "none"
-      : dueDate === todayIsoDate
-        ? "today"
-        : dueDate === keptDate
-          ? "kept"
+      : // Ahead of "today" deliberately: when the two are the same date, the
+        // one that says which date it is wins.
+        dueDate === keptDate
+        ? "kept"
+        : dueDate === todayIsoDate
+          ? "today"
           : "custom";
 
   function chooseDate(value: string) {
@@ -256,7 +260,7 @@ export function EditTaskModal({
           )}
 
           <label className="task-form-field">
-            <span className="sr-only">{t("formTitle")}</span>
+            <span className="task-form-label">{t("formTitle")}</span>
             <textarea
               className="task-form-title"
               defaultValue={draft.title}
@@ -275,12 +279,19 @@ export function EditTaskModal({
               {t("formDetails")}
               <i>{t("formOptional")}</i>
             </span>
+            {/* Two lines to start, growing with what is typed — the same
+                treatment the title gets. A box that stands three lines tall
+                over two lines of text reads as a field the writer left
+                unfinished. */}
             <textarea
+              className="task-form-notes"
               defaultValue={draft.description}
               maxLength={INPUT_LIMITS.notes}
               name="description"
+              onInput={(event) => fitToContent(event.currentTarget)}
               placeholder={t("formDetailsPlaceholder")}
-              rows={3}
+              ref={fitToContent}
+              rows={2}
             />
           </label>
 
@@ -316,14 +327,19 @@ export function EditTaskModal({
                   {formatChipDate(format, keptDate)}
                 </button>
               ) : null}
-              <button
-                aria-pressed={dueChoice === "today"}
-                className="task-form-chip"
-                onClick={() => chooseDate(todayIsoDate)}
-                type="button"
-              >
-                {t("dueToday")}
-              </button>
+              {/* Stands down when the kept chip beside it already carries
+                  today's date: two chips writing the same value, one lit and
+                  one not, is a choice with nothing behind it. */}
+              {keptDate === todayIsoDate ? null : (
+                <button
+                  aria-pressed={dueChoice === "today"}
+                  className="task-form-chip"
+                  onClick={() => chooseDate(todayIsoDate)}
+                  type="button"
+                >
+                  {t("dueToday")}
+                </button>
+              )}
               <button
                 aria-pressed={dueChoice === "custom"}
                 className="task-form-chip"

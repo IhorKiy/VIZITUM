@@ -35,7 +35,7 @@ import {
   RouteIcon,
   UserIcon,
 } from "../../../../../components/icons";
-import { PeriodPills } from "../../../../../components/period-pills";
+import { PeriodLinks } from "../../../../../components/period-links";
 import { TaskDetailsEditor } from "../../../../../components/task-details-editor";
 import { TaskStatusEditor } from "../../../../../components/task-status-editor";
 import {
@@ -594,18 +594,6 @@ export default async function ManagerTasksPage({
         <FilterForm action={`/${tenantSlug}/manager/tasks`}>
           <div className="panel-toolbar">
             <div className="filter-groups">
-              {/* How deep the list reads sits above what it cuts by. Only the
-                  views that can hold finished work have a window at all. */}
-              {period ? (
-                <PeriodPills
-                  action={`/${tenantSlug}/manager/tasks`}
-                  ariaLabel={t("completedPeriod")}
-                  names={TASK_COMPLETED_PERIOD_PARAMS}
-                  otherParams={otherFilterParams}
-                  period={period}
-                  timeZone={timeZone}
-                />
-              ) : null}
               <FilterPills
                 ariaLabel={t("statusFiltersAria")}
                 name="status"
@@ -627,6 +615,20 @@ export default async function ManagerTasksPage({
                 ]}
                 value={selectedPriorityOnly ? "1" : ""}
               />
+              {/* Under what the list is cut by, in text: the pills say which
+                  tasks are on screen, this says how far back the screen reads.
+                  Only the views that can hold finished work have a window at
+                  all. */}
+              {period ? (
+                <PeriodLinks
+                  action={`/${tenantSlug}/manager/tasks`}
+                  ariaLabel={t("completedPeriod")}
+                  names={TASK_COMPLETED_PERIOD_PARAMS}
+                  otherParams={otherFilterParams}
+                  period={period}
+                  timeZone={timeZone}
+                />
+              ) : null}
             </div>
           </div>
 

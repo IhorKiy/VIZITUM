@@ -13,12 +13,12 @@
     "filtersLabel": "Фільтри",
     "all": "Усі",
     "period": {
-      "presetPill": {
+      "presetShort": {
         "week": "Тиждень",
         "month": "30 днів",
         "quarter": "Квартал"
       },
-      "customPill": "Період…",
+      "customShort": "Період…",
       "preset": {
         "week": "Останні 7 днів",
         "month": "Останні 30 днів",
@@ -89,7 +89,6 @@
       "field-planning": "Планування",
       "field-history": "Історія",
       "field-tasks": "Задачі",
-      "taskBadgeAria": "У процесі: {count}",
       "announcementBadgeAria": "Непрочитані оголошення: {count}",
       "admin-users": "Користувачі",
       "admin-locations": "Точки/Мережі",
@@ -1727,21 +1726,15 @@
       "taskErrorEyebrow": "Задачу не оновлено",
       "taskErrorTitle": "Не вдалося оновити подальшу дію",
       "taskErrorBody": "Оновіть сторінку та спробуйте ще раз.",
-      "completedPeriod": "Період завершення",
-      "completedFrom": "Завершено з",
-      "completedTo": "Завершено до",
       "doneCount": "{count, plural, one {# виконана} few {# виконані} many {# виконаних} other {# виконаних}}",
       "paginationAria": "Сторінки списку задач",
       "pagePosition": "Сторінка {page} з {totalPages}",
       "showNewer": "Новіші",
       "showEarlier": "Давніші",
-      "periodExhaustedTitle": "Кінець цього періоду",
-      "periodExhaustedBody": "Ви дійшли до найдавнішої задачі, виконаної в цьому періоді.",
-      "periodEarlier": "Попередній період: {period}",
-      "periodWindowCapped": "Один період охоплює щонайбільше {months} місяців. Щоб зазирнути глибше, оберіть давніший діапазон у фільтрах.",
-      "periodOldestReached": "Це ваша перша виконана задача — давніших немає.",
       "emptyDoneEverTitle": "Ще нічого не виконано",
-      "emptyDoneEverBody": "Щойно ви позначите задачу виконаною, вона з’явиться тут разом із періодом, у якому ви її закрили."
+      "emptyDoneEverBody": "Щойно ви позначите задачу виконаною, вона з’явиться тут, найновіші — згори.",
+      "stickyFiltersAria": "Фільтри задач",
+      "backToTop": "До початку списку"
     },
     "createTask": {
       "title": "Нова задача",

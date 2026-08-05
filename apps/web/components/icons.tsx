@@ -171,6 +171,29 @@ export function CalendarIcon() {
   );
 }
 
+// A calendar with a dash where the date would be — "no deadline", for the date
+// rail of a task that carries none. Wordless on purpose: the rail is a column
+// of numbers, and two lines of small caps saying "no date" read as a field that
+// failed to load rather than as a task nobody has dated yet.
+export function CalendarDashIcon({ size = 18 }: { size?: number } = {}) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height={size}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      <rect height="18" rx="2" width="18" x="3" y="4" />
+      <path d="M16 2v4M8 2v4M3 10h18M9 15h6" />
+    </svg>
+  );
+}
+
 export function SearchIcon() {
   return (
     <svg
