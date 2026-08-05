@@ -574,7 +574,13 @@ All four Pass 3 findings instead came from things that **repeat across many file
 
 - [ ] `(public)` — 4 routes: landings + sign-in; confirm both landings stay prerendered and the i18n-provider pinning still holds
 - [ ] `[tenantSlug]/page.tsx` (the workspace entry itself), `login`, `password/forgot`, `password/reset`, `invites/accept`, `choose-zone`, `no-access`, `account` — 8 routes
-- [ ] `[tenantSlug]/admin/*` — 11 routes; `admin/locations/page.tsx` is 1699 lines
+- [ ] `[tenantSlug]/admin/*` — 11 routes; `admin/locations/page.tsx` is 1699 lines — **conventions swept, screen bodies not read**
+
+  Covered by the four global sweeps across all 50 routes (questions 1, 2, 3 and 5). Back navigation (question 4) is clean: only one screen in the zone carries a `BackLink` — `admin/locations/[locationId]` — and it resolves through `resolveBackTarget`. Four of the eleven routes are pure redirects (`admin`, `admin/chains`, `admin/review`, `admin/setup`), established while auditing `app-shell`, which is also why they legitimately render no shell. No raw date formatting: the global sweep's five `Intl.DateTimeFormat` uses are all outside this zone.
+
+  One finding, **F21**, from the one pattern in the zone that repeats without a check — `admin/users/page.tsx` round-trips API error text through the URL across seven Server Action redirects and renders the parameter back unvalidated.
+
+  **Not read**: all eleven screen bodies, including `admin/locations/page.tsx` (1699 lines — the largest screen in the app, and a listed hotspot), and screen-pass questions 6, 7, 8, 9 and 10 for this zone.
 - [ ] `[tenantSlug]/manager/*` — 9 routes; `manager/tasks/page.tsx` is 1094 lines, 27 commits — **conventions swept, screen bodies not read**
 
   Back navigation is clean across the zone: every `BackLink` resolves through `resolveBackTarget` (`manager/visits/[visitId]`, `manager/locations/[locationId]`), so **F17** is specific to the field zone rather than a zone-wide habit. Date handling is clean: `manager/tasks:133` and `manager/announcements:74` use `Intl.DateTimeFormat("en-CA", { timeZone })`, which is an ISO *key* in the tenant's zone, not display formatting bypassing next-intl.
@@ -616,7 +622,7 @@ Rule #10, and this is the pass with the most partial coverage in the audit — r
 - **9. Panel/modal twins** — probed once, in the manager zone, where no drift was demonstrated. The other zones' twins were not compared.
 - **10. Dates/numbers via next-intl formatters** — checked only where it surfaced incidentally: the five `Intl.DateTimeFormat` uses found outside the shared formatters, two of which are manager screens. No zone was swept for this.
 
-**Zone coverage is two of seven, and neither is complete.** `field/*` and `manager/*` were swept for conventions only — each has its own note above stating exactly what that covered. **Untouched entirely**: `(public)` (4 routes), the tenant entry group (8 routes: workspace entry, `login`, `password/forgot`, `password/reset`, `invites/accept`, `choose-zone`, `no-access`, `account`), `admin/*` (11 routes), `operations` (1) and `platform/*` (3).
+**Zone coverage is three of seven, and none is complete.** `field/*`, `manager/*` and `admin/*` were swept for conventions only — each has its own note above stating exactly what that covered. **Untouched entirely**: `(public)` (4 routes), the tenant entry group (8 routes: workspace entry, `login`, `password/forgot`, `password/reset`, `invites/accept`, `choose-zone`, `no-access`, `account`), `operations` (1) and `platform/*` (3).
 
 **No screen body was read in any zone** — 50 `page.tsx` files, none of them opened for its own logic. That includes the two the plan itself flags by size: `admin/locations/page.tsx` (1699 lines) and `manager/tasks/page.tsx` (1094 lines, 27 commits). The one large component that *was* partly read, `field-visit-report-form.tsx`, is a shared foundation rather than a screen, and its own entry records that ~1500 lines of it are still unread.
 
@@ -696,26 +702,36 @@ Update after each pass. `Findings` counts only recorded, verified findings.
 | 0 — Automated baseline | done | 0/0/2/0 | 2026-08-05 | Every check green; both findings came out of the e2e run's logs, not a failed assertion |
 | 1 — Cross-cutting axes | mostly done | 0/0/2/0 | 2026-08-05 | Tenant isolation holds under mechanical check; 5 axes deferred — see Skipped |
 | 2 — Backend modules | **done** — all 24 modules examined, plus the 3 non-module units (`src/common/*`, bootstrap, `worker`); Tier C 9/9, Tier B 11/11 (7 fully), Tier A 7/7 (4 fully) | 0/1/5/2 | 2026-08-05 | F2, F3, F4, F6, F7, F8, F9, F10, F11, F12. Zero findings on authorization, tenant isolation or ownership. 7 boxes deliberately unticked = audited on named paths; each module's note lists what was left |
-| 3 — Frontend zones | 8 foundations done; field + manager conventions swept; 5 zones and all screen bodies not read | 0/0/2/3 | 2026-08-05 | Sweeps → F13; `api-client.ts` → F14; mirrors → F15; `globals.css` → F16; field back-origin → F17 |
+| 3 — Frontend zones | 8 foundations done; field, manager and admin conventions swept; 4 zones and all screen bodies not read | 0/0/3/3 | 2026-08-05 | Sweeps → F13; `api-client.ts` → F14; mirrors → F15; `globals.css` → F16; field back-origin → F17; admin reflected param → F21 |
 | 4 — Data layer | done, except the production drift check | 0/0/1/0 | 2026-08-05 | F18 (product-category orphans). Every schema-level axis clean with zero exceptions: 35/35 tenant indexes, 59/59 explicit `onDelete`, 45/45 unedited migrations, 39/39 documented models |
 | 5 — Tests and docs | done, except enumerating untested contracts | 0/0/0/1 | 2026-08-05 | F19 (three drifted prose records). Machine-checkable records are exact: 173/173 tests + 12/12 specs mapped, 139/139 endpoints, 24/24 modules, 0 assertion-free tests |
 | 6 — Operations | done, except the restore drill | 0/0/0/1 | 2026-08-05 | F20 (3 majors behind). CI covers all 10 Pass 0 commands; logs carry no tokens or bodies; the deployment runbook independently confirms F19's provisioning drift |
 
 ## Findings
 
-**20 findings: 0 S1 · 1 S2 · 12 S3 · 7 S4.** The stop-the-line rule never fired.
+**21 findings: 0 S1 · 1 S2 · 13 S3 · 7 S4.** The stop-the-line rule never fired.
 
 Where they came from is the result worth reading before the list. **Authorization, tenant isolation and ownership produced zero findings across all 24 backend modules and the three shared areas audited alongside them (27 units; `src/common/*`, the bootstrap and `worker` are audit units, not modules)**, and those were the axes checked hardest — 393 Prisma calls swept for a tenant predicate, 139 handlers for a permission declaration, every `*_OWN` permission traced to its enforcement. Pass 4 found the schema equally exact: 35/35 tenant indexes, 59/59 explicit `onDelete`, 45/45 unedited migrations, 0 non-null assertions. Pass 5 found every machine-checkable record accurate: 173/173 tests and 12/12 specs mapped, 139/139 endpoints and 24/24 modules documented.
 
-Every finding instead sits in one of three gaps:
+Three gaps recur, and the examples under each are illustrative rather than an exhaustive classification — a few findings (notably **F1**, **F3**, **F4**, **F5**, **F9**, **F20**) sit at the edges of more than one:
 
 - **Between code and its runtime** — a per-row loop against a fixed transaction budget (**F8**), an env var parsed only at first use (**F2**), a metric counting the wrong table (**F12**).
-- **Between a thing and its twin** — a claim pattern applied five times and missed once (**F7**), a second factor on the irreversible operation but not the one causing the outage (**F6**), an error code mapped by three services and not two (**F10**, **F11**), a cascade on rename but not on delete (**F18**).
+- **Between a thing and its twin** — a claim pattern applied five times and missed once (**F7**), a second factor on the irreversible operation but not the one causing the outage (**F6**), an error code mapped by three services and not two (**F10**, **F11**), a cascade on rename but not on delete (**F18**), a redirect carrying an error *code* on one screen and raw reflected text on another (**F21**).
 - **Between a convention and anything that checks it** — pending state on 10 buttons (**F13**), `.message` on 25 screens (**F14**), a constant in 5 places (**F15**), a selector in 27 (**F16**), a back-origin on one journey (**F17**), three prose records (**F19**).
 
 That third group is the largest, and it is the one a reader should act on structurally rather than item by item: in every case the convention was written down and nothing compiled, diffed or asserted it.
 
 Recorded in the format above, newest first. Every entry must also be filed into the matching backlog section of `docs/vizitum-action-plan.md` — the `Filed:` line is not optional.
+
+### [S3] F21 — The admin users screen renders an unvalidated query parameter as its own error message
+
+- Where: `apps/web/app/(workspace)/[tenantSlug]/admin/users/page.tsx:369` — `body={pageState.message ?? t("errorFallback")}`, where `pageState` is `await searchParams`
+- Failure: `?message=` is read straight off the URL and rendered as the body of a `DismissableNotice`, with no validation of either it or the `error` param that gates it (both are declared `?: string` and used as-is). A crafted link to a tenant's own admin users screen — `/{tenant}/admin/users?error=1&message=<anything>` — therefore renders arbitrary attacker-supplied text inside the application's own danger notice, wrapped in the app's translated eyebrow and title, on the most privileged screen a tenant has. The frame is first-party; only the sentence inside it is the attacker's.
+- **Why the parameter exists**, which is what makes this a defect rather than a design choice: the same file redirects into it from **seven** Server Actions (`:87`, `:113`, `:140`, `:161`, `:182`, `:204`, `:224`), each stuffing the API's own error text into the URL because a redirect loses in-memory state. Carrying an error across a redirect is legitimate; trusting the value on the way back in is the part that is not.
+- Bounded honestly, and it should not be over-prioritised: **this is not XSS.** `DismissableNotice` renders `{body ? <p>{body}</p> : null}` — plain JSX text interpolation, which React escapes — and `body` is typed `string`, so no markup or link is producible. The payload is unlinkified text, and the victim must already be an authenticated admin who followed an attacker's link into their own tenant. What is left is a phishing surface with the application's own styling behind it.
+- **The codebase already solves this exact problem correctly elsewhere.** `apps/web/lib/login-error.ts` carries a failure across a redirect as `?error=<reason>`, where the reason is one of four known values mapped to a translated message key — no text crosses the URL at all. This screen is the only one in the app that reflects a message parameter: a sweep for `searchParams.message`-style renders returns this single site, and every other screen renders `result.message` from its own fetch instead.
+- Related to **F14** but not fixed by it: both are cured by mapping an error *code* to a translated key rather than passing text around. But a reader who fixes F14 the other plausible way — by translating the message before displaying it — closes F14 and leaves this open. Recorded separately for that reason.
+- Filed: action-plan §13
 
 ### [S4] F20 — Three dependencies are a major version behind, one of them the cookie parser in the session path
 
