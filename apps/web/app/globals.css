@@ -3680,6 +3680,15 @@ textarea {
   opacity: 0.72;
 }
 
+/* Said when the list on screen is not the whole list — see openListTruncated.
+   Quiet: it qualifies the counts above it rather than competing with them. */
+.task-board-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: -4px 0 0;
+}
+
 /* A band's heading: the state, how many are in it, and a rule running out to
    the edge so the list under it reads as belonging to it. */
 .task-group-head {
@@ -4066,6 +4075,7 @@ textarea {
 }
 
 .task-sheet-head {
+  flex-shrink: 0;
   padding: 6px 20px 16px;
 }
 
@@ -4091,6 +4101,7 @@ textarea {
   background: var(--surface-muted);
   border-block: 1px solid var(--line);
   display: grid;
+  flex-shrink: 0;
   gap: 8px;
   margin: 0;
   padding: 14px 20px;
@@ -4128,11 +4139,19 @@ textarea {
   opacity: 0.5;
 }
 
-/* The one scrolling part of the sheet: a task worked on for weeks has a long
-   history, and the actions at the foot must not be pushed off the screen by
-   it. */
-.task-sheet-history {
+/* The scrolling part of the sheet: everything between the grab row and the
+   actions. A long description is as capable of pushing "Complete" off a small
+   screen as a long history is, so they scroll together rather than the history
+   alone — the same split .task-form-dialog uses one level up. */
+.task-sheet-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.task-sheet-history {
   padding: 16px 20px;
 }
 

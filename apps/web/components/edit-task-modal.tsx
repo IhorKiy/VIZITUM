@@ -48,6 +48,11 @@ type EditTaskModalProps = {
   // assignments (set by a manager), and the select must keep that value
   // choosable instead of silently dropping it on save.
   locationOptions: EditTaskOption[];
+  // The list the dialog was opened from, as a query string, submitted with the
+  // form so the action's redirect can land back on it. On the form rather than
+  // closed over by the action: a Server Action captures what it closes over at
+  // build time, and this is per-request.
+  listQuery?: string;
   // Today in the tenant timezone, "YYYY-MM-DD" — resolved by the caller. The
   // "Today" chip has to mean the rep's today, not the browser's.
   todayIsoDate: string;
@@ -90,6 +95,7 @@ function fitToContent(field: HTMLTextAreaElement | null) {
 export function EditTaskModal({
   task,
   action,
+  listQuery,
   locationOptions,
   todayIsoDate,
   triggerLabel,
@@ -245,6 +251,9 @@ export function EditTaskModal({
 
         <form action={submitAction} className="task-form" key={formVersion}>
           <input name="taskId" type="hidden" value={task.id} />
+          {listQuery === undefined ? null : (
+            <input name="listQuery" type="hidden" value={listQuery} />
+          )}
 
           <label className="task-form-field">
             <span className="sr-only">{t("formTitle")}</span>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -101,6 +102,20 @@ const CLOSED_TODAY_PAGE_SIZE = 50;
 // list is being read: a notice to show once, a dialog that is open. They are
 // dropped when the page rebuilds its own address.
 const NON_LIST_PARAMS = ["create", "error", "open", "task"];
+// The other half of that split, as an allowlist rather than the complement:
+// the list query travels back to the server on the sheet's forms, so what
+// comes off a form is read against the names this page actually understands
+// instead of being trusted whole — a hand-edited field must not be able to
+// smuggle `error=task` into the address a save redirects to.
+const LIST_PARAMS = [
+  "completedFrom",
+  "completedTo",
+  "overdue",
+  "page",
+  "period",
+  "priority",
+  "status",
+];
 
 // The heading each band of the open list is read under.
 const TASK_GROUP_LABEL_KEYS = {
@@ -146,20 +161,24 @@ export default async function FieldTasksPage({
   async function updateTaskStatusAction(formData: FormData) {
     "use server";
 
+    // Where the rep was reading when they acted, carried on the form (see
+    // listQueryFrom): a save that landed them on a reset list would throw away
+    // the window, the page and the refinements they had picked.
+    const listQuery = listQueryFrom(formData);
     const taskId = getFormString(formData, "taskId").trim();
     const status = normalizeTaskStatus(formData.get("status"));
 
     if (!taskId || !status) {
-      redirect(`/${tenantSlug}/field/tasks?error=task`);
+      redirect(tasksHref(tenantSlug, listQuery, "error", "task"));
     }
 
     const result = await updateTask(taskId, { status });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/field/tasks?error=task`);
+      redirect(tasksHref(tenantSlug, listQuery, "error", "task"));
     }
 
-    redirect(`/${tenantSlug}/field/tasks?task=updated`);
+    redirect(tasksHref(tenantSlug, listQuery, "task", "updated"));
   }
 
   // No description-only action here: the description is edited through the
@@ -171,10 +190,11 @@ export default async function FieldTasksPage({
   ): Promise<EditTaskActionResult> {
     "use server";
 
+    const listQuery = listQueryFrom(formData);
     const taskId = getFormString(formData, "taskId").trim();
 
     if (!taskId) {
-      redirect(`/${tenantSlug}/field/tasks?error=task`);
+      redirect(tasksHref(tenantSlug, listQuery, "error", "task"));
     }
 
     const title = getFormString(formData, "title").trim();
@@ -207,7 +227,7 @@ export default async function FieldTasksPage({
       return { ok: false };
     }
 
-    redirect(`/${tenantSlug}/field/tasks?task=edited`);
+    redirect(tasksHref(tenantSlug, listQuery, "task", "edited"));
   }
 
   const sessionResult = await getCurrentSession();
@@ -402,11 +422,21 @@ export default async function FieldTasksPage({
         due: describeTaskDue(openTask, todayIsoDate),
       }))
     : [];
+  // Whether this rep holds more open work than one read of the list returns.
+  // Self-limiting as open work is, OPEN_PAGE_SIZE is the API's ceiling rather
+  // than a promise, and everything below — the bands, the refinements, the
+  // counts — describes the tasks actually in hand.
+  const openTasksTruncated =
+    openResult.ok && openResult.data.items.length < openResult.data.total;
   // Counts for the filter row. `null` where the open list failed to load — a
-  // pill with no count says less than one with a wrong count.
+  // pill with no count says less than one with a wrong count. All three count
+  // the same set: taking the open one from the server's total instead would
+  // have it describe every open task while the two beside it described only
+  // the first hundred, and a strip whose three numbers disagree is worse than
+  // one that admits its limit (the note under it does).
   const openCounts = openResult.ok
     ? {
-        open: openResult.data.total,
+        open: openTasks.length,
         overdue: openTasks.filter((entry) => entry.due.tone === "overdue")
           .length,
         priority: openTasks.filter((entry) => entry.task.isPriority).length,
@@ -695,6 +725,15 @@ export default async function FieldTasksPage({
             </div>
           </ScrollStrip>
 
+          {/* Said out loud rather than left for a rep to notice: with more open
+              work than one read returns, every number and every band above
+              covers the first page of it and nothing else. */}
+          {openTasksTruncated && !isDoneList ? (
+            <p className="task-board-note">
+              {t("openListTruncated", { count: openTasks.length })}
+            </p>
+          ) : null}
+
           {/* Only the done list has a window to edit by hand, and this is where
               its "Period…" pill lands. Seeded with the resolved window rather
               than with whatever the URL carried: editing one end of the default
@@ -867,6 +906,7 @@ export default async function FieldTasksPage({
             <TaskSheetBody
               due={describeTaskDue(openTask, todayIsoDate)}
               format={format}
+              listQuery={listParams.toString()}
               locationOptions={locationOptions}
               t={t}
               tCommon={tCommon}
@@ -946,8 +986,16 @@ function TaskRows({
         >
           {/* A link, not a button: the sheet it opens is a URL, so the whole
               row is one ordinary navigation — long-press, middle-click and the
-              back gesture all behave the way the phone already taught. */}
-          <a className="task-row-main" href={sheetHref(task.id)}>
+              back gesture all behave the way the phone already taught. Routed
+              through Link rather than a bare <a> so opening the sheet is a
+              client transition, and scroll={false} so the list stays where the
+              reader left it — the mirror of the router.replace the sheet
+              closes with. */}
+          <Link
+            className="task-row-main"
+            href={sheetHref(task.id)}
+            scroll={false}
+          >
             <TaskDueRail due={due} format={format} t={t} />
             <span className="task-row-text">
               <span className="task-row-title">{task.title}</span>
@@ -970,7 +1018,7 @@ function TaskRows({
               ) : null}
             </span>
             <ChevronRightIcon />
-          </a>
+          </Link>
         </li>
       ))}
     </ul>
@@ -1031,6 +1079,7 @@ type CommonTranslator = Awaited<ReturnType<typeof getTranslations<"common">>>;
 // owns the gesture, the backdrop and the way it closes.
 function TaskSheetBody({
   format,
+  listQuery,
   locationOptions,
   t,
   tCommon,
@@ -1041,6 +1090,9 @@ function TaskSheetBody({
   updateTaskStatusAction,
 }: {
   format: IntlFormatter;
+  // The current list as a query string, threaded down to the two forms so a
+  // save returns to the same list rather than to a reset one.
+  listQuery: string;
   locationOptions: { id: string; label: string }[];
   t: FieldTasksTranslator;
   tCommon: CommonTranslator;
@@ -1054,45 +1106,51 @@ function TaskSheetBody({
 
   return (
     <>
-      <div className="task-sheet-head">
-        <h2 className="task-sheet-title">{task.title}</h2>
-        {task.description ? (
-          <p className="task-sheet-description">{task.description}</p>
-        ) : null}
-      </div>
+      {/* Everything above the actions scrolls as one: the title and the
+          description are as long as the rep who wrote them made them, and with
+          only the history scrolling a wordy task pushed "Complete" — the whole
+          reason the sheet opens — off the bottom of a small screen. */}
+      <div className="task-sheet-body">
+        <div className="task-sheet-head">
+          <h2 className="task-sheet-title">{task.title}</h2>
+          {task.description ? (
+            <p className="task-sheet-description">{task.description}</p>
+          ) : null}
+        </div>
 
-      {/* Three facts, not four: who set the task is the first line of the
+        {/* Three facts, not four: who set the task is the first line of the
           history below, and a sheet this short cannot afford to say the same
           name twice. */}
-      <dl className="task-sheet-facts">
-        <div>
-          <dt>{t("factStatus")}</dt>
-          <dd>{formatEnumLabel(tCommon, task.status)}</dd>
-        </div>
-        <div>
-          <dt>{t("factDue")}</dt>
-          <dd className={`task-sheet-due is-${due.tone}`}>
-            <TaskSheetDue due={due} format={format} t={t} />
-          </dd>
-        </div>
-        <div>
-          <dt>{t("factLocation")}</dt>
-          <dd>
-            {task.location
-              ? `${task.location.name}, ${task.location.city}`
-              : t("noLocation")}
-          </dd>
-        </div>
-      </dl>
+        <dl className="task-sheet-facts">
+          <div>
+            <dt>{t("factStatus")}</dt>
+            <dd>{formatEnumLabel(tCommon, task.status)}</dd>
+          </div>
+          <div>
+            <dt>{t("factDue")}</dt>
+            <dd className={`task-sheet-due is-${due.tone}`}>
+              <TaskSheetDue due={due} format={format} t={t} />
+            </dd>
+          </div>
+          <div>
+            <dt>{t("factLocation")}</dt>
+            <dd>
+              {task.location
+                ? `${task.location.name}, ${task.location.city}`
+                : t("noLocation")}
+            </dd>
+          </div>
+        </dl>
 
-      <TaskHistoryList
-        createdAt={task.createdAt}
-        createdByName={task.createdBy?.name ?? null}
-        format={format}
-        history={task.history}
-        t={t}
-        tCommon={tCommon}
-      />
+        <TaskHistoryList
+          createdAt={task.createdAt}
+          createdByName={task.createdBy?.name ?? null}
+          format={format}
+          history={task.history}
+          t={t}
+          tCommon={tCommon}
+        />
+      </div>
 
       <div className="task-sheet-actions">
         {/* The whole point of opening a task on a route: one tap to close it
@@ -1105,6 +1163,11 @@ function TaskSheetBody({
             type="hidden"
             value={finished ? "in_progress" : "done"}
           />
+          {/* The list this was submitted from, so the redirect can land back
+              on it. Carried on the form rather than closed over by the action:
+              a Server Action captures what it closes over at build time, and
+              this is per-request. */}
+          <input name="listQuery" type="hidden" value={listQuery} />
           <PendingSubmitButton
             className="primary-button"
             pendingLabel={t(finished ? "sheetReopening" : "sheetCompleting")}
@@ -1114,6 +1177,7 @@ function TaskSheetBody({
         </form>
         <EditTaskModal
           action={updateTaskFieldsAction}
+          listQuery={listQuery}
           locationOptions={locationOptions}
           task={task}
           todayIsoDate={todayIsoDate}
@@ -1150,8 +1214,12 @@ function TaskSheetDue({
     return (
       <>
         {date}
+        {/* Its own wording rather than the row's: in the list the count sits
+            under a heading that already says "Overdue", while here it follows
+            a date, where a bare "3 days" reads just as easily as three days
+            from now. */}
         <span className="task-sheet-late">
-          {t("rowOverdueDays", { days: -due.dayOffset })}
+          {t("dueOverdueBy", { days: -due.dayOffset })}
         </span>
       </>
     );
@@ -1247,6 +1315,36 @@ function TaskHistoryEntry({
 // number, where that dot reads as dirt on the screen, not as punctuation.
 function formatDueMonth(format: IntlFormatter, dueAt: Date): string {
   return formatDueDate(format, dueAt, { month: "short" }).replace(/\.$/, "");
+}
+
+// The list a submitted form came from, as this page understands it.
+function listQueryFrom(formData: FormData): URLSearchParams {
+  const submitted = new URLSearchParams(getFormString(formData, "listQuery"));
+  const listQuery = new URLSearchParams();
+
+  for (const name of LIST_PARAMS) {
+    const value = submitted.get(name);
+
+    if (value) {
+      listQuery.set(name, value);
+    }
+  }
+
+  return listQuery;
+}
+
+// That list, plus the one notice this redirect is carrying.
+function tasksHref(
+  tenantSlug: string,
+  listQuery: URLSearchParams,
+  noticeName: string,
+  noticeValue: string,
+): string {
+  const params = new URLSearchParams(listQuery);
+
+  params.set(noticeName, noticeValue);
+
+  return withParams(`/${tenantSlug}/field/tasks`, params);
 }
 
 function withParams(path: string, params: URLSearchParams): string {
