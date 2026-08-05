@@ -71,6 +71,7 @@ Multi-PR efforts in progress, each carrying its own status, file map and known g
 - `docs/plans/i18n-next-intl-plan-prompt.md` - internationalizing the web frontend with next-intl (tenant-driven locale).
 - `docs/plans/tenant-purge-plan-prompt.md` - two-stage tenant deletion (archive, retention, background purge).
 - `docs/plans/tenant-superadmin-plan-prompt.md` - a tenant Superadmin role and delegated admin management.
+- `docs/plans/full-project-audit-plan.md` - the whole-codebase audit: its rules, severity scale, seven passes and coverage checklist. Read it before starting or resuming an audit pass, and record findings there and in `docs/vizitum-action-plan.md`.
 
 Technical design:
 
