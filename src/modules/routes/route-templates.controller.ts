@@ -24,6 +24,7 @@ import type { RequestContext } from "../tenancy/request-context";
 import {
   AssignRouteTemplateDto,
   CopyRoutePlansDto,
+  CopyRouteWeekDto,
   CreateRouteTemplateDto,
   MoveRouteTemplateItemDto,
   ReorderRouteTemplateItemsDto,
@@ -91,6 +92,19 @@ export class RouteTemplatesController {
   @UsePipes(createStrictValidationPipe())
   copyRoutePlans(@Req() request: Request, @Body() body: CopyRoutePlansDto) {
     return this.routeTemplatesService.copyRoutePlans(
+      getRequestContext(request),
+      body,
+    );
+  }
+
+  @Post("copy-week")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  @UsePipes(createStrictValidationPipe())
+  copyRouteWeek(@Req() request: Request, @Body() body: CopyRouteWeekDto) {
+    return this.routeTemplatesService.copyRouteWeek(
       getRequestContext(request),
       body,
     );

@@ -9,6 +9,7 @@ import { RouteTemplatesController } from "../src/modules/routes/route-templates.
 import {
   AssignRouteTemplateDto,
   CopyRoutePlansDto,
+  CopyRouteWeekDto,
   CreateRouteTemplateDto,
   MoveRouteTemplateItemDto,
   ReorderRouteTemplateItemsDto,
@@ -26,7 +27,7 @@ import {
 
 // Tier 3 of the class-validator DTO track (2.4 in
 // docs/security-remediation-plan.md), minus `visits` which goes on its own:
-// two controllers, thirteen write routes, twelve DTO classes. One file rather
+// two controllers, fourteen write routes, thirteen DTO classes. One file rather
 // than two, because the two controllers are twins — the template's item list
 // and the plan's item list take the same shapes.
 //
@@ -93,6 +94,7 @@ const EVERY_DTO: DtoClass[] = [
   MoveRouteTemplateItemDto,
   AssignRouteTemplateDto,
   CopyRoutePlansDto,
+  CopyRouteWeekDto,
 ];
 
 describe("every routes write route with a body carries the pipe", () => {
@@ -109,6 +111,10 @@ describe("every routes write route with a body carries the pipe", () => {
     [
       "templates.copyRoutePlans",
       RouteTemplatesController.prototype.copyRoutePlans,
+    ],
+    [
+      "templates.copyRouteWeek",
+      RouteTemplatesController.prototype.copyRouteWeek,
     ],
     [
       "templates.updateRouteTemplate",
@@ -161,7 +167,7 @@ describe("every routes write route with a body carries the pipe", () => {
     ],
   ];
 
-  it("attaches a pipe to all thirteen body handlers, and to none of the other eight", () => {
+  it("attaches a pipe to all fourteen body handlers, and to none of the other eight", () => {
     for (const [name, handler] of gatedHandlers) {
       const pipes: unknown[] =
         Reflect.getMetadata(PIPES_METADATA, handler) ?? [];
@@ -179,7 +185,7 @@ describe("every routes write route with a body carries the pipe", () => {
   });
 });
 
-describe("routes DTOs: what all twelve classes share", () => {
+describe("routes DTOs: what all thirteen classes share", () => {
   it("refuses an undeclared property on every route in the tier", async () => {
     for (const dto of EVERY_DTO) {
       await reject(dto, { tenantId: "another-tenant" }, "tenantId");
@@ -300,7 +306,7 @@ describe("RoutesController's five bodies", () => {
   });
 });
 
-describe("RouteTemplatesController's eight bodies", () => {
+describe("RouteTemplatesController's nine bodies", () => {
   it("accepts every payload apps/web posts", async () => {
     await accept(CreateRouteTemplateDto, {
       representativeUserId: "user-a",
@@ -315,6 +321,10 @@ describe("RouteTemplatesController's eight bodies", () => {
     await accept(ReorderRouteTemplateItemsDto, { itemIds: ["item-a"] });
     await accept(AssignRouteTemplateDto, { planDate: "2026-08-10" });
     await accept(CopyRoutePlansDto, { month: "2026-08" });
+    await accept(CopyRouteWeekDto, {
+      fromWeekStart: "2026-08-03",
+      toWeekStart: "2026-08-10",
+    });
   });
 
   it("reports an over-length template name as over-length, on both routes", async () => {
@@ -355,5 +365,20 @@ describe("RouteTemplatesController's eight bodies", () => {
     // Pattern-valid, month-invalid: normalizeMonth still answers
     // ROUTE_COPY_MONTH_INVALID for this one.
     await accept(CopyRoutePlansDto, { month: "2026-13" });
+  });
+
+  it("checks both week-start shapes and leaves the is-it-a-Monday question to the service", async () => {
+    for (const field of ["fromWeekStart", "toWeekStart"]) {
+      await reject(CopyRouteWeekDto, { [field]: "2026-8-3" }, field);
+      await reject(CopyRouteWeekDto, { [field]: "03/08/2026" }, field);
+    }
+
+    // Both pattern-valid: a Tuesday and a calendar-invalid day alike stay
+    // parseWeekStart's ROUTE_COPY_WEEK_INVALID rather than becoming a
+    // VALIDATION_FAILED here.
+    await accept(CopyRouteWeekDto, {
+      fromWeekStart: "2026-08-04",
+      toWeekStart: "2026-02-31",
+    });
   });
 });

@@ -6731,8 +6731,8 @@ textarea {
   margin: 0;
 }
 
-/* Planning tab's month switcher: prev/next arrow buttons flanking a
-   centered "July 2026"-style label. */
+/* Planning's week switcher: prev/next arrow buttons flanking a centered
+   "3 — 9 August"-style label with the week's totals under it. */
 .route-section-head {
   align-items: center;
   display: flex;
@@ -6746,85 +6746,348 @@ textarea {
   text-align: center;
 }
 
-/* "N days planned" label with the copy-last-month icon button opposite it —
-   flex-wrap so the button's confirm-action-inline prompt (see
-   .confirm-action-inline.confirming) drops to its own full-width line
-   instead of overflowing. */
-.days-planned-row {
+/* Field planning: the Monday-first week planner — a seven-cell week card over
+   a list holding one row per day of that same week.
+   apps/web/app/(workspace)/[tenantSlug]/field/planning/page.tsx */
+
+/* Deliberately single-column at every width: the field zone renders inside a
+   centered 430px phone frame on desktop too (.app-shell--mobile-only), so the
+   week card and the day list stack the whole way up. The handoff's tablet and
+   desktop two-column layouts would need a surface this zone never gets. */
+
+.week-card-heading {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.week-card-heading h2 {
+  margin: 0;
+}
+
+.week-card-summary {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin: 2px 0 0;
+}
+
+.week-grid {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+/* 54px by design, which also clears the 44px minimum touch target — the cells
+   are the narrowest tap target on a screen built for a phone in the field. */
+.week-cell {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  justify-content: center;
+  min-height: 54px;
+  padding: 6px 2px;
+  text-decoration: none;
+}
+
+.week-cell.is-empty {
+  background: var(--surface);
+  border-style: dashed;
+}
+
+.week-cell:hover {
+  border-color: var(--accent);
+}
+
+.week-cell.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 4px 10px -3px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.week-cell-weekday {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Today is marked on the weekday label rather than the cell itself, so it
+   survives the selected state painting the whole cell. */
+.week-cell-weekday.is-today {
+  color: var(--accent);
+}
+
+.week-cell-number {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.week-cell-count {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.week-cell-add {
+  color: var(--placeholder);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.week-cell.is-selected .week-cell-weekday,
+.week-cell.is-selected .week-cell-number,
+.week-cell.is-selected .week-cell-add {
+  color: var(--surface);
+}
+
+.week-cell.is-selected .week-cell-count {
+  color: color-mix(in srgb, var(--surface) 65%, var(--accent));
+}
+
+.week-days {
+  margin-top: 14px;
+}
+
+.week-days-head {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
-.days-planned-row .small-label {
-  margin: 0;
-}
-
-.calendar-grid {
-  display: grid;
-  gap: 4px;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-}
-
-.calendar-weekday {
+.week-days-title {
   color: var(--muted);
   font-size: 11px;
-  font-weight: 800;
-  padding: 6px 0;
-  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin: 0;
   text-transform: uppercase;
 }
 
-.calendar-cell {
-  align-items: center;
-  aspect-ratio: 1 / 1;
+.week-copy-button {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 0;
+}
+
+.week-copy-button:hover {
+  text-decoration: underline;
+}
+
+.week-day-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.week-day-row {
+  align-items: flex-start;
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 14px;
   color: var(--ink);
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: center;
-  padding: 4px;
+  gap: 10px;
+  padding: 12px;
+  text-align: left;
+  width: 100%;
 }
 
-.calendar-cell.empty {
-  background: var(--surface-muted);
-  border-color: transparent;
+/* An unplanned day renders the whole row as the assign trigger, so the row
+   needs the native button chrome stripped to match its planned siblings. */
+button.week-day-row {
+  cursor: pointer;
+  font: inherit;
 }
 
-.calendar-cell.selected {
-  background: var(--accent-soft);
+button.week-day-row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.week-day-row.is-empty {
+  background: transparent;
+  border-style: dashed;
+}
+
+.week-day-row.is-empty:hover:not(:disabled) {
   border-color: var(--accent);
 }
 
-/* Today gets its own filled badge so it stays legible as "today" even when a
-   different day is also selected — the two states must not collapse into one. */
-.calendar-cell.today .calendar-day-number {
+.week-day-row.is-today {
+  border-color: var(--accent);
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* The day picked in the grid above. Listed after .is-today so a day that is
+   both keeps today's border and still shows it is the selected one. */
+.week-day-row.is-selected {
+  background: var(--accent-soft);
+}
+
+.week-day-col {
   align-items: center;
-  background: var(--accent);
-  border-radius: 999px;
-  color: #f7fbf8;
   display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 1px;
+  width: 38px;
+}
+
+.week-day-weekday {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.week-day-number {
+  font-size: 19px;
   font-weight: 800;
-  height: 22px;
-  justify-content: center;
-  width: 22px;
+  line-height: 1.1;
 }
 
-.calendar-day-number {
-  font-size: 13px;
-  line-height: 1;
+.week-day-row.is-today .week-day-weekday,
+.week-day-row.is-today .week-day-number {
+  color: var(--accent);
 }
 
-.calendar-dot {
-  background: var(--accent);
-  border-radius: 999px;
-  height: 5px;
-  width: 5px;
+.week-day-divider {
+  align-self: stretch;
+  background: var(--line);
+  flex-shrink: 0;
+  width: 1px;
+}
+
+.week-day-body {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* An empty day has a single line of content, so its badge sits beside the
+   call to action rather than stacking above it. */
+.week-day-row.is-empty .week-day-body {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.week-day-assign {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.week-day-today-badge {
+  background: var(--accent-soft);
+  border-radius: 5px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  justify-self: start;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.week-day-routes {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.week-day-route {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.week-day-route-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.week-day-route-name {
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.week-day-route-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.week-day-add {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  justify-self: start;
+  padding: 2px 0;
+}
+
+.week-day-add:hover {
+  text-decoration: underline;
+}
+
+.week-day-add:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.week-cell:focus-visible,
+.week-day-row:focus-visible,
+.week-copy-button:focus-visible,
+.week-day-add:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 360px) {
+  .week-grid {
+    gap: 3px;
+  }
+
+  .week-cell {
+    padding: 6px 0;
+  }
+
+  .week-day-row {
+    padding: 10px;
+  }
 }
 
 /* Field planning: "Мої маршрути" two-tab surface (route builder + calendar

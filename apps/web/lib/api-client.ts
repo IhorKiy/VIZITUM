@@ -1460,6 +1460,18 @@ export async function copyRoutePlansFromLastMonth(input: {
   );
 }
 
+// Both ends are named, because the week planner copies forward (the week on
+// screen into the next one) while the month copy pulls backward.
+export async function copyRouteWeek(input: {
+  fromWeekStart: string;
+  toWeekStart: string;
+}): Promise<ApiResult<{ createdCount: number; skippedCount: number }>> {
+  return apiPost<{ createdCount: number; skippedCount: number }>(
+    "/routes/templates/copy-week",
+    input,
+  );
+}
+
 // `completedPeriod` echoes the window the API actually read, present only when
 // the caller asked for one — and optional besides, because for a minute or two
 // during a deploy this frontend talks to the previous API. A screen that needs

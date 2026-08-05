@@ -35,6 +35,7 @@ import type {
   AssignRouteTemplateRequestBody,
   CopyRouteTemplatePlansRequestBody,
   CopyRouteTemplatePlansResponse,
+  CopyRouteTemplateWeekRequestBody,
   CreateRouteTemplateItemRequestBody,
   CreateRouteTemplateRequestBody,
   ListRouteTemplatesQuery,
@@ -580,6 +581,132 @@ export class RouteTemplatesService {
     return { createdCount, skippedCount };
   }
 
+  // Re-assigns every template-based plan of `fromWeekStart`'s week onto the
+  // same weekday of `toWeekStart`'s week. Unlike the month copy there is no
+  // day that can fail to exist in the target — a week is always seven days —
+  // so the only skip reason is a (date, template) pair already taken.
+  async copyRouteWeek(
+    context: RequestContext,
+    body: CopyRouteTemplateWeekRequestBody,
+  ): Promise<CopyRouteTemplatePlansResponse> {
+    const fromWeekStart = parseWeekStart(body.fromWeekStart);
+    const toWeekStart = parseWeekStart(body.toWeekStart);
+
+    if (!fromWeekStart || !toWeekStart) {
+      throw new BadRequestException({
+        code: "ROUTE_COPY_WEEK_INVALID",
+        message: "Week starts must use YYYY-MM-DD format and be a Monday.",
+      });
+    }
+
+    if (dateKey(fromWeekStart) === dateKey(toWeekStart)) {
+      throw new BadRequestException({
+        code: "ROUTE_COPY_WEEK_SAME",
+        message: "Source and target weeks must differ.",
+      });
+    }
+
+    if (!context.userId) {
+      throwAuthenticationContextMissing();
+    }
+
+    const representativeUserId = context.userId;
+    // Offset in whole days rather than a fixed 7, so the same endpoint serves
+    // "copy into next week" and any other week the caller names.
+    const dayOffset = Math.round(
+      (toWeekStart.getTime() - fromWeekStart.getTime()) / MILLISECONDS_PER_DAY,
+    );
+
+    const [sourcePlans, existingPlans] = await Promise.all([
+      this.prisma.routePlan.findMany({
+        where: {
+          tenantId: context.tenantId,
+          representativeUserId,
+          routeTemplateId: { not: null },
+          planDate: { gte: fromWeekStart, lt: addDays(fromWeekStart, 7) },
+        },
+        select: { planDate: true, routeTemplateId: true },
+        orderBy: { planDate: "asc" },
+      }),
+      this.prisma.routePlan.findMany({
+        where: {
+          tenantId: context.tenantId,
+          representativeUserId,
+          routeTemplateId: { not: null },
+          planDate: { gte: toWeekStart, lt: addDays(toWeekStart, 7) },
+        },
+        select: { planDate: true, routeTemplateId: true },
+      }),
+    ]);
+
+    // Keyed by (date, template) to match the partial unique index, exactly as
+    // the month copy does — a target day that already holds a *different*
+    // template still receives this one.
+    const occupiedTemplateDates = new Set(
+      existingPlans.map((plan) =>
+        occupancyKey(plan.planDate, plan.routeTemplateId),
+      ),
+    );
+    const templateIds = [
+      ...new Set(
+        sourcePlans
+          .map((plan) => plan.routeTemplateId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    const templates = await this.prisma.routeTemplate.findMany({
+      where: { id: { in: templateIds }, tenantId: context.tenantId },
+      include: routeTemplateInclude,
+    });
+    const templateById = new Map(templates.map((t) => [t.id, t]));
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (const sourcePlan of sourcePlans) {
+      if (!sourcePlan.routeTemplateId) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const targetDate = addDays(sourcePlan.planDate, dayOffset);
+      const key = occupancyKey(targetDate, sourcePlan.routeTemplateId);
+
+      if (occupiedTemplateDates.has(key)) {
+        skippedCount += 1;
+        continue;
+      }
+
+      const template = templateById.get(sourcePlan.routeTemplateId);
+
+      if (!template) {
+        skippedCount += 1;
+        continue;
+      }
+
+      try {
+        await this.materializeTemplateAssignment(
+          context.tenantId,
+          template,
+          targetDate,
+        );
+        occupiedTemplateDates.add(key);
+        createdCount += 1;
+      } catch (error) {
+        // Same concurrency allowance as the month copy: another tab taking
+        // this pair mid-batch is a skip, not a 409 that abandons the rest.
+        if (error instanceof ConflictException) {
+          skippedCount += 1;
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    return { createdCount, skippedCount };
+  }
+
   private async materializeTemplateAssignment(
     tenantId: string,
     template: RouteTemplateWithItems,
@@ -792,6 +919,28 @@ function normalizeMonth(value: unknown): string | null {
 
 function monthStart(month: string): Date {
   return new Date(`${month}-01T00:00:00.000Z`);
+}
+
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Plan dates are `@db.Date` and parsed at UTC midnight, so whole-day
+// arithmetic never crosses a DST boundary the way a local-time Date would.
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * MILLISECONDS_PER_DAY);
+}
+
+// A week is addressed by its Monday, matching the Monday-first grid the
+// planner draws. Any other weekday is rejected rather than snapped, so a
+// caller that miscomputed its week boundary hears about it instead of
+// silently copying a seven-day window straddling two weeks.
+function parseWeekStart(value: unknown): Date | null {
+  const date = parseDateOnly(value);
+
+  if (!date || date.getUTCDay() !== 1) {
+    return null;
+  }
+
+  return date;
 }
 
 function dateKey(date: Date): string {

@@ -132,6 +132,7 @@ describe("route templates permissions", () => {
     const mutationHandlers = [
       RouteTemplatesController.prototype.createRouteTemplate,
       RouteTemplatesController.prototype.copyRoutePlans,
+      RouteTemplatesController.prototype.copyRouteWeek,
       RouteTemplatesController.prototype.updateRouteTemplate,
       RouteTemplatesController.prototype.deleteRouteTemplate,
       RouteTemplatesController.prototype.createRouteTemplateItem,

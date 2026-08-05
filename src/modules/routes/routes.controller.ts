@@ -50,6 +50,8 @@ export class RoutesController {
       pageSize: parsePositiveInteger(query.pageSize),
       representativeUserId: normalizeQueryString(query.representativeUserId),
       planDate: normalizeQueryString(query.planDate),
+      planDateFrom: normalizeQueryString(query.planDateFrom),
+      planDateTo: normalizeQueryString(query.planDateTo),
       status: parseRouteStatus(query.status),
     });
   }

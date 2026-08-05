@@ -43,6 +43,12 @@ export type ListRoutesQuery = {
   pageSize?: number;
   representativeUserId?: string;
   planDate?: string;
+  // Inclusive date-range window, the filter the week planner reads with. Both
+  // ends are optional and independent, so a caller can ask for "from this
+  // Monday on" without naming an end. `planDate` still wins when supplied —
+  // an exact day is the narrower question.
+  planDateFrom?: string;
+  planDateTo?: string;
   status?: RouteStatus;
 };
 
@@ -142,4 +148,15 @@ export type CopyRouteTemplatePlansRequestBody = {
 export type CopyRouteTemplatePlansResponse = {
   createdCount: number;
   skippedCount: number;
+};
+
+/**
+ * Both week starts are named explicitly rather than derived from one anchor,
+ * because the week planner copies *forward* (the week on screen into the next
+ * one) while the month copy pulls *backward* — an API that only took a target
+ * and assumed a direction could serve one of them and not the other.
+ */
+export type CopyRouteTemplateWeekRequestBody = {
+  fromWeekStart?: unknown;
+  toWeekStart?: unknown;
 };

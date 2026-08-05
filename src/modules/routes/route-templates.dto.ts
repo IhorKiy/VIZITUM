@@ -108,3 +108,19 @@ export class CopyRoutePlansDto {
   @Matches(MONTH_PATTERN, { message: "month must be in YYYY-MM format." })
   month?: string | null;
 }
+
+export class CopyRouteWeekDto {
+  // Shape only again — that each value is a real Monday is a calendar
+  // question the pattern can't ask, so the service re-checks it.
+  @IsOptional()
+  @Matches(DATE_ONLY_PATTERN, {
+    message: "fromWeekStart must be in YYYY-MM-DD format.",
+  })
+  fromWeekStart?: string | null;
+
+  @IsOptional()
+  @Matches(DATE_ONLY_PATTERN, {
+    message: "toWeekStart must be in YYYY-MM-DD format.",
+  })
+  toWeekStart?: string | null;
+}
