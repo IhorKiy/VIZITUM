@@ -14,12 +14,12 @@ import {
 import { AuditService } from "../audit/audit.service";
 import { withinLimit } from "../../common/input-limits";
 import { PrismaService } from "../prisma/prisma.service";
-import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import {
   assertCanManageRouteForRepresentative,
   assertFieldRepresentative,
   assertTenantLocation,
+  resolveRouteRepresentativeFilter,
   throwAuthenticationContextMissing,
 } from "./route-access";
 import {
@@ -61,21 +61,17 @@ export class RouteTemplatesService {
     context: RequestContext,
     query: ListRouteTemplatesQuery,
   ): Promise<PaginatedResponse<RouteTemplateResponse>> {
-    const requestedRepresentativeId = normalizeId(query.representativeUserId);
-    const representativeFilter = context.permissions.includes(
-      PERMISSIONS.ROUTES_MANAGE_TEAM,
-    )
-      ? requestedRepresentativeId
-      : context.userId;
-
-    if (!representativeFilter) {
-      throwAuthenticationContextMissing();
-    }
+    const representativeFilter = resolveRouteRepresentativeFilter(
+      context,
+      normalizeId(query.representativeUserId),
+    );
 
     const pagination = resolvePagination(query);
     const where = {
       tenantId: context.tenantId,
-      representativeUserId: representativeFilter,
+      ...(representativeFilter
+        ? { representativeUserId: representativeFilter }
+        : {}),
     };
     const [templates, total] = await Promise.all([
       this.prisma.routeTemplate.findMany({

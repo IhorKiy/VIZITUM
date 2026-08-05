@@ -235,6 +235,93 @@ describe("route template tenant isolation", () => {
   });
 });
 
+describe("route template list scope", () => {
+  function buildListPrisma() {
+    const whereCalls: unknown[] = [];
+
+    return {
+      whereCalls,
+      prisma: {
+        routeTemplate: {
+          findMany: async (args: { where: unknown }) => {
+            whereCalls.push(args.where);
+            return [];
+          },
+          count: async (args: { where: unknown }) => {
+            whereCalls.push(args.where);
+            return 0;
+          },
+        },
+      },
+    };
+  }
+
+  it("returns every representative's templates when a team manager asks for no one in particular", async () => {
+    // Same regression as GET /routes: this used to throw
+    // AUTHENTICATION_CONTEXT_MISSING, contradicting api-reference.md's own
+    // description of the query ("representativeUserId only honored for
+    // routes.manage_team callers"). Both lists resolve their scope through
+    // route-access.ts's shared helper so they cannot drift apart again.
+    const { prisma, whereCalls } = buildListPrisma();
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await service.listRouteTemplates(managerContext as never, {});
+
+    assert.equal(whereCalls.length, 2);
+    for (const where of whereCalls) {
+      assert.deepEqual(where, { tenantId: "tenant-a" });
+      assert.equal(Object.hasOwn(where as object, "representativeUserId"), false);
+    }
+  });
+
+  it("narrows to the requested representative when a team manager names one", async () => {
+    const { prisma, whereCalls } = buildListPrisma();
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await service.listRouteTemplates(managerContext as never, {
+      representativeUserId: "rep-b",
+    });
+
+    for (const where of whereCalls) {
+      assert.deepEqual(where, {
+        tenantId: "tenant-a",
+        representativeUserId: "rep-b",
+      });
+    }
+  });
+
+  it("pins an own-scope representative to their own templates, ignoring a requested id", async () => {
+    const { prisma, whereCalls } = buildListPrisma();
+    const service = new RouteTemplatesService(prisma as never, noopAudit as never);
+
+    await service.listRouteTemplates(representativeContext as never, {
+      representativeUserId: "rep-b",
+    });
+
+    for (const where of whereCalls) {
+      assert.deepEqual(where, {
+        tenantId: "tenant-a",
+        representativeUserId: "rep-a",
+      });
+    }
+  });
+
+  it("still refuses an own-scope read with no authenticated user to scope it to", async () => {
+    const service = new RouteTemplatesService({} as never, noopAudit as never);
+
+    await assert.rejects(
+      service.listRouteTemplates(
+        { ...representativeContext, userId: undefined } as never,
+        {},
+      ),
+      (error: unknown) => {
+        assert.equal(errorCode(error), "AUTHENTICATION_CONTEXT_MISSING");
+        return true;
+      },
+    );
+  });
+});
+
 describe("route template ownership scope", () => {
   it("forbids a representative from creating a template for someone else", async () => {
     const service = new RouteTemplatesService({} as never, noopAudit as never);

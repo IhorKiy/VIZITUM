@@ -300,6 +300,104 @@ describe("routes permissions", () => {
   });
 });
 
+describe("route list scope", () => {
+  // Captures the `where` both the page query and the count are built from —
+  // they must be the same filter, or the pagination total describes a
+  // different set than the rows.
+  function buildListPrisma() {
+    const whereCalls: unknown[] = [];
+
+    return {
+      whereCalls,
+      prisma: {
+        routePlan: {
+          findMany: async (args: { where: unknown }) => {
+            whereCalls.push(args.where);
+            return [];
+          },
+          count: async (args: { where: unknown }) => {
+            whereCalls.push(args.where);
+            return 0;
+          },
+        },
+      },
+    };
+  }
+
+  it("returns every representative's plans when a team manager asks for no one in particular", async () => {
+    // Regression: this used to throw AUTHENTICATION_CONTEXT_MISSING, which
+    // broke the manager representative-workload screen — it calls
+    // GET /routes with pagination only. Team-wide scope with no
+    // representative requested means all of them, as getTodayRoutes reads it.
+    const { prisma, whereCalls } = buildListPrisma();
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    const response = await service.listRoutes(managerContext as never, {});
+
+    assert.deepEqual(response.items, []);
+    assert.equal(whereCalls.length, 2);
+    for (const where of whereCalls) {
+      assert.deepEqual(where, { tenantId: "tenant-a" });
+      // Explicitly absent, not set to undefined/null: a `representativeUserId`
+      // key of any value would narrow this back to a single representative.
+      assert.equal(
+        Object.hasOwn(where as object, "representativeUserId"),
+        false,
+      );
+    }
+  });
+
+  it("narrows to the requested representative when a team manager names one", async () => {
+    const { prisma, whereCalls } = buildListPrisma();
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await service.listRoutes(managerContext as never, {
+      representativeUserId: "rep-b",
+    });
+
+    for (const where of whereCalls) {
+      assert.deepEqual(where, {
+        tenantId: "tenant-a",
+        representativeUserId: "rep-b",
+      });
+    }
+  });
+
+  it("pins an own-scope representative to their own plans, ignoring a requested id", async () => {
+    const { prisma, whereCalls } = buildListPrisma();
+    const service = new RoutesService(prisma as never, noopAudit as never);
+
+    await service.listRoutes(representativeContext as never, {
+      representativeUserId: "rep-b",
+    });
+
+    for (const where of whereCalls) {
+      assert.deepEqual(where, {
+        tenantId: "tenant-a",
+        representativeUserId: "rep-a",
+      });
+    }
+  });
+
+  it("still refuses an own-scope read with no authenticated user to scope it to", async () => {
+    const service = new RoutesService({} as never, noopAudit as never);
+
+    await assert.rejects(
+      service.listRoutes(
+        { ...representativeContext, userId: undefined } as never,
+        {},
+      ),
+      (error: { getResponse?: () => { code?: string } }) => {
+        assert.equal(
+          error.getResponse?.().code,
+          "AUTHENTICATION_CONTEXT_MISSING",
+        );
+        return true;
+      },
+    );
+  });
+});
+
 describe("route plan removal", () => {
   it("forbids a representative from deleting another representative's plan", async () => {
     const prisma = {
