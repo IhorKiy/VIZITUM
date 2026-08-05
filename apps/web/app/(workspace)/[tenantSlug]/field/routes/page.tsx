@@ -287,10 +287,14 @@ export default async function RoutesPage({
     );
   }
 
-  // Explicit `representativeUserId` so a caller who also holds
-  // `routes.manage_team` (e.g. this repo's "all roles" demo account) still
-  // sees their own routes here — without it, the backend treats an omitted
-  // filter as "team view" and requires the param instead of defaulting to self.
+  // Explicit `representativeUserId` is what keeps this screen personal for a
+  // caller who also holds `routes.manage_team` (e.g. this repo's "all roles"
+  // demo account, or any team_manager who is also a field rep). The backend
+  // reads an omitted filter as team-wide and answers with the whole tenant,
+  // so dropping this param would quietly show a dual-role rep every
+  // colleague's templates on their own field screen. It used to fail loudly
+  // instead — an omitted filter was a 403 — so there is no longer an error
+  // to catch its absence, only this line.
   const ownRepresentativeQuery = `representativeUserId=${sessionResult.data.user.id}`;
   const [templatesResult, locationsResult] = await Promise.all([
     listRouteTemplates(`pageSize=100&${ownRepresentativeQuery}`),

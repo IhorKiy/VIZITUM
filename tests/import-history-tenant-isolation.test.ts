@@ -74,6 +74,9 @@ describe("import history tenant isolation", () => {
   it("404s instead of applying another tenant's import job", async () => {
     // The sharpest case: this path writes rows. A cross-tenant confirm would
     // apply tenant-b's file into whatever tenant the caller belongs to.
+    // job-b1 carries a real stored parsed file (see buildJob), so this job is
+    // genuinely confirmable — the 404 below is the tenant filter refusing it,
+    // not the job being unusable for some other reason.
     const store = createStore();
     const service = new ImportsService(store.prisma as never);
 
@@ -94,6 +97,11 @@ describe("import history tenant isolation", () => {
       },
     );
 
+    // Belt-and-braces. The store's `$transaction` throws a sentinel rather
+    // than counting silently, so a confirm that got that far fails the
+    // rejection predicate above first — verified by dropping the tenant
+    // filter, which reaches the transaction and surfaces that sentinel
+    // instead of a NotFoundException.
     assert.equal(store.transactionCount, 0);
   });
 });
@@ -130,7 +138,20 @@ function buildJob(
     validRowCount: 3,
     errorRowCount: 0,
     warningRowCount: 0,
-    summary: { appliedCounts: { users: 3 } },
+    // `columns`/`rows` are what `parseStoredParsedFile` needs, and they are
+    // here on purpose: that parse runs *before* confirm opens its
+    // transaction, so a summary without them would make confirm throw early
+    // for a reason that has nothing to do with tenancy — and the
+    // "never reached the transaction" assertion would then hold no matter
+    // how the scoping behaved. With a real stored file, dropping the tenant
+    // filter genuinely reaches the transaction, which is what makes that
+    // assertion catch something. `appliedCounts` is separate: the history
+    // list reads it, and it differs per tenant below.
+    summary: {
+      appliedCounts: { users: 3 },
+      columns: ["email", "firstName", "lastName"],
+      rows: [{ email: "rep@tenant-a.local", firstName: "Rep", lastName: "A" }],
+    },
     uploadedBy: { id: "user-a", email: "admin@tenant.local", name: "Admin" },
     confirmedBy: null,
     issues: [],
@@ -149,7 +170,13 @@ function createStore() {
     buildJob({
       id: "job-b1",
       tenantId: "tenant-b",
-      summary: { appliedCounts: { users: 9 } },
+      summary: {
+        appliedCounts: { users: 9 },
+        columns: ["email", "firstName", "lastName"],
+        rows: [
+          { email: "rep@tenant-b.local", firstName: "Rep", lastName: "B" },
+        ],
+      },
     }),
   ];
 

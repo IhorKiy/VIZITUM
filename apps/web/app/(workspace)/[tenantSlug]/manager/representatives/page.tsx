@@ -119,6 +119,19 @@ export default async function ManagerRepresentativesPage({
   const search = normalizeFilterValue(pageState.search);
   const selectedActivity = normalizeActivityFilter(pageState.activity);
   const hasFilters = Boolean(search || selectedActivity);
+  // Each of these is one page, capped server-side at MAX_PAGE_SIZE (100, see
+  // src/common/pagination.ts) whatever is asked for, and every per-rep figure
+  // below is derived by grouping that one page client-side. So `routeCount`
+  // and `lastActivityAt` describe the 100 most recent plans **across the whole
+  // team**, not per representative: in a tenant where several reps plan daily
+  // the window covers only the last few days and the counts read low. The
+  // field planning screen carries the same ceiling for a single rep; here the
+  // one window is split across the team, so the effect is proportionally
+  // worse. Not a regression — until GET /routes stopped refusing a team-wide
+  // caller these numbers did not load at all — but this is the first build
+  // where a reader sees them. The real fix is the same one that screen names:
+  // a server-side date-range filter on GET /routes, so this asks for a period
+  // instead of a page.
   const [routesResult, visitsResult, tasksResult] = await Promise.all([
     listRoutes("pageSize=100"),
     listVisits("pageSize=100"),
