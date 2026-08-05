@@ -601,7 +601,17 @@ All four Pass 3 findings instead came from things that **repeat across many file
   **Not read**: all fourteen screen bodies, and the six screen-pass questions no global sweep covered for this zone (4 is answered only for the back controls above, and 6, 7, 8, 9 and 10 not at all). The offline paths this entry names are audited in the shared-foundations section above, not here — that covers the libraries and the service worker, not these screens' use of them.
 - [ ] `[tenantSlug]/operations` — 1 route — **conventions swept, screen body not read.** Covered by the four global sweeps; no `BackLink`, no reflected `searchParams` render. It is one of the 25 screens rendering a raw `result.message` (**F14**).
 - [x] `platform/*` — 3 routes; renders in `en` by design — **design confirmed, and it is what excludes this zone from two findings.** These three pages call **no** next-intl API — zero `useTranslations`/`getTranslations` across the zone — so their hardcoded English is the documented design rather than an i18n violation, and their own `result.message` renders are correct where the same pattern is **F14** in a tenant zone. Seven of **F13**'s ten hand-rolled submit buttons are here, which is why that finding is scoped to the two field-zone ones. **F1** lives on `platform/tenants`. No `BackLink` in the zone. Screen bodies not read.
-- [ ] Accessibility sweep: labels, focus order, `aria-busy`/`aria-label` on icon-only controls
+- [ ] Accessibility sweep: labels, focus order, `aria-busy`/`aria-label` on icon-only controls — **partly run; focus order not attempted**
+
+  Worth stating first: **no accessibility linting is configured**. `eslint.config.mjs` carries `@eslint/js`, `@next/eslint-plugin-next`, `eslint-plugin-react-hooks`, `typescript-eslint` and `eslint-config-prettier` — there is no `eslint-plugin-jsx-a11y`. So nothing in CI checks any of this, which is what made the sweep worth running.
+
+  - **`aria-label` on icon-only controls — swept, one gap.** 339 `<button>`/`<a>`/`PendingSubmitButton`/`ConfirmActionButton` elements scanned; exactly one has neither an accessible name nor a text child → **F22**.
+  - **`aria-busy` on pending controls — already answered by F13**: ten hand-rolled submit buttons carry neither `aria-busy` nor `is-pending`, so `disabled` alone announces "unavailable" rather than "working".
+  - **Labels — not reliably checkable by static analysis here, and the spot-checks were clean.** A naive sweep flags 51 of 163 form controls, and every one inspected was a false positive: labelling goes through multi-line `<label>` nesting and through wrapper components — `FilterField` renders `<label className="filter-field"><span>{label}</span>…</label>` around its children, which no text scan can attribute to the control inside. Answering this properly needs rendered output, not source.
+  - **`<img>` without `alt` — none.**
+  - **Focus order — not attempted.** It cannot be established from source; it needs a rendered page and keyboard traversal.
+
+  A `jsx-a11y` config would answer the first, second and fourth of these on every commit, and is the structural version of this checkbox.
 - [ ] Mobile viewport sweep of the field zone (the primary device for this role)
 
 ### Mechanical sweeps across every screen, run 2026-08-05
@@ -630,7 +640,7 @@ Rule #10, and this is the pass with the most partial coverage in the audit — r
 
 **No screen body was read in any zone** — 50 `page.tsx` files, none of them opened for its own logic. That includes the two the plan itself flags by size: `admin/locations/page.tsx` (1699 lines) and `manager/tasks/page.tsx` (1094 lines, 27 commits). The one large component that *was* partly read, `field-visit-report-form.tsx`, is a shared foundation rather than a screen, and its own entry records that ~1500 lines of it are still unread.
 
-**Neither of the two sweeps at the foot of the zone list was run**: the accessibility sweep (labels, focus order, `aria-busy`/`aria-label` on icon-only controls) and the mobile viewport sweep of the field zone. The first is partly prejudged by **F13**, which found ten hand-rolled submit buttons carrying neither `aria-busy` nor `is-pending` — that is a reason to expect the sweep to find more, not a substitute for running it.
+**Of the two sweeps at the foot of the zone list, one is partly run and one is not run at all.** The accessibility sweep covered what source analysis can settle — icon-only accessible names (339 controls, one gap → **F22**), `aria-busy` (already **F13**) and `<img alt>` (none missing) — and its own entry records what it could not: focus order, which needs a rendered page, and label association, which goes through wrapper components a text scan cannot attribute. **The mobile viewport sweep of the field zone was not run**, which is the more consequential of the two given that zone is the product's primary device.
 
 What *is* closed is the shared-foundations list — 8 of 8, with its own summary above.
 
@@ -706,14 +716,14 @@ Update after each pass. `Findings` counts only recorded, verified findings.
 | 0 — Automated baseline | done | 0/0/2/0 | 2026-08-05 | Every check green; both findings came out of the e2e run's logs, not a failed assertion |
 | 1 — Cross-cutting axes | mostly done | 0/0/2/0 | 2026-08-05 | Tenant isolation holds under mechanical check; 5 axes deferred — see Skipped |
 | 2 — Backend modules | **done** — all 24 modules examined, plus the 3 non-module units (`src/common/*`, bootstrap, `worker`); Tier C 9/9, Tier B 11/11 (7 fully), Tier A 7/7 (4 fully) | 0/1/5/2 | 2026-08-05 | F2, F3, F4, F6, F7, F8, F9, F10, F11, F12. Zero findings on authorization, tenant isolation or ownership. 7 boxes deliberately unticked = audited on named paths; each module's note lists what was left |
-| 3 — Frontend zones | 8 foundations done; **all 7 zones swept for conventions**; no screen body read in any zone | 0/0/3/3 | 2026-08-05 | Sweeps → F13; `api-client.ts` → F14; mirrors → F15; `globals.css` → F16; field back-origin → F17; admin reflected param → F21. Accessibility and mobile sweeps not run |
+| 3 — Frontend zones | 8 foundations done; all 7 zones swept for conventions; a11y sweep partly run; no screen body read in any zone | 0/0/3/4 | 2026-08-05 | F13, F14, F15, F16, F17, F21, F22. Focus order and the mobile viewport sweep not attempted |
 | 4 — Data layer | done, except the production drift check | 0/0/1/0 | 2026-08-05 | F18 (product-category orphans). Every schema-level axis clean with zero exceptions: 35/35 tenant indexes, 59/59 explicit `onDelete`, 45/45 unedited migrations, 39/39 documented models |
 | 5 — Tests and docs | done, except enumerating untested contracts | 0/0/0/1 | 2026-08-05 | F19 (three drifted prose records). Machine-checkable records are exact: 173/173 tests + 12/12 specs mapped, 139/139 endpoints, 24/24 modules, 0 assertion-free tests |
 | 6 — Operations | done, except the restore drill | 0/0/0/1 | 2026-08-05 | F20 (3 majors behind). CI covers all 10 Pass 0 commands; logs carry no tokens or bodies; the deployment runbook independently confirms F19's provisioning drift |
 
 ## Findings
 
-**21 findings: 0 S1 · 1 S2 · 13 S3 · 7 S4.** The stop-the-line rule never fired.
+**22 findings: 0 S1 · 1 S2 · 13 S3 · 8 S4.** The stop-the-line rule never fired.
 
 Where they came from is the result worth reading before the list. **Authorization, tenant isolation and ownership produced zero findings across all 24 backend modules and the three shared areas audited alongside them (27 units; `src/common/*`, the bootstrap and `worker` are audit units, not modules)**, and those were the axes checked hardest — 393 Prisma calls swept for a tenant predicate, 139 handlers for a permission declaration, every `*_OWN` permission traced to its enforcement. Pass 4 found the schema equally exact: 35/35 tenant indexes, 59/59 explicit `onDelete`, 45/45 unedited migrations, 0 non-null assertions. Pass 5 found every machine-checkable record accurate: 173/173 tests and 12/12 specs mapped, 139/139 endpoints and 24/24 modules documented.
 
@@ -726,6 +736,13 @@ Three gaps recur, and the examples under each are illustrative rather than an ex
 That third group is the largest, and it is the one a reader should act on structurally rather than item by item: in every case the convention was written down and nothing compiled, diffed or asserted it.
 
 Recorded in the format above, newest first. Every entry must also be filed into the matching backlog section of `docs/vizitum-action-plan.md` — the `Filed:` line is not optional.
+
+### [S4] F22 — One icon-only button has no accessible name at all
+
+- Where: `apps/web/components/field-visit-report-form.tsx:1747` — the clear-search button inside the product picker on the field report form
+- Failure: `<button onClick={() => setProductSearch("")} type="button"><CloseIcon /></button>` carries no `aria-label`, no `title` and no text child, and `CloseIcon`'s own `<svg>` is `aria-hidden="true"` — so it contributes nothing to the accessible name either. A screen reader announces it as "button", with nothing to say what it does. A rep using one has to infer the control's purpose from position alone, on the screen they use for every visit.
+- **It is the single deviation across 339 button and link elements**, which is the more useful half of this record: every other icon-only control in `app/` and `components/` carries either an `aria-label` or a text child. The convention `CLAUDE.md` states for `BackLink` — that an icon-only control needs a label "since the control carries no visible text" — is followed everywhere else. The fix is one attribute, and the message key pattern to follow is already used by the sibling controls in the same file.
+- Filed: action-plan §13
 
 ### [S3] F21 — The admin users screen renders an unvalidated query parameter as its own error message
 
