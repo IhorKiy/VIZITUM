@@ -707,8 +707,10 @@ export default async function FieldTasksPage({
                     type="radio"
                     value="done"
                   />
-                  {/* No count: the done list is read through a window, so any
-                  number here would be a count of a period nobody named yet. */}
+                  {/* No count: the finished list is read a page at a time, so a
+                  number here would count far more than is ever on screen. The
+                  total is stated above the page instead, where it is the
+                  denominator the pagination line counts against. */}
                   <span>{formatEnumLabel(tCommon, "done")}</span>
                 </label>
               </div>

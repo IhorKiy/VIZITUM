@@ -3710,15 +3710,6 @@ textarea {
   white-space: nowrap;
 }
 
-/* The board spaces its own rows with a grid gap, but the filter form inside one
-   of them is a plain block — the strip has to stay a lone scrolling row rather
-   than a grid item whose content can widen the column. So the period line
-   carries its own spacing here, and only here: on the other screens it sits in
-   a toolbar whose gap already spaces it, and a margin would stack on top. */
-.task-board .period-links {
-  margin: 10px 0 12px;
-}
-
 /* Holds the filter row so the collapsed bar can watch it. A grid item in the
    board like the row was, and — like every grid item wrapping a strip that
    scrolls sideways — pinned to zero minimum width, or the strip's own content
