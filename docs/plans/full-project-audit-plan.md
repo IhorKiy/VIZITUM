@@ -34,6 +34,8 @@ Start here. Large code that also moves constantly is where defects and debt conc
 
 Churn is over the **repository's whole history** — first commit 2026-06-26, 356 commits. That is roughly six weeks, not the six-month window a mature repo's churn table would use, so read these counts as "how much this file has moved since the project began", and re-measure the window rather than the numbers when this table is refreshed.
 
+Measured with `git log --follow --oneline -- '<file>' | wc -l`. The `--follow` matters: some of these files have been renamed (`manager/tasks/page.tsx` counts 27 with it, 1 without), so a plain `git log -- <file>` re-measurement will silently undercount and make the table look fabricated. Quote bracketed paths or use `:(literal)` so git doesn't treat `[tenantSlug]` as a glob.
+
 | file | lines | commits (all history) |
 |---|---|---|
 | `apps/web/app/globals.css` | 7094 | 108 |
@@ -97,9 +99,9 @@ Seven passes, in order. Passes 0 and 1 are global; 2–4 are the bulk and run mo
 
 Free, objective signal. Everything here is machine-checkable, so no human judgment is spent on it.
 
-> This worktree has no `node_modules` of its own — run `npm ci && npx prisma generate` here first, or the results are not trustworthy. Do not run `npm ci` inside `apps/web`. Postgres and Redis are shared across worktrees: bring them up with `npm run db:up` **from the repo root checkout only**, never from here, or a second container fights over port 5432 and every database-backed result below becomes noise.
+> If this pass runs in a worktree slot rather than the repo root checkout: fresh worktrees have no `node_modules` of their own — run `npm ci && npx prisma generate` in the worktree first, or the results are not trustworthy. Do not run `npm ci` inside `apps/web`. Postgres and Redis are shared across all checkouts: bring them up with `npm run db:up` **from the repo root checkout only** — running it from a worktree starts a second container that fights over port 5432 and turns every database-backed result below into noise.
 
-- [ ] `npm ci && npx prisma generate` in this worktree
+- [ ] `npm ci && npx prisma generate` in the checkout running the audit (mandatory in a fresh worktree slot)
 - [ ] `npm run prisma:validate` — schema parses (first thing CI runs; a broken schema makes everything after it meaningless)
 - [ ] `npm run lint` — zero warnings (`--max-warnings 0`)
 - [ ] `npm run format:check` — Prettier clean (CI runs this separately from lint)
