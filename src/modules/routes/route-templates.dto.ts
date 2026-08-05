@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import {
+  ArrayMaxSize,
   IsArray,
   IsIn,
   IsInt,
@@ -11,7 +12,11 @@ import {
 } from "class-validator";
 
 import { TEXT_LIMITS } from "../../common/input-limits";
-import { DATE_ONLY_PATTERN, MONTH_PATTERN } from "./route-parsing";
+import {
+  DATE_ONLY_PATTERN,
+  MAX_ASSIGN_DATES,
+  MONTH_PATTERN,
+} from "./route-parsing";
 
 /**
  * Second half of tier 3 on the class-validator DTO track (2.4 in
@@ -98,6 +103,24 @@ export class AssignRouteTemplateDto {
     message: "planDate must be in YYYY-MM-DD format.",
   })
   planDate?: string | null;
+}
+
+export class AssignRouteTemplateDatesDto {
+  // Each entry is shape-checked only; calendar validity stays parseDateOnly's
+  // to answer, as it does for the single-date route next door. The cap is
+  // what keeps a scripted caller from asking for a hundred thousand plans in
+  // one request — a year of daily assignments is 366, so 400 is generous for
+  // anything a person can select on a month grid.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_ASSIGN_DATES, {
+    message: `planDates must hold at most ${MAX_ASSIGN_DATES} dates.`,
+  })
+  @Matches(DATE_ONLY_PATTERN, {
+    each: true,
+    message: "each planDate must be in YYYY-MM-DD format.",
+  })
+  planDates?: string[] | null;
 }
 
 export class CopyRoutePlansDto {

@@ -141,6 +141,17 @@ export type AssignRouteTemplateRequestBody = {
   planDate?: unknown;
 };
 
+/**
+ * The month planner's multi-select assigns one template to every date the
+ * reader picked in a single call. It answers with counts rather than the
+ * created plans: the caller re-reads the whole visible range afterwards
+ * anyway, and a day already holding this template is a skip, not an error
+ * that should abandon the rest of the batch.
+ */
+export type AssignRouteTemplateDatesRequestBody = {
+  planDates?: unknown;
+};
+
 export type CopyRouteTemplatePlansRequestBody = {
   month?: unknown;
 };

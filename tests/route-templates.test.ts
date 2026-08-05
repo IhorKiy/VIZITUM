@@ -141,6 +141,7 @@ describe("route templates permissions", () => {
       RouteTemplatesController.prototype.reorderRouteTemplateItems,
       RouteTemplatesController.prototype.deleteRouteTemplateItem,
       RouteTemplatesController.prototype.assignRouteTemplate,
+      RouteTemplatesController.prototype.assignRouteTemplateToDates,
     ];
 
     for (const handler of mutationHandlers) {

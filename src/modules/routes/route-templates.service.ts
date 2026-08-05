@@ -24,6 +24,7 @@ import {
 } from "./route-access";
 import {
   isUniqueConstraintViolation,
+  MAX_ASSIGN_DATES,
   MONTH_PATTERN,
   normalizeId,
   normalizeIdList,
@@ -32,6 +33,7 @@ import {
 } from "./route-parsing";
 import { routePlanInclude, toRoutePlanResponse } from "./routes.service";
 import type {
+  AssignRouteTemplateDatesRequestBody,
   AssignRouteTemplateRequestBody,
   CopyRouteTemplatePlansRequestBody,
   CopyRouteTemplatePlansResponse,
@@ -446,6 +448,82 @@ export class RouteTemplatesService {
       template,
       planDate,
     );
+  }
+
+  /**
+   * One template onto many dates in a single call — what the month planner's
+   * multi-select posts. A date that already holds *this* template is counted
+   * as skipped rather than raised, the way the two copy routes treat an
+   * occupied slot: a batch of twelve dates must not be abandoned because the
+   * reader had already planned one of them.
+   */
+  async assignRouteTemplateToDates(
+    context: RequestContext,
+    templateId: string,
+    body: AssignRouteTemplateDatesRequestBody,
+  ): Promise<CopyRouteTemplatePlansResponse> {
+    const template = await this.findTenantRouteTemplate(context, templateId);
+    const rawDates = Array.isArray(body.planDates) ? body.planDates : null;
+
+    if (!rawDates || rawDates.length === 0) {
+      throw new BadRequestException({
+        code: "ROUTE_TEMPLATE_ASSIGN_INVALID",
+        message: "At least one plan date is required.",
+      });
+    }
+
+    if (rawDates.length > MAX_ASSIGN_DATES) {
+      throw new BadRequestException({
+        code: "ROUTE_TEMPLATE_ASSIGN_INVALID",
+        message: `At most ${MAX_ASSIGN_DATES} plan dates may be assigned at once.`,
+      });
+    }
+
+    // Deduplicated before anything is written, and keyed by the calendar
+    // string rather than the Date object — two equal Dates are distinct map
+    // keys, so a payload naming the same day twice would otherwise spend a
+    // guaranteed conflict on itself and report a skip the reader never
+    // caused. Sorted so the batch runs in calendar order whatever order the
+    // selection arrived in.
+    const planDates = new Map<string, Date>();
+
+    for (const rawDate of rawDates) {
+      const planDate = parseDateOnly(rawDate);
+
+      if (!planDate) {
+        throw new BadRequestException({
+          code: "ROUTE_TEMPLATE_ASSIGN_INVALID",
+          message: "Each plan date must use YYYY-MM-DD format.",
+        });
+      }
+
+      planDates.set(dateKey(planDate), planDate);
+    }
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (const planDate of [...planDates.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, date]) => date)) {
+      try {
+        await this.materializeTemplateAssignment(
+          context.tenantId,
+          template,
+          planDate,
+        );
+        createdCount += 1;
+      } catch (error) {
+        if (error instanceof ConflictException) {
+          skippedCount += 1;
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    return { createdCount, skippedCount };
   }
 
   // For each of the caller's own plans in the month before `month` that came

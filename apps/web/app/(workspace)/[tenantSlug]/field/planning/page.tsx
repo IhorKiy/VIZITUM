@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -6,9 +7,15 @@ import { AppShell } from "../../../../../components/app-shell";
 import { AssignRouteButton } from "../../../../../components/assign-route-button";
 import { CopyWeekButton } from "../../../../../components/copy-week-button";
 import { DismissableNotice } from "../../../../../components/dismissable-notice";
+import {
+  MonthCalendar,
+  type MonthDayPlans,
+} from "../../../../../components/month-calendar";
+import { PlanningViewSwitcher } from "../../../../../components/planning-view-switcher";
 import { UnassignRouteButton } from "../../../../../components/unassign-route-button";
 import {
   assignRouteTemplate,
+  assignRouteTemplateToDates,
   copyRouteWeek,
   deleteRoutePlan,
   getCurrentSession,
@@ -21,6 +28,14 @@ import { backOrigin, withBackOrigin } from "../../../../../lib/back-navigation";
 import type { IntlFormatter } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
 import {
+  addMonths,
+  endOfMonth,
+  isMonthString,
+  monthGrid,
+  monthOf,
+  startOfMonth,
+} from "../../../../../lib/planning-month";
+import {
   addDaysToDate,
   dateToUtcNoon,
   DAYS_IN_WEEK,
@@ -29,11 +44,17 @@ import {
   todayDateString,
   weekDates,
 } from "../../../../../lib/planning-week";
+import {
+  PLANNING_VIEW_COOKIE,
+  type PlanningView,
+  resolvePlanningView,
+} from "../../../../../lib/planning-view";
 
 type PlanningPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     date?: string;
+    view?: string;
     planning?: string;
     // Read only to recognise links written for earlier shapes of this screen;
     // see the redirect and the `month` fallback below.
@@ -49,7 +70,8 @@ export default async function PlanningPage({
   searchParams,
 }: PlanningPageProps) {
   const { tenantSlug } = await params;
-  const { tab, route, template, month, date, planning } = await searchParams;
+  const { tab, route, template, month, date, planning, view } =
+    await searchParams;
 
   // Routes moved to their own screen, now reached from the field menu. Links
   // written for the old tabbed screen — bookmarks, a `from` origin already
@@ -90,10 +112,21 @@ export default async function PlanningPage({
   // routes screen was handed. Honouring it as an anchor keeps such a link
   // landing on the week the reader meant instead of silently on this one.
   const anchorDate = resolveAnchorDate(date, month);
+  const planningView = resolvePlanningView(
+    view,
+    (await cookies()).get(PLANNING_VIEW_COOKIE)?.value,
+  );
   const weekStart = startOfWeek(anchorDate);
   const weekDays = weekDates(weekStart);
   const weekEnd = weekDays[DAYS_IN_WEEK - 1];
+  const anchorMonth = monthOf(anchorDate);
   const today = todayDateString();
+  // Only the visible range is read, whichever calendar is drawn — a week is
+  // seven days, a month at most 31, and both go through the same date-range
+  // filter rather than paging over the representative's whole history.
+  const rangeFrom =
+    planningView === "month" ? startOfMonth(anchorMonth) : weekStart;
+  const rangeTo = planningView === "month" ? endOfMonth(anchorMonth) : weekEnd;
 
   async function assignRouteTemplateAction(formData: FormData) {
     "use server";
@@ -102,16 +135,16 @@ export default async function PlanningPage({
     const planDate = getFormString(formData, "planDate").trim() || anchorDate;
 
     if (!templateId) {
-      redirect(planningHref(tenantSlug, planDate, "failed"));
+      redirect(planningHref(tenantSlug, planDate, "week", "failed"));
     }
 
     const result = await assignRouteTemplate(templateId, { planDate });
 
     if (!result.ok) {
-      redirect(planningHref(tenantSlug, planDate, "failed"));
+      redirect(planningHref(tenantSlug, planDate, "week", "failed"));
     }
 
-    redirect(planningHref(tenantSlug, planDate, "assigned"));
+    redirect(planningHref(tenantSlug, planDate, "week", "assigned"));
   }
 
   async function unassignRoutePlanAction(formData: FormData) {
@@ -120,16 +153,75 @@ export default async function PlanningPage({
     const routePlanId = getFormString(formData, "routePlanId").trim();
 
     if (!routePlanId) {
-      redirect(planningHref(tenantSlug, anchorDate, "failed"));
+      redirect(planningHref(tenantSlug, anchorDate, planningView, "failed"));
     }
 
     const result = await deleteRoutePlan(routePlanId);
 
     if (!result.ok) {
-      redirect(planningHref(tenantSlug, anchorDate, "failed"));
+      redirect(planningHref(tenantSlug, anchorDate, planningView, "failed"));
     }
 
-    redirect(planningHref(tenantSlug, anchorDate, "unassigned"));
+    redirect(planningHref(tenantSlug, anchorDate, planningView, "unassigned"));
+  }
+
+  async function assignManyAction(formData: FormData) {
+    "use server";
+
+    const templateId = getFormString(formData, "routeTemplateId").trim();
+    // The client posts one comma-joined field rather than a repeated one:
+    // the whole selection is a single value here, and splitting it is the
+    // only shape a FormData string can carry it in.
+    const planDates = getFormString(formData, "planDates")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(isDateString);
+
+    if (!templateId || planDates.length === 0) {
+      redirect(planningHref(tenantSlug, anchorDate, "month", "failed"));
+    }
+
+    const result = await assignRouteTemplateToDates(templateId, { planDates });
+
+    if (!result.ok) {
+      redirect(planningHref(tenantSlug, anchorDate, "month", "failed"));
+    }
+
+    redirect(
+      planningHref(
+        tenantSlug,
+        anchorDate,
+        "month",
+        `assignedMany:${result.data.createdCount}:${result.data.skippedCount}`,
+      ),
+    );
+  }
+
+  // The month panel's secondary action, which pulls the *previous* week into
+  // the anchor's week — the opposite direction from the week screen's own
+  // copy, which pushes the visible week forward.
+  async function copyLastWeekAction(formData: FormData) {
+    "use server";
+
+    const targetWeekStart =
+      getFormString(formData, "weekStart").trim() || weekStart;
+    const result = await copyRouteWeek({
+      fromWeekStart: addDaysToDate(targetWeekStart, -DAYS_IN_WEEK),
+      toWeekStart: targetWeekStart,
+    });
+
+    if (!result.ok) {
+      redirect(planningHref(tenantSlug, anchorDate, "month", "failed"));
+    }
+
+    redirect(
+      planningHref(
+        tenantSlug,
+        anchorDate,
+        "month",
+        `copied:${result.data.createdCount}:${result.data.skippedCount}`,
+      ),
+    );
   }
 
   async function copyWeekAction(formData: FormData) {
@@ -144,7 +236,7 @@ export default async function PlanningPage({
     });
 
     if (!result.ok) {
-      redirect(planningHref(tenantSlug, anchorDate, "failed"));
+      redirect(planningHref(tenantSlug, anchorDate, "week", "failed"));
     }
 
     // Lands on the week that just received the copy, not the one it came
@@ -154,6 +246,7 @@ export default async function PlanningPage({
       planningHref(
         tenantSlug,
         targetWeekStart,
+        "week",
         `copied:${result.data.createdCount}:${result.data.skippedCount}`,
       ),
     );
@@ -211,7 +304,7 @@ export default async function PlanningPage({
   const [templatesResult, routesResult] = await Promise.all([
     listRouteTemplates(`pageSize=100&${ownRepresentativeQuery}`),
     listRoutes(
-      `pageSize=100&${ownRepresentativeQuery}&planDateFrom=${weekStart}&planDateTo=${weekEnd}`,
+      `pageSize=100&${ownRepresentativeQuery}&planDateFrom=${rangeFrom}&planDateTo=${rangeTo}`,
     ),
   ]);
   const routeTemplates = templatesResult.ok ? templatesResult.data.items : [];
@@ -229,21 +322,93 @@ export default async function PlanningPage({
   const statusNotice = buildPlanningStatusNotice(planning, t);
   const hasAnyTemplate = routeTemplates.length > 0;
 
-  return (
-    <AppShell tenantSlug={tenantSlug} activeArea="field-planning">
-      <header className="page-header">
+  const noTemplatesPanel = (
+    <div className="empty-state-panel">
+      <h2>{t("emptyRoutesTitle")}</h2>
+      <p>{t("noTemplatesForAssignBody")}</p>
+      {/* The routes screen moved into the field menu, so it no longer has a
+          nav slot to come back from: this hand-off states the calendar — on
+          the day the rep is looking at — as the origin, and the routes
+          screen resolves it. */}
+      <Link
+        className="secondary-button"
+        href={withBackOrigin(
+          `/${tenantSlug}/field/routes`,
+          backOrigin("/field/planning", {
+            view: planningView,
+            date: anchorDate,
+          }),
+        )}
+      >
+        {t("goToRoutes")}
+      </Link>
+    </div>
+  );
+
+  const header = (
+    <>
+      <header className="page-header page-header--inline">
         <div>
           <h1>{t("title")}</h1>
         </div>
+        <PlanningViewSwitcher
+          monthHref={planningHref(tenantSlug, anchorDate, "month")}
+          view={planningView}
+          weekHref={planningHref(tenantSlug, anchorDate, "week")}
+        />
       </header>
 
       {statusNotice}
+    </>
+  );
+
+  if (planningView === "month") {
+    const grid = monthGrid(anchorMonth);
+
+    return (
+      <AppShell tenantSlug={tenantSlug} activeArea="field-planning">
+        {header}
+        <MonthCalendar
+          anchorDate={anchorDate}
+          anchorWeekStart={weekStart}
+          assignManyAction={assignManyAction}
+          copyLastWeekAction={copyLastWeekAction}
+          dates={grid.dates}
+          leadingBlanks={grid.leadingBlanks}
+          month={anchorMonth}
+          nextMonthHref={planningHref(
+            tenantSlug,
+            startOfMonth(addMonths(anchorMonth, 1)),
+            "month",
+          )}
+          plansByDate={buildMonthDayPlans(grid.dates, plansByDate, t)}
+          previousMonthHref={planningHref(
+            tenantSlug,
+            startOfMonth(addMonths(anchorMonth, -1)),
+            "month",
+          )}
+          routeTemplates={routeTemplates.map((routeTemplate) => ({
+            id: routeTemplate.id,
+            name: routeTemplate.name,
+            stopCount: routeTemplate.items.length,
+          }))}
+          tenantSlug={tenantSlug}
+          today={today}
+        />
+        {hasAnyTemplate ? null : noTemplatesPanel}
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell tenantSlug={tenantSlug} activeArea="field-planning">
+      {header}
 
       <div className="panel week-card">
         <div className="route-section-head">
           <Link
             className="secondary-button is-accent"
-            href={planningHref(tenantSlug, previousWeek)}
+            href={planningHref(tenantSlug, previousWeek, "week")}
             aria-label={t("previousWeek")}
           >
             ‹
@@ -260,7 +425,7 @@ export default async function PlanningPage({
           </div>
           <Link
             className="secondary-button is-accent"
-            href={planningHref(tenantSlug, nextWeek)}
+            href={planningHref(tenantSlug, nextWeek, "week")}
             aria-label={t("nextWeek")}
           >
             ›
@@ -287,7 +452,7 @@ export default async function PlanningPage({
                 // Selecting a day also anchors at its row, so a tap on the
                 // grid lands the reader on the thing they tapped rather than
                 // leaving them to find it in the list below.
-                href={`${planningHref(tenantSlug, day)}#${dayRowId(day)}`}
+                href={`${planningHref(tenantSlug, day, "week")}#${dayRowId(day)}`}
                 key={day}
               >
                 <span
@@ -336,23 +501,7 @@ export default async function PlanningPage({
             ))}
           </ul>
         ) : (
-          <div className="empty-state-panel">
-            <h2>{t("emptyRoutesTitle")}</h2>
-            <p>{t("noTemplatesForAssignBody")}</p>
-            {/* The routes screen moved into the field menu, so it no longer
-                has a nav slot to come back from: this hand-off states the
-                calendar — on the day the rep is looking at — as the origin,
-                and the routes screen resolves it. */}
-            <Link
-              className="secondary-button"
-              href={withBackOrigin(
-                `/${tenantSlug}/field/routes`,
-                backOrigin("/field/planning", { date: anchorDate }),
-              )}
-            >
-              {t("goToRoutes")}
-            </Link>
-          </div>
+          noTemplatesPanel
         )}
       </section>
     </AppShell>
@@ -482,6 +631,39 @@ function availableRouteTemplates(
   );
 }
 
+/**
+ * The month grid's per-day summary, flattened to plain data the client
+ * component can receive: a route plan carries its whole item list, and only
+ * the count and the names are drawn.
+ *
+ * Days with nothing planned are left out entirely rather than mapped to a
+ * zero, so the client can tell "empty" from "planned, no stops" by presence.
+ */
+function buildMonthDayPlans(
+  dates: string[],
+  plansByDate: Map<string, RoutePlan[]>,
+  t: PlanningTranslator,
+): Record<string, MonthDayPlans> {
+  const summary: Record<string, MonthDayPlans> = {};
+
+  for (const date of dates) {
+    const plans = plansByDate.get(date);
+
+    if (!plans || plans.length === 0) {
+      continue;
+    }
+
+    summary[date] = {
+      stopCount: plans.reduce((total, plan) => total + plan.items.length, 0),
+      routeNames: plans.map(
+        (plan) => plan.routeTemplate?.name ?? t("assignedPlanNoTemplate"),
+      ),
+    };
+  }
+
+  return summary;
+}
+
 function groupPlansByDate(plans: RoutePlan[]): Map<string, RoutePlan[]> {
   const grouped = new Map<string, RoutePlan[]>();
 
@@ -510,12 +692,11 @@ function resolveAnchorDate(
     return date;
   }
 
-  if (typeof month === "string" && /^\d{4}-\d{2}$/.test(month)) {
-    const firstOfMonth = `${month}-01`;
-
-    if (isDateString(firstOfMonth)) {
-      return firstOfMonth;
-    }
+  // isMonthString checks the 1-12 range as well as the shape, so "2026-13"
+  // falls through to today rather than anchoring on a month that does not
+  // exist.
+  if (isMonthString(month)) {
+    return startOfMonth(month);
   }
 
   return todayDateString();
@@ -527,6 +708,23 @@ function buildPlanningStatusNotice(
 ) {
   if (!status) {
     return null;
+  }
+
+  if (status.startsWith("assignedMany:")) {
+    const [, createdCount, skippedCount] = status.split(":");
+    return (
+      <DismissableNotice
+        ariaLabel={t("statusAria")}
+        body={t("assignedManyBody", {
+          createdCount: Number(createdCount) || 0,
+          skippedCount: Number(skippedCount) || 0,
+        })}
+        clearParams={["planning"]}
+        eyebrow={t("assignedTitle")}
+        title={t("assignedTitle")}
+        tone="success"
+      />
+    );
   }
 
   if (status.startsWith("copied:")) {
@@ -584,12 +782,19 @@ function buildPlanningStatusNotice(
   );
 }
 
+/**
+ * Every link this screen writes names its own view. The remembered
+ * preference only decides where a reader lands with no `view` in the URL —
+ * once they are here, a link that dropped it could bounce them into the
+ * other calendar mid-action.
+ */
 function planningHref(
   tenantSlug: string,
   date: string,
+  view: PlanningView,
   planning?: string,
 ): string {
-  const params = new URLSearchParams({ date });
+  const params = new URLSearchParams({ view, date });
 
   if (planning) {
     params.set("planning", planning);

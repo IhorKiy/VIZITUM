@@ -7,6 +7,7 @@ import { PIPES_METADATA } from "@nestjs/common/constants";
 import { createStrictValidationPipe } from "../src/common/strict-validation-pipe";
 import { RouteTemplatesController } from "../src/modules/routes/route-templates.controller";
 import {
+  AssignRouteTemplateDatesDto,
   AssignRouteTemplateDto,
   CopyRoutePlansDto,
   CopyRouteWeekDto,
@@ -27,7 +28,7 @@ import {
 
 // Tier 3 of the class-validator DTO track (2.4 in
 // docs/security-remediation-plan.md), minus `visits` which goes on its own:
-// two controllers, fourteen write routes, thirteen DTO classes. One file rather
+// two controllers, fifteen write routes, fourteen DTO classes. One file rather
 // than two, because the two controllers are twins — the template's item list
 // and the plan's item list take the same shapes.
 //
@@ -93,6 +94,7 @@ const EVERY_DTO: DtoClass[] = [
   ReorderRouteTemplateItemsDto,
   MoveRouteTemplateItemDto,
   AssignRouteTemplateDto,
+  AssignRouteTemplateDatesDto,
   CopyRoutePlansDto,
   CopyRouteWeekDto,
 ];
@@ -115,6 +117,10 @@ describe("every routes write route with a body carries the pipe", () => {
     [
       "templates.copyRouteWeek",
       RouteTemplatesController.prototype.copyRouteWeek,
+    ],
+    [
+      "templates.assignRouteTemplateToDates",
+      RouteTemplatesController.prototype.assignRouteTemplateToDates,
     ],
     [
       "templates.updateRouteTemplate",
@@ -167,7 +173,7 @@ describe("every routes write route with a body carries the pipe", () => {
     ],
   ];
 
-  it("attaches a pipe to all fourteen body handlers, and to none of the other eight", () => {
+  it("attaches a pipe to all fifteen body handlers, and to none of the other eight", () => {
     for (const [name, handler] of gatedHandlers) {
       const pipes: unknown[] =
         Reflect.getMetadata(PIPES_METADATA, handler) ?? [];
@@ -185,7 +191,7 @@ describe("every routes write route with a body carries the pipe", () => {
   });
 });
 
-describe("routes DTOs: what all thirteen classes share", () => {
+describe("routes DTOs: what all fourteen classes share", () => {
   it("refuses an undeclared property on every route in the tier", async () => {
     for (const dto of EVERY_DTO) {
       await reject(dto, { tenantId: "another-tenant" }, "tenantId");
@@ -306,7 +312,7 @@ describe("RoutesController's five bodies", () => {
   });
 });
 
-describe("RouteTemplatesController's nine bodies", () => {
+describe("RouteTemplatesController's ten bodies", () => {
   it("accepts every payload apps/web posts", async () => {
     await accept(CreateRouteTemplateDto, {
       representativeUserId: "user-a",
@@ -324,6 +330,9 @@ describe("RouteTemplatesController's nine bodies", () => {
     await accept(CopyRouteWeekDto, {
       fromWeekStart: "2026-08-03",
       toWeekStart: "2026-08-10",
+    });
+    await accept(AssignRouteTemplateDatesDto, {
+      planDates: ["2026-08-10", "2026-08-12"],
     });
   });
 
@@ -365,6 +374,31 @@ describe("RouteTemplatesController's nine bodies", () => {
     // Pattern-valid, month-invalid: normalizeMonth still answers
     // ROUTE_COPY_MONTH_INVALID for this one.
     await accept(CopyRoutePlansDto, { month: "2026-13" });
+  });
+
+  it("checks every date in a multi-date assign, and caps how many may arrive", async () => {
+    // One bad entry rejects the whole array — a batch half of which is
+    // silently dropped is worse than one the caller is told to fix.
+    await reject(
+      AssignRouteTemplateDatesDto,
+      { planDates: ["2026-08-10", "10/08/2026"] },
+      "planDates",
+    );
+    await reject(
+      AssignRouteTemplateDatesDto,
+      { planDates: "2026-08-10" },
+      "planDates",
+    );
+    await reject(
+      AssignRouteTemplateDatesDto,
+      {
+        planDates: Array.from({ length: 401 }, () => "2026-08-10"),
+      },
+      "planDates",
+    );
+    // Pattern-valid, calendar-invalid: still parseDateOnly's refusal at the
+    // service, not a VALIDATION_FAILED here.
+    await accept(AssignRouteTemplateDatesDto, { planDates: ["2026-02-31"] });
   });
 
   it("checks both week-start shapes and leaves the is-it-a-Monday question to the service", async () => {

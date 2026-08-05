@@ -7076,8 +7076,308 @@ button.week-day-row:disabled {
   outline-offset: 2px;
 }
 
+/* Planning's week/month segmented control, which sits on the title's own row
+   via .page-header--inline. */
+.planning-view-switcher {
+  background: color-mix(in srgb, var(--line) 45%, var(--surface-muted));
+  border-radius: 9px;
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 3px;
+}
+
+.planning-view-segment {
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+}
+
+.planning-view-segment.is-active {
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.planning-view-segment:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Field planning, month mode: an overview grid whose cells can be ticked in
+   bulk, over an action panel that appears once anything is selected.
+   apps/web/components/month-calendar.tsx */
+
+.month-label {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+
+.month-summary-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin: 6px 2px 10px;
+}
+
+.month-summary {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.month-select-toggle {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 0;
+  border-radius: 7px;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 6px;
+  padding: 4px 8px;
+}
+
+.month-select-box {
+  border: 1.5px solid var(--accent);
+  border-radius: 3px;
+  height: 11px;
+  width: 11px;
+}
+
+/* The toggle is on: the box reads as ticked, so the control states its own
+   state rather than leaving aria-pressed as the only signal. */
+.month-select-toggle.is-active .month-select-box {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--surface);
+}
+
+.month-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.month-weekdays,
+.month-row {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.month-weekday {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* Positioned so the selected cell's tick can sit on its corner. */
+.month-cell-slot {
+  display: block;
+  position: relative;
+}
+
+.month-cell {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--accent-strong);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  gap: 1px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 4px 2px;
+  width: 100%;
+}
+
+.month-cell.is-empty {
+  background: var(--surface);
+  border: 1.5px dashed var(--line);
+  color: var(--ink);
+}
+
+.month-cell:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.month-cell:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Today, or the day the week view would open on. */
+.month-cell.is-current {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+
+/* Ticked in multi-select. Listed after .is-current so a selected today still
+   reads as selected — the tick is the state the action panel acts on. */
+.month-cell.is-selected {
+  background: var(--surface);
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+}
+
+.month-cell-number {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.month-cell.is-current .month-cell-number,
+.month-cell.is-selected .month-cell-number {
+  font-weight: 800;
+}
+
+.month-cell-count {
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.month-cell.is-current .month-cell-count {
+  color: color-mix(in srgb, var(--surface) 65%, var(--accent));
+}
+
+.month-cell-check {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 8px;
+  color: var(--surface);
+  display: flex;
+  font-size: 9px;
+  font-weight: 800;
+  height: 15px;
+  justify-content: center;
+  position: absolute;
+  right: -4px;
+  top: -4px;
+  width: 15px;
+}
+
+.month-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.month-legend {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 11px;
+}
+
+.month-legend-item {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 10.5px;
+  font-weight: 600;
+  gap: 6px;
+}
+
+.month-swatch {
+  border-radius: 3px;
+  height: 11px;
+  width: 11px;
+}
+
+.month-swatch.has-plan {
+  background: var(--accent-soft);
+}
+
+.month-swatch.is-empty {
+  border: 1.5px dashed var(--line);
+}
+
+.month-action-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.month-action-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.month-action-head h2 {
+  font-size: 14.5px;
+  margin: 0;
+}
+
+.month-action-cancel {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 0;
+}
+
+.month-action-cancel:hover {
+  color: var(--ink);
+}
+
+.month-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.month-chip {
+  background: var(--surface-muted);
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 9px;
+}
+
+.month-assign-all {
+  justify-content: center;
+  min-height: 46px;
+  width: 100%;
+}
+
+.month-copy-last-week {
+  justify-content: center;
+  min-height: 42px;
+  width: 100%;
+}
+
 @media (max-width: 360px) {
-  .week-grid {
+  .week-grid,
+  .month-weekdays,
+  .month-row,
+  .month-grid {
     gap: 3px;
   }
 

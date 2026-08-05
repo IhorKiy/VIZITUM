@@ -22,6 +22,7 @@ import {
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import {
+  AssignRouteTemplateDatesDto,
   AssignRouteTemplateDto,
   CopyRoutePlansDto,
   CopyRouteWeekDto,
@@ -80,6 +81,24 @@ export class RouteTemplatesController {
   ) {
     return this.routeTemplatesService.createRouteTemplate(
       getRequestContext(request),
+      body,
+    );
+  }
+
+  @Post(":templateId/assign-many")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  @UsePipes(createStrictValidationPipe())
+  assignRouteTemplateToDates(
+    @Req() request: Request,
+    @Param("templateId") templateId: string,
+    @Body() body: AssignRouteTemplateDatesDto,
+  ) {
+    return this.routeTemplatesService.assignRouteTemplateToDates(
+      getRequestContext(request),
+      templateId,
       body,
     );
   }

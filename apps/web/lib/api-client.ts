@@ -1451,6 +1451,18 @@ export async function assignRouteTemplate(
   return apiPost<RoutePlan>(`/routes/templates/${templateId}/assign`, input);
 }
 
+// One template onto every date the month planner's multi-select holds, in a
+// single call rather than one request per date.
+export async function assignRouteTemplateToDates(
+  templateId: string,
+  input: { planDates: string[] },
+): Promise<ApiResult<{ createdCount: number; skippedCount: number }>> {
+  return apiPost<{ createdCount: number; skippedCount: number }>(
+    `/routes/templates/${templateId}/assign-many`,
+    input,
+  );
+}
+
 export async function copyRoutePlansFromLastMonth(input: {
   month: string;
 }): Promise<ApiResult<{ createdCount: number; skippedCount: number }>> {
