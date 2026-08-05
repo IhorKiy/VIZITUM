@@ -27,6 +27,29 @@ export function assertCanManageRouteForRepresentative(
   });
 }
 
+// The read counterpart of the check above, shared for the same reason: plan
+// and template lists must answer "whose routes may I see" identically.
+//
+// Returns the representative id a list must be narrowed to, or `null` for a
+// team-wide caller who named no one — which means every representative in the
+// tenant, not none, the same way getTodayRoutes reads that permission. A
+// caller who is not team-wide is always pinned to themselves, so an id they
+// are not allowed to read is ignored rather than honoured.
+export function resolveRouteRepresentativeFilter(
+  context: RequestContext,
+  requestedRepresentativeId: string | null,
+): string | null {
+  if (context.permissions.includes(PERMISSIONS.ROUTES_MANAGE_TEAM)) {
+    return requestedRepresentativeId;
+  }
+
+  if (!context.userId) {
+    throwAuthenticationContextMissing();
+  }
+
+  return context.userId;
+}
+
 export async function assertFieldRepresentative(
   prisma: PrismaService,
   tenantId: string,

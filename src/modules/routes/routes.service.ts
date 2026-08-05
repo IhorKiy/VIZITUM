@@ -25,6 +25,7 @@ import {
   assertCanManageRouteForRepresentative,
   assertFieldRepresentative,
   assertTenantLocation,
+  resolveRouteRepresentativeFilter,
   throwAuthenticationContextMissing,
 } from "./route-access";
 import {
@@ -532,20 +533,16 @@ function buildRoutePlanWhere(
   context: RequestContext,
   query: ListRoutesQuery,
 ): Prisma.RoutePlanWhereInput {
-  const requestedRepresentativeId = normalizeId(query.representativeUserId);
-  const representativeFilter = context.permissions.includes(
-    PERMISSIONS.ROUTES_MANAGE_TEAM,
-  )
-    ? requestedRepresentativeId
-    : context.userId;
-
-  if (!representativeFilter) {
-    throwAuthenticationContextMissing();
-  }
+  const representativeFilter = resolveRouteRepresentativeFilter(
+    context,
+    normalizeId(query.representativeUserId),
+  );
 
   return {
     tenantId: context.tenantId,
-    representativeUserId: representativeFilter,
+    ...(representativeFilter
+      ? { representativeUserId: representativeFilter }
+      : {}),
     ...(query.planDate
       ? { planDate: parseRequiredDateOnly(query.planDate) }
       : {}),
