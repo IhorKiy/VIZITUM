@@ -3926,6 +3926,43 @@ textarea {
   font-weight: 800;
 }
 
+/* A folded band (undated work): the heading is the whole band until it is
+   opened, so it takes the pointer and the marker a <summary> otherwise draws
+   for itself. */
+.task-group--foldable > .task-group-head {
+  cursor: pointer;
+  list-style: none;
+}
+
+.task-group--foldable > .task-group-head::-webkit-details-marker {
+  display: none;
+}
+
+/* After the rule line rather than before it, so the chevron sits at the end of
+   the row where a disclosure is looked for. */
+.task-group-chevron {
+  color: var(--placeholder);
+  display: inline-flex;
+  order: 1;
+  transition: transform 0.16s ease;
+}
+
+.task-group--foldable[open] > .task-group-head .task-group-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-group-chevron {
+    transition: none;
+  }
+}
+
+/* The closed line is the band's only presence on screen, so it keeps the space
+   a card would have had under it rather than butting against the next one. */
+.task-group--foldable:not([open]) > .task-group-head {
+  padding-bottom: 12px;
+}
+
 /* Late is the one band that has to be legible from arm's length; today is the
    day's own work and takes the brand green. The rest are quiet — they are
    dividers, not alarms. */
@@ -3937,8 +3974,13 @@ textarea {
   color: var(--accent-strong);
 }
 
+/* Bands are separated by the board's own 14px gap and nothing else. They used
+   to carry another 18px on top of it, which put 44px between a band's last card
+   and the next band's heading — a phone screenful holds four or five cards, and
+   this was spending most of one on air. The heading's own top padding (the
+   space it keeps from the collapsed bar) covers the rest. */
 .task-group + .task-group {
-  margin-top: 18px;
+  margin-top: 0;
 }
 
 .task-rows {
@@ -4037,6 +4079,18 @@ textarea {
 
 /* A rail with no date to show, sized to wrap onto two lines in the same
    fixed column. */
+/* The rail of a task with no deadline: the same grey column, holding an icon
+   instead of a date. Quieter than any date on the screen, which is the point —
+   there is nothing here to be early or late for. */
+.task-row.is-undated .task-row-rail {
+  color: var(--placeholder);
+}
+
+/* A word in the rail where a date would be. Nothing renders it yet — the
+   undated rail carries an icon now, since two lines of small caps reading "no
+   date" looked like a field that had failed to load. Kept for the queued rail
+   below, which is a word ("sending") rather than a state the reader is meant to
+   read as a date. */
 .task-row-rail-label {
   color: var(--muted);
   font-size: 10px;
@@ -4130,9 +4184,9 @@ textarea {
 /* A row whose change has not reached the server yet. NOT REACHABLE YET: tasks
    have no offline queue of their own (reports and visit starts do — see
    report-outbox.ts), and that queue is its own change. The look is pinned here
-   because it is the undated rail's layout with a different label, so the
-   follow-up is wiring and nothing else: set is-queued on the row, put the
-   queue word in .task-row-rail-label, and lead the text with .task-row-sync.
+   so the follow-up is wiring and nothing else: set is-queued on the row, put
+   the queue word in .task-row-rail-label, and lead the text with
+   .task-row-sync.
    Dashed and gold rather than red — nothing is wrong, the work is simply
    waiting for signal. */
 .task-row.is-queued {
@@ -4595,6 +4649,14 @@ textarea {
   overflow: hidden;
 }
 
+/* Same treatment for the details box, two lines instead of one: it grows with
+   what is written rather than standing at a fixed three lines over two lines of
+   text. */
+.task-form-notes {
+  min-height: 62px;
+  overflow: hidden;
+}
+
 /* The pin sits inside the control, so the select reads as a place rather than
    as one more dropdown. */
 .task-form-select {
@@ -4657,17 +4719,19 @@ textarea {
 
 /* Priority as a switch with its consequence written next to it: "priority" on
    its own is a word whose effect — the gold edge down the row — lives on
-   another screen entirely. */
+   another screen entirely.
+
+   A plain row, not a panel. It used to sit in a tinted, outlined box, which
+   made the one optional flag in the form the heaviest thing in it — heavier
+   than the title, the deadline and the status it was stacked under. The switch
+   already draws the eye; the frame only competed with the fields around it. */
 .task-form-switch {
   align-items: center;
-  background: color-mix(in srgb, var(--gold) 8%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--gold) 28%, var(--line));
-  border-radius: 12px;
   cursor: pointer;
   display: flex;
   gap: 12px;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 4px 0;
   position: relative;
 }
 

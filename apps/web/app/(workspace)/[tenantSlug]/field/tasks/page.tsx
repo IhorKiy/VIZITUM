@@ -22,6 +22,8 @@ import {
 } from "../../../../../components/edit-task-modal";
 import { FilterForm } from "../../../../../components/filter-form";
 import {
+  CalendarDashIcon,
+  ChevronDownIcon,
   ChevronRightIcon,
   FlagIcon,
   MapPinIcon,
@@ -748,8 +750,13 @@ export default async function FieldTasksPage({
                 sheetHref={sheetHref}
               />
             ) : (
-              groupTasksByDue(tasks, todayIsoDate).map((group) => (
+              groupTasksByDue(tasks, todayIsoDate).map((group, _index, all) => (
                 <TaskGroup
+                  // Undated work folds away — but only while there is dated
+                  // work above it to fold away *for*. A rep whose whole list is
+                  // undated would otherwise open the screen on a single closed
+                  // line and no tasks at all.
+                  collapsed={group.key === "undated" && all.length > 1}
                   count={group.entries.length}
                   key={group.key}
                   label={t(TASK_GROUP_LABEL_KEYS[group.key])}
@@ -895,21 +902,48 @@ function FilterCount({ value }: { value: number | undefined }) {
 // answer to the question the heading asks.
 function TaskGroup({
   children,
+  collapsed = false,
   count,
   label,
   tone,
 }: {
   children: ReactNode;
+  // Renders the band folded behind its own heading. Undated work uses it: it
+  // is the band a rep reaches for last — nothing in it is owed on any day — yet
+  // it is also the one that grows without bound, so left open it pushes the
+  // dated work a rep came for off the screen.
+  collapsed?: boolean;
   count: number;
   label: string;
   tone: TaskDueGroupKey | "closed";
 }) {
+  const head = (
+    <>
+      <span className="task-group-name">{label}</span>
+      <span className="task-group-count">{count}</span>
+    </>
+  );
+
+  // A native disclosure rather than a toggle of our own: it opens without
+  // JavaScript, the phone's find-in-page opens it to show a match, and the
+  // heading stays one tap tall.
+  if (collapsed) {
+    return (
+      <details className={`task-group task-group--foldable is-${tone}`}>
+        <summary className="task-group-head">
+          {head}
+          <span aria-hidden="true" className="task-group-chevron">
+            <ChevronDownIcon />
+          </span>
+        </summary>
+        {children}
+      </details>
+    );
+  }
+
   return (
     <section className={`task-group is-${tone}`}>
-      <h2 className="task-group-head">
-        <span className="task-group-name">{label}</span>
-        <span className="task-group-count">{count}</span>
-      </h2>
+      <h2 className="task-group-head">{head}</h2>
       {children}
     </section>
   );
@@ -999,9 +1033,7 @@ function TaskDueRail({
     return (
       <span className="task-row-rail">
         <span className="sr-only">{t("dueAriaNone")}</span>
-        <span aria-hidden="true" className="task-row-rail-label">
-          {t("dueNone")}
-        </span>
+        <CalendarDashIcon />
       </span>
     );
   }
