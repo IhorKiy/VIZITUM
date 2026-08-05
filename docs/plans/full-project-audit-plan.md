@@ -612,7 +612,18 @@ All four Pass 3 findings instead came from things that **repeat across many file
   - **Focus order — not attempted.** It cannot be established from source; it needs a rendered page and keyboard traversal.
 
   A `jsx-a11y` config would answer the first, second and fourth of these on every commit, and is the structural version of this checkbox.
-- [ ] Mobile viewport sweep of the field zone (the primary device for this role)
+- [ ] Mobile viewport sweep of the field zone (the primary device for this role) — **static half done, rendered half not run**
+
+  **Why the rendered half was not run, which matters more than the checkbox:** ports 3000 and 4000 are held by dev servers belonging to a *different* worktree — `tasks-page-design-redesign-7de2fe`, an active session redesigning the tasks page (confirmed by reading the processes' `cwd`). Pointing a browser at them would be inspecting someone else's in-flight code and reporting it as this branch's behaviour, which is exactly the trap this plan already warns about for `web:e2e`. Starting a competing server was rejected rather than attempted: it shares the same Postgres, and walking the field zone signed in as the demo rep mutates state (read receipts, drafts) another session may be relying on.
+
+  **What source analysis does establish**, none of it a defect:
+
+  - **The viewport is correct and, more importantly, not hostile.** No `viewport` export exists anywhere in `apps/web`, so Next's default `width=device-width, initial-scale=1` applies — and nothing sets `maximum-scale` or `user-scalable=no`, which would block pinch-zoom and is the most common accessibility failure in this area.
+  - **The stylesheet is mobile-first rather than desktop-with-patches.** Only five media queries exist in 7094 lines: one `min-width: 921px` for desktop, one `max-width: 920px`, two `max-width: 640px` refinements and two `prefers-reduced-motion` blocks. Base styles are the mobile case, which is the right structure for this product and explains why so few breakpoints suffice.
+  - **The field zone contains no `<table>`.** The codebase's only two are in `import-tables.tsx`, which serves the admin imports screen. That removes the commonest source of horizontal overflow on a phone, and is consistent with the card-based layout the zone uses throughout. Five `overflow-x: auto` containers exist for the wide content that does occur.
+  - **Touch-target sizing has been considered**: six rules set an explicit 44px or 48px minimum. Whether every interactive control in the zone meets it cannot be established without measuring rendered boxes.
+
+  **What a rendered pass still has to answer**, recorded so it is not re-derived: whether any field screen scrolls horizontally at 375px; whether the swipe actions on the route list and the report form's controls meet the touch-target minimum in practice; whether the bottom nav and any sticky headers overlap content at small heights; and whether the offline shell (`offline.html`) — which carries its own styles outside `globals.css` — lays out at the same width.
 
 ### Mechanical sweeps across every screen, run 2026-08-05
 
@@ -640,7 +651,7 @@ Rule #10, and this is the pass with the most partial coverage in the audit — r
 
 **No screen body was read in any zone** — 50 `page.tsx` files, none of them opened for its own logic. That includes the two the plan itself flags by size: `admin/locations/page.tsx` (1699 lines) and `manager/tasks/page.tsx` (1094 lines, 27 commits). The one large component that *was* partly read, `field-visit-report-form.tsx`, is a shared foundation rather than a screen, and its own entry records that ~1500 lines of it are still unread.
 
-**Of the two sweeps at the foot of the zone list, one is partly run and one is not run at all.** The accessibility sweep covered what source analysis can settle — icon-only accessible names (339 controls, one gap → **F22**), `aria-busy` (already **F13**) and `<img alt>` (none missing) — and its own entry records what it could not: focus order, which needs a rendered page, and label association, which goes through wrapper components a text scan cannot attribute. **The mobile viewport sweep of the field zone was not run**, which is the more consequential of the two given that zone is the product's primary device.
+**Of the two sweeps at the foot of the zone list, one is partly run and one is not run at all.** The accessibility sweep covered what source analysis can settle — icon-only accessible names (339 controls, one gap → **F22**), `aria-busy` (already **F13**) and `<img alt>` (none missing) — and its own entry records what it could not: focus order, which needs a rendered page, and label association, which goes through wrapper components a text scan cannot attribute. **The mobile viewport sweep's rendered half was not run**, which is the more consequential gap given that zone is the product's primary device. Its static half is done and found nothing wrong; the checkbox records why a browser pass was rejected here rather than attempted — ports 3000/4000 belong to another worktree's active session, and competing for them would mean reporting someone else's in-flight code as this branch's.
 
 What *is* closed is the shared-foundations list — 8 of 8, with its own summary above.
 
@@ -716,7 +727,7 @@ Update after each pass. `Findings` counts only recorded, verified findings.
 | 0 — Automated baseline | done | 0/0/2/0 | 2026-08-05 | Every check green; both findings came out of the e2e run's logs, not a failed assertion |
 | 1 — Cross-cutting axes | mostly done | 0/0/2/0 | 2026-08-05 | Tenant isolation holds under mechanical check; 5 axes deferred — see Skipped |
 | 2 — Backend modules | **done** — all 24 modules examined, plus the 3 non-module units (`src/common/*`, bootstrap, `worker`); Tier C 9/9, Tier B 11/11 (7 fully), Tier A 7/7 (4 fully) | 0/1/5/2 | 2026-08-05 | F2, F3, F4, F6, F7, F8, F9, F10, F11, F12. Zero findings on authorization, tenant isolation or ownership. 7 boxes deliberately unticked = audited on named paths; each module's note lists what was left |
-| 3 — Frontend zones | 8 foundations done; all 7 zones swept for conventions; a11y sweep partly run; no screen body read in any zone | 0/0/3/4 | 2026-08-05 | F13, F14, F15, F16, F17, F21, F22. Focus order and the mobile viewport sweep not attempted |
+| 3 — Frontend zones | 8 foundations done; all 7 zones swept for conventions; both end-of-list sweeps partly run; no screen body read in any zone | 0/0/3/4 | 2026-08-05 | F13, F14, F15, F16, F17, F21, F22. Not attempted: focus order, and the mobile sweep's rendered half (ports held by another worktree) |
 | 4 — Data layer | done, except the production drift check | 0/0/1/0 | 2026-08-05 | F18 (product-category orphans). Every schema-level axis clean with zero exceptions: 35/35 tenant indexes, 59/59 explicit `onDelete`, 45/45 unedited migrations, 39/39 documented models |
 | 5 — Tests and docs | done, except enumerating untested contracts | 0/0/0/1 | 2026-08-05 | F19 (three drifted prose records). Machine-checkable records are exact: 173/173 tests + 12/12 specs mapped, 139/139 endpoints, 24/24 modules, 0 assertion-free tests |
 | 6 — Operations | done, except the restore drill | 0/0/0/1 | 2026-08-05 | F20 (3 majors behind). CI covers all 10 Pass 0 commands; logs carry no tokens or bodies; the deployment runbook independently confirms F19's provisioning drift |
