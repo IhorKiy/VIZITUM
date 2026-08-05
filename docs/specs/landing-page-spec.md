@@ -88,7 +88,7 @@ English equivalents translated from the same offers, not re-invented.
 
 Message: *everyone in the chain gets something, not just the boss who buys it.*
 
-Three columns, copy lifted from GTM §5 (already written for exactly this):
+Three columns, copy adapted from GTM §5 (already written for exactly this; the owner line is rephrased from the GTM plan's imperative into a descriptive statement — a page-voice adaptation, not a positioning change):
 
 - **Представнику** — менше ручної звітності після роботи: відкрив маршрут, провів візит, продиктував результат, ШІ допоміг структурувати звіт і наступну дію.
 - **Керівнику** — видно, які точки відвідує команда, що презентовано, які задачі відкриті і де є потенціал для росту.
@@ -159,7 +159,7 @@ That last bullet is the most important one on the page and should be visually ma
 
 Message: *your objection is reasonable and here is the answer.*
 
-Five items, all from GTM §17, answered in the reader's own framing rather than defensively:
+Five items from GTM §17, answered in the reader's own framing rather than defensively. The sixth §17 objection («Ринок або сегмент складний і консервативний») is deliberately omitted: it is a sales-conversation objection, not one a landing-page reader raises about themselves — do not "fix" the omission by adding it.
 
 1. **«У нас вже є CRM»** — Питання не в CRM, а в тому, чи закриває вона польовий сценарій: маршрут, візит, точку, задачі, дашборд. Якщо ні — Vizitum стає легким польовим шаром поверх того, що вже є, або пілотом для однієї команди.
 2. **«Представники не будуть цим користуватися»** — Тому візит закривається голосовою нотаткою за 30 секунд, а не формою на 15 полів. У пілоті ми міряємо adoption і час створення звіту й прибираємо зайві поля.
@@ -167,11 +167,11 @@ Five items, all from GTM §17, answered in the reader's own framing rather than 
 4. **«Нам потрібні інтеграції»** — На пілоті — імпорт і експорт. Інтеграції обговорюємо після того, як цінність підтверджена.
 5. **«Немає бюджету»** — Порахуйте час керівника на збір звітів і точки, які випали з покриття. Пілот дає цифру, з якою можна прийти до бюджету.
 
-Ukrainian is the source here; English is a translation of the same answers.
+Ukrainian is the authoring language here (as for all landing copy); English is a translation of the same answers. This does not conflict with the repo rule that `messages/en.json` is the canonical dictionary — that rule is about which file is the key/structure reference for translators, not about which language the copy is written in first.
 
 ### 11. Final CTA — demo request form
 
-Message: *one form, six fields, no obligation.*
+Message: *one form, seven fields, no obligation.*
 
 Fields (all `maxLength` from `apps/web/lib/input-limits.ts`):
 
@@ -181,7 +181,7 @@ Fields (all `maxLength` from `apps/web/lib/input-limits.ts`):
 | Компанія | yes | |
 | Email | yes | validated |
 | Телефон | no | |
-| Кількість представників | yes | select: 1-5 / 5-15 / 15-30 / 30+ — doubles as ICP qualification |
+| Кількість представників | yes | select: 1-5 / 6-15 / 16-30 / 31+ — doubles as ICP qualification |
 | Коментар | no | textarea |
 | Згода на обробку персональних даних | yes | checkbox, links to the privacy policy |
 
