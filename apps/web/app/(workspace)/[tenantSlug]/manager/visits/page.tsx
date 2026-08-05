@@ -26,7 +26,7 @@ import {
   TagIcon,
   UserIcon,
 } from "../../../../../components/icons";
-import { PeriodPills } from "../../../../../components/period-pills";
+import { PeriodLinks } from "../../../../../components/period-links";
 import {
   listAdminLocations,
   listTodayRoutes,
@@ -276,9 +276,23 @@ export default async function ManagerVisitsPage({
       <section aria-label={t("visitList")} className="panel drilldown-panel">
         <FilterForm action={`/${tenantSlug}/manager/visits`}>
           <div className="panel-toolbar panel-toolbar-filters">
-            {/* How deep the list reads sits above what it is cut by — the
-                counters at the top of the screen are counts of this window. */}
-            <PeriodPills
+            <FilterPills
+              ariaLabel={t("statusFiltersAria")}
+              name="status"
+              options={[
+                { label: tCommon("all"), value: "" },
+                ...visitStatuses.map((visitStatus) => ({
+                  label: formatEnumLabel(tCommon, visitStatus),
+                  value: visitStatus,
+                })),
+              ]}
+              value={selectedStatus ?? ""}
+            />
+            {/* Under what the list is cut by, in text: the pills say which
+                visits are on screen, this says how far back the screen reads —
+                and the counters at the top of the screen are counts of this
+                same window. */}
+            <PeriodLinks
               action={`/${tenantSlug}/manager/visits`}
               ariaLabel={t("visitPeriod")}
               names={VISIT_PERIOD_PARAMS}
@@ -298,18 +312,6 @@ export default async function ManagerVisitsPage({
               }
               period={period}
               timeZone={timeZone}
-            />
-            <FilterPills
-              ariaLabel={t("statusFiltersAria")}
-              name="status"
-              options={[
-                { label: tCommon("all"), value: "" },
-                ...visitStatuses.map((visitStatus) => ({
-                  label: formatEnumLabel(tCommon, visitStatus),
-                  value: visitStatus,
-                })),
-              ]}
-              value={selectedStatus ?? ""}
             />
           </div>
 

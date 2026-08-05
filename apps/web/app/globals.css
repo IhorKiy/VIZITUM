@@ -3380,10 +3380,11 @@ textarea {
   padding: 7px 10px;
 }
 
-/* Pills that navigate rather than select (PeriodPills): a period preset
-   writes two params at once, which no single form control can express. Same
-   shape as the radio pills above so a row of each reads as one control. */
-.filter-pills--links a {
+/* Pills that navigate rather than select: a refinement that only applies to
+   another list links across to it instead of sitting inert (see the finished
+   view of the field task list). Same shape as the radio pills beside them, so
+   a row of both reads as one control. */
+.filter-pills a {
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--muted);
@@ -3393,7 +3394,7 @@ textarea {
   text-decoration: none;
 }
 
-.filter-pills--links a[aria-current="true"] {
+.filter-pills a[aria-current="true"] {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
@@ -3434,6 +3435,40 @@ textarea {
 .filter-pills label.filter-pill--overdue:has(input:checked) {
   background: var(--danger);
   border-color: var(--danger);
+}
+
+/* How far back the list reads (PeriodLinks), as text under the filter row it
+   qualifies. No borders and no fill: this is a setting on the list the pills
+   above chose, and anything pill-shaped here competes with them for the answer
+   to "what am I looking at?". The chosen window is the only one that carries
+   weight and ink, so the line still says which period is on screen at a
+   glance. */
+.period-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  padding: 0 2px;
+}
+
+.period-links a {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 0;
+  text-decoration: none;
+}
+
+.period-links a[aria-current="true"] {
+  color: var(--accent);
+  font-weight: 850;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.period-links a:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
 }
 
 .drilldown-table td strong,
@@ -3604,6 +3639,9 @@ textarea {
   gap: 14px;
   grid-template-columns: minmax(0, 1fr);
   margin-top: 12px;
+  /* The last card has to clear the floating create button, which the surface's
+     own bottom padding — sized for the nav under it — cannot do. */
+  padding-bottom: 68px;
 }
 
 .task-group {
@@ -3672,6 +3710,162 @@ textarea {
   white-space: nowrap;
 }
 
+/* The board spaces its own rows with a grid gap, but the filter form inside one
+   of them is a plain block — the strip has to stay a lone scrolling row rather
+   than a grid item whose content can widen the column. So the period line
+   carries its own spacing here, and only here: on the other screens it sits in
+   a toolbar whose gap already spaces it, and a margin would stack on top. */
+.task-board .period-links {
+  margin: 10px 0 12px;
+}
+
+/* Holds the filter row so the collapsed bar can watch it. A grid item in the
+   board like the row was, and — like every grid item wrapping a strip that
+   scrolls sideways — pinned to zero minimum width, or the strip's own content
+   would widen the column and take the page's horizontal scroll with it. */
+.task-sticky-bar-source {
+  min-width: 0;
+}
+
+/* The collapsed header (TaskStickyBar): the screen's name and its filters, in
+   the strip of viewport under the pinned brand row.
+
+   Off screen it is parked one full height above its resting place, so it slides
+   out from *behind* the brand row rather than fading in over the list — hence a
+   z-index below the topbar's. Only transform and opacity animate; the bar is
+   fixed, so nothing around it reflows either way. Visibility is what actually
+   removes it: opacity alone would leave four filter links in the tab order and
+   in the accessibility tree over a screen that is not showing them. */
+.task-sticky-bar {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  left: 0;
+  opacity: 0;
+  /* Owns the top edge outright on a screen whose brand row scrolls away, so it
+     carries the device's own top inset the way the pinned row otherwise would.
+     Zero in a browser; only a viewport-fit=cover shell reports one. */
+  padding-top: env(safe-area-inset-top);
+  position: fixed;
+  right: 0;
+  top: var(--field-top-inset, 0px);
+  transform: translateY(-100%);
+  transition:
+    transform 0.22s ease,
+    opacity 0.18s ease,
+    visibility 0s linear 0.22s;
+  visibility: hidden;
+  z-index: 9;
+}
+
+.task-sticky-bar.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    transform 0.22s ease,
+    opacity 0.18s ease,
+    visibility 0s;
+  visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-sticky-bar,
+  .task-sticky-bar.is-visible {
+    transition: none;
+  }
+}
+
+/* The phone column, matched to .main-surface so the bar's contents line up with
+   the list under it even where the viewport is wider than the frame. */
+.task-sticky-bar-inner {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  height: 56px;
+  margin-inline: auto;
+  max-width: 430px;
+  padding: 0 14px;
+}
+
+/* The title doubles as the way back to the top of the list, which is what a
+   collapsed header is expected to do everywhere else on a phone. */
+.task-sticky-bar-title {
+  background: none;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  flex: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 0;
+}
+
+.task-sticky-bar-title:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
+}
+
+/* Same chips as the full row, scrolling sideways in the space left over. */
+.task-sticky-bar-pills {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.task-sticky-bar-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.task-sticky-bar-pills a {
+  white-space: nowrap;
+}
+
+/* An active chip takes the colour of the signal it filters for, the way the
+   full row's toggle pills do — the same rule, one drawn from `:has(:checked)`
+   and one from `aria-current`. */
+.filter-pills a.filter-pill--priority[aria-current="true"] {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.filter-pills a.filter-pill--overdue[aria-current="true"] {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+/* Create-a-task, floating clear of the list. Sits above the bottom nav rather
+   than over it (--field-bottom-inset is that nav, measured), and clears the
+   device's own inset below that. On a viewport wider than the phone frame it
+   tucks into the frame's right edge instead of the window's. */
+.task-fab {
+  align-items: center;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  bottom: calc(
+    var(--field-bottom-inset, 65px) + 22px + env(safe-area-inset-bottom)
+  );
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 38%, transparent);
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 800;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 20px;
+  position: fixed;
+  right: max(18px, calc(50% - 215px + 18px));
+  z-index: 15;
+}
+
+.task-fab:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
+}
+
 /* How many tasks are behind the pill, in the pill. Lighter than the label: it
    is the answer to the filter's question, not a second label. */
 .filter-pill-count {
@@ -3691,16 +3885,33 @@ textarea {
 
 /* A band's heading: the state, how many are in it, and a rule running out to
    the edge so the list under it reads as belonging to it. */
+/* Sticky within its own group, so each band's heading rides down the screen
+   while its cards are still passing and is then pushed off by the next one —
+   an iOS-style sectioned list, and the reason a rep always knows whether the
+   card under their thumb is late or merely undated.
+
+   The 8px gap under it is padding rather than margin: a margin is transparent,
+   and cards would scroll through the strip between the heading and its list.
+   The canvas colour is required for the same reason. Below the collapsed bar
+   both in position (see --field-top-inset) and in stacking order. */
 .task-group-head {
   align-items: center;
+  background: var(--bg);
   color: var(--muted);
   display: flex;
   font-size: 12px;
   font-weight: 850;
   gap: 8px;
   letter-spacing: 0.06em;
-  margin: 0 0 8px;
+  margin: 0;
+  /* The top padding is what keeps the heading off the bar it pins under: the
+     band is opaque, so the space belongs *inside* it — pushing the sticky
+     offset down instead would open a gap for cards to scroll through. */
+  padding: 12px 0 8px;
+  position: sticky;
   text-transform: uppercase;
+  top: calc(var(--field-top-inset, 0px) + 56px + env(safe-area-inset-top));
+  z-index: 2;
 }
 
 .task-group-head::after {
@@ -5655,6 +5866,14 @@ textarea {
   display: block;
 }
 
+/* A screen that takes the top edge for itself (see AppShell's scrollingTopbar):
+   the brand row goes back into the flow and scrolls away with the header it
+   introduces. Dropping `position` drops its stacking context with it, which is
+   what lets the screen's own bar own that strip of viewport outright. */
+.app-shell--topbar-scrolls .mobile-topbar {
+  position: static;
+}
+
 .app-shell--mobile-only .mobile-topbar-inner {
   margin-inline: auto;
   max-width: 430px;
@@ -5699,14 +5918,6 @@ textarea {
 .app-shell--mobile-only .page-header,
 .app-shell--mobile-only .notice-panel {
   display: grid;
-}
-
-/* Field tasks keeps its "+ Задача" button beside the title instead of
-   stacking below it like every other field-zone header. */
-.app-shell--mobile-only .page-header.page-header--inline {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
 }
 
 /* The field menu's screens (routes, locations, products, help) put the back

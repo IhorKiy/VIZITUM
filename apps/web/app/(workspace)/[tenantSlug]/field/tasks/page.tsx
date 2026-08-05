@@ -20,9 +20,6 @@ import {
   EditTaskModal,
   type EditTaskActionResult,
 } from "../../../../../components/edit-task-modal";
-import { FilterDateRange } from "../../../../../components/filter-date-range";
-import { FilterDisclosure } from "../../../../../components/filter-disclosure";
-import { FilterFooter } from "../../../../../components/filter-footer";
 import { FilterForm } from "../../../../../components/filter-form";
 import {
   ChevronRightIcon,
@@ -30,9 +27,12 @@ import {
   MapPinIcon,
 } from "../../../../../components/icons";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
-import { PeriodPills } from "../../../../../components/period-pills";
 import { ScrollStrip } from "../../../../../components/scroll-strip";
 import { TaskSheet } from "../../../../../components/task-sheet";
+import {
+  TaskStickyBar,
+  type StickyFilterChip,
+} from "../../../../../components/task-sticky-bar";
 import {
   createTask,
   getCurrentSession,
@@ -47,15 +47,7 @@ import { buildLocationOptions } from "../../../../../lib/filter-options";
 import { formatEnumLabel, type IntlFormatter } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
 import {
-  hasEarlierPeriod,
-  historyFloor,
   normalizePage,
-  periodAsRead,
-  periodLabel as formatPeriodLabel,
-  periodSearchParams,
-  PERIOD_MAX_MONTHS,
-  previousPeriod,
-  resolvePeriodFromParams,
   TASK_COMPLETED_PERIOD_PARAMS,
 } from "../../../../../lib/period";
 import {
@@ -70,26 +62,25 @@ import { parseTaskIsPriorityInput } from "../../../../../lib/task-form";
 type FieldTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
-    completedFrom?: string;
-    completedTo?: string;
     create?: string;
     error?: string;
     overdue?: string;
     page?: string;
     // The task whose sheet is open, by id.
     open?: string;
-    // Set by the "Period…" pill: the range itself is already in the URL, this
-    // only asks the filter panel to open on it.
-    period?: string;
     priority?: string;
     status?: string;
     task?: string;
   }>;
 };
 
-// Half the API's max, the same page size the field visit history uses: this is
-// a phone screen, and anything older is one step back through the period away.
-const DONE_PAGE_SIZE = 50;
+// The finished list is read straight through, newest first, a page at a time —
+// no date window over it. A rep looking for something they closed knows roughly
+// how long ago, and stepping back a page at a time is how they find it; naming
+// the range it fell in first was a question to answer before the list would
+// even show. Twenty is a phone screenful and change: enough that paging is
+// rare, few enough that the page never becomes its own scroll.
+const DONE_PAGE_SIZE = 20;
 // The open list is read whole, never paged — see isDoneList below. The cap is
 // the API's own maximum; a rep holding more open tasks than this has a problem
 // no list layout solves.
@@ -107,15 +98,7 @@ const NON_LIST_PARAMS = ["create", "error", "open", "task"];
 // comes off a form is read against the names this page actually understands
 // instead of being trusted whole — a hand-edited field must not be able to
 // smuggle `error=task` into the address a save redirects to.
-const LIST_PARAMS = [
-  "completedFrom",
-  "completedTo",
-  "overdue",
-  "page",
-  "period",
-  "priority",
-  "status",
-];
+const LIST_PARAMS = ["overdue", "page", "priority", "status"];
 
 // The heading each band of the open list is read under.
 const TASK_GROUP_LABEL_KEYS = {
@@ -130,27 +113,17 @@ export default async function FieldTasksPage({
   searchParams,
 }: FieldTasksPageProps) {
   const { tenantSlug } = await params;
-  const [
-    locale,
-    timeZone,
-    format,
-    t,
-    tBack,
-    tField,
-    tCreateTask,
-    tCommon,
-    tPeriod,
-  ] = await Promise.all([
-    getLocale(),
-    getTimeZone(),
-    getFormatter(),
-    getTranslations("field.tasks"),
-    getTranslations("common.back"),
-    getTranslations("field"),
-    getTranslations("field.createTask"),
-    getTranslations("common"),
-    getTranslations("common.period"),
-  ]);
+  const [locale, timeZone, format, t, tBack, tField, tCreateTask, tCommon] =
+    await Promise.all([
+      getLocale(),
+      getTimeZone(),
+      getFormatter(),
+      getTranslations("field.tasks"),
+      getTranslations("common.back"),
+      getTranslations("field"),
+      getTranslations("field.createTask"),
+      getTranslations("common"),
+    ]);
   // Due dates are date-only "YYYY-MM-DD" strings; "overdue" must be judged
   // against today's date in the tenant timezone, not the server's local
   // midnight (mirrors manager/tasks/page.tsx).
@@ -324,15 +297,10 @@ export default async function FieldTasksPage({
   // grows without bound. Open tasks are self-limiting — there are as many as
   // there is work outstanding — so that list stays whole on one page, which is
   // also what the #task-<id> anchor a location card links here with relies on.
-  // Finished tasks only ever accumulate, so that list is read through a window
-  // and paged inside it.
+  // Finished tasks only ever accumulate, so that list is paged: newest first,
+  // DONE_PAGE_SIZE at a time, all the way back to the first task this rep ever
+  // closed. No date window over it — see DONE_PAGE_SIZE.
   const isDoneList = selectedStatus === "done";
-  // The window the done list reads through: the last 30 days in the tenant's
-  // timezone unless the URL names another. Resolved here rather than left to
-  // the API so the recap can say which period its count describes.
-  const completedPeriod = isDoneList
-    ? resolvePeriodFromParams(pageState, TASK_COMPLETED_PERIOD_PARAMS, timeZone)
-    : null;
   const page = normalizePage(pageState.page);
   const query = new URLSearchParams({
     page: String(page),
@@ -343,14 +311,6 @@ export default async function FieldTasksPage({
     selectedStatus !== "in_progress" ||
     selectedPriorityOnly ||
     selectedOverdueOnly;
-
-  if (completedPeriod) {
-    for (const [name, value] of Object.entries(
-      periodSearchParams(completedPeriod, TASK_COMPLETED_PERIOD_PARAMS),
-    )) {
-      query.set(name, value);
-    }
-  }
 
   // The open list is always read whole and unfiltered, on both views. It is the
   // list on one of them, and on the other it is still what the filter row's
@@ -459,39 +419,15 @@ export default async function FieldTasksPage({
         (candidate) => candidate.id === pageState.open,
       )) ||
     null;
-  // What the API actually read: a window longer than the maximum comes back
-  // trimmed, and a recap naming the requested range would count days nobody
-  // looked at. Absent mid-deploy, when this build talks to the previous API —
-  // in which case the window stands as resolved.
-  const period =
-    completedPeriod &&
-    periodAsRead(
-      completedPeriod,
-      tasksResult.data.completedPeriod?.completedFrom,
-      timeZone,
-    );
-  // The bottom of the done list is the rep's own first finished task, which
-  // only the API can name. `null` is the API saying this rep has finished
-  // nothing at all; absent (an older API, or an unwindowed list) claims
-  // nothing, and the step back stays offered rather than announcing an end.
-  const completedFloor = historyFloor(
-    period ? tasksResult.data.completedHistoryStart : undefined,
-    timeZone,
-  );
   const totalPages = tasksResult.data.totalPages;
-  const earlier = period ? previousPeriod(period) : null;
-  // Whether there is anything behind this window at all. With no answer the
-  // step stays offered rather than announcing an end nobody confirmed.
-  const canReachEarlier = period
-    ? hasEarlierPeriod(period, completedFloor)
-    : false;
-  // This rep has finished nothing, ever — which is not the same as this window
-  // being empty, and takes different words. A narrow window empties the list
-  // all the time with finished tasks sitting right behind it, so it is the
-  // floor that separates them and never `tasks.length`.
-  const noneEverCompleted = completedFloor.state === "empty";
-  // The list exactly as it is being read right now — every filter, the period,
-  // the page — and nothing that is about a one-off notice. Both the sheet's
+  // An empty finished list is now an empty history and nothing else: with no
+  // window over it, there is no narrow range left to blame, and the words for
+  // the two cases are different. Guarded on page 1 so a stale ?page=9 — a
+  // bookmark, a back button after a task was reopened — reads as a page past
+  // the end rather than as a rep who has never finished anything.
+  const noneEverCompleted = isDoneList && tasks.length === 0 && page === 1;
+  // The list exactly as it is being read right now — every filter and the
+  // page — and nothing that is about a one-off notice. Both the sheet's
   // link and its close target are built from it, so opening a task and closing
   // it again lands the reader back on the same list they left, rather than on
   // a reset one.
@@ -523,44 +459,6 @@ export default async function FieldTasksPage({
 
     return `/${tenantSlug}/field/tasks?${params.toString()}`;
   };
-  const earlierHref = earlier
-    ? `/${tenantSlug}/field/tasks?${new URLSearchParams({
-        status: "done",
-        ...periodSearchParams(earlier, TASK_COMPLETED_PERIOD_PARAMS),
-        // Opens the filter panel on the range it just moved to, so the next
-        // step back is one edit away rather than a second guess.
-        period: "custom",
-      }).toString()}`
-    : null;
-  // Two different endings, which must not be collapsed into one claim. Reaching
-  // the first finished task really is the end. Hitting the maximum window
-  // length is not — the months behind a trimmed window are one date range away
-  // — so that case points at the filter and keeps the step back. The trimmed
-  // note stands down once the first finished task is inside the window: there
-  // is nothing further to dig for, and saying otherwise is the walk into
-  // nothing this block exists to prevent.
-  const earlierPeriodLink =
-    period && earlier && earlierHref ? (
-      canReachEarlier ? (
-        <>
-          <a className="secondary-button" href={earlierHref}>
-            {t("periodEarlier", {
-              period: formatPeriodLabel(tPeriod, format, {
-                ...earlier,
-                preset: "custom",
-              }),
-            })}
-          </a>
-          {period.clamped ? (
-            <p className="small-label">
-              {t("periodWindowCapped", { months: PERIOD_MAX_MONTHS })}
-            </p>
-          ) : null}
-        </>
-      ) : noneEverCompleted ? null : (
-        <p className="small-label">{t("periodOldestReached")}</p>
-      )
-    ) : null;
   const locations = locationsResult.ok ? locationsResult.data.items : [];
   const locationOptions = buildLocationOptions(locations, locale);
   // "Assigned locations" for the create form: the locations this rep has an
@@ -575,17 +473,89 @@ export default async function FieldTasksPage({
     locale,
   );
 
+  // The filter row as the collapsed bar draws it: the same four filters with
+  // the same on/off state, as links rather than form controls. The bar sits
+  // outside the filter form (it is fixed to the viewport, the form is in the
+  // page), and duplicating the checkboxes inside it would put two controls of
+  // the same name in one form — which serializes `overdue=1&overdue=1` and
+  // reads back as no filter at all. Links carry the state where it actually
+  // lives, in the URL.
+  const filterHref = (params: Record<string, string>) => {
+    const query = new URLSearchParams(params).toString();
+
+    return query
+      ? `/${tenantSlug}/field/tasks?${query}`
+      : `/${tenantSlug}/field/tasks`;
+  };
+  // What the open list's refinements currently are, as URL parameters — the
+  // pair every chip has to carry so switching one filter never silently drops
+  // the other, exactly as the checkboxes behave.
+  const activeRefinements: Record<string, string> = {
+    ...(selectedOverdueOnly ? { overdue: "1" } : {}),
+    ...(selectedPriorityOnly ? { priority: "1" } : {}),
+  };
+  // A chip for a refinement that is already on turns it off again, the way
+  // tapping a checked checkbox does. Removed rather than emptied: `overdue=`
+  // is a parameter the page would carry around and never read.
+  const toggleRefinementHref = (name: "overdue" | "priority", on: boolean) => {
+    const params = { ...activeRefinements };
+
+    if (on) {
+      delete params[name];
+    } else {
+      params[name] = "1";
+    }
+
+    return filterHref(params);
+  };
+  const stickyChips: StickyFilterChip[] = [
+    {
+      active: !isDoneList,
+      count: openCounts?.open,
+      // Keeps the refinements, the way clicking the already-checked radio in
+      // the full row does nothing to the two checkboxes beside it.
+      href: filterHref(activeRefinements),
+      key: "in_progress",
+      label: formatEnumLabel(tCommon, "in_progress"),
+    },
+    {
+      active: selectedOverdueOnly,
+      count: openCounts?.overdue,
+      href: toggleRefinementHref("overdue", selectedOverdueOnly),
+      key: "overdue",
+      label: t("overdueFilter"),
+      tone: "overdue",
+    },
+    {
+      active: selectedPriorityOnly,
+      count: openCounts?.priority,
+      href: toggleRefinementHref("priority", selectedPriorityOnly),
+      key: "priority",
+      label: t("priorityFilter"),
+      tone: "priority",
+    },
+    {
+      active: isDoneList,
+      // No count, for the reason the full row gives: the finished list is read
+      // a page at a time, and a number here would count more than is on screen.
+      href: filterHref({ status: "done" }),
+      key: "done",
+      label: formatEnumLabel(tCommon, "done"),
+    },
+  ];
+
   return (
-    <AppShell activeArea="field-tasks" tenantSlug={tenantSlug}>
-      <header className="page-header page-header--inline">
+    <AppShell
+      activeArea="field-tasks"
+      // The brand row scrolls away with the header it belongs to: the top edge
+      // here is taken by this screen's own collapsed bar (TaskStickyBar), and
+      // only one of the two can hold it.
+      scrollingTopbar
+      tenantSlug={tenantSlug}
+    >
+      <header className="page-header">
         <div>
           <h1>{t("title")}</h1>
-        </div>
-        <div className="toolbar">
-          <CreateOwnTaskModal
-            action={createTaskAction}
-            locationOptions={assignedLocationOptions}
-          />
         </div>
       </header>
 
@@ -631,27 +601,17 @@ export default async function FieldTasksPage({
       ) : null}
 
       <section aria-label={t("listAria")} className="task-board">
-        <FilterForm action={`/${tenantSlug}/field/tasks`}>
-          {/* Finished work only accumulates, so the done list leads with how
-              deep it reads. Open work needs no window — there are as many open
-              tasks as there is work outstanding. */}
-          {period ? (
-            <ScrollStrip viewportClassName="task-filter-row">
-              <PeriodPills
-                action={`/${tenantSlug}/field/tasks`}
-                ariaLabel={t("completedPeriod")}
-                names={TASK_COMPLETED_PERIOD_PARAMS}
-                // Status is the whole of it here, and deliberately so: the
-                // priority and overdue toggles are only ever live on the
-                // in-progress list (see selectedPriorityOnly above), so there
-                // is no other filter for a period link to drop.
-                otherParams={new URLSearchParams({ status: "done" })}
-                period={period}
-                timeZone={timeZone}
-              />
-            </ScrollStrip>
-          ) : null}
-          {/* One strip, in the order it is read: the open list, the two
+        {/* The filter row, and the collapsed bar that takes over once it has
+            scrolled away. The bar holds the row so it can watch it — see
+            TaskStickyBar. */}
+        <TaskStickyBar
+          ariaLabel={t("stickyFiltersAria")}
+          chips={stickyChips}
+          scrollTopLabel={t("backToTop")}
+          title={t("title")}
+        >
+          <FilterForm action={`/${tenantSlug}/field/tasks`}>
+            {/* One strip, in the order it is read: the open list, the two
               questions asked of it, then the finished list at the far end.
               Written out here rather than assembled from FilterPills and
               FilterTogglePills, which cannot interleave — the refinements sit
@@ -663,116 +623,112 @@ export default async function FieldTasksPage({
               The counts are what make the strip worth reading: a rep learns
               how much is open, how much of it is late and how much is flagged
               without opening any of the three. */}
-          <ScrollStrip>
-            <div
-              aria-label={t("filtersAria")}
-              className="filter-pills task-filter-row"
-              role="group"
-            >
-              <label>
-                <input
-                  defaultChecked={selectedStatus === "in_progress"}
-                  name="status"
-                  type="radio"
-                  value="in_progress"
-                />
-                <span>
-                  {formatEnumLabel(tCommon, "in_progress")}
-                  <FilterCount value={openCounts?.open} />
-                </span>
-              </label>
-              {/* The refinements narrow the open list and nothing else, so they
-                stand down on the done view rather than sitting there inert. */}
-              {isDoneList ? null : (
-                <>
-                  <label className="filter-pill--overdue">
-                    <input
-                      defaultChecked={selectedOverdueOnly}
-                      name="overdue"
-                      type="checkbox"
-                      value="1"
-                    />
-                    <span>
+            <ScrollStrip>
+              <div
+                aria-label={t("filtersAria")}
+                className="filter-pills task-filter-row"
+                role="group"
+              >
+                <label>
+                  <input
+                    defaultChecked={selectedStatus === "in_progress"}
+                    name="status"
+                    type="radio"
+                    value="in_progress"
+                  />
+                  <span>
+                    {formatEnumLabel(tCommon, "in_progress")}
+                    <FilterCount value={openCounts?.open} />
+                  </span>
+                </label>
+                {/* The refinements narrow the open list and nothing else: a done
+                  task is never overdue, and "flagged" is a question about work
+                  still outstanding. They stay in the row on both views all the
+                  same — a strip that drops half its pills the moment the
+                  finished list is opened reads as a different screen rather
+                  than as the same one, filtered differently.
+
+                  On the finished view they are links back to the open list
+                  carrying the refinement, rather than checkboxes that would
+                  tick and then be ignored (see selectedOverdueOnly). Their
+                  counts need no view of their own: both count the open list,
+                  which is read on both views. */}
+                {isDoneList ? (
+                  <>
+                    <a
+                      className="filter-pill--overdue"
+                      href={`/${tenantSlug}/field/tasks?overdue=1`}
+                    >
                       {t("overdueFilter")}
                       <FilterCount value={openCounts?.overdue} />
-                    </span>
-                  </label>
-                  <label className="filter-pill--priority">
-                    <input
-                      defaultChecked={selectedPriorityOnly}
-                      name="priority"
-                      type="checkbox"
-                      value="1"
-                    />
-                    <span>
+                    </a>
+                    <a
+                      className="filter-pill--priority"
+                      href={`/${tenantSlug}/field/tasks?priority=1`}
+                    >
                       {t("priorityFilter")}
                       <FilterCount value={openCounts?.priority} />
-                    </span>
-                  </label>
-                </>
-              )}
-              <label>
-                <input
-                  defaultChecked={isDoneList}
-                  name="status"
-                  type="radio"
-                  value="done"
-                />
-                {/* No count: the done list is read through a window, so any
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <label className="filter-pill--overdue">
+                      <input
+                        defaultChecked={selectedOverdueOnly}
+                        name="overdue"
+                        type="checkbox"
+                        value="1"
+                      />
+                      <span>
+                        {t("overdueFilter")}
+                        <FilterCount value={openCounts?.overdue} />
+                      </span>
+                    </label>
+                    <label className="filter-pill--priority">
+                      <input
+                        defaultChecked={selectedPriorityOnly}
+                        name="priority"
+                        type="checkbox"
+                        value="1"
+                      />
+                      <span>
+                        {t("priorityFilter")}
+                        <FilterCount value={openCounts?.priority} />
+                      </span>
+                    </label>
+                  </>
+                )}
+                <label>
+                  <input
+                    defaultChecked={isDoneList}
+                    name="status"
+                    type="radio"
+                    value="done"
+                  />
+                  {/* No count: the done list is read through a window, so any
                   number here would be a count of a period nobody named yet. */}
-                <span>{formatEnumLabel(tCommon, "done")}</span>
-              </label>
-            </div>
-          </ScrollStrip>
+                  <span>{formatEnumLabel(tCommon, "done")}</span>
+                </label>
+              </div>
+            </ScrollStrip>
 
-          {/* Said out loud rather than left for a rep to notice: with more open
+            {/* Said out loud rather than left for a rep to notice: with more open
               work than one read returns, every number and every band above
               covers the first page of it and nothing else. */}
-          {openTasksTruncated && !isDoneList ? (
-            <p className="task-board-note">
-              {t("openListTruncated", { count: openTasks.length })}
-            </p>
-          ) : null}
+            {openTasksTruncated && !isDoneList ? (
+              <p className="task-board-note">
+                {t("openListTruncated", { count: openTasks.length })}
+              </p>
+            ) : null}
+          </FilterForm>
+        </TaskStickyBar>
 
-          {/* Only the done list has a window to edit by hand, and this is where
-              its "Period…" pill lands. Seeded with the resolved window rather
-              than with whatever the URL carried: editing one end of the default
-              period should narrow those 30 days, not open an unbounded range. */}
-          {period ? (
-            <FilterDisclosure
-              hasFilters={!period.isDefault || pageState.period === "custom"}
-              label={tCommon("filtersLabel")}
-            >
-              <div className="filter-form field-history-filter-form">
-                <FilterDateRange
-                  fromLabel={t("completedFrom")}
-                  fromName={TASK_COMPLETED_PERIOD_PARAMS.from}
-                  fromValue={period.from}
-                  label={t("completedPeriod")}
-                  placeholder={tCommon("datePlaceholder")}
-                  toLabel={t("completedTo")}
-                  toName={TASK_COMPLETED_PERIOD_PARAMS.to}
-                  toValue={period.to}
-                />
-                <FilterFooter
-                  resetHref={
-                    period.isDefault
-                      ? undefined
-                      : `/${tenantSlug}/field/tasks?status=done`
-                  }
-                  resetLabel={tCommon("reset")}
-                />
-              </div>
-            </FilterDisclosure>
-          ) : null}
-        </FilterForm>
-
-        {/* The period leads the line: a count with no window behind it is a
-            number without a denominator. */}
-        {period ? (
+        {/* How much finished work there is in total, above the page of it on
+            screen — the denominator the pagination line below counts pages
+            against. */}
+        {isDoneList && tasks.length > 0 ? (
           <p className="list-count-summary">
-            <strong>{formatPeriodLabel(tPeriod, format, period)}</strong>
-            <span>{t("doneCount", { count: tasksResult.data.total })}</span>
+            <strong>{t("doneCount", { count: tasksResult.data.total })}</strong>
           </p>
         ) : null}
 
@@ -781,9 +737,8 @@ export default async function FieldTasksPage({
             {/* The open list is read in bands — late, today, ahead, undated —
                 because those four are the only questions a rep asks of it, and
                 a flat list makes each one a scan. The done list is already one
-                band by definition (finished, inside the chosen window), so it
-                stays flat rather than growing a heading that says what the
-                period line above it just said. */}
+                band by definition — finished, newest first — so it stays flat
+                rather than growing headings for a question nobody asks of it. */}
             {isDoneList ? (
               <TaskRows
                 entries={tasks.map((doneTask) => ({
@@ -804,7 +759,10 @@ export default async function FieldTasksPage({
                 </TaskGroup>
               ))
             )}
-            {period && totalPages > 1 ? (
+            {/* The whole of the reaching-back mechanism: newer, where you are,
+                earlier. It runs to the first task this rep ever closed, so the
+                last page is simply the one with no "earlier" on it. */}
+            {isDoneList && totalPages > 1 ? (
               <nav aria-label={t("paginationAria")} className="list-pagination">
                 {page > 1 ? (
                   <a className="secondary-button" href={pageHref(page - 1)}>
@@ -821,32 +779,19 @@ export default async function FieldTasksPage({
                 ) : null}
               </nav>
             ) : null}
-            {/* Paging stops at the edge of the window rather than sliding
-                silently into the archive: the last page hands over to the
-                period control, which is the thing that reaches further back. */}
-            {period && page >= totalPages ? (
-              <div className="period-exhausted">
-                <p className="small-label">{t("periodExhaustedTitle")}</p>
-                <p>{t("periodExhaustedBody")}</p>
-                {earlierPeriodLink}
-              </div>
-            ) : null}
           </>
         ) : (
           <div className="empty-state-panel">
-            {/* An empty window and an empty history are different answers and
+            {/* An empty filter and an empty history are different answers and
                 get different words. "Nothing matches this filter" is true of a
-                narrow window; it is wrong for a rep who has never finished
-                anything, where no filter and no date will ever help. */}
+                refinement that happens to select nothing; it is wrong for a rep
+                who has never finished anything, where no filter will ever
+                help. */}
             <h2>
               {noneEverCompleted ? t("emptyDoneEverTitle") : t("emptyTitle")}
             </h2>
             <p>{noneEverCompleted ? t("emptyDoneEverBody") : t("emptyBody")}</p>
             <div className="toolbar">
-              {/* An empty window is the one case where reaching further back is
-                  the obvious next move. With nothing ever finished there is no
-                  step to offer, and the panel above already said so once. */}
-              {noneEverCompleted ? null : earlierPeriodLink}
               {hasFilters ? (
                 <a
                   className="secondary-button"
@@ -918,6 +863,19 @@ export default async function FieldTasksPage({
           </TaskSheet>
         ) : null}
       </section>
+
+      {/* Out of the header and into a floating button. The collapsed bar has
+          room for the filters or for this, not both, and creating a task is the
+          one action here that has to stay in reach at any scroll depth — it is
+          how a rep records what they were just told at a location. Rendered
+          after the list rather than inside the header because it is fixed to
+          the viewport: its place in the document is where its dialog lives, and
+          that belongs at the end. */}
+      <CreateOwnTaskModal
+        action={createTaskAction}
+        locationOptions={assignedLocationOptions}
+        triggerClassName="task-fab"
+      />
     </AppShell>
   );
 }

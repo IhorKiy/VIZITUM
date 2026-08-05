@@ -13,12 +13,12 @@
     "filtersLabel": "Filters",
     "all": "All",
     "period": {
-      "presetPill": {
+      "presetShort": {
         "week": "Week",
         "month": "30 days",
         "quarter": "Quarter"
       },
-      "customPill": "Period…",
+      "customShort": "Period…",
       "preset": {
         "week": "Last 7 days",
         "month": "Last 30 days",
@@ -89,7 +89,6 @@
       "field-planning": "Planning",
       "field-history": "History",
       "field-tasks": "Tasks",
-      "taskBadgeAria": "In progress: {count}",
       "announcementBadgeAria": "Unread announcements: {count}",
       "admin-users": "Users",
       "admin-locations": "Locations / Chains",
@@ -1727,21 +1726,15 @@
       "taskErrorEyebrow": "Task not updated",
       "taskErrorTitle": "Follow-up update failed",
       "taskErrorBody": "Refresh and try again.",
-      "completedPeriod": "Completion period",
-      "completedFrom": "Completed from",
-      "completedTo": "Completed to",
       "doneCount": "{count, plural, one {# completed} other {# completed}}",
       "paginationAria": "Task list pages",
       "pagePosition": "Page {page} of {totalPages}",
       "showNewer": "Newer",
       "showEarlier": "Earlier",
-      "periodExhaustedTitle": "End of this period",
-      "periodExhaustedBody": "You have reached the oldest task finished in this period.",
-      "periodEarlier": "Earlier period: {period}",
-      "periodWindowCapped": "One period covers at most {months} months. Pick an earlier range in the filters to go further back.",
-      "periodOldestReached": "This is your first finished task — there is nothing earlier.",
       "emptyDoneEverTitle": "Nothing finished yet",
-      "emptyDoneEverBody": "Once you mark a task as done it shows up here, with the period you finished it in."
+      "emptyDoneEverBody": "Once you mark a task as done it shows up here, newest first.",
+      "stickyFiltersAria": "Task filters",
+      "backToTop": "Back to the top of the list"
     },
     "createTask": {
       "title": "New task",

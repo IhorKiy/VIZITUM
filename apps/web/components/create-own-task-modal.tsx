@@ -32,11 +32,16 @@ type CreateOwnTaskModalProps = {
   // Only the field rep's own assigned locations — there is no assignee field
   // here, the task is always assigned to whoever opens this form.
   locationOptions: CreateOwnTaskOption[];
+  // How the trigger is drawn: a button in a header toolbar by default, a
+  // floating action button on the task list. Only the trigger changes — the
+  // dialog it opens is the same one wherever it is opened from.
+  triggerClassName?: string;
 };
 
 export function CreateOwnTaskModal({
   action,
   locationOptions,
+  triggerClassName = "primary-button",
 }: CreateOwnTaskModalProps) {
   const t = useTranslations("field.createTask");
   const tCommon = useTranslations("common");
@@ -120,7 +125,7 @@ export function CreateOwnTaskModal({
     <>
       <button
         aria-haspopup="dialog"
-        className="primary-button"
+        className={triggerClassName}
         onClick={openDialog}
         type="button"
       >

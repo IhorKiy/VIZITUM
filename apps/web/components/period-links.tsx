@@ -8,12 +8,12 @@ import {
   type PeriodParamNames,
 } from "../lib/period";
 
-type PeriodPillsProps = {
-  // Tenant-relative screen the pills navigate back to, e.g. "/acme/field/history".
+type PeriodLinksProps = {
+  // Tenant-relative screen the links navigate back to, e.g. "/acme/field/history".
   action: string;
-  // What this row of pills selects, e.g. "Visit period". A plain div takes no
-  // accessible name, so without it the row announces as four loose links with
-  // nothing saying what they are for.
+  // What this line selects, e.g. "Visit period". A plain div takes no accessible
+  // name, so without it the line announces as four loose links with nothing
+  // saying what they are for.
   ariaLabel: string;
   // The two URL parameters this screen carries its window in.
   names: PeriodParamNames;
@@ -25,7 +25,15 @@ type PeriodPillsProps = {
 };
 
 /**
- * How deep a list reads, as one row of pills above it.
+ * How deep a list reads, as one line of plain text under the filter row.
+ *
+ * Deliberately not pills, and deliberately below the filters rather than above
+ * them. The pills are what the list *is* — a status, a refinement — and picking
+ * one changes which list is on screen. The period only says how far back that
+ * same list reads. Drawn in the same shape and placed first, it made a screen
+ * look like it grew a second, more prominent set of filters the moment the
+ * finished list was opened; as a line of text under the row it reads as what it
+ * is, a setting on the list the pills above chose.
  *
  * Links rather than the radio fields the status pills use: a preset writes two
  * params at once, which no single form control can express, and the resolved
@@ -33,18 +41,18 @@ type PeriodPillsProps = {
  * shared link — lands on the same window rather than on a relative one that has
  * since slid.
  *
- * The last pill opens the date range in the filter panel instead of naming a
+ * The last link opens the date range in the filter panel instead of naming a
  * window of its own: the presets cover the periods people ask for by name, and
  * anything else is a range someone picks by hand.
  */
-export function PeriodPills({
+export function PeriodLinks({
   action,
   ariaLabel,
   names,
   period,
   otherParams,
   timeZone,
-}: PeriodPillsProps) {
+}: PeriodLinksProps) {
   const t = useTranslations("common.period");
   const hrefFor = (params: Record<string, string>) => {
     const search = new URLSearchParams(otherParams);
@@ -63,11 +71,7 @@ export function PeriodPills({
   };
 
   return (
-    <div
-      aria-label={ariaLabel}
-      className="filter-pills filter-pills--links"
-      role="group"
-    >
+    <div aria-label={ariaLabel} className="period-links" role="group">
       {PERIOD_PRESETS.map((preset) => (
         <a
           aria-current={period.preset === preset ? "true" : undefined}
@@ -76,7 +80,7 @@ export function PeriodPills({
           )}
           key={preset}
         >
-          {t(`presetPill.${preset}`)}
+          {t(`presetShort.${preset}`)}
         </a>
       ))}
       <a
@@ -88,7 +92,7 @@ export function PeriodPills({
           period: "custom",
         })}
       >
-        {t("customPill")}
+        {t("customShort")}
       </a>
     </div>
   );
