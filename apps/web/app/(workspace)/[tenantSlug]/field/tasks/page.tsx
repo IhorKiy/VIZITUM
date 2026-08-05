@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -9,7 +11,6 @@ import {
 
 import { AppShell } from "../../../../../components/app-shell";
 import { BackLink } from "../../../../../components/back-link";
-import { CardFact } from "../../../../../components/card-fact";
 import {
   CreateOwnTaskModal,
   type CreateOwnTaskActionResult,
@@ -23,16 +24,15 @@ import { FilterDateRange } from "../../../../../components/filter-date-range";
 import { FilterDisclosure } from "../../../../../components/filter-disclosure";
 import { FilterFooter } from "../../../../../components/filter-footer";
 import { FilterForm } from "../../../../../components/filter-form";
-import { FilterPills } from "../../../../../components/filter-pills";
-import { FilterTogglePills } from "../../../../../components/filter-toggle-pills";
 import {
-  CalendarIcon,
+  ChevronRightIcon,
   FlagIcon,
   MapPinIcon,
 } from "../../../../../components/icons";
+import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import { PeriodPills } from "../../../../../components/period-pills";
-import { TaskDetailsEditor } from "../../../../../components/task-details-editor";
-import { TaskStatusEditor } from "../../../../../components/task-status-editor";
+import { ScrollStrip } from "../../../../../components/scroll-strip";
+import { TaskSheet } from "../../../../../components/task-sheet";
 import {
   createTask,
   getCurrentSession,
@@ -58,8 +58,14 @@ import {
   resolvePeriodFromParams,
   TASK_COMPLETED_PERIOD_PARAMS,
 } from "../../../../../lib/period";
+import {
+  describeTaskDue,
+  formatDueDate,
+  groupTasksByDue,
+  type TaskDueGroupKey,
+  type TaskDueState,
+} from "../../../../../lib/task-due";
 import { parseTaskIsPriorityInput } from "../../../../../lib/task-form";
-import { isTaskUnfinished, taskStatuses } from "../../../../../lib/task-status";
 
 type FieldTasksPageProps = {
   params: Promise<{ tenantSlug: string }>;
@@ -70,6 +76,8 @@ type FieldTasksPageProps = {
     error?: string;
     overdue?: string;
     page?: string;
+    // The task whose sheet is open, by id.
+    open?: string;
     // Set by the "Period…" pill: the range itself is already in the URL, this
     // only asks the filter panel to open on it.
     period?: string;
@@ -82,6 +90,40 @@ type FieldTasksPageProps = {
 // Half the API's max, the same page size the field visit history uses: this is
 // a phone screen, and anything older is one step back through the period away.
 const DONE_PAGE_SIZE = 50;
+// The open list is read whole, never paged — see isDoneList below. The cap is
+// the API's own maximum; a rep holding more open tasks than this has a problem
+// no list layout solves.
+const OPEN_PAGE_SIZE = 100;
+// The "closed today" tail is a day's work, not an archive: one day cannot
+// plausibly hold more than this, and the done list is where the rest lives.
+const CLOSED_TODAY_PAGE_SIZE = 50;
+
+// Query params that say something about this visit rather than about which
+// list is being read: a notice to show once, a dialog that is open. They are
+// dropped when the page rebuilds its own address.
+const NON_LIST_PARAMS = ["create", "error", "open", "task"];
+// The other half of that split, as an allowlist rather than the complement:
+// the list query travels back to the server on the sheet's forms, so what
+// comes off a form is read against the names this page actually understands
+// instead of being trusted whole — a hand-edited field must not be able to
+// smuggle `error=task` into the address a save redirects to.
+const LIST_PARAMS = [
+  "completedFrom",
+  "completedTo",
+  "overdue",
+  "page",
+  "period",
+  "priority",
+  "status",
+];
+
+// The heading each band of the open list is read under.
+const TASK_GROUP_LABEL_KEYS = {
+  overdue: "groupOverdue",
+  today: "groupToday",
+  upcoming: "groupUpcoming",
+  undated: "groupUndated",
+} as const satisfies Record<TaskDueGroupKey, string>;
 
 export default async function FieldTasksPage({
   params,
@@ -119,52 +161,40 @@ export default async function FieldTasksPage({
   async function updateTaskStatusAction(formData: FormData) {
     "use server";
 
+    // Where the rep was reading when they acted, carried on the form (see
+    // listQueryFrom): a save that landed them on a reset list would throw away
+    // the window, the page and the refinements they had picked.
+    const listQuery = listQueryFrom(formData);
     const taskId = getFormString(formData, "taskId").trim();
     const status = normalizeTaskStatus(formData.get("status"));
 
     if (!taskId || !status) {
-      redirect(`/${tenantSlug}/field/tasks?error=task`);
+      redirect(tasksHref(tenantSlug, listQuery, "error", "task"));
     }
 
     const result = await updateTask(taskId, { status });
 
     if (!result.ok) {
-      redirect(`/${tenantSlug}/field/tasks?error=task`);
+      redirect(tasksHref(tenantSlug, listQuery, "error", "task"));
     }
 
-    redirect(`/${tenantSlug}/field/tasks?task=updated`);
+    redirect(tasksHref(tenantSlug, listQuery, "task", "updated"));
   }
 
-  async function updateTaskDetailsAction(formData: FormData) {
-    "use server";
-
-    const taskId = getFormString(formData, "taskId").trim();
-
-    if (!taskId) {
-      redirect(`/${tenantSlug}/field/tasks?error=task`);
-    }
-
-    const description = getFormString(formData, "description").trim();
-    const result = await updateTask(taskId, {
-      description: description || null,
-    });
-
-    if (!result.ok) {
-      redirect(`/${tenantSlug}/field/tasks?error=task`);
-    }
-
-    redirect(`/${tenantSlug}/field/tasks?task=updated`);
-  }
-
+  // No description-only action here: the description is edited through the
+  // same dialog as every other field of the task (updateTaskFieldsAction
+  // below), because an expanded row that offered two pencils offered the same
+  // edit twice.
   async function updateTaskFieldsAction(
     formData: FormData,
   ): Promise<EditTaskActionResult> {
     "use server";
 
+    const listQuery = listQueryFrom(formData);
     const taskId = getFormString(formData, "taskId").trim();
 
     if (!taskId) {
-      redirect(`/${tenantSlug}/field/tasks?error=task`);
+      redirect(tasksHref(tenantSlug, listQuery, "error", "task"));
     }
 
     const title = getFormString(formData, "title").trim();
@@ -179,6 +209,10 @@ export default async function FieldTasksPage({
     const isPriority = parseTaskIsPriorityInput(formData.get("isPriority"));
     const locationId = getFormString(formData, "locationId").trim();
     const dueDate = getFormString(formData, "dueDate").trim();
+    // The form carries the status too (the sheet's own segments), so a rep who
+    // opens the dialog to fix a date can close the task in the same save. An
+    // unreadable value is left alone rather than guessed at.
+    const status = normalizeTaskStatus(formData.get("status"));
 
     const result = await updateTask(taskId, {
       title,
@@ -186,13 +220,14 @@ export default async function FieldTasksPage({
       isPriority,
       locationId: locationId || null,
       dueDate: dueDate || null,
+      ...(status ? { status } : {}),
     });
 
     if (!result.ok) {
       return { ok: false };
     }
 
-    redirect(`/${tenantSlug}/field/tasks?task=edited`);
+    redirect(tasksHref(tenantSlug, listQuery, "task", "edited"));
   }
 
   const sessionResult = await getCurrentSession();
@@ -299,17 +334,15 @@ export default async function FieldTasksPage({
     ? resolvePeriodFromParams(pageState, TASK_COMPLETED_PERIOD_PARAMS, timeZone)
     : null;
   const page = normalizePage(pageState.page);
-  const query = new URLSearchParams(
-    isDoneList
-      ? { page: String(page), pageSize: String(DONE_PAGE_SIZE) }
-      : { pageSize: "100" },
-  );
+  const query = new URLSearchParams({
+    page: String(page),
+    pageSize: String(DONE_PAGE_SIZE),
+    status: "done",
+  });
   const hasFilters =
     selectedStatus !== "in_progress" ||
     selectedPriorityOnly ||
     selectedOverdueOnly;
-
-  query.set("status", selectedStatus);
 
   if (completedPeriod) {
     for (const [name, value] of Object.entries(
@@ -319,22 +352,41 @@ export default async function FieldTasksPage({
     }
   }
 
-  if (selectedPriorityOnly) {
-    query.set("isPriority", "true");
-  }
+  // The open list is always read whole and unfiltered, on both views. It is the
+  // list on one of them, and on the other it is still what the filter row's
+  // counts describe — a row that stops counting the moment the reader steps
+  // into the done list is a row that stops being worth reading. The two
+  // refinements narrow it here rather than at the API: overdue and priority are
+  // both decidable from the tasks already in hand, and one request that answers
+  // three questions beats three that each answer one.
+  const openQuery = new URLSearchParams({
+    pageSize: String(OPEN_PAGE_SIZE),
+    status: "in_progress",
+  });
+  // What the rep has closed today, shown as a tail under the open list: an
+  // empty list and an empty day are different answers, and the second one is
+  // worth seeing at the end of a run.
+  const closedTodayQuery = new URLSearchParams({
+    pageSize: String(CLOSED_TODAY_PAGE_SIZE),
+    status: "done",
+    [TASK_COMPLETED_PERIOD_PARAMS.from]: todayIsoDate,
+    [TASK_COMPLETED_PERIOD_PARAMS.to]: todayIsoDate,
+  });
 
-  // The API has no "overdue" flag, only a due-date range, and its dueTo bound
-  // is inclusive — so "due before today" is expressed as "due up to and
-  // including yesterday", in the tenant timezone the day was resolved in.
-  // Tasks with no due date drop out, which is what overdue means for them.
-  if (selectedOverdueOnly) {
-    query.set("dueTo", previousIsoDate(todayIsoDate));
-  }
-
-  const [tasksResult, locationsResult] = await Promise.all([
-    listTasks(query.toString()),
-    listLocations(),
-  ]);
+  const [openResult, doneResult, closedTodayResult, locationsResult] =
+    await Promise.all([
+      listTasks(openQuery.toString()),
+      isDoneList ? listTasks(query.toString()) : null,
+      // Only under the open list, and only when no refinement is on: a reader
+      // narrowing to "overdue" asked a question the tail is no part of.
+      isDoneList || selectedPriorityOnly || selectedOverdueOnly
+        ? null
+        : listTasks(closedTodayQuery.toString()),
+      listLocations(),
+    ]);
+  // The list this view is about. The other request is context around it, and
+  // its failure costs a count or a tail rather than the screen.
+  const tasksResult = doneResult ?? openResult;
 
   if (!tasksResult.ok) {
     return (
@@ -361,7 +413,52 @@ export default async function FieldTasksPage({
     );
   }
 
-  const tasks = tasksResult.data.items;
+  // Every open task with its due state worked out once, since three different
+  // readers need it: the filter row's counts, the overdue refinement and the
+  // bands the list is drawn in.
+  const openTasks = openResult.ok
+    ? openResult.data.items.map((openTask) => ({
+        task: openTask,
+        due: describeTaskDue(openTask, todayIsoDate),
+      }))
+    : [];
+  // Whether this rep holds more open work than one read of the list returns.
+  // Self-limiting as open work is, OPEN_PAGE_SIZE is the API's ceiling rather
+  // than a promise, and everything below — the bands, the refinements, the
+  // counts — describes the tasks actually in hand.
+  const openTasksTruncated =
+    openResult.ok && openResult.data.items.length < openResult.data.total;
+  // Counts for the filter row. `null` where the open list failed to load — a
+  // pill with no count says less than one with a wrong count. All three count
+  // the same set: taking the open one from the server's total instead would
+  // have it describe every open task while the two beside it described only
+  // the first hundred, and a strip whose three numbers disagree is worse than
+  // one that admits its limit (the note under it does).
+  const openCounts = openResult.ok
+    ? {
+        open: openTasks.length,
+        overdue: openTasks.filter((entry) => entry.due.tone === "overdue")
+          .length,
+        priority: openTasks.filter((entry) => entry.task.isPriority).length,
+      }
+    : null;
+  const visibleOpenTasks = openTasks
+    .filter((entry) => !selectedOverdueOnly || entry.due.tone === "overdue")
+    .filter((entry) => !selectedPriorityOnly || entry.task.isPriority)
+    .map((entry) => entry.task);
+  const closedTodayTasks =
+    closedTodayResult?.ok === true ? closedTodayResult.data.items : [];
+  const tasks = isDoneList ? tasksResult.data.items : visibleOpenTasks;
+  // The task the sheet is open on, found among the ones this view already
+  // holds. Deliberately not a fetch by id: the sheet is the detail of a row on
+  // this screen, so an id that is not on it — stale link, another rep's task,
+  // a filter that has since moved on — opens nothing at all.
+  const openTask =
+    (pageState.open &&
+      [...tasks, ...closedTodayTasks].find(
+        (candidate) => candidate.id === pageState.open,
+      )) ||
+    null;
   // What the API actually read: a window longer than the maximum comes back
   // trimmed, and a recap naming the requested range would count days nobody
   // looked at. Absent mid-deploy, when this build talks to the previous API —
@@ -393,6 +490,27 @@ export default async function FieldTasksPage({
   // all the time with finished tasks sitting right behind it, so it is the
   // floor that separates them and never `tasks.length`.
   const noneEverCompleted = completedFloor.state === "empty";
+  // The list exactly as it is being read right now — every filter, the period,
+  // the page — and nothing that is about a one-off notice. Both the sheet's
+  // link and its close target are built from it, so opening a task and closing
+  // it again lands the reader back on the same list they left, rather than on
+  // a reset one.
+  const listParams = new URLSearchParams();
+
+  for (const [name, value] of Object.entries(pageState)) {
+    if (value && !NON_LIST_PARAMS.includes(name)) {
+      listParams.set(name, value);
+    }
+  }
+
+  const listHref = withParams(`/${tenantSlug}/field/tasks`, listParams);
+  const sheetHref = (taskId: string) => {
+    const params = new URLSearchParams(listParams);
+
+    params.set("open", taskId);
+
+    return withParams(`/${tenantSlug}/field/tasks`, params);
+  };
   const pageHref = (targetPage: number) => {
     const params = new URLSearchParams(query);
     params.delete("pageSize");
@@ -512,60 +630,109 @@ export default async function FieldTasksPage({
         />
       ) : null}
 
-      <section aria-label={t("listAria")} className="panel drilldown-panel">
+      <section aria-label={t("listAria")} className="task-board">
         <FilterForm action={`/${tenantSlug}/field/tasks`}>
-          <div className="panel-toolbar">
-            <div className="filter-groups">
-              {/* Finished work only accumulates, so the done list leads with
-                  how deep it reads. Open work needs no window — there are as
-                  many open tasks as there is work outstanding. */}
-              {period ? (
-                <PeriodPills
-                  action={`/${tenantSlug}/field/tasks`}
-                  ariaLabel={t("completedPeriod")}
-                  names={TASK_COMPLETED_PERIOD_PARAMS}
-                  // Status is the whole of it here, and deliberately so: the
-                  // priority and overdue toggles are only ever live on the
-                  // in-progress list (see selectedPriorityOnly above), so there
-                  // is no other filter for a period link to drop.
-                  otherParams={new URLSearchParams({ status: "done" })}
-                  period={period}
-                  timeZone={timeZone}
-                />
-              ) : null}
-              <FilterPills
-                ariaLabel={t("statusFiltersAria")}
-                name="status"
-                options={taskStatuses.map((status) => ({
-                  label: formatEnumLabel(tCommon, status),
-                  value: status,
-                }))}
-                value={selectedStatus}
+          {/* Finished work only accumulates, so the done list leads with how
+              deep it reads. Open work needs no window — there are as many open
+              tasks as there is work outstanding. */}
+          {period ? (
+            <ScrollStrip viewportClassName="task-filter-row">
+              <PeriodPills
+                action={`/${tenantSlug}/field/tasks`}
+                ariaLabel={t("completedPeriod")}
+                names={TASK_COMPLETED_PERIOD_PARAMS}
+                // Status is the whole of it here, and deliberately so: the
+                // priority and overdue toggles are only ever live on the
+                // in-progress list (see selectedPriorityOnly above), so there
+                // is no other filter for a period link to drop.
+                otherParams={new URLSearchParams({ status: "done" })}
+                period={period}
+                timeZone={timeZone}
               />
-              {selectedStatus === "in_progress" ? (
-                <FilterTogglePills
-                  ariaLabel={t("refineFiltersAria")}
-                  options={[
-                    {
-                      checked: selectedPriorityOnly,
-                      label: t("priorityFilter"),
-                      name: "priority",
-                      tone: "priority",
-                    },
-                    {
-                      checked: selectedOverdueOnly,
-                      label: t("overdueFilter"),
-                      name: "overdue",
-                      tone: "overdue",
-                    },
-                  ]}
+            </ScrollStrip>
+          ) : null}
+          {/* One strip, in the order it is read: the open list, the two
+              questions asked of it, then the finished list at the far end.
+              Written out here rather than assembled from FilterPills and
+              FilterTogglePills, which cannot interleave — the refinements sit
+              *inside* the status choice they narrow, and putting the two
+              components side by side would push "done" between a filter and
+              the list it filters. The names and values are theirs, so the form,
+              the reset and the URL stay exactly as before.
+
+              The counts are what make the strip worth reading: a rep learns
+              how much is open, how much of it is late and how much is flagged
+              without opening any of the three. */}
+          <ScrollStrip>
+            <div
+              aria-label={t("filtersAria")}
+              className="filter-pills task-filter-row"
+              role="group"
+            >
+              <label>
+                <input
+                  defaultChecked={selectedStatus === "in_progress"}
+                  name="status"
+                  type="radio"
+                  value="in_progress"
                 />
-              ) : null}
+                <span>
+                  {formatEnumLabel(tCommon, "in_progress")}
+                  <FilterCount value={openCounts?.open} />
+                </span>
+              </label>
+              {/* The refinements narrow the open list and nothing else, so they
+                stand down on the done view rather than sitting there inert. */}
+              {isDoneList ? null : (
+                <>
+                  <label className="filter-pill--overdue">
+                    <input
+                      defaultChecked={selectedOverdueOnly}
+                      name="overdue"
+                      type="checkbox"
+                      value="1"
+                    />
+                    <span>
+                      {t("overdueFilter")}
+                      <FilterCount value={openCounts?.overdue} />
+                    </span>
+                  </label>
+                  <label className="filter-pill--priority">
+                    <input
+                      defaultChecked={selectedPriorityOnly}
+                      name="priority"
+                      type="checkbox"
+                      value="1"
+                    />
+                    <span>
+                      {t("priorityFilter")}
+                      <FilterCount value={openCounts?.priority} />
+                    </span>
+                  </label>
+                </>
+              )}
+              <label>
+                <input
+                  defaultChecked={isDoneList}
+                  name="status"
+                  type="radio"
+                  value="done"
+                />
+                {/* No count: the done list is read through a window, so any
+                  number here would be a count of a period nobody named yet. */}
+                <span>{formatEnumLabel(tCommon, "done")}</span>
+              </label>
             </div>
-            <p className="filter-result-count">
-              {t("taskCount", { count: tasksResult.data.total })}
+          </ScrollStrip>
+
+          {/* Said out loud rather than left for a rep to notice: with more open
+              work than one read returns, every number and every band above
+              covers the first page of it and nothing else. */}
+          {openTasksTruncated && !isDoneList ? (
+            <p className="task-board-note">
+              {t("openListTruncated", { count: openTasks.length })}
             </p>
-          </div>
+          ) : null}
 
           {/* Only the done list has a window to edit by hand, and this is where
               its "Period…" pill lands. Seeded with the resolved window rather
@@ -611,14 +778,32 @@ export default async function FieldTasksPage({
 
         {tasks.length > 0 ? (
           <>
-            <TasksCards
-              locationOptions={locationOptions}
-              tasks={tasks}
-              todayIsoDate={todayIsoDate}
-              updateTaskDetailsAction={updateTaskDetailsAction}
-              updateTaskFieldsAction={updateTaskFieldsAction}
-              updateTaskStatusAction={updateTaskStatusAction}
-            />
+            {/* The open list is read in bands — late, today, ahead, undated —
+                because those four are the only questions a rep asks of it, and
+                a flat list makes each one a scan. The done list is already one
+                band by definition (finished, inside the chosen window), so it
+                stays flat rather than growing a heading that says what the
+                period line above it just said. */}
+            {isDoneList ? (
+              <TaskRows
+                entries={tasks.map((doneTask) => ({
+                  task: doneTask,
+                  due: describeTaskDue(doneTask, todayIsoDate),
+                }))}
+                sheetHref={sheetHref}
+              />
+            ) : (
+              groupTasksByDue(tasks, todayIsoDate).map((group) => (
+                <TaskGroup
+                  count={group.entries.length}
+                  key={group.key}
+                  label={t(TASK_GROUP_LABEL_KEYS[group.key])}
+                  tone={group.key}
+                >
+                  <TaskRows entries={group.entries} sheetHref={sheetHref} />
+                </TaskGroup>
+              ))
+            )}
             {period && totalPages > 1 ? (
               <nav aria-label={t("paginationAria")} className="list-pagination">
                 {page > 1 ? (
@@ -679,102 +864,208 @@ export default async function FieldTasksPage({
             </div>
           </div>
         )}
+
+        {/* Closed today, under the open list rather than inside it: it is not
+            work to do, it is the answer to "did I get anywhere today", and a
+            rep who has cleared the list sees the day rather than an empty
+            screen. */}
+        {closedTodayTasks.length > 0 ? (
+          <TaskGroup
+            count={closedTodayTasks.length}
+            label={t("groupClosedToday")}
+            tone="closed"
+          >
+            <TaskRows
+              entries={closedTodayTasks.map((closedTask) => ({
+                task: closedTask,
+                due: describeTaskDue(closedTask, todayIsoDate),
+              }))}
+              sheetHref={sheetHref}
+            />
+          </TaskGroup>
+        ) : null}
+
+        {/* Opened by ?open=<taskId>, which is what makes the phone's back
+            gesture close it. Only ever a task that is on the screen behind it:
+            an id from another list, another rep or a stale link opens nothing
+            rather than fetching a task this view was not showing. */}
+        {openTask ? (
+          <TaskSheet
+            ariaLabel={openTask.title}
+            closeHref={listHref}
+            closeLabel={tCommon("close")}
+            eyebrow={
+              openTask.isPriority ? (
+                <span className="task-sheet-priority">
+                  <FlagIcon />
+                  {t("priority")}
+                </span>
+              ) : null
+            }
+          >
+            <TaskSheetBody
+              due={describeTaskDue(openTask, todayIsoDate)}
+              format={format}
+              listQuery={listParams.toString()}
+              locationOptions={locationOptions}
+              t={t}
+              tCommon={tCommon}
+              task={openTask}
+              todayIsoDate={todayIsoDate}
+              updateTaskFieldsAction={updateTaskFieldsAction}
+              updateTaskStatusAction={updateTaskStatusAction}
+            />
+          </TaskSheet>
+        ) : null}
       </section>
     </AppShell>
   );
 }
 
-// One card layout at every width, matching manager/tasks/page.tsx's
-// TasksCards: the status pill doubles as the inline editor (click to change
-// it, saves on pick), and the description and history live behind their own
-// disclosures. Own-scope tasks have no assignee to show and no team-delete
-// affordance.
-function TasksCards({
-  locationOptions,
-  tasks,
-  todayIsoDate,
-  updateTaskStatusAction,
-  updateTaskDetailsAction,
-  updateTaskFieldsAction,
+// A count riding inside a filter pill. Absent rather than zero when the list it
+// counts failed to load: "0 overdue" is an answer, and this would be a guess.
+function FilterCount({ value }: { value: number | undefined }) {
+  if (value === undefined) {
+    return null;
+  }
+
+  return <b className="filter-pill-count">{value}</b>;
+}
+
+// One band of the list under its own heading — late, today, ahead, undated, or
+// the day's finished work. The count belongs in the heading because it is the
+// answer to the question the heading asks.
+function TaskGroup({
+  children,
+  count,
+  label,
+  tone,
 }: {
-  locationOptions: { id: string; label: string }[];
-  tasks: Task[];
-  todayIsoDate: string;
-  updateTaskStatusAction: (formData: FormData) => Promise<void>;
-  updateTaskDetailsAction: (formData: FormData) => Promise<void>;
-  updateTaskFieldsAction: (formData: FormData) => Promise<EditTaskActionResult>;
+  children: ReactNode;
+  count: number;
+  label: string;
+  tone: TaskDueGroupKey | "closed";
+}) {
+  return (
+    <section className={`task-group is-${tone}`}>
+      <h2 className="task-group-head">
+        <span className="task-group-name">{label}</span>
+        <span className="task-group-count">{count}</span>
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+// One row per task, built around a date rail: the deadline is the same size in
+// the same place on every row, so the list reads as one column of dates rather
+// than as a stack of cards each stating its own.
+//
+// A row is what a rep scans — the date, the title, how late it is, where it is
+// — and nothing else: everything about the task, and every action on it, is in
+// the sheet the row opens.
+function TaskRows({
+  entries,
+  sheetHref,
+}: {
+  entries: { task: Task; due: TaskDueState }[];
+  sheetHref: (taskId: string) => string;
 }) {
   const t = useTranslations("field.tasks");
-  const tCommon = useTranslations("common");
   const format = useFormatter();
 
   return (
-    <ul className="list-cards">
-      {tasks.map((task) => {
-        const overdue = isTaskOverdue(task, todayIsoDate);
-
-        return (
-          <li
-            className={`list-card${overdue ? " is-overdue" : ""}`}
-            id={`task-${task.id}`}
-            key={task.id}
+    <ul className="task-rows">
+      {entries.map(({ task, due }) => (
+        <li
+          className={`task-row is-${due.tone}${
+            task.isPriority ? " is-priority" : ""
+          }`}
+          id={`task-${task.id}`}
+          key={task.id}
+        >
+          {/* A link, not a button: the sheet it opens is a URL, so the whole
+              row is one ordinary navigation — long-press, middle-click and the
+              back gesture all behave the way the phone already taught. Routed
+              through Link rather than a bare <a> so opening the sheet is a
+              client transition, and scroll={false} so the list stays where the
+              reader left it — the mirror of the router.replace the sheet
+              closes with. */}
+          <Link
+            className="task-row-main"
+            href={sheetHref(task.id)}
+            scroll={false}
           >
-            <div className="list-card-top">
-              <h3 className="list-card-title">
-                {task.title}
-                {task.isPriority ? (
-                  <span className="priority-tag">
-                    <FlagIcon />
-                    {t("priority")}
-                  </span>
+            <TaskDueRail due={due} format={format} t={t} />
+            <span className="task-row-text">
+              <span className="task-row-title">{task.title}</span>
+              <span className="task-row-meta">
+                {due.tone === "overdue" && due.dayOffset !== null ? (
+                  <b className="task-row-late">
+                    {t("rowOverdueDays", { days: -due.dayOffset })}
+                  </b>
                 ) : null}
-              </h3>
-              <div className="list-card-top-actions">
-                <TaskStatusEditor
-                  ariaLabel={t("updateTaskStatusAria", { title: task.title })}
-                  status={task.status}
-                  taskId={task.id}
-                  updateAction={updateTaskStatusAction}
-                />
-                <EditTaskModal
-                  action={updateTaskFieldsAction}
-                  locationOptions={locationOptions}
-                  task={task}
-                />
-              </div>
-            </div>
-            <dl className="list-card-facts">
-              <CardFact icon={<MapPinIcon />} label={t("location")}>
-                {task.location
-                  ? `${task.location.name}, ${task.location.city}`
-                  : t("noLocation")}
-              </CardFact>
-              <CardFact icon={<CalendarIcon />} label={t("due")}>
-                <DueDate
-                  format={format}
-                  overdue={overdue}
-                  overdueLabel={t("overdue")}
-                  value={task.dueDate}
-                />
-              </CardFact>
-            </dl>
-            <TaskDetailsEditor
-              taskId={task.id}
-              updateAction={updateTaskDetailsAction}
-              value={task.description ?? ""}
-            />
-            <TaskHistory
-              createdByName={task.createdBy?.name ?? null}
-              createdAt={task.createdAt}
-              history={task.history}
-              format={format}
-              t={t}
-              tCommon={tCommon}
-            />
-          </li>
-        );
-      })}
+                <span className="task-row-place">
+                  <MapPinIcon />
+                  {task.location
+                    ? `${task.location.name}, ${task.location.city}`
+                    : t("noLocation")}
+                </span>
+              </span>
+              {/* The gold edge says this to everyone who can see it. */}
+              {task.isPriority ? (
+                <span className="sr-only">{t("priority")}</span>
+              ) : null}
+            </span>
+            <ChevronRightIcon />
+          </Link>
+        </li>
+      ))}
     </ul>
+  );
+}
+
+// The row's left column. Everything visible in it is aria-hidden and replaced
+// by one spoken sentence: read out piecemeal it announces "3, Jul", which is
+// two fragments where the reader needs one fact.
+function TaskDueRail({
+  due,
+  format,
+  t,
+}: {
+  due: TaskDueState;
+  format: IntlFormatter;
+  t: FieldTasksTranslator;
+}) {
+  if (!due.dueAt || due.dayOffset === null) {
+    return (
+      <span className="task-row-rail">
+        <span className="sr-only">{t("dueAriaNone")}</span>
+        <span aria-hidden="true" className="task-row-rail-label">
+          {t("dueNone")}
+        </span>
+      </span>
+    );
+  }
+
+  const date = formatDueDate(format, due.dueAt, { dateStyle: "medium" });
+
+  return (
+    <span className="task-row-rail">
+      <span className="sr-only">
+        {due.tone === "overdue"
+          ? t("dueAriaOverdue", { date, days: -due.dayOffset })
+          : due.tone === "today"
+            ? t("dueAriaToday", { date })
+            : t("dueAria", { date })}
+      </span>
+      <span aria-hidden="true" className="task-row-day">
+        {formatDueDate(format, due.dueAt, { day: "numeric" })}
+      </span>
+      <span aria-hidden="true" className="task-row-month">
+        {formatDueMonth(format, due.dueAt)}
+      </span>
+    </span>
   );
 }
 
@@ -783,11 +1074,167 @@ type FieldTasksTranslator = Awaited<
 >;
 type CommonTranslator = Awaited<ReturnType<typeof getTranslations<"common">>>;
 
+// Everything the sheet says about one task, and every action on it. Rendered
+// on the server and handed to TaskSheet as children — the sheet itself only
+// owns the gesture, the backdrop and the way it closes.
+function TaskSheetBody({
+  format,
+  listQuery,
+  locationOptions,
+  t,
+  tCommon,
+  task,
+  due,
+  todayIsoDate,
+  updateTaskFieldsAction,
+  updateTaskStatusAction,
+}: {
+  format: IntlFormatter;
+  // The current list as a query string, threaded down to the two forms so a
+  // save returns to the same list rather than to a reset one.
+  listQuery: string;
+  locationOptions: { id: string; label: string }[];
+  t: FieldTasksTranslator;
+  tCommon: CommonTranslator;
+  task: Task;
+  due: TaskDueState;
+  todayIsoDate: string;
+  updateTaskFieldsAction: (formData: FormData) => Promise<EditTaskActionResult>;
+  updateTaskStatusAction: (formData: FormData) => Promise<void>;
+}) {
+  const finished = task.status === "done";
+
+  return (
+    <>
+      {/* Everything above the actions scrolls as one: the title and the
+          description are as long as the rep who wrote them made them, and with
+          only the history scrolling a wordy task pushed "Complete" — the whole
+          reason the sheet opens — off the bottom of a small screen. */}
+      <div className="task-sheet-body">
+        <div className="task-sheet-head">
+          <h2 className="task-sheet-title">{task.title}</h2>
+          {task.description ? (
+            <p className="task-sheet-description">{task.description}</p>
+          ) : null}
+        </div>
+
+        {/* Three facts, not four: who set the task is the first line of the
+          history below, and a sheet this short cannot afford to say the same
+          name twice. */}
+        <dl className="task-sheet-facts">
+          <div>
+            <dt>{t("factStatus")}</dt>
+            <dd>{formatEnumLabel(tCommon, task.status)}</dd>
+          </div>
+          <div>
+            <dt>{t("factDue")}</dt>
+            <dd className={`task-sheet-due is-${due.tone}`}>
+              <TaskSheetDue due={due} format={format} t={t} />
+            </dd>
+          </div>
+          <div>
+            <dt>{t("factLocation")}</dt>
+            <dd>
+              {task.location
+                ? `${task.location.name}, ${task.location.city}`
+                : t("noLocation")}
+            </dd>
+          </div>
+        </dl>
+
+        <TaskHistoryList
+          createdAt={task.createdAt}
+          createdByName={task.createdBy?.name ?? null}
+          format={format}
+          history={task.history}
+          t={t}
+          tCommon={tCommon}
+        />
+      </div>
+
+      <div className="task-sheet-actions">
+        {/* The whole point of opening a task on a route: one tap to close it
+            out. Finishing sends the rep back to the list, where the task has
+            moved to "closed today" and the confirmation says so. */}
+        <form action={updateTaskStatusAction}>
+          <input name="taskId" type="hidden" value={task.id} />
+          <input
+            name="status"
+            type="hidden"
+            value={finished ? "in_progress" : "done"}
+          />
+          {/* The list this was submitted from, so the redirect can land back
+              on it. Carried on the form rather than closed over by the action:
+              a Server Action captures what it closes over at build time, and
+              this is per-request. */}
+          <input name="listQuery" type="hidden" value={listQuery} />
+          <PendingSubmitButton
+            className="primary-button"
+            pendingLabel={t(finished ? "sheetReopening" : "sheetCompleting")}
+          >
+            {t(finished ? "sheetReopen" : "sheetComplete")}
+          </PendingSubmitButton>
+        </form>
+        <EditTaskModal
+          action={updateTaskFieldsAction}
+          listQuery={listQuery}
+          locationOptions={locationOptions}
+          task={task}
+          todayIsoDate={todayIsoDate}
+          triggerLabel={t("sheetEdit")}
+        />
+      </div>
+    </>
+  );
+}
+
+// The deadline as the sheet states it: the day written out with its weekday —
+// a date a rep has to act on is a day of the week first — plus how late it is
+// when that has already passed.
+function TaskSheetDue({
+  due,
+  format,
+  t,
+}: {
+  due: TaskDueState;
+  format: IntlFormatter;
+  t: FieldTasksTranslator;
+}) {
+  if (!due.dueAt || due.dayOffset === null) {
+    return <>{t("dueNone")}</>;
+  }
+
+  const date = formatDueDate(format, due.dueAt, {
+    day: "numeric",
+    month: "short",
+    weekday: "short",
+  });
+
+  if (due.tone === "overdue") {
+    return (
+      <>
+        {date}
+        {/* Its own wording rather than the row's: in the list the count sits
+            under a heading that already says "Overdue", while here it follows
+            a date, where a bare "3 days" reads just as easily as three days
+            from now. */}
+        <span className="task-sheet-late">
+          {t("dueOverdueBy", { days: -due.dayOffset })}
+        </span>
+      </>
+    );
+  }
+
+  return <>{date}</>;
+}
+
 // Read-only: who created the task (always known, even for tasks that predate
-// this feature) plus every recorded status change. Tasks from before the
-// history table existed simply have an empty `history` array, so they fall
-// back to showing only the creation line — exactly the intended behavior.
-function TaskHistory({
+// this feature) plus every recorded status change, oldest first. Tasks from
+// before the history table existed simply have an empty `history` array, so
+// they fall back to showing only the creation line — exactly the intended
+// behavior. Laid out as a timeline: the stamp on the left, what happened and
+// who did it on the right, so a column of dates reads down the edge.
+function TaskHistoryList({
   createdByName,
   createdAt,
   history,
@@ -803,94 +1250,107 @@ function TaskHistory({
   tCommon: CommonTranslator;
 }) {
   // The creation row (oldStatus === null) is already represented by the
-  // "created by" line below, so only real transitions show as history rows.
+  // "created" entry below, so only real transitions show as history rows.
   const statusChanges = history.filter((entry) => entry.oldStatus !== null);
 
   return (
-    <details className="task-history">
-      <summary>{t("history")}</summary>
-      <ul className="task-history-list">
-        <li>
-          {t("historyCreated", {
-            name: createdByName ?? tCommon("unknown"),
-            date: formatDateTime(format, createdAt),
-          })}
-        </li>
+    <section className="task-sheet-history">
+      <h3>{t("historyTitle")}</h3>
+      <ol>
+        <TaskHistoryEntry
+          at={createdAt}
+          by={createdByName ?? tCommon("unknown")}
+          event={t("historyCreatedEvent")}
+          format={format}
+        />
         {statusChanges.map((entry) => (
-          <li key={entry.id}>
-            {t("historyStatusChanged", {
+          <TaskHistoryEntry
+            at={entry.createdAt}
+            by={entry.changedBy?.name ?? tCommon("unknown")}
+            event={t("historyStatusEvent", {
               status: formatEnumLabel(tCommon, entry.newStatus),
-              name: entry.changedBy?.name ?? tCommon("unknown"),
-              date: formatDateTime(format, entry.createdAt),
             })}
-          </li>
+            format={format}
+            key={entry.id}
+          />
         ))}
-      </ul>
-    </details>
+      </ol>
+    </section>
   );
 }
 
-function DueDate({
+function TaskHistoryEntry({
+  at,
+  by,
+  event,
   format,
-  value,
-  overdue,
-  overdueLabel,
 }: {
+  at: string;
+  by: string;
+  event: string;
   format: IntlFormatter;
-  value: string | null;
-  overdue: boolean;
-  overdueLabel: string;
 }) {
-  if (!overdue) {
-    return <>{formatDate(format, value)}</>;
-  }
+  const moment = new Date(at);
 
   return (
-    <span className="due-overdue">
-      {formatDate(format, value)}
-      <span className="overdue-tag">{overdueLabel}</span>
-    </span>
+    <li>
+      <time dateTime={at}>
+        <span>
+          {format.dateTime(moment, { day: "2-digit", month: "2-digit" })}
+        </span>
+        <span>
+          {format.dateTime(moment, { hour: "2-digit", minute: "2-digit" })}
+        </span>
+      </time>
+      <div>
+        <b>{event}</b>
+        <span>{by}</span>
+      </div>
+    </li>
   );
 }
 
-function formatDate(format: IntlFormatter, value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  return format.dateTime(new Date(value), { dateStyle: "medium" });
+// Several locales abbreviate short month names with a trailing dot (uk and
+// fr among them). The rail sets the month in uppercase under a large day
+// number, where that dot reads as dirt on the screen, not as punctuation.
+function formatDueMonth(format: IntlFormatter, dueAt: Date): string {
+  return formatDueDate(format, dueAt, { month: "short" }).replace(/\.$/, "");
 }
 
-function formatDateTime(format: IntlFormatter, value: string): string {
-  return format.dateTime(new Date(value), {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
+// The list a submitted form came from, as this page understands it.
+function listQueryFrom(formData: FormData): URLSearchParams {
+  const submitted = new URLSearchParams(getFormString(formData, "listQuery"));
+  const listQuery = new URLSearchParams();
 
-// A task is overdue only while it is still actionable: a past due date on a
-// done task is just history, not something outstanding.
-function isTaskOverdue(task: Task, todayIsoDate: string): boolean {
-  if (!task.dueDate) {
-    return false;
+  for (const name of LIST_PARAMS) {
+    const value = submitted.get(name);
+
+    if (value) {
+      listQuery.set(name, value);
+    }
   }
 
-  if (!isTaskUnfinished(task.status)) {
-    return false;
-  }
-
-  return task.dueDate.slice(0, 10) < todayIsoDate;
+  return listQuery;
 }
 
-// The day before a "YYYY-MM-DD" date, computed in UTC so the arithmetic never
-// crosses a DST boundary in the server's local zone: the input already carries
-// the tenant's day, and only the calendar step is being taken here.
-function previousIsoDate(isoDate: string): string {
-  const date = new Date(`${isoDate}T00:00:00.000Z`);
+// That list, plus the one notice this redirect is carrying.
+function tasksHref(
+  tenantSlug: string,
+  listQuery: URLSearchParams,
+  noticeName: string,
+  noticeValue: string,
+): string {
+  const params = new URLSearchParams(listQuery);
 
-  date.setUTCDate(date.getUTCDate() - 1);
+  params.set(noticeName, noticeValue);
 
-  return date.toISOString().slice(0, 10);
+  return withParams(`/${tenantSlug}/field/tasks`, params);
+}
+
+function withParams(path: string, params: URLSearchParams): string {
+  const query = params.toString();
+
+  return query ? `${path}?${query}` : path;
 }
 
 function normalizeTaskStatus(

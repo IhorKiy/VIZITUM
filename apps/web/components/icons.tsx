@@ -286,6 +286,25 @@ export function ChevronDownIcon() {
   );
 }
 
+// The "opens something" mark at the end of a list row.
+export function ChevronRightIcon({ size = 16 }: { size?: number } = {}) {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height={size}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width={size}
+    >
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
+
 export function ArrowLeftIcon({ size = 16 }: { size?: number } = {}) {
   return (
     <svg
