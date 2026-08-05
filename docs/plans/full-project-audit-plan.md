@@ -1,6 +1,6 @@
 # Full-Project Audit — Plan and Checklist
 
-Status: Passes 0, 2 and 5 done · Pass 1 mostly done · Passes 4 and 6 done except one item each (production drift check, restore drill — both need production access) · Pass 3 foundations done, all 7 zones convention-swept, 9 of the 10 screen-pass questions swept globally and both end-of-list sweeps run against a rendered app; 48 of 50 screen bodies outstanding · 27 findings, 0 S1 (2026-08-05) — the Progress table is the record; this line compresses it · Opened: 2026-08-05 · Scope: NestJS API (`src/`), Next.js web (`apps/web`), Prisma schema and migrations, `scripts/`, tests, CI, reference docs and runbooks
+Status: Passes 0, 2 and 5 done · Pass 1 mostly done · Passes 4 and 6 done except one item each (production drift check, restore drill — both need production access) · Pass 3 foundations done, all 7 zones convention-swept, **all 10** screen-pass questions swept globally and both end-of-list sweeps run against a rendered app; 48 of 50 screen bodies outstanding · 28 findings, 0 S1 (2026-08-06) — the Progress table is the record; this line compresses it · Opened: 2026-08-05 · Scope: NestJS API (`src/`), Next.js web (`apps/web`), Prisma schema and migrations, `scripts/`, tests, CI, reference docs and runbooks
 
 ## Purpose
 
@@ -490,7 +490,7 @@ Also not done in Tier A: module question 7 (indexes matching filters — deferre
 1. No hardcoded UI literals; both `en` and `uk` present, `uk` a real translation — **swept, clean**
 2. Every free-text input sets `maxLength` from `INPUT_LIMITS` — **swept, clean**
 3. Every Server Action submit uses `PendingSubmitButton` with a specific `pendingLabel` — **swept → F13**
-4. Back navigation via `BackLink` + `resolveBackTarget`, never a hardcoded destination; `from` carried through redirects — **controls swept → F17; `from` through every redirect still unchecked**
+4. Back navigation via `BackLink` + `resolveBackTarget`, never a hardcoded destination; `from` carried through redirects — **both halves swept → F17, F28; every redirect preserves `from`**
 5. Portals gate on `useIsMounted`, not hand-rolled `useState`+`useEffect` — **swept, clean**
 6. Server Actions do not close over plain helpers; shared logic via a `"use server"` module — **swept, clean**
 7. No authorization decision made from client-supplied tenant slug — **swept, clean**
@@ -607,7 +607,7 @@ All four Pass 3 findings instead came from things that **repeat across many file
 
   - **`aria-label` on icon-only controls — swept, one gap.** 339 `<button>`/`<a>`/`PendingSubmitButton`/`ConfirmActionButton` elements scanned; exactly one has neither an accessible name nor a text child → **F22**.
   - **`aria-busy` on pending controls — already answered by F13**: ten hand-rolled submit buttons carry neither `aria-busy` nor `is-pending`, so `disabled` alone announces "unavailable" rather than "working".
-  - **Labels — not reliably checkable by static analysis here, and the spot-checks were clean.** A naive sweep flags 51 of 163 form controls, and every one inspected was a false positive: labelling goes through multi-line `<label>` nesting and through wrapper components — `FilterField` renders `<label className="filter-field"><span>{label}</span>…</label>` around its children, which no text scan can attribute to the control inside. Answering this properly needs rendered output, not source.
+  - **Labels — not checkable by static analysis here; answered against the rendered accessibility tree in the third sitting and clean.** A naive sweep flags 51 of 163 form controls and every one inspected was a false positive, because labelling goes through wrapper components (`FilterField` renders the real `<label>` around its children). Computing each control's accessible name in a browser instead: **276 controls across eight screens, zero unnamed, zero placeholder-only** — see the "Label association" section below for the table and the method.
   - **`<img>` without `alt` — none.**
   - ~~**Focus order — not attempted.**~~ **Answered in the second sitting, and it is clean.** Both halves: measured, DOM order matches vertical position with **zero inversions** on every screen walked at 375px (the tab sequence runs strictly top-to-bottom, bottom nav last); and structurally, it cannot easily drift, because `apps/web` contains **no positive `tabIndex`** (four uses, all `-1` or `0`) and `globals.css` contains **no `order:` and no `flex-direction: *-reverse` rule**, which are the two mechanisms that decouple visual order from DOM order. 24 `focus-visible` rules style the ring. **Correcting this entry's own earlier claim** that focus order "cannot be established from source": those two greps establish most of it, and are worth running before booting a browser next time.
 
@@ -662,11 +662,37 @@ Four of the ten screen-pass questions are mechanically checkable across all 50 r
 
 Rule #10, and this is the pass with the most partial coverage in the audit — read it before treating any part of the frontend as covered.
 
-**Nine of the ten screen-pass questions are now swept globally** across all 50 routes at once — 1, 2, 3 and 5 in the first sitting (the mechanical-sweeps section above), 6, 7, 8, 9 and 10 in the second (the section before it). **One remains partial:**
+**All ten screen-pass questions are now swept globally** across all 50 routes — 1, 2, 3 and 5 in the first sitting (the mechanical-sweeps section above), 6, 7, 8, 9 and 10 in the second (the section before it), and question 4's remaining half in the third.
 
-- **4. Back navigation** — answered for the back *controls* (that sweep produced **F17**), but the second half of the convention is still unchecked everywhere: whether `from` is carried through every Server Action redirect, as `CLAUDE.md` requires so that a save does not reset the back link. That needs each redirect target read against its opener, which is screen-body work rather than a sweep.
+**4. Back navigation, second half — `from` through every redirect: clean. The link side produced one more finding, F28.**
+
+The convention has two halves and only the *controls* half had been checked. Both are now done.
+
+- **Redirects preserve `from` everywhere.** 14 screens resolve a back origin; every `redirect()` in each of them was read. The ones that carry no origin are correct to carry none — `redirect(/login)` on an expired session, a zone guard sending an unpermitted caller to `/field`, and `redirect(backTarget.href)`, which *is* the resolved origin. Everything else threads it: `account` through a `backOriginParam` suffix on all three of its result redirects, `field/locations/[locationId]` through `selfState = { routePlanId, routeItemId, visited, from }` fed to `backOrigin(selfPath, …)`, and `field/routes` on all **19** of its redirects.
+- **The shared `"use server"` modules thread it too, and this is where drift would have hidden.** `location-insights-actions.ts`, `location-header-actions.ts` and `cancel-visit-actions.ts` all rebuild their redirect from an `extraParams` argument, so whether `from` survives is decided entirely by each `.bind()` call site — six of them, across four files, and **all six pass it**: `from ? [["from", from]] : []` in the two insights callers and in `field/visits/[visitId]:207`, and an `extraParams.push(["from", from])` at `field/locations/[locationId]:158`. Each carries a comment saying why. This is the `.bind()` pattern working as intended.
+- **The link side is where the gap is.** A sweep of every `href`/`redirect` in `app/` and `components/` that targets a screen resolving a back origin, checking whether the surrounding code appends one, returns six candidates. Four are correct: two self-links that reset a screen's own filters, and `account`'s two result redirects (false positives — they carry `backOriginParam`, which the sweep's `from` pattern does not match). One is deliberate: `app-shell.tsx:280`'s account link sends no origin, but the account screen's fallback is *computed per zone* (`backZone ? zoneHomePath(backZone) : /choose-zone`), so it returns the reader to their own zone rather than a hardcoded screen — and `AppShell` is a server component with no access to the current pathname, so it could not append one without reaching for `headers()`. Chased and deliberately not recorded. The sixth is **F28**.
 
 Note for a re-run: "swept clean" here means the *convention* holds across every file, established mechanically. It is not a substitute for reading a screen, and questions 8 and 9 in particular were answered at the level the convention states — that the states and the twins exist and agree — not by exercising them.
+
+### Label association, answered against the rendered accessibility tree, 2026-08-06
+
+The one accessibility item source analysis could not settle. The first sitting recorded that a naive scan flags 51 of 163 form controls and that every inspected one was a false positive, because labelling goes through wrapper components. Answered now by computing each control's **accessible name** in a real browser, following the resolution order a screen reader uses — `aria-labelledby` → `aria-label` → `label[for]` → ancestor `<label>` → `title` → `placeholder` — and treating "placeholder only" as a failure, since a placeholder disappears the moment the field is typed into.
+
+**276 rendered form controls across eight screens: zero with no accessible name, zero relying on a placeholder.**
+
+| screen | controls | source of the name |
+|---|---|---|
+| `manager/tasks` | 135 | 116 ancestor `<label>`, 19 `aria-label` |
+| `admin/locations` | 88 | 88 ancestor `<label>` |
+| `admin/users` | 25 | 25 ancestor `<label>` |
+| `field/locations/[id]` + notes and contacts modals open | 11 | 11 ancestor `<label>` |
+| `field/locations`, `field/history` | 6 + 6 | ancestor `<label>`, 2 `aria-label` |
+| `account` | 3 | 2 `label[for]`, 1 ancestor `<label>` |
+| `admin/imports` | 2 | both ancestor `<label>` — including the `type="file"` input, the control this class of defect usually claims |
+
+**Why the source scan was wrong, stated so nobody re-runs it:** 261 of the 276 names resolve through an **ancestor `<label>`**, and in this codebase that ancestor is usually in a different file from the control — `FilterField` renders `<label className="filter-field"><span>{label}</span>{children}</label>` around whatever it is given. A text scan of the control's own JSX cannot see it. The rendered count is also far larger than the source count (276 against 163) because per-row controls multiply, which is a second reason the source figure was never the right denominator.
+
+Not covered: the field visit report form, whose controls only exist once a visit is open — reaching them means starting a visit, which writes to the shared database, and this walk was deliberately read-only. It is the one screen where this question is still open.
 
 **All seven zones have now been swept for conventions; none has had its screen bodies read.** Each zone carries its own note above stating exactly what its sweep covered. Two are ticked because their checkbox asked a question a sweep can fully answer — `(public)` (prerendering and provider pinning) and `platform/*` (that it renders in `en` by design). The other five stay unticked: a convention sweep is not a screen audit, and the distinction is the whole point of leaving them open.
 
@@ -674,7 +700,7 @@ Note for a re-run: "swept clean" here means the *convention* holds across every 
 
 **Both sweeps at the foot of the zone list are now run in full.** The accessibility sweep's static half covered icon-only accessible names (339 controls, one gap → **F22**), `aria-busy` (already **F13**) and `<img alt>` (none missing); the second sitting closed focus order, which turned out to be answerable from source after all (no positive `tabIndex`, no `order:`/`*-reverse` CSS) and was confirmed by measurement. The mobile sweep's rendered half ran against a browser at 375×812 → **F27**, with overflow, nav occlusion and the offline shell all clean. Ports 3000/4000 were held by another worktree again, so servers were started on 3005/4005 with their own cookie name and the walk kept read-only — the approach the first sitting should have taken rather than deferring, and the one to repeat.
 
-**One item in the accessibility sweep is still genuinely unanswerable this way: label association.** A naive scan flags 51 of 163 form controls and every inspected one is a false positive, because labelling goes through wrapper components (`FilterField` renders the real `<label>`). Settling it needs assertions against rendered output — which the rendered pass could now do, and did not: it measured geometry, not the accessibility tree.
+**Label association was the last item left, and the third sitting closed it** by computing accessible names against the rendered accessibility tree rather than measuring geometry: 276 controls across eight screens, none unnamed. The only remaining hole is the visit report form, whose controls require an open visit and therefore a write to the shared database.
 
 What *is* closed is the shared-foundations list — 8 of 8, with its own summary above.
 
@@ -761,14 +787,14 @@ Update after each pass. `Findings` counts only recorded, verified findings.
 | 0 — Automated baseline | done | 0/0/2/0 | 2026-08-05 | Every check green; both findings came out of the e2e run's logs, not a failed assertion |
 | 1 — Cross-cutting axes | mostly done | 0/0/2/0 | 2026-08-05 | Tenant isolation holds under mechanical check; 5 axes deferred — see Skipped |
 | 2 — Backend modules | **done** — all 24 modules examined, plus the 3 non-module units (`src/common/*`, bootstrap, `worker`); Tier C 9/9, Tier B 11/11 (7 fully), Tier A 7/7 (4 fully) | 0/1/5/2 | 2026-08-05 | F2, F3, F4, F6, F7, F8, F9, F10, F11, F12. Zero findings on authorization, tenant isolation or ownership. 7 boxes deliberately unticked = audited on named paths; each module's note lists what was left |
-| 3 — Frontend zones | 8 foundations done; all 7 zones swept for conventions; 9 of the 10 screen-pass questions swept globally; **both end-of-list sweeps now fully run**; 2 of 50 screen bodies read on their action/state layers only | 0/0/4/5 | 2026-08-05 | F13, F14, F15, F16, F17, F21, F22, F26, F27. Rendered pass run on isolated ports 3005/4005: no horizontal overflow, no nav occlusion, focus order clean; touch targets are F27. Still open: question 4's `from`-through-redirects half, and 48 screen bodies |
+| 3 — Frontend zones | 8 foundations done; all 7 zones swept for conventions; **all 10 screen-pass questions swept globally**; both end-of-list sweeps fully run; 2 of 50 screen bodies read on their action/state layers only | 0/0/4/6 | 2026-08-06 | F13, F14, F15, F16, F17, F21, F22, F26, F27, F28. Rendered passes on isolated ports 3005/4005: no horizontal overflow, no nav occlusion, focus order clean, 276/276 form controls carry an accessible name; touch targets are F27. Every redirect preserves `from`; the link side is F28. **Still open: 48 screen bodies** |
 | 4 — Data layer | done, except the production drift check | 0/0/1/0 | 2026-08-05 | F18 (product-category orphans). Every schema-level axis clean with zero exceptions: 35/35 tenant indexes, 59/59 explicit `onDelete`, 45/45 unedited migrations, 39/39 documented models |
 | 5 — Tests and docs | **done** | 0/0/0/4 | 2026-08-05 | F19 (three drifted prose records); F23, F24, F25 from the untested-contract enumeration. Machine-checkable records are exact: 174/174 tests + 12/12 specs mapped, 139/139 endpoints, 24/24 modules, 0 assertion-free tests |
 | 6 — Operations | done, except the restore drill | 0/0/0/1 | 2026-08-05 | F20 (3 majors behind). CI covers all 10 Pass 0 commands; logs carry no tokens or bodies; the deployment runbook independently confirms F19's provisioning drift |
 
 ## Findings
 
-**27 findings: 0 S1 · 1 S2 · 14 S3 · 12 S4.** The stop-the-line rule never fired.
+**28 findings: 0 S1 · 1 S2 · 14 S3 · 13 S4.** The stop-the-line rule never fired.
 
 Where they came from is the result worth reading before the list. **Authorization, tenant isolation and ownership produced zero findings across all 24 backend modules and the three shared areas audited alongside them (27 units; `src/common/*`, the bootstrap and `worker` are audit units, not modules)**, and those were the axes checked hardest — 393 Prisma calls swept for a tenant predicate, 139 handlers for a permission declaration, every `*_OWN` permission traced to its enforcement. Pass 4 found the schema equally exact: 35/35 tenant indexes, 59/59 explicit `onDelete`, 45/45 unedited migrations, 0 non-null assertions. Pass 5 found every machine-checkable record accurate: 173/173 tests and 12/12 specs mapped, 139/139 endpoints and 24/24 modules documented.
 
@@ -776,13 +802,22 @@ Three gaps recur, and the examples under each are illustrative rather than an ex
 
 - **Between code and its runtime** — a per-row loop against a fixed transaction budget (**F8**), an env var parsed only at first use (**F2**), a metric counting the wrong table (**F12**).
 - **Between a thing and its twin** — a claim pattern applied five times and missed once (**F7**), a second factor on the irreversible operation but not the one causing the outage (**F6**), an error code mapped by three services and not two (**F10**, **F11**), a cascade on rename but not on delete (**F18**), a redirect carrying an error *code* on one screen and raw reflected text on another (**F21**).
-- **Between a convention and anything that checks it** — pending state on 10 buttons (**F13**), `.message` on 25 screens (**F14**), a constant in 5 places (**F15**), a selector in 27 (**F16**), a back-origin on one journey (**F17**), three prose records (**F19**), a controller surface nothing enumerates (**F23**), a database-level guarantee no test can observe (**F24**), a fail-closed guard copied 19 times (**F25**), a touch-target minimum that stops at the report flow (**F27**).
+- **Between a convention and anything that checks it** — pending state on 10 buttons (**F13**), `.message` on 25 screens (**F14**), a constant in 5 places (**F15**), a selector in 27 (**F16**), a back-origin on two journeys (**F17**, **F28**), three prose records (**F19**), a controller surface nothing enumerates (**F23**), a database-level guarantee no test can observe (**F24**), a fail-closed guard copied 19 times (**F25**), a touch-target minimum that stops at the report flow (**F27**).
 
-That third group is the largest by a wide margin — ten of the twenty-seven — and it is the one a reader should act on structurally rather than item by item: in every case the convention was written down and nothing compiled, diffed or asserted it. The second sitting's three additions sharpen the point rather than merely extending the list. **F23** and **F24** are the only findings in the audit about a *check that does not exist* rather than a behaviour that is wrong, and both surfaces they cover are currently, verifiably correct — 121 of 121 permission decorators present, 69 of 69 bodies gated, the import apply genuinely transactional. That is the whole argument for fixing them: the properties are worth keeping, and nothing is keeping them.
+That third group is the largest by a wide margin — eleven of the twenty-eight — and it is the one a reader should act on structurally rather than item by item: in every case the convention was written down and nothing compiled, diffed or asserted it. The second sitting's three additions sharpen the point rather than merely extending the list. **F23** and **F24** are the only findings in the audit about a *check that does not exist* rather than a behaviour that is wrong, and both surfaces they cover are currently, verifiably correct — 121 of 121 permission decorators present, 69 of 69 bodies gated, the import apply genuinely transactional. That is the whole argument for fixing them: the properties are worth keeping, and nothing is keeping them.
 
 **F26** belongs to a fourth shape the first sitting did not name — *code against the framework's own affordances*. Next.js offers four route-level states; the app defines the one for a root crash, carefully, and leaves the other three to their defaults across all 50 routes. Nothing is broken by it, which is exactly why it survived every pass that looked at screens one at a time: the gap is only visible when the route tree is read as a whole.
 
 Recorded in the format above, newest first. Every entry must also be filed into the matching backlog section of `docs/vizitum-action-plan.md` — the `Filed:` line is not optional.
+
+### [S4] F28 — The offline report screen hardcodes its back control; the error branch 34 lines above resolves it correctly
+
+- Where: `apps/web/components/pending-visit-report.tsx:231`, against `:196-205` in the same file
+- Failure: a rep on today's route taps a stop, opens the location card (which carries `?from=/field`), taps **Start visit** with no signal, and lands on the pending-sync report screen — the fallback screen that exists so an offline start is a working report rather than a dead end. Its back control is `` <BackLink href={`/${tenantSlug}/field/locations/${state.locationId}`} inline label={tBack("location")} /> ``: a fixed destination that ignores `from` and appends none. Two things follow, and the second is the worse one. The rep is returned to the location card rather than to today's route where they were working; and because no origin is appended to that href, the card they arrive on has no origin either, so *its* back control now falls back to the locations catalogue. One hardcoded link degrades two steps of the journey.
+- **`from` is already there.** It is a declared prop of this component (`:31`), destructured at `:69`, and passed down by `field/visits/[visitId]/page.tsx:128`. The same file already uses it correctly: `:196` builds `notFoundBackTarget` with `resolveBackTarget(tenantSlug, from, { href: /field, labelKey: "home" })` for the *visit-not-found* branch and renders it at `:203`. So the screen a rep reaches when something went wrong resolves its origin, and the screen a rep reaches when the offline path works as designed does not. The fix is the shape already sitting 34 lines above.
+- **This corrects F17's scope**, which called `field/tasks/page.tsx:342` "the only hardcoded `BackLink` in the field zone". That was measured over `page.tsx` screens and is true of them; this one lives in a component, so the sweep behind F17 could not see it. There are two, and both should be fixed together — the count in F17 should be read as "screens", not "the zone".
+- Why S4: nothing is lost or unreachable, and the rep can navigate back through the menu. Same weight and same shape as **F17** — a documented convention violated at one journey — and it is on the offline path, which is the hardest journey in the product and the one where a rep is least able to re-navigate.
+- Filed: action-plan §13
 
 ### [S4] F27 — The 48px touch-target rule reached the report flow and the bottom nav, not the shared controls every field screen is operated through
 
