@@ -3586,6 +3586,988 @@ textarea {
   gap: 4px;
 }
 
+/* The field task list. A strip of filters, then the tasks in bands, each band
+   a heading over rows.
+
+   The row is the unit, not a card: a rep opens this screen to answer "what is
+   late and what is due today", and that answer is a date, a name and a place —
+   three lines' worth of content that a card's worth of chrome only spreads
+   out. So the collapsed row carries exactly those, with the date pinned in a
+   fixed left column so the whole list reads as one column of dates; everything
+   that acts on the task lives in the panel the row opens. */
+/* Every grid down this tree pins its single column to minmax(0, 1fr) rather
+   than letting it size to `auto`. An auto track is at least as wide as its
+   content's minimum, and a task title is long enough that the list would grow
+   past the screen and take the whole page's horizontal scroll with it. */
+.task-board {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 12px;
+}
+
+.task-group {
+  min-width: 0;
+}
+
+/* The filters are one strip that scrolls sideways rather than a block that
+   wraps: on a phone the wrapped version pushed the first task off the screen,
+   and the first task is the whole point of the screen. The scrollbar under it
+   is drawn by ScrollStrip rather than by the platform — see that component for
+   why the native one cannot carry a strip that hides a filter. */
+.scroll-strip {
+  min-width: 0;
+}
+
+.scroll-strip-viewport {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  /* The native bar is hidden in both dialects: the track below replaces it,
+     and two scrollbars on one row is one too many. */
+  scrollbar-width: none;
+}
+
+.scroll-strip-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+/* Only drawn where there is something past the edge. A full-width line under a
+   row that already fits reads as a stray divider, which is exactly what the
+   done view's two-pill row looked like when the track was unconditional. */
+.scroll-strip-track {
+  display: none;
+}
+
+.scroll-strip[data-scrollable="true"] .scroll-strip-track {
+  background: var(--line);
+  border-radius: 999px;
+  display: block;
+  height: 3px;
+  margin-top: 8px;
+  position: relative;
+}
+
+.scroll-strip-thumb {
+  background: var(--muted);
+  border-radius: inherit;
+  inset: 0 auto;
+  /* Both set by ScrollStrip on every scroll frame, from the row's own
+     clientWidth/scrollWidth — so the thumb states how much of the strip is on
+     screen and where in it the reader is, the way a scrollbar is supposed to. */
+  left: var(--strip-thumb-offset, 0%);
+  position: absolute;
+  width: var(--strip-thumb-width, 100%);
+}
+
+.task-filter-row {
+  flex-wrap: nowrap;
+}
+
+.task-filter-row > .filter-pills {
+  flex-wrap: nowrap;
+}
+
+.task-filter-row label,
+.task-filter-row a {
+  white-space: nowrap;
+}
+
+/* How many tasks are behind the pill, in the pill. Lighter than the label: it
+   is the answer to the filter's question, not a second label. */
+.filter-pill-count {
+  font-weight: 800;
+  margin-left: 6px;
+  opacity: 0.72;
+}
+
+/* A band's heading: the state, how many are in it, and a rule running out to
+   the edge so the list under it reads as belonging to it. */
+.task-group-head {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 8px;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.task-group-head::after {
+  background: var(--line);
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+.task-group-count {
+  color: var(--placeholder);
+  font-weight: 800;
+}
+
+/* Late is the one band that has to be legible from arm's length; today is the
+   day's own work and takes the brand green. The rest are quiet — they are
+   dividers, not alarms. */
+.task-group.is-overdue .task-group-name {
+  color: var(--danger);
+}
+
+.task-group.is-today .task-group-name {
+  color: var(--accent-strong);
+}
+
+.task-group + .task-group {
+  margin-top: 18px;
+}
+
+.task-rows {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task-row {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 0;
+  /* The rail is a filled block running to the row's rounded corners. */
+  overflow: hidden;
+  position: relative;
+  /* Keep the row clear of the sticky top bar when reached via a #task-<id>
+     anchor (e.g. from an open-tasks link on a location card). */
+  scroll-margin-top: 84px;
+}
+
+/* Same arrival flash as .list-card, for the same #task-<id> anchors. */
+.task-row:target {
+  animation: list-card-target-flash 2.4s ease-out;
+}
+
+/* Priority is a mark on the row's edge rather than a word inside it: it is
+   true of the task as a whole, it has to survive next to a date and a place
+   that are already competing for the line, and on a phone it is the one signal
+   that reads without being looked at. The word itself is in the panel, and
+   spoken to a screen reader either way. */
+.task-row.is-priority::before {
+  background: var(--gold);
+  bottom: 0;
+  content: "";
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 3px;
+  /* Drawn over the rail rather than beside it: an inset shadow would sit
+     under the rail's own fill, and a border would move the row's edge by 2px
+     against every unflagged row in the list. */
+  z-index: 1;
+}
+
+.task-row-main {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  padding-right: 12px;
+}
+
+.task-row-main:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: -2px;
+}
+
+.task-row-main > svg {
+  color: var(--placeholder);
+  flex-shrink: 0;
+}
+
+.task-row-rail {
+  align-items: center;
+  align-self: stretch;
+  background: var(--surface-muted);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  justify-content: center;
+  min-height: 64px;
+  padding: 10px 6px;
+  text-align: center;
+  /* Fixed: a column that resizes per row is not a column. */
+  width: 62px;
+}
+
+.task-row-day {
+  font-size: 21px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.task-row-month {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+
+/* A rail with no date to show, sized to wrap onto two lines in the same
+   fixed column. */
+.task-row-rail-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.task-row.is-overdue .task-row-rail {
+  background: var(--danger-surface);
+  color: var(--danger);
+}
+
+.task-row.is-today .task-row-rail {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent-strong);
+}
+
+.task-row-text {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  padding: 10px 0;
+}
+
+/* Collapsed, a row is one line of title over one line of context, whatever the
+   title's length: a list where every row is the same height is a list that can
+   be scanned down the left edge, and a three-line title pushes the next task
+   off the screen for wording nobody is reading yet. The full text is one tap
+   away, and the tap is how the reader says they want it. */
+.task-row-title {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-row-meta {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: nowrap;
+  font-size: 13px;
+  gap: 4px 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* The place is what gives, not the lateness: "8 days late" is four characters
+   of answer, a location name is a label the reader already knows. */
+.task-row-meta > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* How late, in the row rather than in the rail: the band already says these
+   are overdue, and what a rep needs next is which of them is worst. */
+.task-row-late {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.task-row-late::after {
+  color: var(--placeholder);
+  content: "·";
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+/* Finished work recedes: the whole row greys out and the title carries the
+   line through it, so a closed task cannot be mistaken for outstanding work
+   at a glance. */
+.task-row.is-done {
+  background: var(--surface-muted);
+}
+
+.task-row.is-done .task-row-rail {
+  background: transparent;
+  color: var(--muted);
+}
+
+.task-row.is-done .task-row-title {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+/* A row whose change has not reached the server yet. NOT REACHABLE YET: tasks
+   have no offline queue of their own (reports and visit starts do — see
+   report-outbox.ts), and that queue is its own change. The look is pinned here
+   because it is the undated rail's layout with a different label, so the
+   follow-up is wiring and nothing else: set is-queued on the row, put the
+   queue word in .task-row-rail-label, and lead the text with .task-row-sync.
+   Dashed and gold rather than red — nothing is wrong, the work is simply
+   waiting for signal. */
+.task-row.is-queued {
+  background: color-mix(in srgb, var(--gold) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--gold) 35%, var(--line));
+  border-style: dashed;
+}
+
+.task-row.is-queued .task-row-rail {
+  background: transparent;
+  color: var(--gold);
+}
+
+.task-row.is-queued .task-row-rail-label {
+  color: inherit;
+}
+
+.task-row-sync {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The task detail sheet. Rises from the bottom over the list, which stays put
+   underneath — a rep opens a task, acts on it and is back in the same place in
+   the same list, without the screen ever having changed. */
+.task-sheet {
+  background: transparent;
+  border: 0;
+  height: 100%;
+  margin: 0;
+  max-height: none;
+  max-width: none;
+  padding: 0;
+  width: 100%;
+}
+
+.task-sheet::backdrop {
+  background: rgba(17, 37, 31, 0.45);
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+
+.task-sheet[data-open="true"]::backdrop {
+  opacity: 1;
+}
+
+.task-sheet-panel {
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  bottom: 0;
+  box-shadow: 0 -18px 45px rgba(22, 30, 26, 0.18);
+  display: flex;
+  flex-direction: column;
+  left: 0;
+  /* Never the whole screen: the list stays visible above it, which is what
+     says the sheet is a layer over the list rather than a new page. */
+  max-height: 88%;
+  position: fixed;
+  right: 0;
+  /* Sits below the screen until the frame after mount adds data-open, so the
+     browser has a closed position to animate from. */
+  transform: translateY(calc(100% + var(--sheet-drag, 0px)));
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.task-sheet[data-open="true"] .task-sheet-panel {
+  transform: translateY(var(--sheet-drag, 0px));
+}
+
+/* While a finger is on it the sheet tracks the finger exactly: a transition
+   here would lag behind the drag and feel like rubber. */
+.task-sheet-panel[data-dragging="true"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-sheet-panel,
+  .task-sheet::backdrop {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* The grab area: the handle plus the row beside it. Everything here is part of
+   the swipe target, so the body below can scroll without fighting the gesture. */
+.task-sheet-grab {
+  flex-shrink: 0;
+  padding: 8px 20px 4px;
+  touch-action: none;
+}
+
+.task-sheet-handle {
+  background: var(--line);
+  border-radius: 999px;
+  display: block;
+  height: 4px;
+  margin: 0 auto 10px;
+  width: 44px;
+}
+
+.task-sheet-grab-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 24px;
+}
+
+.task-sheet-eyebrow {
+  min-width: 0;
+}
+
+.task-sheet-priority {
+  align-items: center;
+  color: var(--gold);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 650;
+  gap: 5px;
+}
+
+.task-sheet-priority svg {
+  height: 13px;
+  width: 13px;
+}
+
+/* A word, not an icon: this is the control a reader falls back on when the
+   swipe and the back gesture have not occurred to them. Shared with the edit
+   form on the second level, which is the same surface and closes the same
+   way. */
+.task-sheet-close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px;
+}
+
+.task-sheet-close:hover {
+  color: var(--accent-strong);
+}
+
+.task-sheet-close:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.task-sheet-head {
+  padding: 6px 20px 16px;
+}
+
+.task-sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-sheet-description {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 10px 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* Status, deadline, place, who set it — the four facts, as a table rather than
+   as sentences: a reader checking one of them should find it by position. */
+.task-sheet-facts {
+  background: var(--surface-muted);
+  border-block: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 20px;
+}
+
+.task-sheet-facts > div {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 96px minmax(0, 1fr);
+}
+
+.task-sheet-facts dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.task-sheet-facts dd {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-sheet-due.is-overdue {
+  color: var(--danger);
+}
+
+.task-sheet-due.is-today {
+  color: var(--accent-strong);
+}
+
+.task-sheet-late::before {
+  content: "·";
+  margin: 0 6px;
+  opacity: 0.5;
+}
+
+/* The one scrolling part of the sheet: a task worked on for weeks has a long
+   history, and the actions at the foot must not be pushed off the screen by
+   it. */
+.task-sheet-history {
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.task-sheet-history h3 {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+.task-sheet-history ol {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task-sheet-history li {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 46px minmax(0, 1fr);
+}
+
+/* Stamps stack date over time in tabular figures, so they line up as a column
+   the eye can run down. */
+.task-sheet-history time {
+  color: var(--placeholder);
+  display: grid;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.task-sheet-history li > div {
+  display: grid;
+  gap: 2px;
+}
+
+.task-sheet-history b {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.task-sheet-history li span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Pinned to the foot of the sheet, clear of the phone's home indicator: this
+   is the whole reason the sheet opens, so it never scrolls out of reach. */
+.task-sheet-actions {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-shrink: 0;
+  gap: 10px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+}
+
+.task-sheet-actions form {
+  flex: 1;
+}
+
+/* The sheet's own scale: the shared buttons are sized for a page toolbar,
+   where they compete with a heading. Here they are the widest thing on the
+   screen and carry the emphasis by size and colour alone. */
+.task-sheet-actions .primary-button,
+.task-sheet-actions .secondary-button {
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  min-height: 46px;
+}
+
+.task-sheet-actions .primary-button {
+  width: 100%;
+}
+
+.task-sheet-actions .secondary-button {
+  flex-shrink: 0;
+}
+
+/* The task edit form: the sheet's second level, and shaped like one. A
+   centered dialog floating over the sheet would read as a different kind of
+   thing arriving from somewhere else; this rises from the same edge as the
+   sheet under it, so editing is one step deeper into the same screen rather
+   than a detour out of it.
+
+   Its own type scale, too, rather than the shared .visit-form's: field labels
+   here are 10px uppercase grey, so what the eye lands on going down the form
+   is the values, not a column of bold black captions repeating what each box
+   obviously holds. */
+.task-form-dialog {
+  border: 0;
+  border-radius: 20px 20px 0 0;
+  /* The form inside is the scrolling part; the dialog itself holds still. */
+  overflow: hidden;
+  bottom: 0;
+  box-shadow: 0 -18px 45px rgba(22, 30, 26, 0.18);
+  display: flex;
+  flex-direction: column;
+  left: 0;
+  margin: 0;
+  /* Taller than the sheet it covers: this is a form, and the sheet showing
+     through above it is what says the task is still underneath. */
+  max-height: 92%;
+  max-width: none;
+  padding-bottom: 0;
+  position: fixed;
+  right: 0;
+  top: auto;
+  transform: translateY(100%);
+  /* allow-discrete lets the closed→open display switch take part in the
+     transition, so the sheet slides in both directions with no JS. Browsers
+     without it simply get the form already in place. */
+  transition:
+    transform 0.28s cubic-bezier(0.32, 0.72, 0, 1),
+    overlay 0.28s allow-discrete,
+    display 0.28s allow-discrete;
+  width: 100%;
+}
+
+.task-form-dialog[open] {
+  transform: translateY(0);
+}
+
+@starting-style {
+  .task-form-dialog[open] {
+    transform: translateY(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-form-dialog {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* The header and the actions hold their place; only the fields between them
+   scroll, so "Save" is never somewhere further down. */
+.task-form-dialog .modal-header {
+  align-items: center;
+  flex-shrink: 0;
+  padding: 16px 18px 14px;
+}
+
+/* The header is where the dialog parks its opening focus (see the component):
+   it is a container, not a control, so it must not draw a ring for it. */
+.task-form-dialog .modal-header:focus {
+  outline: none;
+}
+
+/* The dialog's own title steps down with the rest of the form: it names the
+   screen, it is not the loudest thing on it. */
+.task-form-dialog .modal-header h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.task-form {
+  display: grid;
+  flex: 1;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px 0;
+}
+
+.task-form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.task-form-label {
+  align-items: baseline;
+  color: var(--muted);
+  display: flex;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 8px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+/* "optional", in the label's own line but not shouting with it. */
+.task-form-label i {
+  color: var(--placeholder);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.task-form input[type="date"],
+.task-form select,
+.task-form textarea {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+  padding: 11px 12px;
+  width: 100%;
+}
+
+.task-form textarea {
+  resize: none;
+}
+
+.task-form input[type="date"]:focus-visible,
+.task-form select:focus-visible,
+.task-form textarea:focus-visible {
+  border-color: var(--accent-strong);
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
+/* The title is the one field that needs no caption: it is the first thing in
+   the form and reads as the task's name. Set a step up from the rest. */
+.task-form-title {
+  font-size: 16px;
+  font-weight: 700;
+  /* Grown to fit its content by fitToContent(); this is the floor. */
+  min-height: 46px;
+  overflow: hidden;
+}
+
+/* The pin sits inside the control, so the select reads as a place rather than
+   as one more dropdown. */
+.task-form-select {
+  align-items: center;
+  display: flex;
+  position: relative;
+}
+
+.task-form-select svg {
+  color: var(--muted);
+  left: 12px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.task-form-select select {
+  padding-left: 38px;
+}
+
+/* Due date as chips: a date box opened empty asks the rep to think in
+   dd.mm.yyyy about a deadline that is nearly always today or the day already
+   set. Those are one tap; "Other date" is the way down to the picker. */
+.task-form-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-form-chip {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 14px;
+}
+
+/* Locales that write weekdays in lower case ("четвер") still start a chip
+   with a capital: it is a label, not a sentence fragment. */
+.task-form-chip::first-letter {
+  text-transform: uppercase;
+}
+
+.task-form-chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.task-form-chip:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+.task-form-date {
+  margin-top: 4px;
+}
+
+/* Priority as a switch with its consequence written next to it: "priority" on
+   its own is a word whose effect — the gold edge down the row — lives on
+   another screen entirely. */
+.task-form-switch {
+  align-items: center;
+  background: color-mix(in srgb, var(--gold) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--gold) 28%, var(--line));
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 14px;
+  position: relative;
+}
+
+.task-form-switch > span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.task-form-switch b {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.task-form-switch i {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: normal;
+}
+
+/* The checkbox stays the control — the hit area, the keyboard target and the
+   accessible name — while the track below is the picture of it. */
+.task-form-switch input {
+  cursor: pointer;
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+}
+
+.task-form-track {
+  background: var(--line);
+  border-radius: 999px;
+  flex-shrink: 0;
+  height: 28px;
+  position: relative;
+  transition: background 0.16s ease;
+  width: 50px;
+}
+
+.task-form-track::after {
+  background: var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(22, 30, 26, 0.3);
+  content: "";
+  height: 22px;
+  left: 3px;
+  position: absolute;
+  top: 3px;
+  transition: transform 0.16s ease;
+  width: 22px;
+}
+
+.task-form-switch:has(input:checked) .task-form-track {
+  background: var(--gold);
+}
+
+.task-form-switch:has(input:checked) .task-form-track::after {
+  transform: translateX(22px);
+}
+
+.task-form-switch:has(input:focus-visible) .task-form-track {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+/* Status as two segments rather than a dropdown: there are exactly two states,
+   and both should be readable without opening anything. */
+.task-form-segments {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.task-form-segments label {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 11px 12px;
+  position: relative;
+  text-align: center;
+}
+
+.task-form-segments input {
+  height: 0;
+  opacity: 0;
+  position: absolute;
+  width: 0;
+}
+
+.task-form-segments label:has(input:checked) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.task-form-segments label:has(input:focus-visible) {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+/* Pinned to the foot of the dialog, over the form that scrolls behind it. */
+.task-form-actions {
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  bottom: 0;
+  display: flex;
+  gap: 10px;
+  margin: 4px -18px 0;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom));
+  position: sticky;
+}
+
+.task-form-actions .secondary-button {
+  flex-shrink: 0;
+}
+
+.task-form-actions .primary-button {
+  flex: 1;
+}
+
+.task-form-actions .primary-button,
+.task-form-actions .secondary-button {
+  border-radius: 10px;
+  font-size: 15px;
+  min-height: 46px;
+}
+
 /* The status pill doubles as an edit affordance: a chevron next to it hints the
    status is changeable, and the select covering both auto-saves the pick. */
 .task-status {
