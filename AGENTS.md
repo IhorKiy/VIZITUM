@@ -64,6 +64,7 @@ Product and roadmap:
 - `docs/specs/report-templates-spec.md`
 - `docs/specs/ai-quality-spec.md`
 - `docs/specs/pilot-readiness-spec.md`
+- `docs/specs/landing-page-spec.md`
 
 Multi-PR efforts in progress, each carrying its own status, file map and known gaps - read the matching one before touching that area, and update it in the same change:
 
