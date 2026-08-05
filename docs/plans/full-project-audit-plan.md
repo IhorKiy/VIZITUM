@@ -1,6 +1,6 @@
 # Full-Project Audit — Plan and Checklist
 
-Status: Pass 0 and Pass 2 done · Pass 1 mostly done · Passes 4, 5 and 6 done except one item each (production drift check, enumerating untested contracts, restore drill) · Pass 3 foundations done, all screen bodies outstanding · 20 findings, 0 S1 (2026-08-05) — the Progress table is the record; this line compresses it · Opened: 2026-08-05 · Scope: NestJS API (`src/`), Next.js web (`apps/web`), Prisma schema and migrations, `scripts/`, tests, CI, reference docs and runbooks
+Status: Pass 0 and Pass 2 done · Pass 1 mostly done · Passes 4, 5 and 6 done except one item each (production drift check, enumerating untested contracts, restore drill) · Pass 3 foundations done and all 7 zones convention-swept, all screen bodies outstanding · 22 findings, 0 S1 (2026-08-05) — the Progress table is the record; this line compresses it · Opened: 2026-08-05 · Scope: NestJS API (`src/`), Next.js web (`apps/web`), Prisma schema and migrations, `scripts/`, tests, CI, reference docs and runbooks
 
 ## Purpose
 
