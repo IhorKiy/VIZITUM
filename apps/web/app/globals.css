@@ -6117,6 +6117,9 @@ textarea {
   align-items: baseline;
   column-gap: 10px;
   display: flex;
+  /* Takes the header's whole width, or the date's `margin-left: auto` would
+     have no free space to push against and would just trail the greeting. */
+  flex: 1;
   flex-wrap: wrap;
   min-width: 0;
 }
@@ -6129,10 +6132,14 @@ textarea {
   overflow-wrap: anywhere;
 }
 
-.today-header-meta {
+/* Pushed to the far edge rather than trailing the greeting: `auto` and not
+   `justify-content`, so it still sits right when a long date wraps onto its
+   own line. Scoped to the header, like the count was: `.page-header p` sets
+   a top margin on every paragraph in a header and beats a bare class. */
+.today-header .today-header-meta {
   color: var(--muted);
   font-size: 13px;
-  margin: 0;
+  margin: 0 0 0 auto;
 }
 
 /* How far through the list the rep is, at the end of the line that names it.
