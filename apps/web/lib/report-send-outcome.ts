@@ -14,7 +14,10 @@ export type ReportSendOutcome =
   | { kind: "signInRequired" }
   // The server answered and refused. Retrying cannot change its mind, so this
   // has to reach the rep now, while they still remember the visit.
-  | { kind: "rejected"; message: string };
+  // Carries the API's error *code*, not its message: the message is the
+  // backend's English, and rendering it under a translated heading is what
+  // audit F14 is about. The screen maps the code through `lib/api-error.ts`.
+  | { kind: "rejected"; code: string | undefined };
 
 // `status: 0` is api-client's marker for "the request produced no response at
 // all" (see the catch in every apiPost). Any other status means something
@@ -67,7 +70,7 @@ export function classifyReportSendResult(
 
   return {
     kind: "rejected",
-    message: result.message ?? "",
+    code: result.code,
   };
 }
 
