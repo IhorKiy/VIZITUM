@@ -91,7 +91,14 @@ export async function flushReportOutbox(
     }
 
     if (outcome.kind === "rejected") {
-      await recordReportOutboxFailure(entry.key, outcome.message, true);
+      // The API's code, not its message. `lastError` is an on-device
+      // diagnostic that nothing renders, so a stable identifier is worth more
+      // here than the backend's English prose (audit F14).
+      await recordReportOutboxFailure(
+        entry.key,
+        outcome.code ?? "rejected",
+        true,
+      );
       continue;
     }
 

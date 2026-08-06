@@ -231,12 +231,14 @@ export async function flushVisitStartOutbox(
       // way, and marks both. The cost of the crash landing in the other half
       // of the window is only a confirm that says "needs attention" while its
       // start is briefly still retrying — the honest reading either way.
+      const rejectionCode = outcome.code ?? "rejected";
+
       await rejectReportOutboxEntryForVisit(
         scope,
         entry.clientVisitId,
-        outcome.message,
+        rejectionCode,
       );
-      await recordVisitStartOutboxFailure(entry.key, outcome.message, true);
+      await recordVisitStartOutboxFailure(entry.key, rejectionCode, true);
       continue;
     }
 

@@ -234,6 +234,16 @@
       "title": "Something went wrong",
       "description": "An unexpected error occurred. Please reload the page and try again.",
       "reload": "Reload page"
+    },
+    "apiError": {
+      "authenticationRequired": "Your session has ended. Sign in again to continue.",
+      "permissionDenied": "You do not have access to do this.",
+      "workspaceUnavailable": "This workspace is not available right now. Contact your administrator.",
+      "sessionExpired": "This page has gone stale. Reload it and try again.",
+      "visitNotActive": "This visit is already closed, so it cannot be saved again.",
+      "reportInvalid": "The report could not be saved as filled in. Check the fields and try again.",
+      "photoInvalid": "The photo could not be attached. Try taking it again.",
+      "unknown": "Something went wrong. Try again."
     }
   },
   "auth": {

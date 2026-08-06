@@ -21,7 +21,11 @@ describe("classifyReportSendResult", () => {
     // api-client reports a request that never got a response as status 0. That
     // is the signal for "no signal" — the ordinary case in a basement.
     assert.deepEqual(
-      classifyReportSendResult({ ok: false, status: 0, message: "fetch failed" }),
+      classifyReportSendResult({
+        ok: false,
+        status: 0,
+        message: "fetch failed",
+      }),
       { kind: "queue" },
     );
   });
@@ -74,13 +78,17 @@ describe("classifyReportSendResult", () => {
       const outcome = classifyReportSendResult({
         ok: false,
         status,
+        code: "REPORT_INVALID",
         message: "Visit date is outside the allowed window.",
       });
 
       assert.equal(outcome.kind, "rejected", `expected ${status} to be shown`);
+      // The *code* travels, not the message. The message is the backend's
+      // English, and the screen renders it under a translated heading — which
+      // is audit F14. `lib/api-error.ts` turns the code into a translated key.
       assert.equal(
-        outcome.kind === "rejected" ? outcome.message : "",
-        "Visit date is outside the allowed window.",
+        outcome.kind === "rejected" ? outcome.code : null,
+        "REPORT_INVALID",
       );
     }
   });
@@ -101,11 +109,16 @@ describe("classifyReportSendResult", () => {
     );
   });
 
-  it("carries an empty message rather than inventing one", () => {
-    // The screen decides the fallback wording; a placeholder invented here would
-    // outrank the translated one the rep should actually see.
+  it("carries no code rather than inventing one", () => {
+    // The screen decides the fallback wording; a placeholder invented here
+    // would outrank the translated one the rep should actually see. That was
+    // already this test's argument before audit F14 — it just could not be
+    // acted on while the English message was what travelled.
     const outcome = classifyReportSendResult({ ok: false, status: 400 });
 
-    assert.equal(outcome.kind === "rejected" ? outcome.message : null, "");
+    assert.equal(
+      outcome.kind === "rejected" ? outcome.code : "not-rejected",
+      undefined,
+    );
   });
 });
