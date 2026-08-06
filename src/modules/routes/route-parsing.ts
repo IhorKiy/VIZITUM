@@ -62,6 +62,15 @@ export function normalizeIdList(value: unknown): string[] | null {
 export const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 
+/**
+ * Upper bound on one multi-date assign. A whole year of daily work is 366
+ * days, and the month grid a person selects on shows at most 31, so this is
+ * far above any real selection — it exists so a scripted caller cannot ask
+ * for an unbounded batch of writes in one request. Shared with the DTO that
+ * enforces it rather than restated there.
+ */
+export const MAX_ASSIGN_DATES = 400;
+
 // Rejects both malformed strings ("not-a-date") and calendar-invalid ones
 // ("2026-02-31"). The regex only checks the shape — and unlike a month
 // component out of range (which the Date constructor turns into NaN), an

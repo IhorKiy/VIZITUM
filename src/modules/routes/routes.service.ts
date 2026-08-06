@@ -543,10 +543,41 @@ function buildRoutePlanWhere(
     ...(representativeFilter
       ? { representativeUserId: representativeFilter }
       : {}),
-    ...(query.planDate
-      ? { planDate: parseRequiredDateOnly(query.planDate) }
-      : {}),
+    ...buildPlanDateFilter(query),
     ...(query.status ? { status: query.status } : {}),
+  };
+}
+
+/**
+ * `planDate` (exact day) or `planDateFrom`/`planDateTo` (inclusive window) —
+ * never both, since an exact day is the narrower question and silently
+ * intersecting the two would answer a query nobody asked.
+ *
+ * Each range end is parsed through `parseRequiredDateOnly`, so a malformed
+ * one is a 400 rather than an ignored filter: a range filter that quietly
+ * drops itself answers with the representative's whole history, which the
+ * caller would render as if it were the requested week.
+ */
+function buildPlanDateFilter(
+  query: ListRoutesQuery,
+): Pick<Prisma.RoutePlanWhereInput, "planDate"> {
+  if (query.planDate) {
+    return { planDate: parseRequiredDateOnly(query.planDate) };
+  }
+
+  if (!query.planDateFrom && !query.planDateTo) {
+    return {};
+  }
+
+  return {
+    planDate: {
+      ...(query.planDateFrom
+        ? { gte: parseRequiredDateOnly(query.planDateFrom) }
+        : {}),
+      ...(query.planDateTo
+        ? { lte: parseRequiredDateOnly(query.planDateTo) }
+        : {}),
+    },
   };
 }
 

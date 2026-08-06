@@ -6,18 +6,35 @@ import { useTranslations } from "next-intl";
 import { MapPinIcon, RouteIcon } from "./icons";
 import type { RouteTemplate } from "../lib/api-client";
 
+/**
+ * Where the trigger sits, not what it does:
+ * - `day` — an unplanned day in the week list. The whole row *is* the button,
+ *   dashed, carrying its own weekday/date column; assigning is the primary
+ *   action of that row, so nothing smaller would be a fair target.
+ * - `inline` — a compact "add another" under the routes a planned day already
+ *   holds.
+ */
+type AssignRouteVariant = "day" | "inline";
+
 type AssignRouteButtonProps = {
   assignAction: (formData: FormData) => Promise<void>;
-  hasExistingPlans: boolean;
   planDate: string;
   routeTemplates: RouteTemplate[];
+  variant: AssignRouteVariant;
+  /** `day` variant only: the row's own left column and today marker. */
+  dayNumber?: number;
+  weekdayLabel?: string;
+  isToday?: boolean;
 };
 
 export function AssignRouteButton({
   assignAction,
-  hasExistingPlans,
   planDate,
   routeTemplates,
+  variant,
+  dayNumber,
+  weekdayLabel,
+  isToday = false,
 }: AssignRouteButtonProps) {
   const t = useTranslations("field.planning");
   const tCommon = useTranslations("common");
@@ -28,6 +45,9 @@ export function AssignRouteButton({
   // closing the dialog on submit and the resulting redirect landing, not
   // just while an individual row's own request is in flight.
   const [isPending, startTransition] = useTransition();
+  // Unique per day: several of these render at once in the week list, and a
+  // repeated id would point every dialog's label at the first one's heading.
+  const dialogTitleId = `assign-route-dialog-title-${planDate}`;
 
   function assign(routeTemplateId: string) {
     const formData = new FormData();
@@ -41,24 +61,47 @@ export function AssignRouteButton({
 
   return (
     <>
-      <button
-        aria-haspopup="dialog"
-        className="dashed-action-button"
-        disabled={isPending}
-        onClick={() => dialogRef.current?.showModal()}
-        type="button"
-      >
-        <span aria-hidden="true">+</span>{" "}
-        {hasExistingPlans ? t("addAnotherRoute") : t("assignRoute")}
-      </button>
+      {variant === "day" ? (
+        <button
+          aria-haspopup="dialog"
+          className={`week-day-row is-empty${isToday ? " is-today" : ""}`}
+          disabled={isPending}
+          onClick={() => dialogRef.current?.showModal()}
+          type="button"
+        >
+          <span className="week-day-col">
+            <span className="week-day-weekday">{weekdayLabel}</span>
+            <span className="week-day-number">{dayNumber}</span>
+          </span>
+          <span className="week-day-divider" aria-hidden="true" />
+          <span className="week-day-body">
+            <span className="week-day-assign">
+              <span aria-hidden="true">+</span> {t("assignRoute")}
+            </span>
+            {isToday ? (
+              <span className="week-day-today-badge">{t("todayBadge")}</span>
+            ) : null}
+          </span>
+        </button>
+      ) : (
+        <button
+          aria-haspopup="dialog"
+          className="week-day-add"
+          disabled={isPending}
+          onClick={() => dialogRef.current?.showModal()}
+          type="button"
+        >
+          <span aria-hidden="true">+</span> {t("addAnotherRoute")}
+        </button>
+      )}
 
       <dialog
-        aria-labelledby="assign-route-dialog-title"
+        aria-labelledby={dialogTitleId}
         className="modal-dialog"
         ref={dialogRef}
       >
         <div className="modal-header">
-          <h2 id="assign-route-dialog-title">{t("assignRouteDialogTitle")}</h2>
+          <h2 id={dialogTitleId}>{t("assignRouteDialogTitle")}</h2>
           <button
             aria-label={tCommon("close")}
             className="icon-button"

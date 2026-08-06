@@ -22,8 +22,10 @@ import {
 import { PERMISSIONS } from "../roles/permissions";
 import type { RequestContext } from "../tenancy/request-context";
 import {
+  AssignRouteTemplateDatesDto,
   AssignRouteTemplateDto,
   CopyRoutePlansDto,
+  CopyRouteWeekDto,
   CreateRouteTemplateDto,
   MoveRouteTemplateItemDto,
   ReorderRouteTemplateItemsDto,
@@ -83,6 +85,24 @@ export class RouteTemplatesController {
     );
   }
 
+  @Post(":templateId/assign-many")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  @UsePipes(createStrictValidationPipe())
+  assignRouteTemplateToDates(
+    @Req() request: Request,
+    @Param("templateId") templateId: string,
+    @Body() body: AssignRouteTemplateDatesDto,
+  ) {
+    return this.routeTemplatesService.assignRouteTemplateToDates(
+      getRequestContext(request),
+      templateId,
+      body,
+    );
+  }
+
   @Post("copy-month")
   @RequireAnyPermissions(
     PERMISSIONS.ROUTES_MANAGE_TEAM,
@@ -91,6 +111,19 @@ export class RouteTemplatesController {
   @UsePipes(createStrictValidationPipe())
   copyRoutePlans(@Req() request: Request, @Body() body: CopyRoutePlansDto) {
     return this.routeTemplatesService.copyRoutePlans(
+      getRequestContext(request),
+      body,
+    );
+  }
+
+  @Post("copy-week")
+  @RequireAnyPermissions(
+    PERMISSIONS.ROUTES_MANAGE_TEAM,
+    PERMISSIONS.ROUTES_MANAGE_OWN,
+  )
+  @UsePipes(createStrictValidationPipe())
+  copyRouteWeek(@Req() request: Request, @Body() body: CopyRouteWeekDto) {
+    return this.routeTemplatesService.copyRouteWeek(
       getRequestContext(request),
       body,
     );

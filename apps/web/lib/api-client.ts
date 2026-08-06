@@ -1451,11 +1451,35 @@ export async function assignRouteTemplate(
   return apiPost<RoutePlan>(`/routes/templates/${templateId}/assign`, input);
 }
 
+// One template onto every date the month planner's multi-select holds, in a
+// single call rather than one request per date.
+export async function assignRouteTemplateToDates(
+  templateId: string,
+  input: { planDates: string[] },
+): Promise<ApiResult<{ createdCount: number; skippedCount: number }>> {
+  return apiPost<{ createdCount: number; skippedCount: number }>(
+    `/routes/templates/${templateId}/assign-many`,
+    input,
+  );
+}
+
 export async function copyRoutePlansFromLastMonth(input: {
   month: string;
 }): Promise<ApiResult<{ createdCount: number; skippedCount: number }>> {
   return apiPost<{ createdCount: number; skippedCount: number }>(
     "/routes/templates/copy-month",
+    input,
+  );
+}
+
+// Both ends are named, because the week planner copies forward (the week on
+// screen into the next one) while the month copy pulls backward.
+export async function copyRouteWeek(input: {
+  fromWeekStart: string;
+  toWeekStart: string;
+}): Promise<ApiResult<{ createdCount: number; skippedCount: number }>> {
+  return apiPost<{ createdCount: number; skippedCount: number }>(
+    "/routes/templates/copy-week",
     input,
   );
 }
