@@ -329,50 +329,13 @@ export default async function FieldPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
-      {/* The greeting and the date on one side, how far through the day the
-          rep is on the other. The counter is the way into the plan: it is the
-          thing a rep looks at when wondering what is left, which is the same
-          moment they would want to change it. */}
+      {/* The greeting and the date, and nothing else: how far through the day
+          the rep is belongs with the list it counts, not up here. */}
       <header className="page-header today-header">
         <div className="today-header-day">
           <h1>{t("home.greeting")}</h1>
           <p className="today-header-meta">{formatTodayDate(format)}</p>
         </div>
-
-        {routeStops.length > 0 ? (
-          <a
-            aria-label={t("home.progressAria", {
-              total: routeStops.length,
-              visited: visitedStops,
-            })}
-            className="today-header-progress"
-            href={`/${tenantSlug}/field/planning`}
-          >
-            {/* The count and an arrow — the arrow is what says this goes
-                somewhere. The aria-label above carries the sentence the
-                numbers stand for, since "1/4" read aloud is not one. */}
-            <p className="today-header-count">
-              <span>
-                {visitedStops}/{routeStops.length}
-              </span>
-              <ChevronRightIcon size={18} />
-            </p>
-            <span
-              aria-valuemax={routeStops.length}
-              aria-valuemin={0}
-              aria-valuenow={visitedStops}
-              className="today-header-track"
-              role="progressbar"
-            >
-              <span
-                className="today-header-fill"
-                style={{
-                  width: `${Math.round((visitedStops / routeStops.length) * 100)}%`,
-                }}
-              />
-            </span>
-          </a>
-        ) : null}
       </header>
 
       {report === "confirmed" ? (
@@ -505,8 +468,28 @@ export default async function FieldPage({
             <div className="route-plan-card">
               {/* One list for the day, whatever it was planned from: the rep
                   walks a sequence of stops, and which saved route each came
-                  from is the planner's concern, not theirs. */}
-              <h2 className="route-day-label">{t("home.todayRoute")}</h2>
+                  from is the planner's concern, not theirs.
+
+                  The count rides on the same line, at the far end: it counts
+                  this list, and the arrow says it opens the plan behind it.
+                  Its aria-label carries the sentence the fraction stands for,
+                  since "1/4" read aloud is not one. */}
+              <div className="route-day-head">
+                <h2 className="route-day-label">{t("home.todayRoute")}</h2>
+                <a
+                  aria-label={t("home.progressAria", {
+                    total: routeStops.length,
+                    visited: visitedStops,
+                  })}
+                  className="route-day-count"
+                  href={`/${tenantSlug}/field/planning`}
+                >
+                  <span>
+                    {visitedStops}/{routeStops.length}
+                  </span>
+                  <ChevronRightIcon size={16} />
+                </a>
+              </div>
 
               <TodayRouteDragList
                 isDemoMode={isDemoMode}
