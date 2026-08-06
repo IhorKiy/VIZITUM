@@ -349,34 +349,55 @@ export class PasswordResetService {
     // already be changed while whoever prompted the reset kept a live session,
     // which is precisely the guarantee this endpoint exists to give. Written
     // through `tx` rather than SessionService, which is not transaction-aware.
-    await this.prisma.$transaction([
-      this.prisma.passwordResetToken.update({
-        where: { id: resetToken.id },
+    //
+    // Interactive rather than the array form it used to be, because the first
+    // write has to be able to abort the rest: an array transaction makes its
+    // contents atomic but claims nothing.
+    await this.prisma.$transaction(async (tx) => {
+      // Conditional on the token still being unspent. The `usedAt` check above
+      // runs before this transaction opens — and `hashPassword` sits between
+      // the two, so the window is argon2-wide, on the order of a hundred
+      // milliseconds rather than microseconds. Two concurrent resets carrying
+      // the same token both passed that check, both entered here and both
+      // committed: under Read Committed the second UPDATE waits for the first
+      // to release the row and then applies on top, so the account ended up
+      // with whichever password committed last while both callers were told
+      // they had succeeded. Claiming the row — and aborting when nothing was
+      // claimed — makes exactly one of them the winner, the way
+      // `auth.service.ts` does for invite acceptance and
+      // `platform-mfa.service.ts` for a challenge token.
+      const claimed = await tx.passwordResetToken.updateMany({
+        where: { id: resetToken.id, usedAt: null },
         data: { usedAt: now },
-      }),
-      this.prisma.user.update({
+      });
+
+      if (claimed.count === 0) {
+        throwInvalidResetToken();
+      }
+
+      await tx.user.update({
         where: { id: user.id },
         data: { passwordHash },
-      }),
+      });
       // Every other token this account holds dies with the one just spent —
       // otherwise a second mail, sent before the first was used, still opens
       // the account after the owner has already recovered it.
-      this.prisma.passwordResetToken.deleteMany({
+      await tx.passwordResetToken.deleteMany({
         where: {
           tenantId: resetToken.tenantId,
           userId: user.id,
           id: { not: resetToken.id },
         },
-      }),
-      this.prisma.session.updateMany({
+      });
+      await tx.session.updateMany({
         where: {
           tenantId: resetToken.tenantId,
           userId: user.id,
           revokedAt: null,
         },
         data: { revokedAt: now },
-      }),
-    ]);
+      });
+    });
 
     await this.recordEvent(
       resetToken.tenantId,
