@@ -1,6 +1,19 @@
 # Design note: putting a DTO in front of `visits`
 
-Status: decision note, no code yet · Date: 2026-08-04 · Scope: `VisitsController`'s eleven `@Body()` routes
+Status: decision note, written before the code · Date: 2026-08-04 · Scope: `VisitsController`'s eleven `@Body()` routes
+
+> **The code shipped.** `visits.controller.ts` carries eleven
+> `@UsePipes(createStrictValidationPipe())` call sites, one per gated body,
+> landed across two changes — [`security-remediation-plan.md`](../security-remediation-plan.md)
+> item 2.4 records it as done. Two of the three open questions below were
+> answered by what shipped: **(1)** a malformed `products[]` entry is refused
+> rather than dropped (`FieldReportProductDto` in `src/modules/ai/ai.dto.ts`
+> makes `id` and `name` required, and `api-reference.md` records it as the one
+> deliberate contract change on the track), and **(3)** the work went as two
+> PRs. **(2) is still genuinely open** — whether the envelope-only gate on
+> `confirmedData` is the permanent answer, or should be revisited once report
+> schemas are versioned server-side. Everything else here is the record of why,
+> not a plan of work (audit F19).
 
 Item 2.4 of [security-remediation-plan.md](../security-remediation-plan.md) asked
 for this note before the code, for one reason: `confirmedData` is "the
