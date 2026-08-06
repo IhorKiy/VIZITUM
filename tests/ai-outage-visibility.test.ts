@@ -37,6 +37,9 @@ const context = {
 describe("AI outage visibility", () => {
   it("records a failed AiJob row when transcription fails, which is what the operations summary counts", async () => {
     const store = createStore();
+    // The download is deliberately slow, so that a `startedAt` taken before it
+    // is measurably distinguishable from one taken after.
+    let downloadReturnedAt = new Date(0);
     const service = new AiService(
       store.prisma as never,
       {
@@ -45,7 +48,14 @@ describe("AI outage visibility", () => {
         },
       } as never,
       {} as never,
-      buildS3StorageClient() as never,
+      {
+        downloadObject: async () => {
+          await delay(20);
+          downloadReturnedAt = new Date();
+
+          return Buffer.from("fake-audio-bytes");
+        },
+      } as never,
     );
 
     const result = await withStderrSilenced(() =>
@@ -80,8 +90,17 @@ describe("AI outage visibility", () => {
     // `status: "failed"` and `expiresAt` — sweeps these rows rather than
     // letting a long outage accumulate them forever.
     assert.ok(job.expiresAt instanceof Date);
-    assert.ok(job.startedAt instanceof Date);
     assert.ok(job.finishedAt instanceof Date);
+
+    // `startedAt` times the *provider call*, not the request. Fetching the
+    // recording from storage happens first and can take seconds on a long
+    // note; a span that included it would have this row describe storage
+    // rather than the provider it is about.
+    assert.ok(job.startedAt instanceof Date);
+    assert.ok(
+      job.startedAt.getTime() >= downloadReturnedAt.getTime(),
+      "startedAt must be taken after the audio download, not before it",
+    );
   });
 
   it("records an extraction failure separately and still hands back the transcript", async () => {
@@ -115,6 +134,37 @@ describe("AI outage visibility", () => {
       store.createdAiJobs[0].errorCode,
       "FIELD_REPORT_EXTRACTION_FAILED",
     );
+  });
+
+  it("records no start time when the failure came before the provider was called", async () => {
+    // The audio download failing is a storage problem, not a provider one, and
+    // it shares this catch. Stamping it with a start time would invent a
+    // provider call that never happened; `AiJob.startedAt` is nullable, and
+    // the asynchronous path leaves it null for the same reason — a job that
+    // never reached `running`.
+    const store = createStore();
+    const service = new AiService(
+      store.prisma as never,
+      {} as never,
+      {} as never,
+      {
+        downloadObject: async () => {
+          throw new Error("object not found in bucket");
+        },
+      } as never,
+    );
+
+    await withStderrSilenced(() =>
+      service.transcribeFieldReport(context as never, "visit-a", {
+        audioObjectId: "audio-object-a",
+        products: [],
+      }),
+    );
+
+    assert.equal(store.createdAiJobs.length, 1);
+    assert.equal(store.createdAiJobs[0].startedAt, null);
+    // Still stamped finished, so the row carries when the failure was seen.
+    assert.ok(store.createdAiJobs[0].finishedAt instanceof Date);
   });
 
   it("logs the failure at error level, the way the asynchronous path already did", async () => {
@@ -197,7 +247,7 @@ type CreatedAiJob = {
   provider: string;
   errorCode: string;
   errorMessage: string;
-  startedAt: Date;
+  startedAt: Date | null;
   finishedAt: Date;
   expiresAt: Date;
 };
@@ -237,6 +287,10 @@ function createStore(
       },
     },
   };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function buildS3StorageClient() {

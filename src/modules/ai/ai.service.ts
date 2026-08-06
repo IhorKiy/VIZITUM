@@ -781,7 +781,13 @@ export class AiService {
     }
 
     let transcript: string;
-    const transcriptionStartedAt = new Date();
+    // Set immediately before the provider call, not at the top of the try: the
+    // download above it fetches an audio recording and can take seconds, and
+    // folding that into the row's span would have the AiJob describe storage
+    // rather than the provider it is about. Left undefined when the download is
+    // what failed — the row then carries no `startedAt`, which is the accurate
+    // reading, since the provider was never reached at all.
+    let transcriptionStartedAt: Date | undefined;
 
     try {
       const audioBuffer = await this.s3StorageClient.downloadObject(
@@ -789,6 +795,9 @@ export class AiService {
         audioObject.objectKey,
         { maxBytes: MAX_TEMPORARY_AUDIO_SIZE_BYTES },
       );
+
+      transcriptionStartedAt = new Date();
+
       const transcription = await this.transcriptionClient.transcribe(
         {
           fileName: "recording.webm",
@@ -892,7 +901,11 @@ export class AiService {
     type: AiJobType;
     model: string;
     errorCode: string;
-    startedAt: Date;
+    // Absent when the failure happened before the provider was called, so the
+    // row says the call never started rather than inventing a span for it.
+    // `AiJob.startedAt` is nullable and the asynchronous path leaves it null
+    // for the same reason — a job that never reached `running`.
+    startedAt: Date | undefined;
     error: unknown;
   }): Promise<void> {
     const errorMessage =
@@ -910,7 +923,7 @@ export class AiService {
           model: input.model,
           errorCode: input.errorCode,
           errorMessage,
-          startedAt: input.startedAt,
+          startedAt: input.startedAt ?? null,
           finishedAt: new Date(),
           expiresAt: buildTemporaryDataExpiry(),
         },
