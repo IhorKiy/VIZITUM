@@ -86,7 +86,11 @@ function fitToContent(field: HTMLTextAreaElement | null) {
   field.style.height = `${field.scrollHeight}px`;
 }
 
-// A per-task edit dialog, one instance per card. Unlike CreateOwnTaskModal /
+// A per-task edit dialog, one instance per card. Twin of the create sheet in
+// create-own-task-modal.tsx, which is drawn from the same markup and class
+// names — a field added here belongs there too, and the other way round.
+//
+// Unlike CreateOwnTaskModal /
 // AssignTaskModal, open/closed state is not mirrored into the URL — there is
 // no single shared query param that could name which of many task cards is
 // open. Opening is a plain imperative showModal(); closing after a

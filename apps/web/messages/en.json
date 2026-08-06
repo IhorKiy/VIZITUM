@@ -1785,6 +1785,10 @@
       "formLocationHint": "You have no assigned locations yet — ask your manager to assign one, or leave this blank.",
       "formPriority": "Priority",
       "formDueDate": "Due date",
+      "formOptional": "optional",
+      "dueToday": "Today",
+      "dueCustom": "Other date",
+      "dueNone": "No date",
       "createTask": "Create task",
       "creating": "Creating...",
       "errorBody": "Add a task title and try again."

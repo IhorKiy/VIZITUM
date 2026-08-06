@@ -902,6 +902,7 @@ export default async function FieldTasksPage({
       <CreateOwnTaskModal
         action={createTaskAction}
         locationOptions={assignedLocationOptions}
+        todayIsoDate={todayIsoDate}
       />
     </AppShell>
   );
