@@ -7,6 +7,7 @@ import {
 import type { Prisma, RoleCode } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
+import { createCuid } from "../../common/cuid";
 import { isValidEmail } from "../../common/normalize";
 import { buildUserNameFields } from "../../common/person-name";
 import { normalizePhoneInput } from "../../common/phone";
@@ -933,39 +934,39 @@ export class ImportsService {
       parsedFile.rows.map((row) => row.assigned_representative_email),
     );
 
-    // The one place in this file where a created row is correlated to its
-    // source row by position rather than by a key: a location has no column
-    // that is unique within an import file (`external_code` is optional, `name`
-    // is not unique), so nothing else identifies which returned id belongs to
-    // which row. It holds because `createManyAndReturn` compiles to a single
-    // `INSERT ... VALUES (…),(…) RETURNING`, and Postgres returns RETURNING
-    // rows in the order the VALUES list inserted them. `tests/import-apply-
-    // volume.test.ts` pins it against a real database at several hundred rows,
-    // because getting it wrong would attach representatives to the wrong
-    // outlets silently.
-    const createdLocations = await transaction.location.createManyAndReturn({
-      data: parsedFile.rows.map((row) => ({
-        tenantId: context.tenantId,
-        chainId: chainIdByName.get(normalizeValue(row.chain)) ?? null,
-        categoryId: categoryIdByName.get(normalizeValue(row.category)) ?? null,
-        externalCode: optionalString(row.external_code),
-        name: requiredString(row.name),
-        addressLine: requiredString(row.address_line),
-        city: requiredString(row.city),
-        latitude: optionalNumber(row.latitude),
-        longitude: optionalNumber(row.longitude),
-        notes: optionalString(row.notes),
-      })),
-      select: { id: true },
-    });
+    // Ids are minted here rather than read back from the insert. A location has
+    // no column that is unique within an import file — `external_code` is
+    // optional and `name` is not unique — so pairing a returned row with its
+    // source row would have to be done by position, which means trusting that
+    // `createManyAndReturn` hands rows back in VALUES order. Postgres does;
+    // Prisma does not promise it. The failure would be silent and plausible:
+    // representatives attached to the wrong outlets, every row present, no
+    // error. Prisma generates `@default(cuid())` ids client-side anyway (the
+    // `id` column is in the INSERT it emits), so supplying them makes the
+    // correlation exact instead of merely reliable — and lets this be a plain
+    // `createMany`, with nothing to return.
+    const locationRows = parsedFile.rows.map((row) => ({
+      id: createCuid(),
+      tenantId: context.tenantId,
+      chainId: chainIdByName.get(normalizeValue(row.chain)) ?? null,
+      categoryId: categoryIdByName.get(normalizeValue(row.category)) ?? null,
+      externalCode: optionalString(row.external_code),
+      name: requiredString(row.name),
+      addressLine: requiredString(row.address_line),
+      city: requiredString(row.city),
+      latitude: optionalNumber(row.latitude),
+      longitude: optionalNumber(row.longitude),
+      notes: optionalString(row.notes),
+    }));
 
-    counts.locations += createdLocations.length;
+    await transaction.location.createMany({ data: locationRows });
+    counts.locations += locationRows.length;
 
     const assignmentRows = parsedFile.rows.flatMap((row, index) => {
       const representativeEmail = normalizeValue(
         row.assigned_representative_email,
       );
-      const locationId = createdLocations[index]?.id;
+      const locationId = locationRows[index]?.id;
 
       if (!representativeEmail || !locationId) {
         return [];

@@ -174,16 +174,15 @@ describe("import locations: category resolution", () => {
             findMany: async () => [],
           },
           location: {
-            createManyAndReturn: async ({
+            createMany: async ({
               data,
             }: {
               data: { categoryId: string | null }[];
-            }) =>
-              data.map((entry) => {
-                createdLocations.push(entry);
+            }) => {
+              createdLocations.push(...data);
 
-                return { id: `location-${createdLocations.length}` };
-              }),
+              return { count: data.length };
+            },
           },
           importJob: {
             update: async () => undefined,

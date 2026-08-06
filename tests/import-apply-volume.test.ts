@@ -25,9 +25,13 @@ import { PrismaService } from "../src/modules/prisma/prisma.service";
 //
 // Two things are asserted that only a real database can show: that a
 // several-hundred-row file applies at all inside the transaction budget, and
-// that each location keeps the representative its own row named — the apply
-// correlates `createManyAndReturn`'s result to its source rows by position, and
-// getting that wrong would attach reps to the wrong outlets without erroring.
+// that each location keeps the representative its own row named. The second is
+// the one a fake cannot stand in for — it needs the ids the apply minted to be
+// the ids the database actually stored, which is what makes the client-side
+// `createCuid` correlation real rather than merely internally consistent. Its
+// predecessor read ids back out of `createManyAndReturn` and paired them with
+// their source rows by position; this assertion is what would have caught that
+// going wrong, since every row would still be present and nothing would error.
 
 const VOLUME_DATABASE_URL = process.env.IMPORT_VOLUME_TEST_DATABASE_URL;
 // The largest file an import accepts (`MAX_IMPORT_ROWS`), so this exercises the
@@ -37,7 +41,9 @@ const REPRESENTATIVE_COUNT = 5;
 
 describe(
   "import apply: a several-hundred-row file applies against a real database",
-  { skip: VOLUME_DATABASE_URL ? false : "IMPORT_VOLUME_TEST_DATABASE_URL unset" },
+  {
+    skip: VOLUME_DATABASE_URL ? false : "IMPORT_VOLUME_TEST_DATABASE_URL unset",
+  },
   () => {
     let prisma: PrismaService;
     let tenantId: string;

@@ -266,12 +266,9 @@ function createRecordingTransaction(method: string) {
       ),
     },
     location: {
-      createManyAndReturn: track(
-        "location",
-        "createManyAndReturn",
-        (args: { data: unknown[] }) =>
-          args.data.map((_, index) => ({ id: `location-${index}` })),
-      ),
+      // A plain createMany: the apply mints the ids itself, so there is
+      // nothing to read back (see createCuid's own comment).
+      createMany: track("location", "createMany", insertedRows),
       findMany: track(
         "location",
         "findMany",
@@ -298,9 +295,7 @@ function createRecordingTransaction(method: string) {
       createManyAndReturn: track(
         "routePlan",
         "createManyAndReturn",
-        (args: {
-          data: { representativeUserId: string; planDate: Date }[];
-        }) =>
+        (args: { data: { representativeUserId: string; planDate: Date }[] }) =>
           args.data.map((plan, index) => ({
             id: `plan-${index}`,
             representativeUserId: plan.representativeUserId,
