@@ -11,6 +11,7 @@ import {
 
 import { AppShell } from "../../../../../components/app-shell";
 import { BackLink } from "../../../../../components/back-link";
+import { resolveBackTarget } from "../../../../../lib/back-navigation";
 import {
   CreateOwnTaskModal,
   type CreateOwnTaskActionResult,
@@ -68,6 +69,11 @@ type FieldTasksPageProps = {
     error?: string;
     overdue?: string;
     page?: string;
+    // Where this screen was opened from, resolved into its back control. The
+    // location card's task deep link is the journey this exists for (audit
+    // F17); a bookmark or a menu tap carries none and falls back to the field
+    // home.
+    from?: string;
     // The task whose sheet is open, by id.
     open?: string;
     priority?: string;
@@ -100,7 +106,14 @@ const NON_LIST_PARAMS = ["create", "error", "open", "task"];
 // comes off a form is read against the names this page actually understands
 // instead of being trusted whole — a hand-edited field must not be able to
 // smuggle `error=task` into the address a save redirects to.
-const LIST_PARAMS = ["overdue", "page", "priority", "status"];
+// `from` rides along so a save does not strand the reader: without it, editing
+// a task opened from a location card returns them to the field home instead of
+// that outlet — the link half of audit F17 fixed on its own would still drop
+// the origin on every update. It is safe to take off a form for the reason the
+// rest of this list is not read whole: `resolveBackTarget` checks the value
+// against RETURNABLE_SCREENS, the caller's zone and the tenant prefix, so a
+// hand-edited field can only make the back control fall back.
+const LIST_PARAMS = ["from", "overdue", "page", "priority", "status"];
 
 // The heading each band of the open list is read under.
 const TASK_GROUP_LABEL_KEYS = {
@@ -281,6 +294,14 @@ export default async function FieldTasksPage({
 
   const pageState = await searchParams;
   const { task, error } = pageState;
+  // Reachable from the bottom nav, the field menu and a location card's task
+  // list, so it cannot name one destination without stranding the others —
+  // the rule CLAUDE.md states for exactly this shape. The field home is the
+  // hierarchical fallback for a deep link that carries no origin.
+  const backTarget = resolveBackTarget(tenantSlug, pageState.from, {
+    href: `/${tenantSlug}/field`,
+    labelKey: "home",
+  });
   // No "all" option: the status toggle always resolves to one of the two
   // statuses, defaulting to in_progress on first load (an absent/invalid
   // query value).
@@ -353,7 +374,7 @@ export default async function FieldTasksPage({
   if (!tasksResult.ok) {
     return (
       <AppShell activeArea="field-tasks" tenantSlug={tenantSlug}>
-        <BackLink href={`/${tenantSlug}/field`} label={tBack("home")} />
+        <BackLink href={backTarget.href} label={tBack(backTarget.labelKey)} />
         <header className="page-header">
           <div>
             <p className="eyebrow">{tField("flowEyebrow")}</p>
