@@ -25,6 +25,7 @@ import {
   type RouteTemplate,
 } from "../../../../../lib/api-client";
 import { backOrigin, withBackOrigin } from "../../../../../lib/back-navigation";
+import { collectAllPages } from "../../../../../lib/collect-pages";
 import type { IntlFormatter } from "../../../../../lib/format";
 import { getFormString } from "../../../../../lib/form";
 import {
@@ -203,8 +204,12 @@ export default async function PlanningPage({
   async function copyLastWeekAction(formData: FormData) {
     "use server";
 
-    const targetWeekStart =
-      getFormString(formData, "weekStart").trim() || weekStart;
+    // Same guard as copyWeekAction: an unparseable value would throw out of
+    // addDaysToDate below rather than redirect.
+    const submittedWeekStart = getFormString(formData, "weekStart").trim();
+    const targetWeekStart = isDateString(submittedWeekStart)
+      ? submittedWeekStart
+      : weekStart;
     const result = await copyRouteWeek({
       fromWeekStart: addDaysToDate(targetWeekStart, -DAYS_IN_WEEK),
       toWeekStart: targetWeekStart,
@@ -227,8 +232,16 @@ export default async function PlanningPage({
   async function copyWeekAction(formData: FormData) {
     "use server";
 
-    const sourceWeekStart =
-      getFormString(formData, "weekStart").trim() || weekStart;
+    // Checked, not just defaulted on empty: addDaysToDate parses through
+    // `new Date(...)`, so a non-date string reaches `.toISOString()` as NaN
+    // and throws — the action would die with a RangeError instead of
+    // redirecting with ?planning=failed the way every other error path here
+    // does. Anything unusable falls back to the week on screen, the same
+    // fallback the empty string already had.
+    const submittedWeekStart = getFormString(formData, "weekStart").trim();
+    const sourceWeekStart = isDateString(submittedWeekStart)
+      ? submittedWeekStart
+      : weekStart;
     const targetWeekStart = addDaysToDate(sourceWeekStart, DAYS_IN_WEEK);
     const result = await copyRouteWeek({
       fromWeekStart: sourceWeekStart,
@@ -295,20 +308,29 @@ export default async function PlanningPage({
   // instead — an omitted filter was a 403 — so there is no longer an error
   // to catch its absence, only this line.
   const ownRepresentativeQuery = `representativeUserId=${sessionResult.data.user.id}`;
-  // Scoped to the seven days on screen via the date-range filter, so paging
-  // can no longer decide what the week shows. The month calendar this screen
-  // replaced had no such filter and asked for the rep's 100 most recent plans
-  // instead, then filtered them here — which silently emptied any week that
-  // had fallen out of that window, and emptied it faster the more templates a
-  // rep assigned per day.
-  const [templatesResult, routesResult] = await Promise.all([
+  // Two things bound this read, and both are needed. The date-range filter
+  // decides *which* plans come back — the month calendar this screen replaced
+  // had no such filter and asked for the rep's 100 most recent plans
+  // instead, so any range that had scrolled out of that window rendered as
+  // unplanned. But the filter says nothing about *how many*: the API caps
+  // pageSize at 100 regardless of what is asked for (MAX_PAGE_SIZE,
+  // src/common/pagination.ts), and a 31-day month at four routes a day is
+  // 124 plans. Since the list comes back planDate desc, the page that fits
+  // holds the late dates and the opening week of the month would render
+  // empty — the same silently-truncated window, one layer down. So every
+  // page of the range is read, not just the first.
+  const [templatesResult, collectedPlans] = await Promise.all([
     listRouteTemplates(`pageSize=100&${ownRepresentativeQuery}`),
-    listRoutes(
-      `pageSize=100&${ownRepresentativeQuery}&planDateFrom=${rangeFrom}&planDateTo=${rangeTo}`,
+    collectAllPages<RoutePlan>((page) =>
+      listRoutes(
+        `page=${page}&pageSize=100&${ownRepresentativeQuery}&planDateFrom=${rangeFrom}&planDateTo=${rangeTo}`,
+      ),
     ),
   ]);
   const routeTemplates = templatesResult.ok ? templatesResult.data.items : [];
-  const routePlans = routesResult.ok ? routesResult.data.items : [];
+  // `null` is a failed read, which this screen has always rendered as an
+  // empty calendar.
+  const routePlans = collectedPlans ?? [];
 
   const plansByDate = groupPlansByDate(routePlans);
   const weekStopCount = routePlans.reduce(
