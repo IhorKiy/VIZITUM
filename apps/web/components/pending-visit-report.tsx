@@ -224,13 +224,28 @@ export function PendingVisitReport({
     );
   }
 
+  const backTarget = resolveBackTarget(tenantSlug, from, {
+    href: `/${tenantSlug}/field/locations/${state.locationId}`,
+    labelKey: "location",
+  });
+
   return (
     <>
       <header className="visit-report-header">
+        {/*
+          Resolved, not hardcoded — the same shape the not-found branch above
+          already uses. A fixed destination ignored the `from` this component
+          is handed, so a rep who started a visit offline from today's route
+          was returned to the location card instead; and since that href
+          carried no origin either, the card's own back control then fell back
+          to the catalogue, degrading two steps of one journey (audit F28).
+          The card stays the fallback: it is the hierarchical parent, so a
+          deep link that genuinely carries no origin lands where it used to.
+        */}
         <BackLink
-          href={`/${tenantSlug}/field/locations/${state.locationId}`}
+          href={backTarget.href}
           inline
-          label={tBack("location")}
+          label={tBack(backTarget.labelKey)}
         />
         <div>
           <h1>{t("pendingSyncTitle")}</h1>
