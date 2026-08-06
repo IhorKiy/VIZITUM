@@ -39,28 +39,59 @@ function locationRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+type AuditCall = {
+  entityType: string;
+  entityId: string;
+  eventType: string;
+  // The archive and its trail must commit together or not at all, so the
+  // event has to arrive on the transaction client rather than on the service's
+  // own prisma — recorded here so that is asserted rather than assumed.
+  inTransaction: boolean;
+};
+
+function recordingAuditService(events: AuditCall[]) {
+  return {
+    recordEvent: async (
+      _context: unknown,
+      input: Omit<AuditCall, "inTransaction">,
+      client?: unknown,
+    ) => {
+      events.push({ ...input, inTransaction: client !== undefined });
+    },
+  };
+}
+
 describe("location archive", () => {
   it("soft-archives a live location by stamping deletedAt", async () => {
     let findWhere: Record<string, unknown> | undefined;
     let updateArgs:
       { where: unknown; data: Record<string, unknown> } | undefined;
-    const service = new LocationsService({
-      location: {
-        findFirst: async ({ where }: { where: Record<string, unknown> }) => {
-          findWhere = where;
-          return locationRow();
+    const events: AuditCall[] = [];
+    const service = new LocationsService(
+      {
+        location: {
+          findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+            findWhere = where;
+            return locationRow();
+          },
         },
-        update: async (args: {
-          where: unknown;
-          data: Record<string, unknown>;
-        }) => {
-          updateArgs = args;
-          return locationRow({
-            deletedAt: new Date("2026-07-18T00:00:00.000Z"),
-          });
-        },
-      },
-    } as never);
+        $transaction: async (run: (tx: unknown) => Promise<unknown>) =>
+          run({
+            location: {
+              update: async (args: {
+                where: unknown;
+                data: Record<string, unknown>;
+              }) => {
+                updateArgs = args;
+                return locationRow({
+                  deletedAt: new Date("2026-07-18T00:00:00.000Z"),
+                });
+              },
+            },
+          }),
+      } as never,
+      recordingAuditService(events) as never,
+    );
 
     const result = await service.archiveLocation(
       context as never,
@@ -77,6 +108,17 @@ describe("location archive", () => {
     assert.equal(result.archived, true);
     // Status is untouched — archival is orthogonal to active/inactive.
     assert.equal(result.status, "active");
+    // Who did it, in the same transaction as the archive. Before audit F5 the
+    // row recorded when to the millisecond and nothing about the actor, and
+    // no `deletedBy` column exists anywhere in the schema to carry one.
+    assert.deepEqual(events, [
+      {
+        entityType: "location",
+        entityId: "location-a",
+        eventType: "location.archived",
+        inTransaction: true,
+      },
+    ]);
   });
 
   it("rejects archiving a location the tenant does not own", async () => {
@@ -121,20 +163,29 @@ describe("location archive", () => {
   it("restores an archived location by clearing deletedAt", async () => {
     let findWhere: Record<string, unknown> | undefined;
     let updateData: Record<string, unknown> | undefined;
-    const service = new LocationsService({
-      location: {
-        findFirst: async ({ where }: { where: Record<string, unknown> }) => {
-          findWhere = where;
-          return locationRow({
-            deletedAt: new Date("2026-07-18T00:00:00.000Z"),
-          });
+    const events: AuditCall[] = [];
+    const service = new LocationsService(
+      {
+        location: {
+          findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+            findWhere = where;
+            return locationRow({
+              deletedAt: new Date("2026-07-18T00:00:00.000Z"),
+            });
+          },
         },
-        update: async ({ data }: { data: Record<string, unknown> }) => {
-          updateData = data;
-          return locationRow({ deletedAt: null });
-        },
-      },
-    } as never);
+        $transaction: async (run: (tx: unknown) => Promise<unknown>) =>
+          run({
+            location: {
+              update: async ({ data }: { data: Record<string, unknown> }) => {
+                updateData = data;
+                return locationRow({ deletedAt: null });
+              },
+            },
+          }),
+      } as never,
+      recordingAuditService(events) as never,
+    );
 
     const result = await service.restoreLocation(
       context as never,
@@ -147,6 +198,16 @@ describe("location archive", () => {
     assert.deepEqual(findWhere?.deletedAt, { not: null });
     assert.equal(updateData?.deletedAt, null);
     assert.equal(result.archived, false);
+    // The archive's twin: a trail carrying only `location.archived` cannot
+    // answer whether the outlet is archived *now*.
+    assert.deepEqual(events, [
+      {
+        entityType: "location",
+        entityId: "location-a",
+        eventType: "location.restored",
+        inTransaction: true,
+      },
+    ]);
   });
 
   it("rejects restoring a location that is not archived", async () => {

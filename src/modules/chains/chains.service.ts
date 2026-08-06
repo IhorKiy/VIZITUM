@@ -15,6 +15,7 @@ import {
   assertTextWithinLimit,
   type TextLimitKey,
 } from "../../common/input-limits";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
@@ -38,7 +39,10 @@ type ChainUpdateData = Partial<
 
 @Injectable()
 export class ChainsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listChains(
     context: RequestContext,
@@ -117,9 +121,37 @@ export class ChainsService {
       );
     }
 
-    const updatedChain = await this.prisma.chain.update({
-      where: { id: chain.id },
-      data,
+    // A chain has no soft delete — `Chain.deletedAt` is never written
+    // anywhere — so archiving one is a status change through this ordinary
+    // update, and this is where its attribution has to live (audit F5 files it
+    // with the location and product soft deletes; the concern is the same, the
+    // mechanism is not). Only the transition is recorded: renaming a chain
+    // must not emit an archive event, and re-saving an already-archived chain
+    // must not emit a second one.
+    const archiveTransition = resolveChainArchiveTransition(
+      chain.status,
+      data.status,
+    );
+
+    const updatedChain = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.chain.update({
+        where: { id: chain.id },
+        data,
+      });
+
+      if (archiveTransition) {
+        await this.auditService.recordEvent(
+          context,
+          {
+            entityType: "chain",
+            entityId: chain.id,
+            eventType: archiveTransition,
+          },
+          tx,
+        );
+      }
+
+      return updated;
     });
 
     return toChainResponse(updatedChain);
@@ -348,4 +380,19 @@ function toChainResponse(chain: Chain): ChainResponse {
     createdAt: chain.createdAt.toISOString(),
     updatedAt: chain.updatedAt.toISOString(),
   };
+}
+
+// Which audit event, if any, an update represents. `undefined` status means
+// the caller did not touch it; an unchanged status means they re-saved the
+// same value. Neither is a transition, and neither should leave a trail
+// implying somebody archived something.
+function resolveChainArchiveTransition(
+  previous: ChainStatus,
+  next: ChainStatus | undefined,
+): "chain.archived" | "chain.restored" | null {
+  if (!next || next === previous) {
+    return null;
+  }
+
+  return next === "archived" ? "chain.archived" : "chain.restored";
 }

@@ -17,6 +17,7 @@ import {
   assertTextWithinLimit,
   type TextLimitKey,
 } from "../../common/input-limits";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import {
@@ -95,7 +96,10 @@ type LocationContactUpdateData = Partial<LocationContactData>;
 
 @Injectable()
 export class LocationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listLocations(
     context: RequestContext,
@@ -229,10 +233,31 @@ export class LocationsService {
       });
     }
 
-    const archivedLocation = await this.prisma.location.update({
-      where: { id: location.id },
-      data: { deletedAt: new Date() },
-      include: LOCATION_INCLUDE,
+    // One transaction with the audit event, the shape `tasks.service.ts`'s
+    // `deleteTask` established: an archive must never exist without its trail,
+    // nor a trail without the archive. Before this, archiving recorded *when*
+    // to the millisecond and nothing about *who* — no `deletedBy` column
+    // exists anywhere in the schema, and this module wrote no events — so an
+    // operator asked "half our outlets vanished on Tuesday, who did it?" had
+    // no way to answer (audit F5).
+    const archivedLocation = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.location.update({
+        where: { id: location.id },
+        data: { deletedAt: new Date() },
+        include: LOCATION_INCLUDE,
+      });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "location",
+          entityId: location.id,
+          eventType: "location.archived",
+        },
+        tx,
+      );
+
+      return updated;
     });
 
     return toLocationResponse(archivedLocation);
@@ -259,10 +284,27 @@ export class LocationsService {
       });
     }
 
-    const restoredLocation = await this.prisma.location.update({
-      where: { id: location.id },
-      data: { deletedAt: null },
-      include: LOCATION_INCLUDE,
+    // The archive's twin. A trail that records only the archiving cannot
+    // answer "is it archived now?" — a reader finding `location.archived` and
+    // no counterpart would conclude the outlet is still gone.
+    const restoredLocation = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.location.update({
+        where: { id: location.id },
+        data: { deletedAt: null },
+        include: LOCATION_INCLUDE,
+      });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "location",
+          entityId: location.id,
+          eventType: "location.restored",
+        },
+        tx,
+      );
+
+      return updated;
     });
 
     return toLocationResponse(restoredLocation);
