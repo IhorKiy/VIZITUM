@@ -89,6 +89,7 @@
       "field-planning": "Планування",
       "field-history": "Історія",
       "field-tasks": "Задачі",
+      "createTask": "Створити задачу",
       "announcementBadgeAria": "Непрочитані оголошення: {count}",
       "admin-users": "Користувачі",
       "admin-locations": "Точки/Мережі",
@@ -1775,7 +1776,6 @@
     },
     "createTask": {
       "title": "Нова задача",
-      "triggerLabel": "+ Задача",
       "formTitle": "Назва",
       "formTitlePlaceholder": "Що потрібно зробити",
       "formDetails": "Деталі",

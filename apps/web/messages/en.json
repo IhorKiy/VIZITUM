@@ -89,6 +89,7 @@
       "field-planning": "Planning",
       "field-history": "History",
       "field-tasks": "Tasks",
+      "createTask": "Create task",
       "announcementBadgeAria": "Unread announcements: {count}",
       "admin-users": "Users",
       "admin-locations": "Locations / Chains",
@@ -1775,7 +1776,6 @@
     },
     "createTask": {
       "title": "New task",
-      "triggerLabel": "+ Task",
       "formTitle": "Title",
       "formTitlePlaceholder": "What needs to be done",
       "formDetails": "Details",

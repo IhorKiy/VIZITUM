@@ -32,16 +32,19 @@ type CreateOwnTaskModalProps = {
   // Only the field rep's own assigned locations — there is no assignee field
   // here, the task is always assigned to whoever opens this form.
   locationOptions: CreateOwnTaskOption[];
-  // How the trigger is drawn: a button in a header toolbar by default, a
-  // floating action button on the task list. Only the trigger changes — the
-  // dialog it opens is the same one wherever it is opened from.
-  triggerClassName?: string;
 };
 
+/**
+ * The create-a-task dialog, opened by `?create=1` and nothing else. It carries
+ * no trigger of its own: the button that opens it is the bottom nav's, which
+ * every field screen renders and which sets that param (see
+ * components/field-create-fab.tsx). One way in means the dialog can be mounted
+ * where its data is — this page — while the button lives where a rep can reach
+ * it from anywhere.
+ */
 export function CreateOwnTaskModal({
   action,
   locationOptions,
-  triggerClassName = "primary-button",
 }: CreateOwnTaskModalProps) {
   const t = useTranslations("field.createTask");
   const tCommon = useTranslations("common");
@@ -52,6 +55,15 @@ export function CreateOwnTaskModal({
   const [draft, setDraft] = useState<CreateOwnTaskDraft | null>(null);
   const [submitFailed, setSubmitFailed] = useState(false);
   const [formVersion, setFormVersion] = useState(0);
+
+  // Declared above the effect that calls it, which is now its only caller:
+  // reading it earlier in the body would not pick up later versions of it.
+  function openDialog() {
+    setDraft(null);
+    setSubmitFailed(false);
+    setFormVersion((version) => version + 1);
+    dialogRef.current?.showModal();
+  }
 
   // Keep the dialog in sync with the URL (see assign-task-modal.tsx for why a
   // boolean prop would not do): `?create=1` opens it, anything else closes it.
@@ -70,13 +82,6 @@ export function CreateOwnTaskModal({
       dialog.close();
     }
   }, [searchParams]);
-
-  function openDialog() {
-    setDraft(null);
-    setSubmitFailed(false);
-    setFormVersion((version) => version + 1);
-    dialogRef.current?.showModal();
-  }
 
   // Drops `?create=1` so a page refresh after closing doesn't reopen the
   // dialog. A successful create never reaches this: it redirects to
@@ -123,15 +128,6 @@ export function CreateOwnTaskModal({
 
   return (
     <>
-      <button
-        aria-haspopup="dialog"
-        className={triggerClassName}
-        onClick={openDialog}
-        type="button"
-      >
-        {t("triggerLabel")}
-      </button>
-
       <dialog
         aria-labelledby="create-own-task-title"
         className="modal-dialog"

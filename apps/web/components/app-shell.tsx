@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { getCurrentSession, listActiveAnnouncements } from "../lib/api-client";
 import { resolveTenantBranding } from "../lib/tenant-branding";
 import { BrandMark } from "./brand-mark";
+import { FieldCreateFab } from "./field-create-fab";
 import { FieldMenu } from "./field-menu";
 import { LogOutIcon } from "./icons";
 import { NavIcon } from "./nav-icon";
@@ -162,6 +163,27 @@ export async function AppShell({
 
     return null;
   };
+
+  const renderMobileNavLink = (item: (typeof navItems)[number]) => (
+    <Link
+      aria-current={item.area === activeArea ? "page" : undefined}
+      className="mobile-nav-link"
+      href={item.href}
+      key={item.href}
+    >
+      <span className="mobile-nav-icon">
+        <NavIcon name={item.icon} />
+        {navBadge(item.area)}
+      </span>
+      <span className="mobile-nav-label">{tNav(item.area)}</span>
+    </Link>
+  );
+
+  // Where the create button interrupts the tabs: the middle of the field bar,
+  // and nowhere at all in the zones that don't have one. Rounding up puts the
+  // extra tab before the button if the field zone ever gains an odd one.
+  const fabSlot =
+    currentZone === "field" ? Math.ceil(navItems.length / 2) : null;
 
   // The field (representative) zone is phone-only: it always renders the
   // mobile layout, framed in a centered phone-width column on wider screens.
@@ -365,20 +387,23 @@ export async function AppShell({
 
       <nav className="mobile-nav" aria-label={tNav("ariaPrimaryMobile")}>
         <div className="mobile-nav-inner">
-          {navItems.map((item) => (
-            <Link
-              aria-current={item.area === activeArea ? "page" : undefined}
-              className="mobile-nav-link"
-              href={item.href}
-              key={item.href}
-            >
-              <span className="mobile-nav-icon">
-                <NavIcon name={item.icon} />
-                {navBadge(item.area)}
-              </span>
-              <span className="mobile-nav-label">{tNav(item.area)}</span>
-            </Link>
-          ))}
+          {/* The field zone's create-a-task button sits in the middle of the
+              bar, splitting the tabs evenly around it, rather than floating
+              over one screen — see components/field-create-fab.tsx. The other
+              zones have a sidebar and no single create action to promote, so
+              they get the plain row. */}
+          {fabSlot === null ? (
+            navItems.map(renderMobileNavLink)
+          ) : (
+            <>
+              {navItems.slice(0, fabSlot).map(renderMobileNavLink)}
+              <FieldCreateFab
+                label={tNav("createTask")}
+                tasksHref={`/${tenantSlug}/field/tasks`}
+              />
+              {navItems.slice(fabSlot).map(renderMobileNavLink)}
+            </>
+          )}
         </div>
       </nav>
     </div>

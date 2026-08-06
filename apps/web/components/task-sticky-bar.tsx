@@ -81,13 +81,15 @@ export function TaskStickyBar({
     const root = document.documentElement;
     let observer: IntersectionObserver | null = null;
 
-    // The shell's two fixed edges, measured rather than hardcoded: the top bar
-    // grows with a long tenant name, and the bottom nav carries the device's
-    // own safe-area inset. Everything that has to clear them — this bar, the
-    // sticky group headings, the FAB — reads these two variables.
+    // The shell's fixed top edge, measured rather than hardcoded: the top bar
+    // grows with a long tenant name. Everything that has to clear it — this
+    // bar, the sticky group headings — reads this variable.
+    //
+    // The bottom nav used to be measured here too, for a create-a-task button
+    // that floated above it. That button now sits inside the nav and needs no
+    // inset of its own.
     const measure = () => {
       const topBar = document.querySelector(".mobile-topbar");
-      const bottomNav = document.querySelector(".mobile-nav");
       // Only a *pinned* brand row is an inset. On this screen it scrolls away
       // with the header (AppShell's scrollingTopbar), so the top edge is the
       // viewport's own and the bar sits at 0 — but the same component has to
@@ -99,12 +101,8 @@ export function TaskStickyBar({
         topBar && topBarPinned
           ? Math.round(topBar.getBoundingClientRect().height)
           : 0;
-      const bottom = bottomNav
-        ? Math.round(bottomNav.getBoundingClientRect().height)
-        : 0;
 
       root.style.setProperty("--field-top-inset", `${top}px`);
-      root.style.setProperty("--field-bottom-inset", `${bottom}px`);
 
       return top;
     };

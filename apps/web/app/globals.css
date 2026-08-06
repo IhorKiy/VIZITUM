@@ -3648,37 +3648,6 @@ textarea {
   border-color: var(--danger);
 }
 
-/* Create-a-task, floating clear of the list. Sits above the bottom nav rather
-   than over it (--field-bottom-inset is that nav, measured), and clears the
-   device's own inset below that. On a viewport wider than the phone frame it
-   tucks into the frame's right edge instead of the window's. */
-.task-fab {
-  align-items: center;
-  background: var(--accent);
-  border: 0;
-  border-radius: 999px;
-  bottom: calc(
-    var(--field-bottom-inset, 65px) + 22px + env(safe-area-inset-bottom)
-  );
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 38%, transparent);
-  color: #ffffff;
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 14px;
-  font-weight: 800;
-  gap: 8px;
-  min-height: 52px;
-  padding: 0 20px;
-  position: fixed;
-  right: max(18px, calc(50% - 215px + 18px));
-  z-index: 15;
-}
-
-.task-fab:focus-visible {
-  outline: 2px solid var(--accent-strong);
-  outline-offset: 3px;
-}
-
 /* How many tasks are behind the pill, in the pill. Lighter than the label: it
    is the answer to the filter's question, not a second label. */
 .filter-pill-count {
@@ -5202,6 +5171,39 @@ textarea {
   background: var(--surface-muted);
   color: var(--accent-strong);
   font-weight: 800;
+}
+
+/* Create-a-task, in the bar rather than floating over one screen. The circle
+   is bigger than the slot it sits in and rides above the bar's top edge, which
+   is what separates it from the tabs either side — but its *layout* box is the
+   same 48px as a tab (the negative block margins absorb the rest), so the bar
+   stays at --mobile-nav-height and everything pinned above it keeps its
+   offset. */
+.mobile-nav-fab {
+  align-items: center;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 38%, transparent);
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 52px;
+  justify-content: center;
+  /* The block margins keep the 48px slot; the inline pair is deliberately
+     small. A 375px bar divides into four tabs and this, and "Планування" —
+     the longest label in either dictionary — needs all but a couple of the
+     pixels that leaves. Widen this and that label starts truncating. */
+  margin-block: -2px;
+  margin-inline: 2px;
+  transform: translateY(-10px);
+  width: 52px;
+}
+
+.mobile-nav-fab:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
 }
 
 .login-surface {
