@@ -94,9 +94,11 @@ type FieldVisitReportFormProps = {
 };
 
 // Mirrors VISIT_DATE_BACKDATE_WINDOW_DAYS in src/modules/visits/shelf-check.ts
-// (this workspace cannot import from the backend) — keep the two in sync. The
-// backend allows one extra day of slack on both ends for timezone skew, so
-// these stricter local-time bounds never trip it.
+// (this workspace cannot import from the backend) — `tests/cross-workspace-
+// constants.test.ts` keeps the two in sync, so a change here that is not made
+// there fails the suite rather than the rep. The backend allows one extra day
+// of slack on both ends for timezone skew, so these stricter local-time bounds
+// never trip it.
 const VISIT_DATE_BACKDATE_WINDOW_DAYS = 3;
 
 function toLocalIsoDate(date: Date): string {
