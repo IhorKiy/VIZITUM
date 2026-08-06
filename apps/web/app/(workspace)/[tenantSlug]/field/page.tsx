@@ -499,7 +499,7 @@ export default async function FieldPage({
               {/* One list for the day, whatever it was planned from: the rep
                   walks a sequence of stops, and which saved route each came
                   from is the planner's concern, not theirs. */}
-              <h2 className="route-section-head">{t("home.todayRoute")}</h2>
+              <h2 className="route-day-label">{t("home.todayRoute")}</h2>
 
               <TodayRouteDragList
                 isDemoMode={isDemoMode}

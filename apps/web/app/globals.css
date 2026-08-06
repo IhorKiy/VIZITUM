@@ -6105,9 +6105,12 @@ textarea {
   /* Bled to the screen edges and padded back by exactly what .main-surface
      insets its content (14px in this shell, at every width), so the greeting
      and the counter line up with the cards and the label below rather than
-     sitting a band's padding inside them. */
+     sitting a band's padding inside them. The top inset goes the same way:
+     the band reads as the bottom half of the header it hangs under, and an
+     18px stripe of page between the two only broke that. */
   margin-bottom: 16px;
   margin-inline: -14px;
+  margin-top: -18px;
   padding: 14px;
 }
 
@@ -6185,8 +6188,10 @@ textarea {
 
 /* Names the list under it and rules off to the right, the way the task list's
    date bands do. A label rather than a card heading: the stops below carry
-   their own surfaces, and this only says what they are. */
-.route-section-head {
+   their own surfaces, and this only says what they are. Its own name, not
+   .route-section-head — that one is the planning screen's centred week
+   heading, and sharing it turned that heading into an uppercase band. */
+.route-day-label {
   align-items: center;
   color: var(--muted);
   display: flex;
@@ -6194,11 +6199,13 @@ textarea {
   font-weight: 850;
   gap: 8px;
   letter-spacing: 0.06em;
+  /* No trailing margin: the label belongs to the list, and the card grid's
+     own 8px is the whole gap between them. */
   margin: 0;
   text-transform: uppercase;
 }
 
-.route-section-head::after {
+.route-day-label::after {
   background: var(--line);
   content: "";
   flex: 1;
