@@ -1745,6 +1745,7 @@ export function FieldVisitReportForm({
                       />
                       {productSearch ? (
                         <button
+                          aria-label={t("productSearchClearAria")}
                           onClick={() => setProductSearch("")}
                           type="button"
                         >
