@@ -369,13 +369,9 @@ export function EditTaskModal({
             ) : null}
           </div>
 
-          {/* A switch that says what it does: "priority" alone is a word whose
-              consequence — the gold edge down the row — lives on another
-              screen. */}
           <label className="task-form-switch">
             <span>
               <b>{t("formPriority")}</b>
-              <i>{t("formPriorityHint")}</i>
             </span>
             <input
               defaultChecked={draft.isPriority}

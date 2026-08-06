@@ -4530,14 +4530,11 @@ textarea {
   margin-top: 4px;
 }
 
-/* Priority as a switch with its consequence written next to it: "priority" on
-   its own is a word whose effect — the gold edge down the row — lives on
-   another screen entirely.
-
-   A plain row, not a panel. It used to sit in a tinted, outlined box, which
-   made the one optional flag in the form the heaviest thing in it — heavier
-   than the title, the deadline and the status it was stacked under. The switch
-   already draws the eye; the frame only competed with the fields around it. */
+/* Priority as a plain switch row, not a panel. It used to sit in a tinted,
+   outlined box, which made the one optional flag in the form the heaviest
+   thing in it — heavier than the title, the deadline and the status it was
+   stacked under. The switch already draws the eye; the frame only competed
+   with the fields around it. */
 .task-form-switch {
   align-items: center;
   cursor: pointer;
@@ -4549,20 +4546,12 @@ textarea {
 }
 
 .task-form-switch > span:first-child {
-  display: grid;
-  gap: 2px;
   min-width: 0;
 }
 
 .task-form-switch b {
   font-size: 15px;
   font-weight: 700;
-}
-
-.task-form-switch i {
-  color: var(--muted);
-  font-size: 13px;
-  font-style: normal;
 }
 
 /* The checkbox stays the control — the hit area, the keyboard target and the

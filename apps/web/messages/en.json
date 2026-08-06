@@ -1805,7 +1805,6 @@
       "dueToday": "Today",
       "dueCustom": "Other date",
       "dueNone": "No date",
-      "formPriorityHint": "Marks the task with a gold edge down the list row",
       "save": "Save changes",
       "saving": "Saving...",
       "errorBody": "Check the task details and try again."
