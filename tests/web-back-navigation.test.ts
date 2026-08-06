@@ -87,7 +87,11 @@ describe("resolveBackTarget", () => {
     assert.equal(fromRouteEditor.href, "/acme/field/routes?route=tpl-1");
 
     assert.deepEqual(
-      resolveBackTarget("acme", "/field/planning?tab=routes", LOCATION_FALLBACK),
+      resolveBackTarget(
+        "acme",
+        "/field/planning?tab=routes",
+        LOCATION_FALLBACK,
+      ),
       { href: "/acme/field/routes", labelKey: "routes" },
     );
 
@@ -134,10 +138,10 @@ describe("resolveBackTarget", () => {
     // home route is only the deep-link fallback.
     const menuFallback: BackTarget = { href: "/acme/field", labelKey: "home" };
 
-    assert.deepEqual(
-      resolveBackTarget("acme", "/field/tasks", menuFallback),
-      { href: "/acme/field/tasks", labelKey: "tasks" },
-    );
+    assert.deepEqual(resolveBackTarget("acme", "/field/tasks", menuFallback), {
+      href: "/acme/field/tasks",
+      labelKey: "tasks",
+    });
     // Both halves of the old planning screen carry the menu, and each names
     // itself: "routes" is the routes themselves, "planning" the calendar.
     assert.deepEqual(resolveBackTarget("acme", "/field/routes", menuFallback), {
@@ -179,7 +183,11 @@ describe("resolveBackTarget", () => {
       route: "tpl-1",
       from: "/field/tasks",
     });
-    const backToEditor = resolveBackTarget("acme", stopOrigin, LOCATION_FALLBACK);
+    const backToEditor = resolveBackTarget(
+      "acme",
+      stopOrigin,
+      LOCATION_FALLBACK,
+    );
 
     assert.equal(backToEditor.labelKey, "routes");
     assert.equal(
@@ -398,6 +406,22 @@ describe("withBackOrigin", () => {
     );
   });
 
+  // The location card's task deep link is the one caller with a fragment
+  // (audit F17), and appending blindly breaks both halves at once: the query
+  // lands *inside* the fragment, so the server never sees `from` and the
+  // anchor id stops matching the row the link names. Silent in both
+  // directions, which is why it is pinned rather than left to the call site.
+  it("keeps a fragment last, where a URL requires it", () => {
+    assert.equal(
+      withBackOrigin("/acme/field/tasks#task-t-1", "/field/locations/loc-1"),
+      "/acme/field/tasks?from=%2Ffield%2Flocations%2Floc-1#task-t-1",
+    );
+    assert.equal(
+      withBackOrigin("/acme/field/tasks?status=open#task-t-1", "/field"),
+      "/acme/field/tasks?status=open&from=%2Ffield#task-t-1",
+    );
+  });
+
   it("round-trips through resolveBackTarget", () => {
     const origin = backOrigin("/field/history", { status: "completed" });
     const href = withBackOrigin("/acme/field/visits/v-1", origin);
@@ -406,6 +430,25 @@ describe("withBackOrigin", () => {
     assert.equal(
       resolveBackTarget("acme", from ?? undefined, LOCATION_FALLBACK).href,
       "/acme/field/history?status=completed",
+    );
+  });
+
+  // The whole F17 journey, end to end: the card's origin survives the
+  // fragment, and the task screen resolves it back to the outlet the rep was
+  // working rather than to the field home.
+  it("round-trips a fragment link back to the location card it came from", () => {
+    const origin = backOrigin("/field/locations/loc-1", { routeItemId: "r-1" });
+    const href = withBackOrigin(`/acme/field/tasks#task-t-1`, origin);
+    const url = new URL(href, "https://app.local");
+
+    assert.equal(url.hash, "#task-t-1");
+    assert.equal(
+      resolveBackTarget(
+        "acme",
+        url.searchParams.get("from") ?? undefined,
+        LOCATION_FALLBACK,
+      ).href,
+      "/acme/field/locations/loc-1?routeItemId=r-1",
     );
   });
 });
