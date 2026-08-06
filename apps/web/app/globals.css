@@ -6086,43 +6086,37 @@ textarea {
   margin-bottom: 24px;
 }
 
-/* The home screen's header: the day on the left, how far through it on the
-   right, in one band. It replaced a greeting stacked above a progress card —
-   two blocks that between them spent most of a phone's first screenful before
-   the first stop, and a progress bar that drew the same number the counter
-   already gives. */
-/* Declared with the mobile-only compound (as .page-header--compact is) so the
+/* The home screen's header: the greeting and date on the left, how far
+   through the day the rep is on the right. It replaced a greeting stacked
+   above a progress card — two blocks that between them spent most of a
+   phone's first screenful before the first stop, and a progress bar drawing
+   the same number the counter already gives.
+
+   Declared with the mobile-only compound (as .page-header--compact is) so the
    row survives the rule that turns every other page header into a stacked
    grid on a phone: this one is two columns by design, and stacked it puts the
-   count on a line of its own for no gain. */
+   count on a line of its own for no gain.
+
+   No surface of its own — it sits on the page the way the other field headers
+   do, which is also what keeps the greeting and the counter on the same left
+   and right edges as the label and cards below. */
 .today-header,
 .app-shell--mobile-only .page-header.today-header {
   align-items: center;
-  background: var(--surface-muted);
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  /* Bled to the screen edges and padded back by exactly what .main-surface
-     insets its content (14px in this shell, at every width), so the greeting
-     and the counter line up with the cards and the label below rather than
-     sitting a band's padding inside them. The top inset goes the same way:
-     the band reads as the bottom half of the header it hangs under, and an
-     18px stripe of page between the two only broke that. */
   margin-bottom: 16px;
-  margin-inline: -14px;
-  margin-top: -18px;
-  padding: 14px;
 }
 
 .today-header-day {
   min-width: 0;
 }
 
-/* Smaller than a page header's 32px: this one shares its line with the count,
-   and the date under it carries the detail the title would otherwise have to.
-   A long first name wraps rather than pushing the count off the row. */
+/* The page-header size every other field screen uses, kept: this is the
+   home screen's title, and shrinking it made it read as a subheading of the
+   list under it. Wraps rather than pushing the count off the row. */
 .today-header h1 {
-  font-size: 24px;
   margin: 0;
   overflow-wrap: anywhere;
 }
