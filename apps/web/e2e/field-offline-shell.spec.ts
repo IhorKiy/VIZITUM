@@ -46,11 +46,11 @@ const REP_PASSWORD = "E2eField12345!";
 const LOCATION_NAME = "E2E Revisit Market";
 
 // The shell's own markup: #heading only exists on offline.html, and
-// .greeting-header only on the real field home, so the pair tells apart "still
+// .today-header only on the real field home, so the pair tells apart "still
 // on the fallback" from "back in the app" at the same URL — which is what
 // recovery looks like, since the retry re-requests the page it is standing on.
 const SHELL_HEADING = "#heading";
-const APP_HEADER = ".greeting-header";
+const APP_HEADER = ".today-header";
 
 async function signIn(page: Page): Promise<void> {
   await page.goto(`/${TENANT_SLUG}/login`);
