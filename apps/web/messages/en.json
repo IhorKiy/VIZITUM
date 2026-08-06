@@ -1246,6 +1246,8 @@
       "demoBody": "Showing sample visits until the Nest API returns an authenticated session. Reason: {reason}",
       "todayRouteAria": "Today's route",
       "todayRoute": "Today's route",
+      "routeUnnamed": "No route",
+      "stopsCount": "{count, plural, one {# stop} other {# stops}}",
       "offlineBanner": "Offline — data as of {timestamp}",
       "offlineVisitedBadge": "Visited",
       "offlineNotVisitedBadge": "Not visited yet",

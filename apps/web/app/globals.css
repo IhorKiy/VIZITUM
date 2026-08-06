@@ -6161,6 +6161,14 @@ textarea {
   gap: 8px;
 }
 
+/* One per route the day holds: the route icon the field menu uses for
+   "Routes", the route's own name with how many stops it carries, and the way
+   into editing the plan. */
+.route-plan-group {
+  display: grid;
+  gap: 8px;
+}
+
 .route-plan-head {
   align-items: center;
   background: var(--surface-muted);
@@ -6170,15 +6178,34 @@ textarea {
   padding: 12px 14px;
 }
 
+.route-plan-count {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* Pushed to the far end, away from the name and count it does not belong to.
+   Shrink-proof: a long route name wraps rather than squeezing the link. */
+.route-plan-head .route-plan-link {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* An inline-flex box rather than a text glyph: this now holds the same SVG
+   the field menu draws beside "Routes", and a bare span would leave it
+   sitting on the text baseline. */
 .route-plan-icon {
+  align-items: center;
   color: var(--accent);
-  font-size: 18px;
+  display: inline-flex;
+  flex-shrink: 0;
   line-height: 1;
 }
 
 .route-plan-heading {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .route-plan-name {

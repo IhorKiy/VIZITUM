@@ -34,6 +34,7 @@ type FieldPageProps = {
 type FieldRouteStop = {
   id: string;
   routePlanId: string;
+  planName: string | null;
   locationId: string;
   name: string;
   address: string;
@@ -46,6 +47,7 @@ const demoRouteStops: FieldRouteStop[] = [
   {
     id: "demo-stop-1",
     routePlanId: "demo-plan-1",
+    planName: "Demo route",
     locationId: "demo-location-1",
     name: "Silpo Obolon",
     address: "Heroiv Dnipra Ave, Kyiv",
@@ -56,6 +58,7 @@ const demoRouteStops: FieldRouteStop[] = [
   {
     id: "demo-stop-2",
     routePlanId: "demo-plan-1",
+    planName: "Demo route",
     locationId: "demo-location-2",
     name: "Pharmacy 24",
     address: "Lvivska St, Kyiv",
@@ -66,6 +69,7 @@ const demoRouteStops: FieldRouteStop[] = [
   {
     id: "demo-stop-3",
     routePlanId: "demo-plan-1",
+    planName: "Demo route",
     locationId: "demo-location-3",
     name: "Partner Hub",
     address: "Volodymyrska St, Kyiv",
@@ -460,21 +464,9 @@ export default async function FieldPage({
         {routeStops.length > 0 ? (
           <>
             <div className="route-plan-card">
-              <div className="route-plan-head">
-                <span className="route-plan-icon" aria-hidden="true">
-                  ⇄
-                </span>
-                <div className="route-plan-heading">
-                  <p className="route-plan-name">{t("home.todayRoute")}</p>
-                  <a
-                    className="route-plan-link"
-                    href={`/${tenantSlug}/field/planning`}
-                  >
-                    {t("home.editPlan")}
-                  </a>
-                </div>
-              </div>
-
+              {/* The heading moved into the list, one per route: a day can
+                  hold more than one, and a single "Today's route" above them
+                  could name neither. */}
               <TodayRouteDragList
                 isDemoMode={isDemoMode}
                 markVisitedAction={markStopVisitedAction}
@@ -532,6 +524,10 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
         .map((item) => ({
           id: item.id,
           routePlanId: plan.id,
+          // Carried on every stop so the list can head each plan with the
+          // route it came from. Null when the day was planned freehand rather
+          // than from a saved route.
+          planName: plan.routeTemplate?.name ?? null,
           locationId: item.locationId,
           name: item.location.name,
           address: [item.location.addressLine, item.location.city]
