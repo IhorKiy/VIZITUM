@@ -34,7 +34,6 @@ type FieldPageProps = {
 type FieldRouteStop = {
   id: string;
   routePlanId: string;
-  planName: string | null;
   locationId: string;
   name: string;
   address: string;
@@ -47,7 +46,6 @@ const demoRouteStops: FieldRouteStop[] = [
   {
     id: "demo-stop-1",
     routePlanId: "demo-plan-1",
-    planName: "Demo route",
     locationId: "demo-location-1",
     name: "Silpo Obolon",
     address: "Heroiv Dnipra Ave, Kyiv",
@@ -58,7 +56,6 @@ const demoRouteStops: FieldRouteStop[] = [
   {
     id: "demo-stop-2",
     routePlanId: "demo-plan-1",
-    planName: "Demo route",
     locationId: "demo-location-2",
     name: "Pharmacy 24",
     address: "Lvivska St, Kyiv",
@@ -69,7 +66,6 @@ const demoRouteStops: FieldRouteStop[] = [
   {
     id: "demo-stop-3",
     routePlanId: "demo-plan-1",
-    planName: "Demo route",
     locationId: "demo-location-3",
     name: "Partner Hub",
     address: "Volodymyrska St, Kyiv",
@@ -149,9 +145,6 @@ export default async function FieldPage({
     : demoRouteStops;
   const visitedStops = routeStops.filter((stop) => stop.visited).length;
   const isDemoMode = !todayRoutesResult.ok && demoFallbackEnabled;
-  const firstName = sessionResult.ok
-    ? sessionResult.data.user.firstName
-    : t("home.guestName");
 
   // A rep manages their own plans (routes.manage_own); a team lead may manage
   // any. Without either, POST would only 403, so the affordance stays hidden.
@@ -302,37 +295,43 @@ export default async function FieldPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
-      {/* The greeting, what the day holds and how far through it the rep is,
-          in one band. It used to be a greeting stacked above a progress card:
-          two blocks that between them spent most of a phone's first screenful
-          before the first stop, and a bar drawing the number the counter
-          beside it already gives. */}
+      {/* The greeting and the date on one side, how far through the day the
+          rep is on the other. The counter is the way into the plan: it is the
+          thing a rep looks at when wondering what is left, which is the same
+          moment they would want to change it. */}
       <header className="page-header today-header">
         <div className="today-header-day">
-          <h1>{t("home.greeting", { firstName })}</h1>
-          {/* The date alone. How many stops the day holds was here too, until
-              the counter opposite started saying it: "3 stops" beside "0/3"
-              is the same fact twice on one line. */}
+          <h1>{t("home.greeting")}</h1>
           <p className="today-header-meta">{formatTodayDate(format)}</p>
         </div>
 
         {routeStops.length > 0 ? (
-          <div
-            aria-label={t("home.progressAria", {
-              visited: visitedStops,
-              total: routeStops.length,
-            })}
-            aria-valuemax={routeStops.length}
-            aria-valuemin={0}
-            aria-valuenow={visitedStops}
+          <a
             className="today-header-progress"
-            role="progressbar"
+            href={`/${tenantSlug}/field/planning`}
           >
             <p className="today-header-count">
-              {visitedStops}/{routeStops.length}
+              {t.rich("home.visitedOfTotal", {
+                total: routeStops.length,
+                visited: visitedStops,
+                strong: (chunks) => <strong>{chunks}</strong>,
+              })}
             </p>
-            <p className="today-header-count-label">{t("home.visitedLabel")}</p>
-          </div>
+            <span
+              aria-valuemax={routeStops.length}
+              aria-valuemin={0}
+              aria-valuenow={visitedStops}
+              className="today-header-track"
+              role="progressbar"
+            >
+              <span
+                className="today-header-fill"
+                style={{
+                  width: `${Math.round((visitedStops / routeStops.length) * 100)}%`,
+                }}
+              />
+            </span>
+          </a>
         ) : null}
       </header>
 
@@ -464,9 +463,11 @@ export default async function FieldPage({
         {routeStops.length > 0 ? (
           <>
             <div className="route-plan-card">
-              {/* The heading moved into the list, one per route: a day can
-                  hold more than one, and a single "Today's route" above them
-                  could name neither. */}
+              {/* One list for the day, whatever it was planned from: the rep
+                  walks a sequence of stops, and which saved route each came
+                  from is the planner's concern, not theirs. */}
+              <h2 className="route-section-head">{t("home.todayRoute")}</h2>
+
               <TodayRouteDragList
                 isDemoMode={isDemoMode}
                 markVisitedAction={markStopVisitedAction}
@@ -524,10 +525,6 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
         .map((item) => ({
           id: item.id,
           routePlanId: plan.id,
-          // Carried on every stop so the list can head each plan with the
-          // route it came from. Null when the day was planned freehand rather
-          // than from a saved route.
-          planName: plan.routeTemplate?.name ?? null,
           locationId: item.locationId,
           name: item.location.name,
           address: [item.location.addressLine, item.location.city]

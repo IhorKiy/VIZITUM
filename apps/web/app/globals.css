@@ -6126,29 +6126,47 @@ textarea {
   margin: 2px 0 0;
 }
 
-/* Right-aligned and rag-right against the day beside it: the count is what a
-   rep checks at a glance, and the word under it only says what the count
-   counts. */
+/* The count, and under it a bar of the same thing. A link, not a readout:
+   this is what a rep looks at when wondering what is left, which is the
+   moment they would want to change the plan. */
 .today-header-progress {
+  color: inherit;
+  display: grid;
   flex-shrink: 0;
-  text-align: right;
+  gap: 6px;
+  justify-items: end;
+  text-decoration: none;
+}
+
+.today-header-track {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 999px;
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  width: 84px;
+}
+
+.today-header-fill {
+  background: var(--accent);
+  border-radius: 999px;
+  display: block;
+  height: 100%;
 }
 
 /* Scoped to the header rather than left as a bare class: `.page-header p`
    sets the muted colour every paragraph in a header takes, and would
-   otherwise win on specificity and grey this out. */
+   otherwise win on specificity and grey this out. The numbers carry the
+   accent; the word after them is the quieter half of the same sentence. */
 .today-header .today-header-count {
-  color: var(--accent);
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.1;
+  color: var(--muted);
+  font-size: 13px;
   margin: 0;
 }
 
-.today-header-count-label {
-  color: var(--muted);
-  font-size: 13px;
-  margin: 2px 0 0;
+.today-header .today-header-count strong {
+  color: var(--accent);
+  font-weight: 800;
 }
 
 /* Grouped route card (mobile-first, light) */
@@ -6161,12 +6179,26 @@ textarea {
   gap: 8px;
 }
 
-/* One per route the day holds: the route icon the field menu uses for
-   "Routes", the route's own name with how many stops it carries, and the way
-   into editing the plan. */
-.route-plan-group {
-  display: grid;
+/* Names the list under it and rules off to the right, the way the task list's
+   date bands do. A label rather than a card heading: the stops below carry
+   their own surfaces, and this only says what they are. */
+.route-section-head {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  font-weight: 850;
   gap: 8px;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.route-section-head::after {
+  background: var(--line);
+  content: "";
+  flex: 1;
+  height: 1px;
 }
 
 .route-plan-head {

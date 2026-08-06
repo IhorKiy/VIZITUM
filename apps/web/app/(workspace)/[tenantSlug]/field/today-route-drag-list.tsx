@@ -26,15 +26,12 @@ import {
   MapPinIcon,
   TrashIcon,
 } from "../../../../components/icons";
-import { NavIcon } from "../../../../components/nav-icon";
 import { withBackOrigin } from "../../../../lib/back-navigation";
 import { useSerializedReorder } from "../../../../lib/use-serialized-reorder";
 
 type TodayStop = {
   id: string;
   routePlanId: string;
-  // The route this stop was planned from, or null for a day planned freehand.
-  planName: string | null;
   locationId: string;
   name: string;
   address: string;
@@ -63,7 +60,7 @@ export function TodayRouteDragList({
   const groups = groupByRoutePlan(stops);
 
   return (
-    <>
+    <ol className="route-stop-list">
       {groups.map((group) => (
         <TodayRouteGroup
           isDemoMode={isDemoMode}
@@ -72,21 +69,23 @@ export function TodayRouteDragList({
           removeAction={removeAction}
           reorderAction={reorderAction}
           routePlanId={group.routePlanId}
+          startIndex={group.startIndex}
           stops={group.stops}
           tenantSlug={tenantSlug}
         />
       ))}
-    </>
+    </ol>
   );
 }
 
 // A viewer with team-wide access sees every representative's plan for today
 // merged into one list (see getTodayRoutes), so each plan gets its own drag
-// context here — a stop can never be dragged into someone else's route — and,
-// since each now carries its own heading and count, its own run of numbers.
+// context here — a stop can never be dragged into someone else's route. The
+// grouping is invisible to the reader, who sees one list for the day: each
+// group carries where its stops start in that single run of numbers.
 function groupByRoutePlan(
   stops: TodayStop[],
-): Array<{ routePlanId: string; stops: TodayStop[] }> {
+): Array<{ routePlanId: string; startIndex: number; stops: TodayStop[] }> {
   const order: string[] = [];
   const byPlan = new Map<string, TodayStop[]>();
 
@@ -102,10 +101,16 @@ function groupByRoutePlan(
     planStops.push(stop);
   }
 
-  return order.map((routePlanId) => ({
-    routePlanId,
-    stops: byPlan.get(routePlanId) as TodayStop[],
-  }));
+  let startIndex = 0;
+
+  return order.map((routePlanId) => {
+    const planStops = byPlan.get(routePlanId) as TodayStop[];
+    const group = { routePlanId, startIndex, stops: planStops };
+
+    startIndex += planStops.length;
+
+    return group;
+  });
 }
 
 type TodayRouteGroupProps = {
@@ -114,6 +119,9 @@ type TodayRouteGroupProps = {
   markVisitedAction: (formData: FormData) => Promise<void>;
   removeAction: (formData: FormData) => Promise<void>;
   routePlanId: string;
+  // How many stops the plans above this one contribute, so the numbers run
+  // across the whole day rather than restarting per plan.
+  startIndex: number;
   stops: TodayStop[];
   tenantSlug: string;
 };
@@ -124,6 +132,7 @@ function TodayRouteGroup({
   markVisitedAction,
   removeAction,
   routePlanId,
+  startIndex,
   stops,
   tenantSlug,
 }: TodayRouteGroupProps) {
@@ -246,60 +255,37 @@ function TodayRouteGroup({
   }
 
   return (
-    <section className="route-plan-group">
-      {/* The route this run of stops came from, named. A day can hold more
-          than one, and before this the list ran them together under a single
-          "Today's route" that named neither. */}
-      <div className="route-plan-head">
-        <span className="route-plan-icon" aria-hidden="true">
-          <NavIcon name="route" />
-        </span>
-        <div className="route-plan-heading">
-          <p className="route-plan-name">
-            {stops[0]?.planName ?? t("routeUnnamed")}
-          </p>
-          <p className="route-plan-count">
-            {t("stopsCount", { count: order.length })}
-          </p>
-        </div>
-        <a className="route-plan-link" href={`/${tenantSlug}/field/planning`}>
-          {t("editPlan")}
-        </a>
-      </div>
-
-      <DndContext
-        accessibility={accessibility}
-        collisionDetection={closestCenter}
-        id={routePlanId}
-        sensors={sensors}
-        onDragEnd={handleDragEnd}
+    <DndContext
+      accessibility={accessibility}
+      collisionDetection={closestCenter}
+      id={routePlanId}
+      sensors={sensors}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={order.map((stop) => stop.id)}
+        strategy={verticalListSortingStrategy}
       >
-        <SortableContext
-          items={order.map((stop) => stop.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {/* Numbered by where the stop sits now, not by where the server last
-              saw it: the whole point of the handle is that the reader decides
-              the order, and a badge that travelled with its card left the list
-              reading 3, 1, 2 until the next load. Each route counts from 1, so
-              the numbers agree with the count in the heading above them. */}
-          <ol className="route-stop-list">
-            {order.map((stop, position) => (
-              <TodayRouteStopRow
-                index={position}
-                isDemoMode={isDemoMode}
-                key={stop.id}
-                markVisitedAction={markVisitedAction}
-                onHandleKeyDown={handleHandleKeyDown}
-                removeAction={removeAction}
-                stop={stop}
-                tenantSlug={tenantSlug}
-              />
-            ))}
-          </ol>
-        </SortableContext>
-      </DndContext>
-    </section>
+        {/* Numbered by where the stop sits now, not by where the server last
+            saw it: the whole point of the handle is that the reader decides
+            the order, and a badge that travelled with its card left the list
+            reading 3, 1, 2 until the next load. The count runs across the
+            whole day — the reader sees one list, whatever it was planned
+            from. */}
+        {order.map((stop, position) => (
+          <TodayRouteStopRow
+            index={startIndex + position}
+            isDemoMode={isDemoMode}
+            key={stop.id}
+            markVisitedAction={markVisitedAction}
+            onHandleKeyDown={handleHandleKeyDown}
+            removeAction={removeAction}
+            stop={stop}
+            tenantSlug={tenantSlug}
+          />
+        ))}
+      </SortableContext>
+    </DndContext>
   );
 }
 
