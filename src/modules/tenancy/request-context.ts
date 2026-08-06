@@ -31,9 +31,8 @@ export type RequestContext = {
  * It lived as nineteen byte-identical copies, one per controller, each of which
  * already imported `RequestContext` from this file. All nineteen agreed; the
  * risk was the twentieth, written by someone who had to satisfy the optional
- * type themselves (audit F25). `tests/request-context.test.ts` pins the throw,
- * and `tests/controller-request-context.test.ts` pins that no controller
- * declares its own copy again.
+ * type themselves (audit F25). `tests/request-context.test.ts` pins both
+ * halves: the throw, and that no controller declares its own copy again.
  */
 export function getRequestContext(request: Request): RequestContext {
   if (!request.context) {
