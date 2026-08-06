@@ -5167,10 +5167,19 @@ textarea {
   white-space: nowrap;
 }
 
+/* Colour alone carries the current tab: icon and label go from muted grey to
+   the accent, with no filled pill behind them. The fill read as a third
+   surface in a bar that already has the button's circle in it.
+
+   No weight bump with it, and that is a width decision rather than a taste
+   one. Once the create button took a slot in this bar, a tab is 72px wide;
+   "Планування" — the longest label in either dictionary — measures 70px at
+   the normal weight and 78px at 800, so bolding the active tab truncated
+   whichever label was active. The tabs keep their positions from screen to
+   screen, which is worth more here than a second cue on a control that also
+   carries aria-current. */
 .mobile-nav-link[aria-current="page"] {
-  background: var(--surface-muted);
   color: var(--accent-strong);
-  font-weight: 800;
 }
 
 /* Create-a-task, in the bar rather than floating over one screen. The circle
@@ -5193,8 +5202,10 @@ textarea {
   justify-content: center;
   /* The block margins keep the 48px slot; the inline pair is deliberately
      small. A 375px bar divides into four tabs and this, and "Планування" —
-     the longest label in either dictionary — needs all but a couple of the
-     pixels that leaves. Widen this and that label starts truncating. */
+     the longest label in either dictionary — needs all but two of the pixels
+     that leaves. Widen this and that label starts truncating (see the
+     aria-current rule above, which gave up its weight bump for the same
+     two pixels). */
   margin-block: -2px;
   margin-inline: 2px;
   transform: translateY(-10px);

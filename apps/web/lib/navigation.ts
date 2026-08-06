@@ -102,6 +102,15 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     requiredPermissions: ["visits.read_own", "visits.read_team"],
   },
   {
+    // Next to the home screen, because it is the other thing a rep opens
+    // during the day rather than while setting one up.
+    path: "/field/tasks",
+    area: "field-tasks",
+    zone: "field",
+    icon: "check",
+    requiredPermissions: ["tasks.read_own"],
+  },
+  {
     // Where a route meets a day. The reusable routes themselves are one step
     // further from the working day — they are built once and reused — so they
     // sit in the field menu instead of holding a slot in the bottom bar.
@@ -110,13 +119,6 @@ const NAV_ITEM_DEFS: NavItemDef[] = [
     zone: "field",
     icon: "calendar",
     requiredPermissions: ["routes.read"],
-  },
-  {
-    path: "/field/tasks",
-    area: "field-tasks",
-    zone: "field",
-    icon: "check",
-    requiredPermissions: ["tasks.read_own"],
   },
   {
     path: "/field/history",
