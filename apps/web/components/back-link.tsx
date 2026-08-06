@@ -16,6 +16,17 @@ type BackLinkProps = {
 /**
  * The single "return to the previous screen" affordance for the whole app: a
  * round icon button sitting at the top-left of the screen, above the header.
+ *
+ * **A plain `<a>`, deliberately — do not convert this to `next/link`.**
+ * `public/sw.js` gates its offline fallback on
+ * `event.request.mode === "navigate"`. An anchor produces a document
+ * navigation, which is one; a `next/link` click produces a client-side RSC
+ * fetch, which is not — so a rep with no signal would stop getting the cached
+ * shell when they tap back. This control is on every screen in the product,
+ * so converting this one file would lose that everywhere at once. Nothing
+ * else would notice: typecheck, lint and `field-offline-shell.spec.ts` all
+ * stay green, the last because it exercises a reload. `tests/web-field-zone-
+ * anchors.test.ts` is what notices (audit F32).
  * Screens used to mix three variants (this circle, a bare "‹" glyph and a
  * "Back to X" toolbar button) — everything routes through here now, so the
  * toolbars stay reserved for real actions.
