@@ -21,11 +21,13 @@ const defaultStorageObject = {
   contentType: "audio/webm",
 };
 
-function buildPrisma(overrides: {
-  visit?: unknown;
-  storageObject?: unknown;
-  visitNote?: unknown;
-} = {}) {
+function buildPrisma(
+  overrides: {
+    visit?: unknown;
+    storageObject?: unknown;
+    visitNote?: unknown;
+  } = {},
+) {
   const {
     visit = { id: "visit-a", representativeUserId: "rep-a" },
     storageObject = defaultStorageObject,
@@ -41,6 +43,12 @@ function buildPrisma(overrides: {
     visitClientAlias: { findUnique: async () => null },
     storageObject: { findFirst: async () => storageObject },
     visitNote: { findFirst: async () => visitNote },
+    // A provider failure now records a failed AiJob row, so that the
+    // operations summary — whose three AI numbers all count AiJob rows — can
+    // see an outage on the one path field reports actually take (audit F12).
+    // Contract pinned in tests/ai-outage-visibility.test.ts; here it only
+    // needs to exist so these degradation cases exercise the real path.
+    aiJob: { create: async () => ({ id: "ai-job-a" }) },
   };
 }
 
