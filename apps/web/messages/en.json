@@ -234,6 +234,12 @@
       "title": "Something went wrong",
       "description": "An unexpected error occurred. Please reload the page and try again.",
       "reload": "Reload page"
+    },
+    "notFound": {
+      "eyebrow": "404",
+      "title": "This address does not lead anywhere",
+      "description": "The workspace address is not one we recognise. Check the link, or open your workspace from the start screen.",
+      "action": "Go to the start screen"
     }
   },
   "auth": {
