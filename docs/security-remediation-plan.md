@@ -20,7 +20,7 @@ as the record of what was found and why each fix took the shape it did.
 | ---- | ------ |
 | 1.1 Rate limiting / account lockout | Done — hard per-IP throttle, progressive per-account delay, Redis-backed counters. Amended: the per-IP half was bypassable until `CLIENT_IP_HEADER` landed — see the follow-up below |
 | 1.2 Turnstile fail-closed, required in production | Done |
-| 1.3 Platform-owner hardening | Done for TOTP MFA and the shortened session TTL. Login alerting landed as 3.5; re-auth for destructive tenant operations is **done** — see the item below |
+| 1.3 Platform-owner hardening | Done for TOTP MFA and the shortened session TTL. Login alerting landed as 3.5; re-auth is **done**, scoped to tenant *purge* — the one action that ends in data being gone. Archive is deliberately outside it (reversible by unarchive); see the item below, which carries the reasoning |
 | 2.1 Security response headers | Done — verified live, including Turnstile under the CSP |
 | 2.2 Password change + invite overwrite | Done, but **not by this branch**: PR #168 landed both halves — the authenticated change *and* the forgot-password flow the plan deferred — while this was open, so this branch dropped its duplicate change-password and kept only the invite-overwrite fix |
 | 2.3 CSRF path normalization | Done, including the Express routing flags (applied before the router is built) |
@@ -132,8 +132,8 @@ beyond the transitive `postcss`/`sharp` ones, and that `multer` had appeared
 via `@nestjs/platform-express` — was acted on and folded into 3.7's own entry
 below (`next` → 16.2.12, `@nestjs/platform-express` → 11.1.28, and the
 `audit:check` CI gate that now catches the next drift of this kind on its
-own). And 1.3's re-auth for destructive tenant operations, noted here as done,
-is recorded in 1.3's own row and item.
+own). And 1.3's re-auth, noted here as done, is recorded in 1.3's own row and
+item — where "destructive" means irreversible: it gates purge, not archive.
 
 ### Found outside this plan: the `[tenantSlug]` segment was unconstrained
 

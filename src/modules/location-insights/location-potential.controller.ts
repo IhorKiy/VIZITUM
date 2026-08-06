@@ -18,7 +18,7 @@ import {
   RequirePermissions,
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import { UpsertLocationPotentialDto } from "./location-potential.dto";
 import { LocationPotentialService } from "./location-potential.service";
 
@@ -80,12 +80,4 @@ export class LocationPotentialController {
       productCategoryId,
     );
   }
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-
-  return request.context;
 }
