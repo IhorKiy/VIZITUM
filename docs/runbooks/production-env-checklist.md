@@ -44,11 +44,11 @@ Do not reuse staging secrets, database URLs, Redis URLs, buckets or tokens in pr
 | `COOKIE_SECURE` | Literal `true` | Yes | Must be exactly `true`. Drives the session/CSRF cookies' `Secure` flag directly rather than inferring it from `NODE_ENV` — production once ran with `NODE_ENV` unset, which sent the session cookie without `Secure` and nothing surfaced it. The service refuses to start in production without it. |
 | `SESSION_COOKIE_NAME` | Do not set in production | No | Dev-only override for parallel worktree sessions. Production always uses the hardcoded `__Host-vizitum_session` name regardless of this variable — setting it in production has no effect. |
 | `OPENAI_API_KEY` | OpenAI project/secret manager | Yes | Use a production-controlled key/project. |
-| `S3_ENDPOINT` | Cloudflare R2 production account/bucket setup | Yes | R2 endpoint for the account. |
-| `S3_REGION` | Cloudflare R2 config | Yes | Usually `auto` for R2. |
-| `S3_BUCKET` | Cloudflare R2 production bucket | Yes | Recommended: `vizitum-production`. |
-| `S3_ACCESS_KEY_ID` | R2 production API token | Yes | Scope to the production bucket where possible. |
-| `S3_SECRET_ACCESS_KEY` | R2 production API token | Yes | Secret. Do not paste in docs/chat. |
+| `S3_ENDPOINT` | Cloudflare R2 production account/bucket setup | Yes | R2 endpoint for the account. **Include the scheme** — `https://<account-id>.r2.cloudflarestorage.com`, not the bare host. The API refuses to start in production unless this parses as an `http(s)` URL: nothing else parses it until the first upload, so a scheme-less value used to boot green, report ready and then 500 every audio and photo capture with `TypeError: Invalid URL` while readiness stayed green and nothing paged anyone. |
+| `S3_REGION` | Cloudflare R2 config | Yes | Usually `auto` for R2. Not on the boot gate — it has a working default (`auto`). |
+| `S3_BUCKET` | Cloudflare R2 production bucket | Yes | Recommended: `vizitum-production`. The service refuses to start in production without it. |
+| `S3_ACCESS_KEY_ID` | R2 production API token | Yes | Scope to the production bucket where possible. The service refuses to start in production without it. |
+| `S3_SECRET_ACCESS_KEY` | R2 production API token | Yes | Secret. Do not paste in docs/chat. The service refuses to start in production without it. |
 | `S3_FORCE_PATH_STYLE` | R2 config | Yes | Usually `true`. |
 | `APP_BASE_URL` | Production web URL | Yes | The origin users actually browse — currently `https://www.vizitum.com`. Never the deployment's own `*.vercel.app` alias: invite emails are built from this value and outlive any later domain change. |
 | `API_BASE_URL` | Production API URL | Yes | Example shape: `https://api.<domain>/api`. |
