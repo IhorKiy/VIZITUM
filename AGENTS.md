@@ -73,6 +73,7 @@ Multi-PR efforts in progress, each carrying its own status, file map and known g
 - `docs/plans/tenant-purge-plan-prompt.md` - two-stage tenant deletion (archive, retention, background purge).
 - `docs/plans/tenant-superadmin-plan-prompt.md` - a tenant Superadmin role and delegated admin management.
 - `docs/plans/full-project-audit-plan.md` - the whole-codebase audit: its rules, severity scale, seven passes and coverage checklist. Read it before starting or resuming an audit pass, and record findings there and in `docs/vizitum-action-plan.md`.
+- `docs/plans/audit-remediation-plan-prompt.md` - working off that audit's 32 findings: the order to fix them in, the clusters that must be fixed together, and the excluded cases that exist to stop the next person over-fixing. Read it before picking up any `[audit FNN]` checkbox in `docs/vizitum-action-plan.md`.
 
 Technical design:
 
