@@ -5167,19 +5167,35 @@ textarea {
   white-space: nowrap;
 }
 
-/* Colour alone carries the current tab: icon and label go from muted grey to
-   the accent, with no filled pill behind them. The fill read as a third
-   surface in a bar that already has the button's circle in it.
+/* The current tab, with no filled pill behind it: the fill read as a third
+   surface in a bar that already has the create button's circle in it.
 
-   No weight bump with it, and that is a width decision rather than a taste
-   one. Once the create button took a slot in this bar, a tab is 72px wide;
-   "Планування" — the longest label in either dictionary — measures 70px at
-   the normal weight and 78px at 800, so bolding the active tab truncated
-   whichever label was active. The tabs keep their positions from screen to
-   screen, which is worth more here than a second cue on a control that also
-   carries aria-current. */
+   Colour could not carry the state on its own. Both states are dark — muted
+   grey against the accent — so telling them apart meant comparing two dark
+   items rather than spotting a lit one, and lightening the inactive tabs was
+   not available: --muted is already only 4.9:1 on this bar's white, which is
+   as light as 12px text may go.
+
+   So the second cue is a shape, and specifically one that costs no space in
+   either direction. Weight is what a tab bar would normally use, but a tab is
+   72px wide since the button took a slot and "Планування" measures 78px bold
+   against 70px regular — it truncated whichever tab was active. The rule sits
+   in the 8px of padding above the row, so the bar keeps its height too. */
 .mobile-nav-link[aria-current="page"] {
   color: var(--accent-strong);
+  position: relative;
+}
+
+.mobile-nav-link[aria-current="page"]::before {
+  background: var(--accent);
+  border-radius: 999px;
+  content: "";
+  height: 3px;
+  left: 50%;
+  position: absolute;
+  top: -6px;
+  transform: translateX(-50%);
+  width: 26px;
 }
 
 /* Create-a-task, in the bar rather than floating over one screen. The circle
