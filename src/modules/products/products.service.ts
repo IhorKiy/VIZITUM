@@ -15,6 +15,7 @@ import {
   assertTextWithinLimit,
   type TextLimitKey,
 } from "../../common/input-limits";
+import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
 import type { RequestContext } from "../tenancy/request-context";
 import type {
@@ -40,7 +41,10 @@ type ProductUpdateData = Partial<
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listProducts(
     context: RequestContext,
@@ -143,9 +147,24 @@ export class ProductsService {
 
     // Soft delete: `deletedAt` hides the product from every read path (all
     // queries filter `deletedAt: null`) while preserving the row and history.
-    await this.prisma.product.update({
-      where: { id: product.id },
-      data: { deletedAt: new Date() },
+    // One transaction with the audit event, matching `deleteTask`: the row
+    // recorded when it happened and nothing about who, and no `deletedBy`
+    // column exists anywhere in the schema to carry it (audit F5).
+    await this.prisma.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id: product.id },
+        data: { deletedAt: new Date() },
+      });
+
+      await this.auditService.recordEvent(
+        context,
+        {
+          entityType: "product",
+          entityId: product.id,
+          eventType: "product.deleted",
+        },
+        tx,
+      );
     });
 
     return { deleted: true };
