@@ -72,8 +72,9 @@ const VISIT_CANCELLATION_REASONS: readonly VisitCancellationReason[] = [
 ];
 
 // How stale a device-supplied visit start may be. Matches the on-device retention
-// for unsent work (PENDING_MEDIA_MAX_AGE_MS in apps/web/lib/field-db.ts): a start
-// older than the queue that holds it cannot be a real deferred send.
+// for unsent work (PENDING_MEDIA_MAX_AGE_MS in apps/web/lib/offline-drafts.ts): a
+// start older than the queue that holds it cannot be a real deferred send.
+// `tests/cross-workspace-constants.test.ts` holds the two to each other.
 const MAX_DEFERRED_VISIT_START_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // Phone clocks drift, and a start a few minutes "in the future" is skew rather
 // than a lie worth rejecting a rep's visit over.
