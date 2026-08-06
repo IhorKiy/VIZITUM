@@ -1224,8 +1224,6 @@
       "signedOutBody": "Live visit data is required in production before field work can continue.",
       "greeting": "Hi, {firstName}!",
       "guestName": "Guest",
-      "todayMeta": "{date} · {stops}",
-      "stopsCount": "{count, plural, one {# stop} other {# stops}}",
       "visitedLabel": "visited",
       "progressAria": "{visited} of {total} visited",
       "reportConfirmedEyebrow": "Report confirmed",

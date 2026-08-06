@@ -306,14 +306,10 @@ export default async function FieldPage({
       <header className="page-header today-header">
         <div className="today-header-day">
           <h1>{t("home.greeting", { firstName })}</h1>
-          <p className="today-header-meta">
-            {routeStops.length > 0
-              ? t("home.todayMeta", {
-                  date: formatTodayDate(format),
-                  stops: t("home.stopsCount", { count: routeStops.length }),
-                })
-              : formatTodayDate(format)}
-          </p>
+          {/* The date alone. How many stops the day holds was here too, until
+              the counter opposite started saying it: "3 stops" beside "0/3"
+              is the same fact twice on one line. */}
+          <p className="today-header-meta">{formatTodayDate(format)}</p>
         </div>
 
         {routeStops.length > 0 ? (

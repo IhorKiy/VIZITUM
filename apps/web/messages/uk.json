@@ -1224,8 +1224,6 @@
       "signedOutBody": "Для продовження польової роботи потрібні живі дані візитів.",
       "greeting": "Привіт, {firstName}!",
       "guestName": "Гість",
-      "todayMeta": "{date} · {stops}",
-      "stopsCount": "{count, plural, one {# точка} few {# точки} many {# точок} other {# точки}}",
       "visitedLabel": "відвідано",
       "progressAria": "Відвідано {visited} з {total}",
       "reportConfirmedEyebrow": "Звіт підтверджено",

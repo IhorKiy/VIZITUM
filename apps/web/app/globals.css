@@ -6134,8 +6134,11 @@ textarea {
   text-align: right;
 }
 
-.today-header-count {
-  color: var(--accent-strong);
+/* Scoped to the header rather than left as a bare class: `.page-header p`
+   sets the muted colour every paragraph in a header takes, and would
+   otherwise win on specificity and grey this out. */
+.today-header .today-header-count {
+  color: var(--accent);
   font-size: 22px;
   font-weight: 800;
   line-height: 1.1;
