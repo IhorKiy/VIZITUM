@@ -149,6 +149,12 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
+  // `mode === "navigate"` is why the field zone's links are plain anchors
+  // rather than `next/link`: an anchor produces a document navigation and
+  // reaches this branch, a client-side RSC fetch does not and never sees the
+  // cached shell. That constraint lives in the components, where it is
+  // invisible from here — `tests/web-field-zone-anchors.test.ts` holds the two
+  // together, and CLAUDE.md's frontend section states it (audit F32).
   if (
     event.request.method === "GET" &&
     event.request.mode === "navigate" &&
