@@ -14,6 +14,29 @@ jobs:
     timeout-minutes: 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vizitum_ci
+      # Read by tests/fixtures/database.ts. Without it the database-backed
+      # suites skip — loudly, with a reason — so a checkout with no Postgres is
+      # not a broken build (audit F24).
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/vizitum_ci
+
+    # Until audit F24 this job had a DATABASE_URL and no database behind it, so
+    # every rollback, isolation and unique-constraint contract the backend
+    # leans on was pinned by reading the code rather than by running it. Same
+    # shape as the web-e2e job below.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vizitum_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout
@@ -36,6 +59,9 @@ jobs:
 
       - name: Generate Prisma client
         run: npm run prisma:generate
+
+      - name: Apply migrations
+        run: npm run prisma:migrate:deploy
 
       - name: Check formatting
         run: npm run format:check
