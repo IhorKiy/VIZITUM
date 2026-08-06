@@ -28,27 +28,67 @@ function liveToken(overrides: Record<string, unknown> = {}) {
 type ResetPrismaOptions = {
   resetToken?: unknown;
   user?: unknown;
+  // How many rows the conditional claim matches. 0 is the race: another
+  // request spent the same token between the `usedAt` check and this
+  // transaction. Pinned in tests/password-reset-race.test.ts.
+  claimedCount?: number;
 };
 
 function createResetPrisma(options: ResetPrismaOptions = {}) {
   const transactions: unknown[][] = [];
   const auditEvents: { eventType: string }[] = [];
   const updates: { model: string; args: unknown }[] = [];
+  const transactionCount = { value: 0 };
+  const record = (model: string, args: unknown) => {
+    updates.push({ model, args });
+  };
+  // `resetPassword` runs an interactive transaction (the token claim has to be
+  // able to abort the rest); `changePassword` still uses the array form. One
+  // fake serves both.
+  const transactionClient = {
+    passwordResetToken: {
+      updateMany: async (args: unknown) => {
+        record("passwordResetToken.updateMany", args);
+
+        return { count: options.claimedCount ?? 1 };
+      },
+      deleteMany: async (args: unknown) => {
+        record("passwordResetToken.deleteMany", args);
+
+        return { count: 0 };
+      },
+    },
+    user: {
+      update: async (args: unknown) => {
+        record("user.update", args);
+
+        return args;
+      },
+    },
+    session: {
+      updateMany: async (args: unknown) => {
+        record("session.updateMany", args);
+
+        return { count: 0 };
+      },
+    },
+  };
 
   return {
     transactions,
     auditEvents,
     updates,
+    transactionCount,
     prisma: {
       passwordResetToken: {
         findUnique: async () =>
           options.resetToken === undefined ? liveToken() : options.resetToken,
         update: (args: unknown) => {
-          updates.push({ model: "passwordResetToken.update", args });
+          record("passwordResetToken.update", args);
           return args;
         },
         deleteMany: (args: unknown) => {
-          updates.push({ model: "passwordResetToken.deleteMany", args });
+          record("passwordResetToken.deleteMany", args);
           return args;
         },
       },
@@ -56,7 +96,7 @@ function createResetPrisma(options: ResetPrismaOptions = {}) {
         findFirst: async () =>
           options.user === undefined ? { id: USER_ID } : options.user,
         update: (args: unknown) => {
-          updates.push({ model: "user.update", args });
+          record("user.update", args);
           return args;
         },
       },
@@ -65,7 +105,7 @@ function createResetPrisma(options: ResetPrismaOptions = {}) {
       },
       session: {
         updateMany: (args: unknown) => {
-          updates.push({ model: "session.updateMany", args });
+          record("session.updateMany", args);
           return args;
         },
       },
@@ -75,8 +115,17 @@ function createResetPrisma(options: ResetPrismaOptions = {}) {
           return data;
         },
       },
-      $transaction: async (operations: unknown[]) => {
-        transactions.push(operations);
+      $transaction: async (operations: unknown) => {
+        transactionCount.value += 1;
+
+        if (typeof operations === "function") {
+          return (operations as (tx: unknown) => Promise<unknown>)(
+            transactionClient,
+          );
+        }
+
+        transactions.push(operations as unknown[]);
+
         return operations;
       },
     },
@@ -117,7 +166,8 @@ async function assertResetRejected(promise: Promise<unknown>) {
 
 describe("password reset completion", () => {
   it("spends the token, sets the password and revokes sessions in one transaction", async () => {
-    const { prisma, transactions, auditEvents, updates } = createResetPrisma();
+    const { prisma, transactionCount, auditEvents, updates } =
+      createResetPrisma();
     const service = createService(prisma);
 
     const result = await service.resetPassword(
@@ -130,12 +180,13 @@ describe("password reset completion", () => {
     // be a follow-up write: if it were and it failed, the password would
     // already be changed while whoever prompted the reset still held a live
     // session — the exact guarantee this endpoint exists to give.
-    assert.equal(transactions.length, 1);
-    assert.equal(transactions[0].length, 4);
+    assert.equal(transactionCount.value, 1);
     assert.deepEqual(
       updates.map((update) => update.model),
       [
-        "passwordResetToken.update",
+        // A conditional claim rather than a plain update — see
+        // tests/password-reset-race.test.ts for why.
+        "passwordResetToken.updateMany",
         "user.update",
         "passwordResetToken.deleteMany",
         "session.updateMany",
