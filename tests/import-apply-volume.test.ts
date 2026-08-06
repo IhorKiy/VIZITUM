@@ -30,7 +30,9 @@ import { PrismaService } from "../src/modules/prisma/prisma.service";
 // getting that wrong would attach reps to the wrong outlets without erroring.
 
 const VOLUME_DATABASE_URL = process.env.IMPORT_VOLUME_TEST_DATABASE_URL;
-const ROW_COUNT = 500;
+// The largest file an import accepts (`MAX_IMPORT_ROWS`), so this exercises the
+// ceiling rather than a comfortable middle.
+const ROW_COUNT = 1000;
 const REPRESENTATIVE_COUNT = 5;
 
 describe(
@@ -156,11 +158,20 @@ describe(
       assert.equal(applied.createdCounts.chains, 3);
       assert.equal(applied.createdCounts.locationCategories, 4);
 
-      // The number that F8 is about. Prisma's default interactive-transaction
-      // budget is 5 000 ms, and the per-row version needed ~2 500 round trips
-      // for this file. Asserted generously — this is a cliff check, not a
-      // benchmark, and it must not turn into a flaky timing test on a busy
-      // machine.
+      // Asserted against Prisma's *default* 5 000 ms budget rather than the
+      // raised one this apply actually runs under, because that default is the
+      // number F8 is about — a full-size file has to fit it with room to spare,
+      // not merely fit the headroom that was added around it.
+      //
+      // Read this as a cliff check, not a benchmark, and **do not mistake it
+      // for the thing that catches a regression back to per-row loops.**
+      // Measured against a loopback database, this file took ~3.35 s under the
+      // per-row version and ~0.43 s here: 7.8x apart, and both inside 5 000 ms,
+      // which is exactly the "local loopback is marginal, the deployed topology
+      // is not close" the audit recorded. Round trips, not wall time, are what
+      // separate the two shapes — ~5 000 against 7 for this file — and
+      // `tests/import-apply-batching.test.ts` is where that is pinned, without
+      // a database and without a clock.
       assert.ok(
         elapsedMs < 5_000,
         `apply took ${elapsedMs}ms, which would not fit Prisma's default transaction budget`,
