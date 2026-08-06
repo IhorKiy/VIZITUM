@@ -4369,6 +4369,13 @@ textarea {
   padding: 16px 18px 0;
 }
 
+/* Stands in for the form when a sheet has nothing to offer — "every location
+   is already on today's route". Carries the form's own padding, since it
+   replaces it rather than sitting inside it. */
+.task-form-empty {
+  padding: 16px 18px 24px;
+}
+
 .task-form-field {
   display: grid;
   gap: 6px;
@@ -6380,10 +6387,29 @@ textarea {
   border-style: solid;
 }
 
-/* On the home screen this sits last inside .route-plan-card's grid, where the
-   planning screen's trailing margin would double up with the card padding. */
-.route-add-stop.today-add-stop {
-  margin-bottom: 0;
+/* The home screen's way in: the same dashed block, but a button opening a
+   sheet rather than a disclosure expanding in place. That card sits at the
+   bottom of a scrolling column, so the form used to push the route it belongs
+   to out of view. No trailing margin — it is last inside .route-plan-card's
+   grid, where the planning screen's would double up with the card padding. */
+.route-add-stop-button {
+  align-items: center;
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  font-weight: 800;
+  gap: 6px;
+  justify-content: center;
+  padding: 16px;
+  width: 100%;
+}
+
+.route-add-stop-button:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
 }
 
 .route-add-stop-trigger {

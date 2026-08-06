@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 
+import { AddRouteStopModal } from "../../../../components/add-route-stop-modal";
 import { AnnouncementFeed } from "../../../../components/announcement-feed";
 import { AppShell } from "../../../../components/app-shell";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
-import { PendingSubmitButton } from "../../../../components/pending-submit-button";
 import {
   addRouteItem,
   deleteRouteItem,
@@ -495,48 +495,25 @@ export default async function FieldPage({
               />
 
               {/* Demo stops carry fabricated plan ids, so the write path is
-                  only offered against a real route. */}
+                  only offered against a real route.
+
+                  A sheet rather than a disclosure that expands in place: this
+                  card sits at the bottom of a scrolling column, so opening the
+                  form pushed the route it belongs to out of view. */}
               {canAddStop && !isDemoMode && lastStop ? (
-                <details className="route-add-stop today-add-stop">
-                  <summary className="route-add-stop-trigger">
-                    <span aria-hidden="true">+</span> {tRoutes("addStop")}
-                  </summary>
-                  {availableLocations.length > 0 ? (
-                    <form
-                      action={addTodayStopAction}
-                      className="visit-form compact"
-                    >
-                      <input
-                        name="routePlanId"
-                        type="hidden"
-                        value={lastStop.routePlanId}
-                      />
-                      <label>
-                        {tRoutes("locationLabel")}
-                        <select name="locationId" required>
-                          {availableLocations.map((location) => (
-                            <option key={location.id} value={location.id}>
-                              {location.name}
-                              {location.city ? ` · ${location.city}` : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <PendingSubmitButton
-                        className="primary-button"
-                        pendingLabel={tRoutes("adding")}
-                      >
-                        {tRoutes("addToRoute")}
-                      </PendingSubmitButton>
-                    </form>
-                  ) : (
-                    <p className="empty-state">
-                      {locations.length === 0
-                        ? tRoutes("noLocations")
-                        : tRoutes("allLocationsUsed")}
-                    </p>
-                  )}
-                </details>
+                <AddRouteStopModal
+                  action={addTodayStopAction}
+                  emptyMessage={
+                    locations.length === 0
+                      ? tRoutes("noLocations")
+                      : tRoutes("allLocationsUsed")
+                  }
+                  locationOptions={availableLocations.map((location) => ({
+                    id: location.id,
+                    label: `${location.name}${location.city ? ` · ${location.city}` : ""}`,
+                  }))}
+                  routePlanId={lastStop.routePlanId}
+                />
               ) : null}
             </div>
           </>
