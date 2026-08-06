@@ -6152,13 +6152,13 @@ textarea {
 }
 
 /* Grouped route card (mobile-first, light) */
+/* No surface of its own: this only groups the day's heading, its stops and
+   the add control, and every one of those already draws its own card. A panel
+   around them put a bordered box inside a bordered box and narrowed each stop
+   by its padding for nothing. */
 .route-plan-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
   display: grid;
   gap: 8px;
-  padding: 10px;
 }
 
 .route-plan-head {
