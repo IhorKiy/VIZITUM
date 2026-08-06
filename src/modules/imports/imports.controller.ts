@@ -16,7 +16,7 @@ import { createStrictValidationPipe } from "../../common/strict-validation-pipe"
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import { CreateImportValidationJobDto } from "./imports.dto";
 import { ImportsService } from "./imports.service";
 import {
@@ -149,12 +149,4 @@ function parseFileName(value: unknown): string | undefined {
   // Keep the original name for display, but cap it so an oversized client value
   // can't bloat the row; the column is nullable and purely informational.
   return trimmed ? trimmed.slice(0, 255) : undefined;
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-
-  return request.context;
 }
