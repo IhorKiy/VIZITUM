@@ -298,11 +298,42 @@ export default async function FieldPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
-      <header className="page-header greeting-header">
-        <div>
+      {/* The greeting, what the day holds and how far through it the rep is,
+          in one band. It used to be a greeting stacked above a progress card:
+          two blocks that between them spent most of a phone's first screenful
+          before the first stop, and a bar drawing the number the counter
+          beside it already gives. */}
+      <header className="page-header today-header">
+        <div className="today-header-day">
           <h1>{t("home.greeting", { firstName })}</h1>
-          <p className="greeting-date">{formatGreetingDate(format)}</p>
+          <p className="today-header-meta">
+            {routeStops.length > 0
+              ? t("home.todayMeta", {
+                  date: formatTodayDate(format),
+                  stops: t("home.stopsCount", { count: routeStops.length }),
+                })
+              : formatTodayDate(format)}
+          </p>
         </div>
+
+        {routeStops.length > 0 ? (
+          <div
+            aria-label={t("home.progressAria", {
+              visited: visitedStops,
+              total: routeStops.length,
+            })}
+            aria-valuemax={routeStops.length}
+            aria-valuemin={0}
+            aria-valuenow={visitedStops}
+            className="today-header-progress"
+            role="progressbar"
+          >
+            <p className="today-header-count">
+              {visitedStops}/{routeStops.length}
+            </p>
+            <p className="today-header-count-label">{t("home.visitedLabel")}</p>
+          </div>
+        ) : null}
       </header>
 
       {report === "confirmed" ? (
@@ -432,43 +463,6 @@ export default async function FieldPage({
         ) : null}
         {routeStops.length > 0 ? (
           <>
-            <article className="route-progress-card">
-              <div className="route-progress-head">
-                <span>{t("home.progressToday")}</span>
-                <span className="route-progress-count">
-                  {visitedStops}/{routeStops.length}
-                </span>
-              </div>
-              <div
-                className="route-progress-track"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={routeStops.length}
-                aria-valuenow={visitedStops}
-              >
-                <div
-                  className="route-progress-fill"
-                  style={{
-                    width: `${Math.round(
-                      (visitedStops / routeStops.length) * 100,
-                    )}%`,
-                  }}
-                />
-              </div>
-              <div className="route-progress-legend">
-                <span>{t("home.visitedCount", { count: visitedStops })}</span>
-                {routeStops.length - visitedStops > 0 ? (
-                  <span>
-                    {t("home.remainingCount", {
-                      count: routeStops.length - visitedStops,
-                    })}
-                  </span>
-                ) : (
-                  <span>{t("home.allVisited")}</span>
-                )}
-              </div>
-            </article>
-
             <div className="route-plan-card">
               <div className="route-plan-head">
                 <span className="route-plan-icon" aria-hidden="true">
@@ -555,14 +549,15 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
     .sort((a, b) => a.sequence - b.sequence);
 }
 
-function formatGreetingDate(
+// No year: this always names today, and "2026" in a header a rep reads every
+// morning is a word that never changes.
+function formatTodayDate(
   format: Awaited<ReturnType<typeof getFormatter>>,
 ): string {
   const formatted = format.dateTime(new Date(), {
     day: "numeric",
     month: "long",
     weekday: "long",
-    year: "numeric",
   });
 
   return formatted
