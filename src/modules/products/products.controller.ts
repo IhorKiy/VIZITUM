@@ -18,7 +18,7 @@ import { createStrictValidationPipe } from "../../common/strict-validation-pipe"
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import { CreateProductDto, UpdateProductDto } from "./products.dto";
 import { ProductsService } from "./products.service";
 
@@ -86,14 +86,6 @@ export class ProductsController {
       productId,
     );
   }
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-
-  return request.context;
 }
 
 function parsePositiveInteger(value: string | undefined): number | undefined {
