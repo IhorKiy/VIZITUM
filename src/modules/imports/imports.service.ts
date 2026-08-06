@@ -7,6 +7,7 @@ import {
 import type { Prisma, RoleCode } from "@prisma/client";
 import { execFileSync } from "node:child_process";
 
+import { createCuid } from "../../common/cuid";
 import { isValidEmail } from "../../common/normalize";
 import { buildUserNameFields } from "../../common/person-name";
 import { normalizePhoneInput } from "../../common/phone";
@@ -46,8 +47,49 @@ const DEFAULT_IMPORT_COUNTS: ImportApplyResult["createdCounts"] = {
   tasks: 0,
 };
 
+// The most rows one import file may hold. Nothing above this stack bounds the
+// row count — `csvText` is capped only by `JSON_BODY_LIMIT`, deliberately, so a
+// dense template (a products file is ~40 bytes a row) fits several thousand
+// rows inside 100 kB. Two things need a stated ceiling rather than an emergent
+// one:
+//
+//   - every apply* method below writes with `createMany`, and a batched INSERT
+//     is one statement, so its bind parameters count against Postgres's 65 535
+//     per-statement limit. The widest template writes ~15 columns a row, which
+//     puts a 1 000-row file at ~15 000 parameters — comfortably inside it, and
+//     a cap is what keeps it that way;
+//   - past the ceiling the admin gets a blocking preview issue that names both
+//     numbers and says to split the file, instead of discovering the limit as
+//     a 500 at confirm time (audit F8).
+//
+// For a locations file the 100 kB body limit binds first (~790 real rows), so
+// this cap fires exactly where the body limit does not.
+const MAX_IMPORT_ROWS = 1000;
+
+// The apply transaction's budget. Prisma's interactive-transaction defaults are
+// `maxWait` 2 000 ms and `timeout` 5 000 ms, and no options were passed here at
+// all — which, against the per-row query loops the apply* methods used to be,
+// made a few-hundred-row file a deterministic dead end (audit F8). Those loops
+// are now grouped lookups plus `createMany`, so a full file is a low double
+// digit number of queries and finishes well inside the old 5 000 ms; this
+// raised budget is headroom for a slow link between the API and the database,
+// not the fix. Kept at the call site rather than as `transactionOptions` on
+// `PrismaService` so it does not silently loosen every other transaction in the
+// codebase.
+const IMPORT_APPLY_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 30_000,
+} as const;
+
 type ImportCreatedCounts = ImportApplyResult["createdCounts"];
 type PrismaTransaction = Prisma.TransactionClient;
+
+// A location reference as an import row carries it: either an external code or
+// a name, resolved against the tenant's existing locations.
+type LocationReferenceInput = {
+  externalCode: string | undefined;
+  name: string | undefined;
+};
 
 const IMPORT_TEMPLATES: readonly ImportTemplateDefinition[] = [
   {
@@ -698,6 +740,12 @@ export class ImportsService {
     }
 
     const parsedFile = parseStoredParsedFile(importJob.type, importJob.summary);
+
+    // Validation blocks an over-cap file at preview time, so reaching here
+    // means a job stored before the cap existed. Refuse it with the same
+    // reason rather than letting it into the apply transaction.
+    assertRowCountWithinLimit(parsedFile.rows.length);
+
     const createdCounts = await prisma.$transaction(async (transaction) => {
       // The status check above happened outside this transaction, so two
       // confirms of the same job could both reach here and apply every row
@@ -779,7 +827,7 @@ export class ImportsService {
       });
 
       return counts;
-    });
+    }, IMPORT_APPLY_TRANSACTION_OPTIONS);
 
     return {
       importJobId: importJob.id,
@@ -789,46 +837,72 @@ export class ImportsService {
     };
   }
 
+  // Every apply* method below is written as "resolve all references in grouped
+  // lookups, then write with createMany" rather than as a per-row loop, so the
+  // query count is a function of the number of tables an import touches and not
+  // of its row count. That is the whole of audit F8: the loops these replaced
+  // issued 5-7 awaited queries a row inside a transaction with a fixed budget,
+  // so the file that could be applied got smaller as the database got further
+  // away. `src/modules/visits/shelf-check.ts:94` states the same reasoning for
+  // the same reason — it also sits inside a confirm transaction.
   private async applyUsersImport(
     transaction: PrismaTransaction,
     context: RequestContext,
     parsedFile: ParsedImportFile,
     counts: ImportCreatedCounts,
   ): Promise<void> {
+    if (parsedFile.rows.length === 0) {
+      return;
+    }
+
     const phoneCountry = await this.getTenantPhoneCountry(
       transaction,
       context.tenantId,
     );
 
-    for (const row of parsedFile.rows) {
-      const roleCodes = parseRoleCodes(row.roles).filter(isTenantRoleCode);
-      const user = await transaction.user.create({
-        data: {
-          tenantId: context.tenantId,
-          email: normalizeValue(row.email),
-          ...buildUserNameFields({
-            firstName: requiredString(row.first_name),
-            lastName: requiredString(row.last_name),
-          }),
-          phone: optionalPhone(row.phone, phoneCountry),
-          status: "invited",
-        },
-        select: { id: true },
-      });
+    // createManyAndReturn rather than createMany because the role rows need the
+    // generated ids. Correlated by email rather than by position: email is the
+    // tenant-unique column here, and validation blocks both duplicates within
+    // the file and addresses that already exist.
+    const createdUsers = await transaction.user.createManyAndReturn({
+      data: parsedFile.rows.map((row) => ({
+        tenantId: context.tenantId,
+        email: normalizeValue(row.email),
+        ...buildUserNameFields({
+          firstName: requiredString(row.first_name),
+          lastName: requiredString(row.last_name),
+        }),
+        phone: optionalPhone(row.phone, phoneCountry),
+        status: "invited" as const,
+      })),
+      select: { id: true, email: true },
+    });
 
-      counts.users += 1;
+    counts.users += createdUsers.length;
 
-      if (roleCodes.length > 0) {
-        await transaction.userRole.createMany({
-          data: roleCodes.map((roleCode) => ({
-            tenantId: context.tenantId,
-            userId: user.id,
-            roleCode,
-            assignedByUserId: context.userId,
-          })),
-        });
-        counts.userRoles += roleCodes.length;
+    const userIdByEmail = new Map(
+      createdUsers.map((user) => [user.email, user.id]),
+    );
+    const roleRows = parsedFile.rows.flatMap((row) => {
+      const userId = userIdByEmail.get(normalizeValue(row.email));
+
+      if (!userId) {
+        return [];
       }
+
+      return parseRoleCodes(row.roles)
+        .filter(isTenantRoleCode)
+        .map((roleCode) => ({
+          tenantId: context.tenantId,
+          userId,
+          roleCode,
+          assignedByUserId: context.userId,
+        }));
+    });
+
+    if (roleRows.length > 0) {
+      await transaction.userRole.createMany({ data: roleRows });
+      counts.userRoles += roleRows.length;
     }
   }
 
@@ -838,60 +912,82 @@ export class ImportsService {
     parsedFile: ParsedImportFile,
     counts: ImportCreatedCounts,
   ): Promise<void> {
-    for (const row of parsedFile.rows) {
-      const chainId = await this.resolveChainReference(
-        transaction,
-        context,
-        row.chain,
-        counts,
-      );
-      const categoryId = await this.resolveLocationCategoryReference(
-        transaction,
-        context,
-        row.category,
-        counts,
-      );
+    if (parsedFile.rows.length === 0) {
+      return;
+    }
 
-      const location = await transaction.location.create({
-        data: {
-          tenantId: context.tenantId,
-          chainId,
-          categoryId,
-          externalCode: optionalString(row.external_code),
-          name: requiredString(row.name),
-          addressLine: requiredString(row.address_line),
-          city: requiredString(row.city),
-          latitude: optionalNumber(row.latitude),
-          longitude: optionalNumber(row.longitude),
-          notes: optionalString(row.notes),
-        },
-        select: { id: true },
-      });
+    const chainIdByName = await this.resolveChainReferences(
+      transaction,
+      context,
+      parsedFile.rows.map((row) => row.chain),
+      counts,
+    );
+    const categoryIdByName = await this.resolveLocationCategoryReferences(
+      transaction,
+      context,
+      parsedFile.rows.map((row) => row.category),
+      counts,
+    );
+    const representativeIdByEmail = await this.resolveUserIdsByEmailOrThrow(
+      transaction,
+      context.tenantId,
+      parsedFile.rows.map((row) => row.assigned_representative_email),
+    );
 
-      counts.locations += 1;
+    // Ids are minted here rather than read back from the insert. A location has
+    // no column that is unique within an import file — `external_code` is
+    // optional and `name` is not unique — so pairing a returned row with its
+    // source row would have to be done by position, which means trusting that
+    // `createManyAndReturn` hands rows back in VALUES order. Postgres does;
+    // Prisma does not promise it. The failure would be silent and plausible:
+    // representatives attached to the wrong outlets, every row present, no
+    // error. Prisma generates `@default(cuid())` ids client-side anyway (the
+    // `id` column is in the INSERT it emits), so supplying them makes the
+    // correlation exact instead of merely reliable — and lets this be a plain
+    // `createMany`, with nothing to return.
+    const locationRows = parsedFile.rows.map((row) => ({
+      id: createCuid(),
+      tenantId: context.tenantId,
+      chainId: chainIdByName.get(normalizeValue(row.chain)) ?? null,
+      categoryId: categoryIdByName.get(normalizeValue(row.category)) ?? null,
+      externalCode: optionalString(row.external_code),
+      name: requiredString(row.name),
+      addressLine: requiredString(row.address_line),
+      city: requiredString(row.city),
+      latitude: optionalNumber(row.latitude),
+      longitude: optionalNumber(row.longitude),
+      notes: optionalString(row.notes),
+    }));
 
+    await transaction.location.createMany({ data: locationRows });
+    counts.locations += locationRows.length;
+
+    const assignmentRows = parsedFile.rows.flatMap((row, index) => {
       const representativeEmail = normalizeValue(
         row.assigned_representative_email,
       );
+      const locationId = locationRows[index]?.id;
 
-      if (representativeEmail) {
-        const representative = await this.findExistingUserByEmailOrThrow(
-          transaction,
-          context.tenantId,
-          representativeEmail,
-        );
-
-        await transaction.locationAssignment.create({
-          data: {
-            tenantId: context.tenantId,
-            locationId: location.id,
-            representativeUserId: representative.id,
-            assignedByUserId: context.userId,
-            status: "active",
-          },
-        });
-        counts.locationAssignments += 1;
+      if (!representativeEmail || !locationId) {
+        return [];
       }
+
+      return [
+        {
+          tenantId: context.tenantId,
+          locationId,
+          representativeUserId: requireReference(
+            representativeIdByEmail.get(representativeEmail),
+          ),
+          assignedByUserId: context.userId,
+          status: "active" as const,
+        },
+      ];
+    });
+
+    if (assignmentRows.length > 0) {
+      await transaction.locationAssignment.createMany({ data: assignmentRows });
+      counts.locationAssignments += assignmentRows.length;
     }
   }
 
@@ -901,32 +997,35 @@ export class ImportsService {
     parsedFile: ParsedImportFile,
     counts: ImportCreatedCounts,
   ): Promise<void> {
+    if (parsedFile.rows.length === 0) {
+      return;
+    }
+
     const phoneCountry = await this.getTenantPhoneCountry(
       transaction,
       context.tenantId,
     );
+    const locationIds = await this.resolveLocationIdsOrThrow(
+      transaction,
+      context.tenantId,
+      parsedFile.rows.map((row) => ({
+        externalCode: row.location_external_code,
+        name: row.location_name,
+      })),
+    );
 
-    for (const row of parsedFile.rows) {
-      const location = await this.resolveLocationReference(
-        transaction,
-        context.tenantId,
-        row.location_external_code,
-        row.location_name,
-      );
-
-      await transaction.locationContact.create({
-        data: {
-          tenantId: context.tenantId,
-          locationId: location.id,
-          name: requiredString(row.name),
-          roleTitle: optionalString(row.role_title),
-          phone: optionalPhone(row.phone, phoneCountry),
-          email: optionalString(row.email),
-          notes: optionalString(row.notes),
-        },
-      });
-      counts.contacts += 1;
-    }
+    await transaction.locationContact.createMany({
+      data: parsedFile.rows.map((row, index) => ({
+        tenantId: context.tenantId,
+        locationId: requireReference(locationIds[index]),
+        name: requiredString(row.name),
+        roleTitle: optionalString(row.role_title),
+        phone: optionalPhone(row.phone, phoneCountry),
+        email: optionalString(row.email),
+        notes: optionalString(row.notes),
+      })),
+    });
+    counts.contacts += parsedFile.rows.length;
   }
 
   private async applyProductsImport(
@@ -935,18 +1034,20 @@ export class ImportsService {
     parsedFile: ParsedImportFile,
     counts: ImportCreatedCounts,
   ): Promise<void> {
-    for (const row of parsedFile.rows) {
-      await transaction.product.create({
-        data: {
-          tenantId: context.tenantId,
-          externalCode: optionalString(row.external_code),
-          name: requiredString(row.name),
-          sku: optionalString(row.sku),
-          category: optionalString(row.category),
-        },
-      });
-      counts.products += 1;
+    if (parsedFile.rows.length === 0) {
+      return;
     }
+
+    await transaction.product.createMany({
+      data: parsedFile.rows.map((row) => ({
+        tenantId: context.tenantId,
+        externalCode: optionalString(row.external_code),
+        name: requiredString(row.name),
+        sku: optionalString(row.sku),
+        category: optionalString(row.category),
+      })),
+    });
+    counts.products += parsedFile.rows.length;
   }
 
   private async applyInitialPlanImport(
@@ -955,67 +1056,152 @@ export class ImportsService {
     parsedFile: ParsedImportFile,
     counts: ImportCreatedCounts,
   ): Promise<void> {
-    for (const row of parsedFile.rows) {
-      const representative = await this.findExistingUserByEmailOrThrow(
-        transaction,
-        context.tenantId,
-        normalizeValue(row.representative_email),
-        "field_representative",
-      );
-      const location = await this.resolveLocationReference(
-        transaction,
-        context.tenantId,
-        row.location_external_code,
-        row.location_name,
-      );
-      const planDate = parseDateOnly(row.plan_date);
-      // Imported plans are always template-less, so they fall under the
-      // partial unique index scoped to routeTemplateId IS NULL
-      // (route_plans_rep_date_no_template_key) — the compound
-      // tenantId_representativeUserId_planDate key this used to look up no
-      // longer exists now that a representative can hold several
-      // template-based plans on the same day (see the
-      // 20260721062916_route_plan_multi_per_day migration).
-      const existingPlan = await transaction.routePlan.findFirst({
-        where: {
-          tenantId: context.tenantId,
-          representativeUserId: representative.id,
-          planDate,
-          routeTemplateId: null,
-        },
-        select: { id: true },
-      });
-      const routePlan =
-        existingPlan ??
-        (await transaction.routePlan.create({
-          data: {
-            tenantId: context.tenantId,
-            representativeUserId: representative.id,
-            planDate,
-            createdByUserId: context.userId,
-          },
-          select: { id: true },
-        }));
+    if (parsedFile.rows.length === 0) {
+      return;
+    }
 
-      if (!existingPlan) {
-        counts.routePlans += 1;
+    const representativeIdByEmail = await this.resolveUserIdsByEmailOrThrow(
+      transaction,
+      context.tenantId,
+      parsedFile.rows.map((row) => row.representative_email),
+      "field_representative",
+    );
+    const locationIds = await this.resolveLocationIdsOrThrow(
+      transaction,
+      context.tenantId,
+      parsedFile.rows.map((row) => ({
+        externalCode: row.location_external_code,
+        name: row.location_name,
+      })),
+    );
+
+    const resolvedRows = parsedFile.rows.map((row, index) => ({
+      row,
+      representativeUserId: requireReference(
+        representativeIdByEmail.get(normalizeValue(row.representative_email)),
+      ),
+      locationId: requireReference(locationIds[index]),
+      planDate: parseDateOnly(row.plan_date),
+    }));
+
+    // Imported plans are always template-less, so they fall under the
+    // partial unique index scoped to routeTemplateId IS NULL
+    // (route_plans_rep_date_no_template_key) — the compound
+    // tenantId_representativeUserId_planDate key this used to look up no
+    // longer exists now that a representative can hold several
+    // template-based plans on the same day (see the
+    // 20260721062916_route_plan_multi_per_day migration).
+    //
+    // One lookup for every distinct (representative, date) pair in the file
+    // rather than one a row, which also collapses repeats within the file the
+    // way the per-row get-or-create did by reading its own earlier writes.
+    const wantedPlans = new Map<
+      string,
+      { representativeUserId: string; planDate: Date }
+    >();
+
+    for (const resolved of resolvedRows) {
+      wantedPlans.set(
+        routePlanKey(resolved.representativeUserId, resolved.planDate),
+        {
+          representativeUserId: resolved.representativeUserId,
+          planDate: resolved.planDate,
+        },
+      );
+    }
+
+    const existingPlans = await transaction.routePlan.findMany({
+      where: {
+        tenantId: context.tenantId,
+        routeTemplateId: null,
+        OR: [...wantedPlans.values()].map(
+          ({ representativeUserId, planDate }) => ({
+            representativeUserId,
+            planDate,
+          }),
+        ),
+      },
+      select: { id: true, representativeUserId: true, planDate: true },
+    });
+    const routePlanIdByKey = new Map<string, string>();
+
+    for (const plan of existingPlans) {
+      const key = routePlanKey(plan.representativeUserId, plan.planDate);
+
+      if (!routePlanIdByKey.has(key)) {
+        routePlanIdByKey.set(key, plan.id);
+      }
+    }
+
+    const missingPlans = [...wantedPlans.values()].filter(
+      (plan) =>
+        !routePlanIdByKey.has(
+          routePlanKey(plan.representativeUserId, plan.planDate),
+        ),
+    );
+
+    if (missingPlans.length > 0) {
+      const createdPlans = await transaction.routePlan.createManyAndReturn({
+        data: missingPlans.map((plan) => ({
+          tenantId: context.tenantId,
+          representativeUserId: plan.representativeUserId,
+          planDate: plan.planDate,
+          createdByUserId: context.userId,
+        })),
+        select: { id: true, representativeUserId: true, planDate: true },
+      });
+
+      for (const plan of createdPlans) {
+        routePlanIdByKey.set(
+          routePlanKey(plan.representativeUserId, plan.planDate),
+          plan.id,
+        );
       }
 
-      const sequence =
-        optionalPositiveInteger(row.sequence) ??
-        (await transaction.routeItem.count({
-          where: {
-            tenantId: context.tenantId,
-            routePlanId: routePlan.id,
-          },
-        })) + 1;
+      counts.routePlans += createdPlans.length;
+    }
 
-      await transaction.routeItem.create({
-        data: {
+    // A row with no explicit sequence takes the next free slot in its plan.
+    // The per-row version read that by counting the plan's items, which inside
+    // the transaction included the items earlier rows of this same file had
+    // just written — so the cursor has to advance on every item, not only the
+    // implicitly numbered ones. Plans created above start empty; only the
+    // reused ones need a count.
+    const existingPlanIds = [...new Set(existingPlans.map((plan) => plan.id))];
+    const nextSequenceByPlan = new Map<string, number>();
+
+    if (existingPlanIds.length > 0) {
+      const itemCounts = await transaction.routeItem.groupBy({
+        by: ["routePlanId"],
+        where: {
           tenantId: context.tenantId,
-          routePlanId: routePlan.id,
-          locationId: location.id,
-          sequence,
+          routePlanId: { in: existingPlanIds },
+        },
+        _count: { _all: true },
+      });
+
+      for (const itemCount of itemCounts) {
+        nextSequenceByPlan.set(
+          itemCount.routePlanId,
+          itemCount._count._all + 1,
+        );
+      }
+    }
+
+    const routeItemRows = resolvedRows.map(
+      ({ row, representativeUserId, locationId, planDate }) => {
+        const routePlanId = requireReference(
+          routePlanIdByKey.get(routePlanKey(representativeUserId, planDate)),
+        );
+        const nextSequence = nextSequenceByPlan.get(routePlanId) ?? 1;
+
+        nextSequenceByPlan.set(routePlanId, nextSequence + 1);
+
+        return {
+          tenantId: context.tenantId,
+          routePlanId,
+          locationId,
+          sequence: optionalPositiveInteger(row.sequence) ?? nextSequence,
           plannedStartTime: optionalPlanDateTime(
             row.plan_date,
             row.planned_start_time,
@@ -1024,189 +1210,321 @@ export class ImportsService {
             row.plan_date,
             row.planned_end_time,
           ),
-        },
-        select: { id: true },
-      });
+        };
+      },
+    );
 
-      counts.routeItems += 1;
+    await transaction.routeItem.createMany({ data: routeItemRows });
+    counts.routeItems += routeItemRows.length;
 
-      const taskTitle = optionalString(row.task_title);
+    const taskRows = resolvedRows.flatMap(
+      ({ row, representativeUserId, locationId }) => {
+        const taskTitle = optionalString(row.task_title);
 
-      if (taskTitle) {
-        await transaction.task.create({
-          data: {
+        if (!taskTitle) {
+          return [];
+        }
+
+        return [
+          {
             tenantId: context.tenantId,
             title: taskTitle,
             isPriority: parseTaskIsPriority(row.task_priority),
-            assignedToUserId: representative.id,
+            assignedToUserId: representativeUserId,
             createdByUserId: context.userId,
-            locationId: location.id,
+            locationId,
             dueDate: row.task_due_date
               ? parseDateOnly(row.task_due_date)
               : null,
           },
-        });
-        counts.tasks += 1;
-      }
+        ];
+      },
+    );
+
+    if (taskRows.length > 0) {
+      await transaction.task.createMany({ data: taskRows });
+      counts.tasks += taskRows.length;
     }
   }
 
-  private async findExistingUserByEmailOrThrow(
+  // Resolve every representative an import file names, in one lookup, keyed by
+  // the normalized email. A reference that no longer resolves fails the whole
+  // import — the per-row version raised the same error, just after writing the
+  // rows before it and rolling them back again.
+  private async resolveUserIdsByEmailOrThrow(
     transaction: PrismaTransaction,
     tenantId: string,
-    email: string,
+    emailInputs: (string | undefined)[],
     requiredRoleCode?: RoleCode,
-  ): Promise<{ id: string }> {
-    const user = await transaction.user.findFirst({
+  ): Promise<Map<string, string>> {
+    const emails = [
+      ...new Set(emailInputs.map(normalizeValue).filter(isPresent)),
+    ];
+
+    if (emails.length === 0) {
+      return new Map();
+    }
+
+    const users = await transaction.user.findMany({
       where: {
         tenantId,
-        email,
+        email: { in: emails },
         status: "active",
         deletedAt: null,
         roles: requiredRoleCode
           ? { some: { tenantId, roleCode: requiredRoleCode } }
           : undefined,
       },
-      select: { id: true },
+      select: { id: true, email: true },
     });
+    const userIdByEmail = new Map(users.map((user) => [user.email, user.id]));
 
-    if (!user) {
-      throw new BadRequestException({
-        code: "IMPORT_REFERENCE_NOT_FOUND",
-        message: "Import reference no longer resolves in this tenant.",
-      });
-    }
-
-    return user;
-  }
-
-  // Resolve a chain by name for a location import row, creating it on first
-  // use so a chain column can populate the canonical list without a separate
-  // upload. Matching is case-insensitive to avoid duplicating an existing
-  // chain that differs only in casing. Returns null when no chain is given.
-  private async resolveChainReference(
-    transaction: PrismaTransaction,
-    context: RequestContext,
-    nameInput: string | undefined,
-    counts: ImportCreatedCounts,
-  ): Promise<string | null> {
-    const name = normalizeValue(nameInput);
-
-    if (!name) {
-      return null;
-    }
-
-    const existingChain = await transaction.chain.findFirst({
-      where: {
-        tenantId: context.tenantId,
-        name: { equals: name, mode: "insensitive" },
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-
-    if (existingChain) {
-      return existingChain.id;
-    }
-
-    const chain = await transaction.chain.create({
-      data: {
-        tenantId: context.tenantId,
-        name,
-      },
-      select: { id: true },
-    });
-    counts.chains += 1;
-
-    return chain.id;
-  }
-
-  // Resolve a location category by name for a location import row, creating
-  // it in the tenant's dictionary on first use — an import is run by an
-  // admin, so authorship of the auto-created category stays with them. The
-  // lookup is case-insensitive, so repeated or case-variant names within the
-  // same file collapse onto one category (each row's lookup already sees
-  // prior rows' inserts within this transaction), but unlike
-  // `resolveChainReference`, the display name is stored exactly as typed —
-  // matching the "stored exactly as typed" rule the rest of the category
-  // dictionary follows (manual create/rename, migration backfill). Returns
-  // null when no category is given.
-  private async resolveLocationCategoryReference(
-    transaction: PrismaTransaction,
-    context: RequestContext,
-    nameInput: string | undefined,
-    counts: ImportCreatedCounts,
-  ): Promise<string | null> {
-    const name = optionalString(nameInput);
-
-    if (!name) {
-      return null;
-    }
-
-    const existingCategory = await transaction.locationCategory.findFirst({
-      where: {
-        tenantId: context.tenantId,
-        name: { equals: name, mode: "insensitive" },
-      },
-      select: { id: true },
-    });
-
-    if (existingCategory) {
-      return existingCategory.id;
-    }
-
-    const category = await transaction.locationCategory.create({
-      data: {
-        tenantId: context.tenantId,
-        name,
-      },
-      select: { id: true },
-    });
-    counts.locationCategories += 1;
-
-    return category.id;
-  }
-
-  private async resolveLocationReference(
-    transaction: PrismaTransaction,
-    tenantId: string,
-    externalCodeInput: string | undefined,
-    nameInput: string | undefined,
-  ): Promise<{ id: string }> {
-    const externalCode = normalizeValue(externalCodeInput);
-
-    if (externalCode) {
-      const location = await transaction.location.findFirst({
-        where: {
-          tenantId,
-          externalCode,
-          deletedAt: null,
-        },
-        select: { id: true },
-      });
-
-      if (!location) {
+    for (const email of emails) {
+      if (!userIdByEmail.has(email)) {
         throwImportReferenceNotFound();
       }
-
-      return location;
     }
 
-    const name = normalizeValue(nameInput);
-    const locations = await transaction.location.findMany({
+    return userIdByEmail;
+  }
+
+  // Resolve the chains a location import names, creating the ones that do not
+  // exist yet so a chain column can populate the canonical list without a
+  // separate upload. Matching is case-insensitive to avoid duplicating an
+  // existing chain that differs only in casing, and — unlike location
+  // categories — an auto-created chain is stored normalized rather than as
+  // typed, which is what the per-row version did too. Returns a map from the
+  // normalized name to the chain id; a row with no chain finds nothing in it
+  // and writes a null chainId.
+  private async resolveChainReferences(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    nameInputs: (string | undefined)[],
+    counts: ImportCreatedCounts,
+  ): Promise<Map<string, string>> {
+    const names = [
+      ...new Set(nameInputs.map(normalizeValue).filter(isPresent)),
+    ];
+
+    if (names.length === 0) {
+      return new Map();
+    }
+
+    // An OR of per-name insensitive equals rather than `in`, so the comparison
+    // is exactly the one the per-row `findFirst` made.
+    const existingChains = await transaction.chain.findMany({
       where: {
-        tenantId,
-        name,
+        tenantId: context.tenantId,
         deletedAt: null,
+        OR: names.map((name) => ({
+          name: { equals: name, mode: "insensitive" as const },
+        })),
       },
-      select: { id: true },
+      select: { id: true, name: true },
     });
+    const chainIdByName = new Map<string, string>();
 
-    if (locations.length !== 1 || !locations[0]) {
-      throwImportReferenceNotFound();
+    for (const chain of existingChains) {
+      const key = normalizeValue(chain.name);
+
+      if (!chainIdByName.has(key)) {
+        chainIdByName.set(key, chain.id);
+      }
     }
 
-    return locations[0];
+    const missingNames = names.filter((name) => !chainIdByName.has(name));
+
+    if (missingNames.length > 0) {
+      const createdChains = await transaction.chain.createManyAndReturn({
+        data: missingNames.map((name) => ({
+          tenantId: context.tenantId,
+          name,
+        })),
+        select: { id: true, name: true },
+      });
+
+      for (const chain of createdChains) {
+        chainIdByName.set(normalizeValue(chain.name), chain.id);
+      }
+
+      counts.chains += createdChains.length;
+    }
+
+    return chainIdByName;
+  }
+
+  // Resolve the location categories an import names, creating the ones the
+  // tenant's dictionary does not hold yet — an import is run by an admin, so
+  // authorship of an auto-created category stays with them. The lookup is
+  // case-insensitive, so repeated or case-variant names within the same file
+  // collapse onto one category, but unlike `resolveChainReferences` the display
+  // name is stored exactly as first typed in the file — matching the "stored
+  // exactly as typed" rule the rest of the category dictionary follows (manual
+  // create/rename, migration backfill). Returns a map from the normalized name
+  // to the category id.
+  private async resolveLocationCategoryReferences(
+    transaction: PrismaTransaction,
+    context: RequestContext,
+    nameInputs: (string | undefined)[],
+    counts: ImportCreatedCounts,
+  ): Promise<Map<string, string>> {
+    // First-seen casing wins, which is the casing the per-row version created
+    // the category with.
+    const typedNameByKey = new Map<string, string>();
+
+    for (const nameInput of nameInputs) {
+      const name = optionalString(nameInput);
+
+      if (!name) {
+        continue;
+      }
+
+      const key = normalizeValue(name);
+
+      if (!typedNameByKey.has(key)) {
+        typedNameByKey.set(key, name);
+      }
+    }
+
+    if (typedNameByKey.size === 0) {
+      return new Map();
+    }
+
+    const existingCategories = await transaction.locationCategory.findMany({
+      where: {
+        tenantId: context.tenantId,
+        OR: [...typedNameByKey.values()].map((name) => ({
+          name: { equals: name, mode: "insensitive" as const },
+        })),
+      },
+      select: { id: true, name: true },
+    });
+    const categoryIdByName = new Map<string, string>();
+
+    for (const category of existingCategories) {
+      const key = normalizeValue(category.name);
+
+      if (!categoryIdByName.has(key)) {
+        categoryIdByName.set(key, category.id);
+      }
+    }
+
+    const missingNames = [...typedNameByKey.entries()].filter(
+      ([key]) => !categoryIdByName.has(key),
+    );
+
+    if (missingNames.length > 0) {
+      const createdCategories =
+        await transaction.locationCategory.createManyAndReturn({
+          data: missingNames.map(([, name]) => ({
+            tenantId: context.tenantId,
+            name,
+          })),
+          select: { id: true, name: true },
+        });
+
+      for (const category of createdCategories) {
+        categoryIdByName.set(normalizeValue(category.name), category.id);
+      }
+
+      counts.locationCategories += createdCategories.length;
+    }
+
+    return categoryIdByName;
+  }
+
+  // Resolve one location id per input reference, positionally, in at most two
+  // lookups. An external code wins over a name where a row carries both, and a
+  // name that matches more than one location is as unresolvable as one that
+  // matches none — both are what the per-row version did.
+  private async resolveLocationIdsOrThrow(
+    transaction: PrismaTransaction,
+    tenantId: string,
+    references: LocationReferenceInput[],
+  ): Promise<string[]> {
+    const externalCodes = new Set<string>();
+    const names = new Set<string>();
+
+    for (const reference of references) {
+      const externalCode = normalizeValue(reference.externalCode);
+
+      if (externalCode) {
+        externalCodes.add(externalCode);
+        continue;
+      }
+
+      names.add(normalizeValue(reference.name));
+    }
+
+    const locationIdByExternalCode = new Map<string, string>();
+
+    if (externalCodes.size > 0) {
+      const locations = await transaction.location.findMany({
+        where: {
+          tenantId,
+          externalCode: { in: [...externalCodes] },
+          deletedAt: null,
+        },
+        select: { id: true, externalCode: true },
+      });
+
+      for (const location of locations) {
+        const externalCode = location.externalCode;
+
+        if (externalCode && !locationIdByExternalCode.has(externalCode)) {
+          locationIdByExternalCode.set(externalCode, location.id);
+        }
+      }
+
+      for (const externalCode of externalCodes) {
+        if (!locationIdByExternalCode.has(externalCode)) {
+          throwImportReferenceNotFound();
+        }
+      }
+    }
+
+    const locationIdByName = new Map<string, string>();
+
+    if (names.size > 0) {
+      const locations = await transaction.location.findMany({
+        where: {
+          tenantId,
+          name: { in: [...names] },
+          deletedAt: null,
+        },
+        select: { id: true, name: true },
+      });
+      const idsByName = new Map<string, string[]>();
+
+      for (const location of locations) {
+        const ids = idsByName.get(location.name) ?? [];
+
+        ids.push(location.id);
+        idsByName.set(location.name, ids);
+      }
+
+      for (const name of names) {
+        const ids = idsByName.get(name) ?? [];
+
+        if (ids.length !== 1 || !ids[0]) {
+          throwImportReferenceNotFound();
+        }
+
+        locationIdByName.set(name, ids[0]);
+      }
+    }
+
+    return references.map((reference) => {
+      const externalCode = normalizeValue(reference.externalCode);
+
+      if (externalCode) {
+        return requireReference(locationIdByExternalCode.get(externalCode));
+      }
+
+      return requireReference(
+        locationIdByName.get(normalizeValue(reference.name)),
+      );
+    });
   }
 
   private async validateUsersPreview(
@@ -2020,6 +2338,37 @@ function throwImportReferenceNotFound(): never {
   });
 }
 
+// The resolvers above throw for every reference they cannot resolve before any
+// row is written, so a lookup in one of their maps always hits. This keeps that
+// invariant checked rather than assumed — an unresolved reference must never
+// reach a `createMany` as an undefined foreign key.
+function requireReference(id: string | undefined): string {
+  if (!id) {
+    throwImportReferenceNotFound();
+  }
+
+  return id;
+}
+
+// Route plans are keyed by (representative, date) within one import, matching
+// the partial unique index on template-less plans.
+function routePlanKey(representativeUserId: string, planDate: Date): string {
+  return `${representativeUserId}|${planDate.toISOString()}`;
+}
+
+function assertRowCountWithinLimit(rowCount: number): void {
+  if (rowCount > MAX_IMPORT_ROWS) {
+    throw new BadRequestException({
+      code: "IMPORT_ROW_LIMIT_EXCEEDED",
+      message: buildRowLimitMessage(rowCount),
+    });
+  }
+}
+
+function buildRowLimitMessage(rowCount: number): string {
+  return `This file has ${rowCount} rows and an import accepts at most ${MAX_IMPORT_ROWS}. Split it into smaller files and upload them one after another.`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -2106,6 +2455,7 @@ function buildPreview(
   // gets the caps by declaring them on its columns, and cannot forget to call
   // anything.
   addLengthIssues(parsedFile, issues);
+  addRowLimitIssues(parsedFile, issues);
 
   const errorRows = new Set(
     issues
@@ -2172,6 +2522,44 @@ function addLengthIssues(
       }
     }
   });
+}
+
+/**
+ * Blocks a file that carries more rows than one import may apply.
+ *
+ * One issue per row past the cap rather than a single summary issue, so the
+ * preview's own arithmetic stays true: `validRowCount` is then the number of
+ * rows that would fit and `errorRowCount` the number that would have to move to
+ * a second file, which is the decision the admin has to make. Every one of them
+ * carries the same message naming both numbers, since only the first is
+ * guaranteed to be read.
+ *
+ * The alternative — letting the file through and failing at confirm — is what
+ * audit F8 recorded: an opaque 500 on the primary onboarding path, identical on
+ * every retry, with nothing anywhere saying the file was too big.
+ */
+function addRowLimitIssues(
+  parsedFile: ParsedImportFile,
+  issues: ImportPreviewIssue[],
+): void {
+  if (parsedFile.rows.length <= MAX_IMPORT_ROWS) {
+    return;
+  }
+
+  const message = buildRowLimitMessage(parsedFile.rows.length);
+
+  for (
+    let rowNumber = MAX_IMPORT_ROWS + 2;
+    rowNumber <= parsedFile.rows.length + 1;
+    rowNumber += 1
+  ) {
+    issues.push({
+      rowNumber,
+      severity: "error",
+      code: "IMPORT_ROW_LIMIT_EXCEEDED",
+      message,
+    });
+  }
 }
 
 function createIssue(

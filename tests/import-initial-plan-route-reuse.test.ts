@@ -65,28 +65,49 @@ describe("imports: initial plan row application", () => {
     // first row just created for the second row on the same rep/date —
     // this is the rewritten lookup from routes.service.ts:createRoutePlan's
     // former compound-unique-key upsert (see the 20260721062916 migration).
-    const routePlanCreateCalls: unknown[] = [];
-    let routePlanFindFirstCallCount = 0;
+    const routePlanCreateCalls: { data: unknown[] }[] = [];
+    let routePlanFindManyCallCount = 0;
+    let routeItemCreateManyCallCount = 0;
     const transaction = {
-      user: { findFirst: async () => ({ id: "rep-a" }) },
+      user: {
+        findMany: async () => [{ id: "rep-a", email: "rep@example.com" }],
+      },
       location: {
-        findFirst: async (args: { where: { externalCode: string } }) => ({
-          id: args.where.externalCode === "LOC-1" ? "loc-1" : "loc-2",
-        }),
+        findMany: async (args: {
+          where: { externalCode: { in: string[] } };
+        }) =>
+          args.where.externalCode.in.map((externalCode) => ({
+            id: externalCode === "loc-1" ? "loc-1" : "loc-2",
+            externalCode,
+          })),
       },
       routePlan: {
-        findFirst: async () => {
-          routePlanFindFirstCallCount += 1;
-          return routePlanFindFirstCallCount === 1 ? null : { id: "plan-a" };
+        findMany: async () => {
+          routePlanFindManyCallCount += 1;
+          return [];
         },
-        create: async (args: unknown) => {
+        createManyAndReturn: async (args: {
+          data: {
+            representativeUserId: string;
+            planDate: Date;
+          }[];
+        }) => {
           routePlanCreateCalls.push(args);
-          return { id: "plan-a" };
+
+          return args.data.map((plan, index) => ({
+            id: `plan-${index + 1}`,
+            representativeUserId: plan.representativeUserId,
+            planDate: plan.planDate,
+          }));
         },
       },
       routeItem: {
-        count: async () => 0,
-        create: async () => ({ id: "item-x" }),
+        groupBy: async () => [],
+        createMany: async () => {
+          routeItemCreateManyCallCount += 1;
+
+          return { count: 2 };
+        },
       },
     };
     const counts = buildCounts();
@@ -107,27 +128,44 @@ describe("imports: initial plan row application", () => {
       counts as never,
     );
 
-    assert.equal(routePlanFindFirstCallCount, 2);
+    // One lookup and one insert for the whole file rather than a pair a row,
+    // and the two rows still collapse onto a single plan because they share a
+    // representative and a date (audit F8 batched this; the reuse is the
+    // behaviour that had to survive it).
+    assert.equal(routePlanFindManyCallCount, 1);
     assert.equal(routePlanCreateCalls.length, 1);
+    assert.equal(routePlanCreateCalls[0]?.data.length, 1);
+    assert.equal(routeItemCreateManyCallCount, 1);
     assert.equal(counts.routePlans, 1);
     assert.equal(counts.routeItems, 2);
   });
 
   it("creates separate route plans for the same rep on different dates", async () => {
-    const routePlanCreateCalls: Array<{ data: { planDate: Date } }> = [];
+    const routePlanCreateCalls: Array<{ data: { planDate: Date }[] }> = [];
     const transaction = {
-      user: { findFirst: async () => ({ id: "rep-a" }) },
-      location: { findFirst: async () => ({ id: "loc-1" }) },
+      user: {
+        findMany: async () => [{ id: "rep-a", email: "rep@example.com" }],
+      },
+      location: {
+        findMany: async () => [{ id: "loc-1", externalCode: "loc-1" }],
+      },
       routePlan: {
-        findFirst: async () => null,
-        create: async (args: { data: { planDate: Date } }) => {
+        findMany: async () => [],
+        createManyAndReturn: async (args: {
+          data: { representativeUserId: string; planDate: Date }[];
+        }) => {
           routePlanCreateCalls.push(args);
-          return { id: `plan-${routePlanCreateCalls.length}` };
+
+          return args.data.map((plan, index) => ({
+            id: `plan-${index + 1}`,
+            representativeUserId: plan.representativeUserId,
+            planDate: plan.planDate,
+          }));
         },
       },
       routeItem: {
-        count: async () => 0,
-        create: async () => ({ id: "item-x" }),
+        groupBy: async () => [],
+        createMany: async () => ({ count: 2 }),
       },
     };
     const counts = buildCounts();
@@ -148,11 +186,14 @@ describe("imports: initial plan row application", () => {
       counts as never,
     );
 
-    assert.equal(routePlanCreateCalls.length, 2);
+    // Both plans are created by the one batched insert, and the two dates stay
+    // distinct within it.
+    assert.equal(routePlanCreateCalls.length, 1);
+    assert.equal(routePlanCreateCalls[0].data.length, 2);
     assert.equal(counts.routePlans, 2);
     assert.notEqual(
-      routePlanCreateCalls[0].data.planDate.toISOString(),
-      routePlanCreateCalls[1].data.planDate.toISOString(),
+      routePlanCreateCalls[0].data[0].planDate.toISOString(),
+      routePlanCreateCalls[0].data[1].planDate.toISOString(),
     );
   });
 });
