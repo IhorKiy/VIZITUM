@@ -28,6 +28,7 @@ import {
   TrashIcon,
 } from "../../../../components/icons";
 import { withBackOrigin } from "../../../../lib/back-navigation";
+import { groupByRoutePlan } from "../../../../lib/today-route-groups";
 import { useSerializedReorder } from "../../../../lib/use-serialized-reorder";
 
 type TodayStop = {
@@ -88,41 +89,6 @@ export function TodayRouteDragList({
       ))}
     </ol>
   );
-}
-
-// A viewer with team-wide access sees every representative's plan for today
-// merged into one list (see getTodayRoutes), so each plan gets its own drag
-// context here — a stop can never be dragged into someone else's route. The
-// grouping is invisible to the reader, who sees one list for the day: each
-// group carries where its stops start in that single run of numbers.
-function groupByRoutePlan(
-  stops: TodayStop[],
-): Array<{ routePlanId: string; startIndex: number; stops: TodayStop[] }> {
-  const order: string[] = [];
-  const byPlan = new Map<string, TodayStop[]>();
-
-  for (const stop of stops) {
-    let planStops = byPlan.get(stop.routePlanId);
-
-    if (!planStops) {
-      planStops = [];
-      byPlan.set(stop.routePlanId, planStops);
-      order.push(stop.routePlanId);
-    }
-
-    planStops.push(stop);
-  }
-
-  let startIndex = 0;
-
-  return order.map((routePlanId) => {
-    const planStops = byPlan.get(routePlanId) as TodayStop[];
-    const group = { routePlanId, startIndex, stops: planStops };
-
-    startIndex += planStops.length;
-
-    return group;
-  });
 }
 
 type TodayRouteGroupProps = {

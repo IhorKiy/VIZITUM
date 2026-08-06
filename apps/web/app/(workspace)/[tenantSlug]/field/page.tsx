@@ -18,10 +18,10 @@ import {
   reorderRouteItems,
   updateRouteItem,
   type RoutePlan,
-  type Task,
 } from "../../../../lib/api-client";
 import { RouteSnapshotWriter } from "../../../../components/route-snapshot-writer";
 import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
+import { summariseTasksByLocation } from "../../../../lib/field-stop-tasks";
 import { getFormString } from "../../../../lib/form";
 import { TodayRouteDragList } from "./today-route-drag-list";
 
@@ -37,14 +37,6 @@ type FieldPageProps = {
 // Enough to cover a rep's open work; the badges count what came back, and a
 // rep with more open tasks than this has a bigger problem than a badge.
 const OPEN_TASK_PAGE_SIZE = 200;
-
-// What is open at a location, as the stop card reports it: how many are late,
-// how many are due today, and how many there are in total.
-type StopTaskSummary = {
-  overdue: number;
-  dueToday: number;
-  total: number;
-};
 
 type FieldRouteStop = {
   id: string;
@@ -201,10 +193,34 @@ export default async function FieldPage({
   const availableLocations = locations.filter(
     (location) => !plannedLocationIds.has(location.id),
   );
-  const taskSummaries = summariseTasksByLocation(
-    tasksResult.ok ? tasksResult.data.items : [],
-    todayIsoDate,
-  );
+  // The badges count the *viewer's* open tasks (`listTasks` is scoped to the
+  // caller), but this list is not always the viewer's own day: a rep with
+  // team-wide access sees every representative's plan for today merged into
+  // one list (see groupByRoutePlan in today-route-drag-list.tsx). Left as-is,
+  // a team lead reading someone else's stop would see a badge about their own
+  // work at that location — the same card saying "1 overdue" to two people
+  // about two different tasks.
+  //
+  // So they are shown only when every plan on screen belongs to the viewer.
+  // Owner identity, not the number of groups: one rep can hold several plans
+  // for a day (one per template), which is an ordinary day and not a team
+  // view — counting groups would have hidden the badges from the reps they
+  // are for. A viewer whose list holds someone else's plan gets no badges at
+  // all rather than badges that are right for some cards and wrong for
+  // others; giving a lead the counts they actually mean would need a
+  // per-representative task read this screen does not make.
+  const listIsViewersOwnDay =
+    sessionResult.ok &&
+    todayRoutesResult.ok &&
+    todayRoutesResult.data.every(
+      (plan) => plan.representativeUserId === sessionResult.data.user.id,
+    );
+  const taskSummaries = listIsViewersOwnDay
+    ? summariseTasksByLocation(
+        tasksResult.ok ? tasksResult.data.items : [],
+        todayIsoDate,
+      )
+    : {};
   // A failed announcements fetch leaves the board empty rather than taking the
   // whole home screen down: the route is the thing the rep came here for, and
   // it is already loaded.
@@ -560,46 +576,6 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
         })),
     )
     .sort((a, b) => a.sequence - b.sequence);
-}
-
-// Open tasks folded down to one line per location. Tasks with no location
-// belong to no stop and are dropped; a due date in the past is late, and one
-// matching the rep's today is due today. Both comparisons are string
-// comparisons on "YYYY-MM-DD", which is why the date is resolved in the
-// tenant timezone rather than parsed into a Date here.
-function summariseTasksByLocation(
-  tasks: Task[],
-  todayIsoDate: string,
-): Record<string, StopTaskSummary> {
-  const summaries: Record<string, StopTaskSummary> = {};
-
-  for (const task of tasks) {
-    if (!task.locationId) {
-      continue;
-    }
-
-    const summary = (summaries[task.locationId] ??= {
-      overdue: 0,
-      dueToday: 0,
-      total: 0,
-    });
-
-    summary.total += 1;
-
-    const dueDate = task.dueDate?.slice(0, 10);
-
-    if (!dueDate) {
-      continue;
-    }
-
-    if (dueDate < todayIsoDate) {
-      summary.overdue += 1;
-    } else if (dueDate === todayIsoDate) {
-      summary.dueToday += 1;
-    }
-  }
-
-  return summaries;
 }
 
 // No year: this always names today, and "2026" in a header a rep reads every

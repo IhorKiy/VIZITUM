@@ -20,10 +20,17 @@ type FieldCreateFabProps = {
  *
  * It opens the create dialog by putting `?create=1` on the task list, which is
  * the only way in now (components/create-own-task-modal.tsx watches that
- * param). A plain <Link> to `/field/tasks?create=1` would do everywhere except
+ * param). A plain anchor to `/field/tasks?create=1` would do everywhere except
  * on the task list itself, where it would drop the filters the rep is looking
  * at — so the current query is read and added to, and only a rep somewhere
  * else navigates.
+ *
+ * That router call is a client-side navigation, which the field zone otherwise
+ * avoids: a rep with no signal gets no cached shell from it (see the preamble
+ * of tests/web-field-zone-anchors.test.ts, which counts anchors but cannot see
+ * a programmatic push). Accepted here because the alternative loses the
+ * filters, and because this button only ever opens a dialog on a screen the
+ * rep can reach from the nav beside it.
  */
 export function FieldCreateFab({ tasksHref, label }: FieldCreateFabProps) {
   const router = useRouter();
