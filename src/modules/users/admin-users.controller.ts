@@ -17,7 +17,7 @@ import { createStrictValidationPipe } from "../../common/strict-validation-pipe"
 import { PERMISSIONS } from "../roles/permissions";
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import { AddUserRoleDto, InviteUserDto, UpdateUserDto } from "./users.dto";
 import { UsersService } from "./users.service";
 
@@ -101,14 +101,6 @@ export class AdminUsersController {
   deleteUser(@Req() request: Request, @Param("userId") userId: string) {
     return this.usersService.deleteUser(getRequestContext(request), userId);
   }
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-
-  return request.context;
 }
 
 function parsePositiveInteger(value: string | undefined): number | undefined {
