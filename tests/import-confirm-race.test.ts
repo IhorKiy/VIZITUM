@@ -83,8 +83,10 @@ function createStore() {
             update: async () => undefined,
           },
           product: {
-            create: async (query: unknown) => {
-              createdProducts.push(query);
+            createMany: async ({ data }: { data: unknown[] }) => {
+              createdProducts.push(...data);
+
+              return { count: data.length };
             },
             findMany: async () => [],
           },

@@ -441,7 +441,7 @@ describe("import validation preview", () => {
   });
 
   it("applies a validated import in one transaction", async () => {
-    const createdProducts: unknown[] = [];
+    const createManyCalls: unknown[][] = [];
     const updatedJobs: unknown[] = [];
     const prisma = {
       importJob: {
@@ -473,7 +473,11 @@ describe("import validation preview", () => {
       },
       $transaction: async (
         callback: (transaction: {
-          product: { create: (query: unknown) => Promise<void> };
+          product: {
+            createMany: (query: {
+              data: unknown[];
+            }) => Promise<{ count: number }>;
+          };
           importJob: {
             update: (query: unknown) => Promise<void>;
             updateMany: (query: unknown) => Promise<{ count: number }>;
@@ -482,8 +486,13 @@ describe("import validation preview", () => {
       ) =>
         callback({
           product: {
-            create: async (query: unknown) => {
-              createdProducts.push(query);
+            // One batched insert for the whole file, not one call a row — the
+            // shape audit F8 asked for, so the apply's query count no longer
+            // scales with the row count.
+            createMany: async ({ data }: { data: unknown[] }) => {
+              createManyCalls.push(data);
+
+              return { count: data.length };
             },
           },
           importJob: {
@@ -506,16 +515,15 @@ describe("import validation preview", () => {
     assert.equal(result.status, "applied");
     assert.equal(result.appliedRowCount, 2);
     assert.equal(result.createdCounts.products, 2);
-    assert.equal(createdProducts.length, 2);
+    assert.equal(createManyCalls.length, 1);
+    assert.equal(createManyCalls[0]?.length, 2);
     assert.equal(updatedJobs.length, 1);
-    assert.deepEqual(createdProducts[0], {
-      data: {
-        tenantId: "tenant-a",
-        externalCode: "prod-a",
-        name: "Product A",
-        sku: "SKU-A",
-        category: "Category A",
-      },
+    assert.deepEqual(createManyCalls[0]?.[0], {
+      tenantId: "tenant-a",
+      externalCode: "prod-a",
+      name: "Product A",
+      sku: "SKU-A",
+      category: "Category A",
     });
   });
 
@@ -552,7 +560,11 @@ describe("import validation preview", () => {
       },
       $transaction: async (
         callback: (transaction: {
-          product: { create: (query: unknown) => Promise<void> };
+          product: {
+            createMany: (query: {
+              data: unknown[];
+            }) => Promise<{ count: number }>;
+          };
           importJob: {
             update: (query: unknown) => Promise<void>;
             updateMany: (query: unknown) => Promise<{ count: number }>;
@@ -561,12 +573,10 @@ describe("import validation preview", () => {
       ) =>
         callback({
           product: {
-            create: async (query: unknown) => {
-              createdProducts.push(query);
+            createMany: async ({ data }: { data: unknown[] }) => {
+              createdProducts.push(...data);
 
-              if (createdProducts.length === 2) {
-                throw new Error("Simulated product write failure.");
-              }
+              throw new Error("Simulated product write failure.");
             },
           },
           importJob: {

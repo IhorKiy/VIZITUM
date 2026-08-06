@@ -126,53 +126,64 @@ describe("import locations: category resolution", () => {
           },
         }),
       },
-      $transaction: async (
-        callback: (tx: unknown) => Promise<unknown>,
-      ) =>
+      $transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
           locationCategory: {
-            findFirst: async ({
+            // One lookup for every distinct name in the file, expressed as an
+            // OR of insensitive equals — the batched replacement for the
+            // per-row findFirst (audit F8).
+            findMany: async ({
               where,
             }: {
               where: {
                 tenantId: string;
-                name: { equals: string; mode: string };
+                OR: { name: { equals: string; mode: string } }[];
               };
-            }) => {
-              const match = categoryRows.find(
+            }) =>
+              categoryRows.filter(
                 (row) =>
                   row.tenantId === where.tenantId &&
-                  row.name.toLowerCase() === where.name.equals.toLowerCase(),
-              );
-
-              return match ? { id: match.id } : null;
-            },
-            create: async ({
+                  where.OR.some(
+                    (clause) =>
+                      clause.name.equals.toLowerCase() ===
+                      row.name.toLowerCase(),
+                  ),
+              ),
+            createManyAndReturn: async ({
               data,
             }: {
-              data: { tenantId: string; name: string };
-            }) => {
-              const row = {
-                id: `cat-new-${nextId++}`,
-                tenantId: data.tenantId,
-                name: data.name,
-              };
+              data: { tenantId: string; name: string }[];
+            }) =>
+              data.map((entry) => {
+                const row = {
+                  id: `cat-new-${nextId++}`,
+                  tenantId: entry.tenantId,
+                  name: entry.name,
+                };
 
-              categoryRows.push(row);
+                categoryRows.push(row);
 
-              return { id: row.id };
-            },
+                return { id: row.id, name: row.name };
+              }),
+          },
+          chain: {
+            findMany: async () => [],
+            createManyAndReturn: async () => [],
+          },
+          user: {
+            findMany: async () => [],
           },
           location: {
-            create: async ({
+            createManyAndReturn: async ({
               data,
             }: {
-              data: { categoryId: string | null };
-            }) => {
-              createdLocations.push(data);
+              data: { categoryId: string | null }[];
+            }) =>
+              data.map((entry) => {
+                createdLocations.push(entry);
 
-              return { id: `location-${createdLocations.length}` };
-            },
+                return { id: `location-${createdLocations.length}` };
+              }),
           },
           importJob: {
             update: async () => undefined,
