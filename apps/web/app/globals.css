@@ -6158,16 +6158,18 @@ textarea {
 /* Scoped to the header rather than left as a bare class: `.page-header p`
    sets the muted colour every paragraph in a header takes, and would
    otherwise win on specificity and grey this out. The numbers carry the
-   accent; the word after them is the quieter half of the same sentence.
-   Underlined because nothing else here says it is a link — the bar below is
-   a picture, the numbers read as a readout, and a rep has no reason to try
-   tapping either. The line stays on the text; the bar keeps its own edge. */
+   accent, and so does the word after them — the whole line is the link, and
+   half of it in grey read as a label that had picked up a stray underline.
+   Underlined because nothing else here says it is tappable: the bar below is
+   a picture and the numbers read as a readout. The line stays on the text;
+   the bar keeps its own edge. Weight, not colour, still separates the count
+   from the word it is counting. */
 .today-header .today-header-count {
-  color: var(--muted);
+  color: var(--accent);
   font-size: 13px;
   margin: 0;
   text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--muted) 45%, transparent);
+  text-decoration-color: var(--accent);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
