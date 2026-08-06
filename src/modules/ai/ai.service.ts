@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Prisma, type AiJob, type SegmentTemplate } from "@prisma/client";
+import {
+  Prisma,
+  type AiJob,
+  type AiJobType,
+  type SegmentTemplate,
+} from "@prisma/client";
 
 import { PrismaService } from "../prisma/prisma.service";
 import { PERMISSIONS } from "../roles/permissions";
@@ -20,6 +25,7 @@ import { applyShelfCheck, extractShelfCheck } from "../visits/shelf-check";
 import { findVisitByEitherId } from "../visits/visit-identity";
 import { MAX_TEMPORARY_AUDIO_SIZE_BYTES } from "../visits/visit-media-limits";
 import { JsonLogger } from "../../common/json-logger.service";
+import { SentryService } from "../../common/sentry.service";
 import {
   classifyAiDraftQuality,
   type AiDraftQuality,
@@ -54,10 +60,19 @@ const OPENAI_PROVIDER = "openai";
 const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-transcribe";
 const DEFAULT_EXTRACTION_MODEL = "gpt-4.1-mini";
 const EXTRACTION_SCHEMA_VERSION = "visit-extraction.v1";
+// The `jobId` a synchronous failure carries into the log when the AiJob row
+// could not be written. The field is required by `logJob`'s entry shape, and a
+// placeholder that says so is better than omitting the line that reports the
+// outage.
+const UNRECORDED_AI_JOB_ID = "unrecorded";
 
 @Injectable()
 export class AiService {
   private readonly logger = new JsonLogger();
+  // Constructed rather than injected, matching `AuthAuditService` and
+  // `ApiErrorFilter` — it is a no-op without SENTRY_DSN and holds no
+  // request state.
+  private readonly sentry = new SentryService();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -766,6 +781,13 @@ export class AiService {
     }
 
     let transcript: string;
+    // Set immediately before the provider call, not at the top of the try: the
+    // download above it fetches an audio recording and can take seconds, and
+    // folding that into the row's span would have the AiJob describe storage
+    // rather than the provider it is about. Left undefined when the download is
+    // what failed — the row then carries no `startedAt`, which is the accurate
+    // reading, since the provider was never reached at all.
+    let transcriptionStartedAt: Date | undefined;
 
     try {
       const audioBuffer = await this.s3StorageClient.downloadObject(
@@ -773,6 +795,9 @@ export class AiService {
         audioObject.objectKey,
         { maxBytes: MAX_TEMPORARY_AUDIO_SIZE_BYTES },
       );
+
+      transcriptionStartedAt = new Date();
+
       const transcription = await this.transcriptionClient.transcribe(
         {
           fileName: "recording.webm",
@@ -783,12 +808,14 @@ export class AiService {
       );
       transcript = transcription.text;
     } catch (error) {
-      this.logger.log({
-        message: "Field report transcription failed",
-        tenantId: context.tenantId,
-        visitId,
-        requestId: context.requestId,
-        error: error instanceof Error ? error.message : String(error),
+      await this.recordFieldReportAiFailure({
+        context,
+        visitId: visit.id,
+        type: "transcription",
+        model: getTranscriptionModel(),
+        errorCode: "FIELD_REPORT_TRANSCRIPTION_FAILED",
+        startedAt: transcriptionStartedAt,
+        error,
       });
 
       return { transcript: "", extractedData: emptyFieldReportExtractedData() };
@@ -797,6 +824,8 @@ export class AiService {
     if (!transcript.trim()) {
       return { transcript, extractedData: emptyFieldReportExtractedData() };
     }
+
+    const extractionStartedAt = new Date();
 
     try {
       const extraction = await this.extractionClient.extract(
@@ -820,16 +849,128 @@ export class AiService {
         extractedData: normalizeFieldReportExtraction(extraction.draft),
       };
     } catch (error) {
-      this.logger.log({
-        message: "Field report extraction failed",
-        tenantId: context.tenantId,
-        visitId,
-        requestId: context.requestId,
-        error: error instanceof Error ? error.message : String(error),
+      await this.recordFieldReportAiFailure({
+        context,
+        visitId: visit.id,
+        type: "extraction",
+        model: getExtractionModel(),
+        errorCode: "FIELD_REPORT_EXTRACTION_FAILED",
+        startedAt: extractionStartedAt,
+        error,
       });
 
       return { transcript, extractedData: emptyFieldReportExtractedData() };
     }
+  }
+
+  /**
+   * Records a failure of the synchronous field-report path — the only AI path
+   * the product actually uses.
+   *
+   * Both callers return an empty form on purpose: manual confirmation has to
+   * stay usable when AI is slow, weak or unavailable, and that is a hard
+   * product requirement. What was wrong is what they recorded. Each logged with
+   * `logger.log` — **info** level — wrote no `AiJob` row and captured nothing to
+   * Sentry, so a total provider outage looked like a healthy, quiet system:
+   * every rep got a blank form after every recording, typed the whole report by
+   * hand and concluded the voice feature was broken, and the first signal
+   * anyone operating the system received was a support message from the pilot
+   * (audit F12).
+   *
+   * `EmailService` is the standard this meets, and the closest analogue in the
+   * codebase — the other place an external provider can fail while the product
+   * must keep working. It also never throws, and it both logs at error level
+   * *and* persists the outcome, so a delivery problem is alertable and visible
+   * per record.
+   *
+   * The row is the half that makes it visible: `/operations/summary` reports
+   * three AI numbers and all three count `AiJob` rows, which this path never
+   * wrote — so the dashboard described in detail the asynchronous pipeline that
+   * nothing runs (F3) while being structurally blind to the one path every
+   * field report goes through. Carrying the same `expiresAt` the asynchronous
+   * path uses keeps these rows inside `cleanupExpiredFailedAiJobs`'s sweep
+   * rather than letting them accumulate.
+   *
+   * Nothing in here may throw. It runs inside a catch whose whole job is to
+   * hand back a usable manual form, so a database hiccup while recording a
+   * provider outage must not turn a degraded feature into a failed request.
+   */
+  private async recordFieldReportAiFailure(input: {
+    context: RequestContext;
+    visitId: string;
+    type: AiJobType;
+    model: string;
+    errorCode: string;
+    // Absent when the failure happened before the provider was called, so the
+    // row says the call never started rather than inventing a span for it.
+    // `AiJob.startedAt` is nullable and the asynchronous path leaves it null
+    // for the same reason — a job that never reached `running`.
+    startedAt: Date | undefined;
+    error: unknown;
+  }): Promise<void> {
+    const errorMessage =
+      input.error instanceof Error ? input.error.message : String(input.error);
+    let jobId = UNRECORDED_AI_JOB_ID;
+
+    try {
+      const job = await this.prisma.aiJob.create({
+        data: {
+          tenantId: input.context.tenantId,
+          visitId: input.visitId,
+          type: input.type,
+          status: "failed",
+          provider: OPENAI_PROVIDER,
+          model: input.model,
+          errorCode: input.errorCode,
+          errorMessage,
+          startedAt: input.startedAt ?? null,
+          finishedAt: new Date(),
+          expiresAt: buildTemporaryDataExpiry(),
+        },
+        select: { id: true },
+      });
+
+      jobId = job.id;
+    } catch (writeError) {
+      // The log line below still goes out, so the outage is reported even when
+      // the thing that would have made it countable is itself unavailable.
+      this.logger.error(
+        {
+          message: "ai_failure_record_write_failed",
+          tenantId: input.context.tenantId,
+          visitId: input.visitId,
+          requestId: input.context.requestId,
+          error:
+            writeError instanceof Error
+              ? writeError.message
+              : String(writeError),
+        },
+        undefined,
+        "Ai",
+      );
+    }
+
+    // `status: "failed"` is what makes JsonLogger write this at error level
+    // (`json-logger.service.ts`), which is the same treatment the asynchronous
+    // path's failures already got — the reachable path had the weaker one.
+    this.logger.logJob({
+      jobId,
+      jobType: input.type,
+      status: "failed",
+      tenantId: input.context.tenantId,
+      visitId: input.visitId,
+      requestId: input.context.requestId,
+      errorCode: input.errorCode,
+      errorMessage,
+    });
+
+    void this.sentry.captureException({
+      exception: input.error,
+      requestId: input.context.requestId,
+      module: "Ai",
+      operation: `field_report_${input.type}`,
+      errorCode: input.errorCode,
+    });
   }
 
   async cleanupExpiredFailedAiJobs(now = new Date()): Promise<AiCleanupResult> {
