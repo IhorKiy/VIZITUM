@@ -6259,6 +6259,37 @@ textarea {
   padding: 0;
 }
 
+/* What is waiting at a stop, said in the two colours the task list already
+   uses for the same states: gold for work due today, danger red for work
+   already late. Same 3px inset rail the task cards carry, so a reader
+   scanning either list is reading one vocabulary. */
+.route-stop-tasks {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
+  margin: 2px 0 0;
+}
+
+.route-stop-tasks.is-today {
+  color: var(--gold);
+}
+
+.route-stop-tasks.is-overdue {
+  color: var(--danger);
+}
+
+.route-stop.has-tasks-today .route-stop-surface {
+  border-color: color-mix(in srgb, var(--gold) 40%, var(--line));
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.route-stop.has-overdue-tasks .route-stop-surface {
+  border-color: var(--danger-line);
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
 /* Clickable stop card (link to location detail). Also used, unchanged, as
    the outer box for the route-builder row (drag handle + summary + remove) —
    display:flex works for both: the home page's single .route-stop-summary

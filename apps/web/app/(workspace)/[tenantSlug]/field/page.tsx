@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AddRouteStopModal } from "../../../../components/add-route-stop-modal";
 import { AnnouncementFeed } from "../../../../components/announcement-feed";
@@ -11,11 +11,13 @@ import {
   getCurrentSession,
   listActiveAnnouncements,
   listLocations,
+  listTasks,
   listTodayRoutes,
   markAnnouncementRead,
   reorderRouteItems,
   updateRouteItem,
   type RoutePlan,
+  type Task,
 } from "../../../../lib/api-client";
 import { RouteSnapshotWriter } from "../../../../components/route-snapshot-writer";
 import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
@@ -29,6 +31,18 @@ type FieldPageProps = {
     report?: string;
     stop?: string;
   }>;
+};
+
+// Enough to cover a rep's open work; the badges count what came back, and a
+// rep with more open tasks than this has a bigger problem than a badge.
+const OPEN_TASK_PAGE_SIZE = 200;
+
+// What is open at a location, as the stop card reports it: how many are late,
+// how many are due today, and how many there are in total.
+type StopTaskSummary = {
+  overdue: number;
+  dueToday: number;
+  total: number;
 };
 
 type FieldRouteStop = {
@@ -84,20 +98,35 @@ export default async function FieldPage({
   // The add-stop affordance below reuses field.routes' strings rather than
   // duplicating them: it is the same "add a location to a route" action the
   // routes screen offers, and the two must not drift apart in wording.
-  const [t, tRoutes, tCommon, format] = await Promise.all([
+  const [t, tRoutes, tCommon, format, timeZone] = await Promise.all([
     getTranslations("field"),
     getTranslations("field.routes"),
     getTranslations("common"),
     getFormatter(),
+    getTimeZone(),
   ]);
+  // The rep's today, not the browser's — the same resolution the task list
+  // uses to decide what is due and what is late.
+  const todayIsoDate = new Intl.DateTimeFormat("en-CA", { timeZone }).format(
+    new Date(),
+  );
 
-  const [sessionResult, routesResult, locationsResult, announcementsResult] =
-    await Promise.all([
-      getCurrentSession(),
-      listTodayRoutes(),
-      listLocations(),
-      listActiveAnnouncements(),
-    ]);
+  const [
+    sessionResult,
+    routesResult,
+    locationsResult,
+    announcementsResult,
+    tasksResult,
+  ] = await Promise.all([
+    getCurrentSession(),
+    listTodayRoutes(),
+    listLocations(),
+    listActiveAnnouncements(),
+    // What is open against the stops on this route, so a card can say there
+    // is work waiting there before the rep walks in. A failure costs the
+    // badges, not the route.
+    listTasks(`pageSize=${OPEN_TASK_PAGE_SIZE}&status=in_progress`),
+  ]);
   const todayRoutesResult = sessionResult.ok
     ? routesResult
     : {
@@ -170,6 +199,10 @@ export default async function FieldPage({
   );
   const availableLocations = locations.filter(
     (location) => !plannedLocationIds.has(location.id),
+  );
+  const taskSummaries = summariseTasksByLocation(
+    tasksResult.ok ? tasksResult.data.items : [],
+    todayIsoDate,
   );
   // A failed announcements fetch leaves the board empty rather than taking the
   // whole home screen down: the route is the thing the rep came here for, and
@@ -474,6 +507,7 @@ export default async function FieldPage({
                 removeAction={removeStopAction}
                 reorderAction={reorderTodayRouteAction}
                 stops={routeStops}
+                taskSummaries={taskSummaries}
                 tenantSlug={tenantSlug}
               />
 
@@ -536,6 +570,46 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
         })),
     )
     .sort((a, b) => a.sequence - b.sequence);
+}
+
+// Open tasks folded down to one line per location. Tasks with no location
+// belong to no stop and are dropped; a due date in the past is late, and one
+// matching the rep's today is due today. Both comparisons are string
+// comparisons on "YYYY-MM-DD", which is why the date is resolved in the
+// tenant timezone rather than parsed into a Date here.
+function summariseTasksByLocation(
+  tasks: Task[],
+  todayIsoDate: string,
+): Record<string, StopTaskSummary> {
+  const summaries: Record<string, StopTaskSummary> = {};
+
+  for (const task of tasks) {
+    if (!task.locationId) {
+      continue;
+    }
+
+    const summary = (summaries[task.locationId] ??= {
+      overdue: 0,
+      dueToday: 0,
+      total: 0,
+    });
+
+    summary.total += 1;
+
+    const dueDate = task.dueDate?.slice(0, 10);
+
+    if (!dueDate) {
+      continue;
+    }
+
+    if (dueDate < todayIsoDate) {
+      summary.overdue += 1;
+    } else if (dueDate === todayIsoDate) {
+      summary.dueToday += 1;
+    }
+  }
+
+  return summaries;
 }
 
 // No year: this always names today, and "2026" in a header a rep reads every
