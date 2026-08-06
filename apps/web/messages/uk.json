@@ -1399,6 +1399,7 @@
       "noOrderReasonRefused": "Відмовився",
       "noOrderReasonOther": "Інше",
       "productSearchPlaceholder": "Пошук продукту...",
+      "productSearchClearAria": "Очистити пошук",
       "productsEmpty": "Немає продуктів — додайте в адмінці",
       "productsNoMatch": "Нічого не знайдено",
       "notesLabel": "Нотатки візиту",
