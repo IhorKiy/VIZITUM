@@ -1168,7 +1168,11 @@ function TaskSheetBody({
       <div className="task-sheet-actions">
         {/* The whole point of opening a task on a route: one tap to close it
             out. Finishing sends the rep back to the list, where the task has
-            moved to "closed today" and the confirmation says so. */}
+            moved to "closed today" and the confirmation says so.
+
+            The button carries the status word it writes — "Done", the same
+            word the status row above it and the edit sheet's own segment
+            use — rather than a synonym for the act of writing it. */}
         <form action={updateTaskStatusAction}>
           <input name="taskId" type="hidden" value={task.id} />
           <input
