@@ -1399,6 +1399,7 @@
       "noOrderReasonRefused": "Refused",
       "noOrderReasonOther": "Other",
       "productSearchPlaceholder": "Search products...",
+      "productSearchClearAria": "Clear the search",
       "productsEmpty": "No products yet — add them in admin",
       "productsNoMatch": "No matches",
       "notesLabel": "Visit notes",
