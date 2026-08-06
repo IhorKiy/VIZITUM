@@ -75,6 +75,13 @@ Multi-PR efforts in progress, each carrying its own status, file map and known g
 - `docs/plans/full-project-audit-plan.md` - the whole-codebase audit: its rules, severity scale, seven passes and coverage checklist. Read it before starting or resuming an audit pass, and record findings there and in `docs/vizitum-action-plan.md`.
 - `docs/plans/audit-remediation-plan-prompt.md` - working off that audit's 32 findings: the order to fix them in, the clusters that must be fixed together, and the excluded cases that exist to stop the next person over-fixing. Read it before picking up any `[audit FNN]` checkbox in `docs/vizitum-action-plan.md`.
 
+Closed efforts and design notes - nothing outstanding in these, but they hold the recorded *reasoning* behind decisions the code no longer explains on its own. Read the matching one before changing that area, and do not re-litigate a decision recorded here:
+
+- `docs/plans/visits-dto-migration-note.md` - why `visits`'s eleven `@Body()` routes are gated the way they are, and in particular why `confirmedData` is whitelisted at the envelope only rather than field-by-field: the offline replay path posts payloads a deep whitelist would reject. Read before touching anything the device outbox sends.
+- `docs/plans/imports-dto-migration-note.md` - the same question for `imports`: what "whitelisted" can mean for a body that is mostly a CSV text blob, and why `csvText` carries no `@MaxLength`.
+- `docs/plans/dto-migration-tiers-4-6-plan-prompt.md` - the last three tiers of the class-validator DTO migration. Complete; the track and security-plan item 2.4 are closed.
+- `docs/plans/error-monitoring-sentry-plan-prompt.md` - extending Sentry coverage to the web frontend and the workers without an SDK. Complete; all three gaps it opens with are closed in code.
+
 Technical design:
 
 - `docs/vizitum-high-level-technical-design.md`

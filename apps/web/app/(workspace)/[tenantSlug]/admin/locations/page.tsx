@@ -99,6 +99,22 @@ export default async function AdminLocationsPage({
 }: AdminLocationsPageProps) {
   const { tenantSlug } = await params;
   const pageState = await searchParams;
+  // Read here rather than beside the accordions that consume it, because the
+  // location-category actions below are declared before that point and have to
+  // carry the reader's section through their own redirects (see
+  // `categoryOpenParam`).
+  const openSection =
+    pageState.open === "locations" || pageState.open === "chains"
+      ? pageState.open
+      : null;
+  // The location-category panel renders above both accordions and belongs to
+  // neither, so its actions have no section of their own to pin — they have to
+  // put back whichever one the reader had open. Appending a fixed
+  // `open=locations` would not do that: with no chain params in the redirect,
+  // `chainActive` is false and `locationsOpen` already falls back to true, so a
+  // constant would render identically to appending nothing while still closing
+  // the Chains section under an admin who was working in it (audit F30).
+  const categoryOpenParam = openSection ? `&open=${openSection}` : "";
   const [t, tChains, tAdmin, tCommon, locale, { phoneCountry }] =
     await Promise.all([
       getTranslations("admin.locations"),
@@ -440,16 +456,22 @@ export default async function AdminLocationsPage({
     const name = getFormString(formData, "name").trim();
 
     if (!name) {
-      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+      redirect(
+        `/${tenantSlug}/admin/locations?locCatError=1${categoryOpenParam}`,
+      );
     }
 
     const result = await createLocationCategory({ name });
 
     if (!result.ok) {
-      redirect(locationCategoryErrorHref(tenantSlug, result));
+      redirect(
+        locationCategoryErrorHref(tenantSlug, result, categoryOpenParam),
+      );
     }
 
-    redirect(`/${tenantSlug}/admin/locations?locCatCreated=1`);
+    redirect(
+      `/${tenantSlug}/admin/locations?locCatCreated=1${categoryOpenParam}`,
+    );
   }
 
   async function updateLocationCategoryAction(formData: FormData) {
@@ -459,16 +481,22 @@ export default async function AdminLocationsPage({
     const name = getFormString(formData, "name").trim();
 
     if (!categoryId || !name) {
-      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+      redirect(
+        `/${tenantSlug}/admin/locations?locCatError=1${categoryOpenParam}`,
+      );
     }
 
     const result = await updateLocationCategory(categoryId, { name });
 
     if (!result.ok) {
-      redirect(locationCategoryErrorHref(tenantSlug, result));
+      redirect(
+        locationCategoryErrorHref(tenantSlug, result, categoryOpenParam),
+      );
     }
 
-    redirect(`/${tenantSlug}/admin/locations?locCatCreated=updated`);
+    redirect(
+      `/${tenantSlug}/admin/locations?locCatCreated=updated${categoryOpenParam}`,
+    );
   }
 
   async function deleteLocationCategoryAction(formData: FormData) {
@@ -477,16 +505,22 @@ export default async function AdminLocationsPage({
     const categoryId = getFormString(formData, "categoryId").trim();
 
     if (!categoryId) {
-      redirect(`/${tenantSlug}/admin/locations?locCatError=1`);
+      redirect(
+        `/${tenantSlug}/admin/locations?locCatError=1${categoryOpenParam}`,
+      );
     }
 
     const result = await deleteLocationCategory(categoryId);
 
     if (!result.ok) {
-      redirect(locationCategoryErrorHref(tenantSlug, result));
+      redirect(
+        locationCategoryErrorHref(tenantSlug, result, categoryOpenParam),
+      );
     }
 
-    redirect(`/${tenantSlug}/admin/locations?locCatCreated=removed`);
+    redirect(
+      `/${tenantSlug}/admin/locations?locCatCreated=removed${categoryOpenParam}`,
+    );
   }
 
   const [
@@ -554,10 +588,6 @@ export default async function AdminLocationsPage({
   // otherwise collapse the section under the user ~5s after an action). On
   // URLs without it (bookmarks, shared links) fall back to inferring the busy
   // section from its params; Locations wins ties and is the default.
-  const openSection =
-    pageState.open === "locations" || pageState.open === "chains"
-      ? pageState.open
-      : null;
   const locationsOpen = openSection
     ? openSection === "locations"
     : locActive || !chainActive;
@@ -1680,9 +1710,13 @@ function normalizeOptionalField(
 function locationCategoryErrorHref(
   tenantSlug: string,
   result: { code?: string; details?: unknown },
+  // Carried for the same reason the success redirects carry it: a refused
+  // category edit must not collapse the section the admin was working in
+  // either.
+  openParam: string,
 ): string {
   if (result.code === "LOCATION_CATEGORY_EXISTS") {
-    return `/${tenantSlug}/admin/locations?locCatError=exists`;
+    return `/${tenantSlug}/admin/locations?locCatError=exists${openParam}`;
   }
 
   if (result.code === "LOCATION_CATEGORY_IN_USE") {
@@ -1691,9 +1725,9 @@ function locationCategoryErrorHref(
       typeof details?.locationCount === "number" ? details.locationCount : null;
 
     if (locationCount !== null) {
-      return `/${tenantSlug}/admin/locations?locCatError=inUse&locCatErrorCount=${locationCount}`;
+      return `/${tenantSlug}/admin/locations?locCatError=inUse&locCatErrorCount=${locationCount}${openParam}`;
     }
   }
 
-  return `/${tenantSlug}/admin/locations?locCatError=1`;
+  return `/${tenantSlug}/admin/locations?locCatError=1${openParam}`;
 }

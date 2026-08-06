@@ -624,7 +624,14 @@ export default async function LocationDetailPage({
               {openTasks.map((item: Task) => (
                 <a
                   className="location-mini-card location-mini-card-link"
-                  href={`/${tenantSlug}/field/tasks#task-${item.id}`}
+                  // Carries this card's origin, so tapping back from the task
+                  // list returns the rep to the outlet they were working
+                  // rather than to the field home (audit F17). `selfOrigin` is
+                  // the same value the card's other outgoing links use.
+                  href={withBackOrigin(
+                    `/${tenantSlug}/field/tasks#task-${item.id}`,
+                    selfOrigin,
+                  )}
                   key={item.id}
                 >
                   <header>
