@@ -5,6 +5,7 @@ import { AddRouteStopModal } from "../../../../components/add-route-stop-modal";
 import { AnnouncementFeed } from "../../../../components/announcement-feed";
 import { AppShell } from "../../../../components/app-shell";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
+import { ChevronRightIcon } from "../../../../components/icons";
 import {
   addRouteItem,
   deleteRouteItem,
@@ -340,15 +341,21 @@ export default async function FieldPage({
 
         {routeStops.length > 0 ? (
           <a
+            aria-label={t("home.progressAria", {
+              total: routeStops.length,
+              visited: visitedStops,
+            })}
             className="today-header-progress"
             href={`/${tenantSlug}/field/planning`}
           >
+            {/* The count and an arrow — the arrow is what says this goes
+                somewhere. The aria-label above carries the sentence the
+                numbers stand for, since "1/4" read aloud is not one. */}
             <p className="today-header-count">
-              {t.rich("home.visitedOfTotal", {
-                total: routeStops.length,
-                visited: visitedStops,
-                strong: (chunks) => <strong>{chunks}</strong>,
-              })}
+              <span>
+                {visitedStops}/{routeStops.length}
+              </span>
+              <ChevronRightIcon size={18} />
             </p>
             <span
               aria-valuemax={routeStops.length}

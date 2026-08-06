@@ -1223,7 +1223,7 @@
       "signedOutTitle": "Візити на сьогодні",
       "signedOutBody": "Для продовження польової роботи потрібні живі дані візитів.",
       "greeting": "Привіт!",
-      "visitedOfTotal": "<strong>{visited} з {total}</strong> відвідано",
+      "progressAria": "Відвідано {visited} з {total}",
       "reportConfirmedEyebrow": "Звіт підтверджено",
       "reportConfirmedTitle": "Ручний звіт збережено",
       "reportQueuedEyebrow": "Збережено на пристрої",

@@ -1223,7 +1223,7 @@
       "signedOutTitle": "Today's visits",
       "signedOutBody": "Live visit data is required in production before field work can continue.",
       "greeting": "Hi!",
-      "visitedOfTotal": "<strong>{visited} of {total}</strong> visited",
+      "progressAria": "{visited} of {total} visited",
       "reportConfirmedEyebrow": "Report confirmed",
       "reportConfirmedTitle": "Manual report saved",
       "reportQueuedEyebrow": "Saved on this device",

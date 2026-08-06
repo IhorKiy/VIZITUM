@@ -6158,25 +6158,24 @@ textarea {
 /* Scoped to the header rather than left as a bare class: `.page-header p`
    sets the muted colour every paragraph in a header takes, and would
    otherwise win on specificity and grey this out. The numbers carry the
-   accent, and so does the word after them — the whole line is the link, and
-   half of it in grey read as a label that had picked up a stray underline.
-   Underlined because nothing else here says it is tappable: the bar below is
-   a picture and the numbers read as a readout. The line stays on the text;
-   the bar keeps its own edge. Weight, not colour, still separates the count
-   from the word it is counting. */
+   accent — and the arrow beside them is what says the count goes somewhere.
+   An underline said it before, but underlining a fraction made it read as a
+   label with a stray rule rather than a control. */
 .today-header .today-header-count {
+  align-items: center;
   color: var(--accent);
-  font-size: 13px;
+  display: flex;
+  font-size: 20px;
+  font-weight: 800;
+  gap: 2px;
+  line-height: 1.1;
   margin: 0;
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
 }
 
-.today-header .today-header-count strong {
-  color: var(--accent);
-  font-weight: 800;
+.today-header .today-header-count svg {
+  /* Sits on the digits' own line rather than the text box's, which runs
+     taller than they do. */
+  margin-top: 1px;
 }
 
 /* Grouped route card (mobile-first, light) */
