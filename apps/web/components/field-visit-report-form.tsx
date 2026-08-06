@@ -23,6 +23,7 @@ import {
   registerProblemPhotoAction,
   transcribeFieldReportAction,
 } from "../lib/field-report-actions";
+import { apiErrorMessageKey } from "../lib/api-error";
 import { INPUT_LIMITS } from "../lib/input-limits";
 import {
   deleteReportOutboxEntry,
@@ -94,9 +95,11 @@ type FieldVisitReportFormProps = {
 };
 
 // Mirrors VISIT_DATE_BACKDATE_WINDOW_DAYS in src/modules/visits/shelf-check.ts
-// (this workspace cannot import from the backend) — keep the two in sync. The
-// backend allows one extra day of slack on both ends for timezone skew, so
-// these stricter local-time bounds never trip it.
+// (this workspace cannot import from the backend) — `tests/cross-workspace-
+// constants.test.ts` keeps the two in sync, so a change here that is not made
+// there fails the suite rather than the rep. The backend allows one extra day
+// of slack on both ends for timezone skew, so these stricter local-time bounds
+// never trip it.
 const VISIT_DATE_BACKDATE_WINDOW_DAYS = 3;
 
 function toLocalIsoDate(date: Date): string {
@@ -232,6 +235,7 @@ export function FieldVisitReportForm({
   voiceHint,
 }: FieldVisitReportFormProps) {
   const t = useTranslations("field.visit");
+  const tApiError = useTranslations("common.apiError");
   const router = useRouter();
 
   // Two screens: "capture" is just the mic plus the tenant's speaking
@@ -1317,7 +1321,12 @@ export function FieldVisitReportForm({
       // this is theirs to fix now rather than something to leave in a queue that
       // will only be refused again.
       if (queuedKey) await deleteReportOutboxEntry(queuedKey);
-      setError(sendOutcome.message || t("saveFailedError"));
+      // The API's code, translated — not its English `message`. This was the
+      // highest-stakes of audit F14's 25 sites and the closest to correct: the
+      // translated string was already here, used only when the backend's text
+      // happened to be empty, so a Ukrainian rep whose report was refused read
+      // the refusal in English on a phone, in a shop.
+      setError(tApiError(apiErrorMessageKey(sendOutcome.code)));
       setIsSubmitting(false);
       return;
     }

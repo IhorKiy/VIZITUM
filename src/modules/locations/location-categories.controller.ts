@@ -16,7 +16,7 @@ import { createStrictValidationPipe } from "../../common/strict-validation-pipe"
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import { UpsertLocationCategoryDto } from "./location-categories.dto";
 import { LocationCategoriesService } from "./location-categories.service";
 
@@ -76,12 +76,4 @@ export class LocationCategoriesController {
       categoryId,
     );
   }
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-
-  return request.context;
 }

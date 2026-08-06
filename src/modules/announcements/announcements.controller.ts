@@ -16,7 +16,7 @@ import { createStrictValidationPipe } from "../../common/strict-validation-pipe"
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import { UpsertAnnouncementDto } from "./announcements.dto";
 import { AnnouncementsService } from "./announcements.service";
 import type { AnnouncementState } from "./announcements.types";
@@ -108,13 +108,6 @@ export class AnnouncementsController {
       announcementId,
     );
   }
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-  return request.context;
 }
 
 function parsePositiveInteger(value: string | undefined): number | undefined {

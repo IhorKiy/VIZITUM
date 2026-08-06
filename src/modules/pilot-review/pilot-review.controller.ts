@@ -18,7 +18,7 @@ import {
   RequirePermissions,
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import { RecordDashboardViewDto } from "./pilot-review.dto";
 import {
   MANAGER_DASHBOARD_VIEWED_EVENT_TYPE,
@@ -68,14 +68,6 @@ export class PilotReviewController {
 
     return { recorded: true };
   }
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-
-  return request.context;
 }
 
 function normalizeDashboardViewPage(value: unknown): DashboardViewPage {

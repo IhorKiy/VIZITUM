@@ -39,6 +39,7 @@ export type AuthSession = {
 export type VisitStatus = "draft" | "in_progress" | "completed" | "cancelled";
 // Mirrors the backend VisitCancellationReason enum; required by
 // POST /visits/:visitId/cancel — a visit can't be cancelled without one.
+// Held to the Prisma enum by tests/cross-workspace-constants.test.ts.
 export type VisitCancellationReason =
   "location_closed" | "client_unavailable" | "route_changed" | "other";
 export type RouteStatus =
@@ -2343,7 +2344,12 @@ async function apiDelete<TData>(path: string): Promise<ApiResult<TData>> {
 
 // Mirrors src/common/cookie-naming.ts's resolveCookieName — duplicated
 // rather than imported because this workspace can't reach across into the
-// root one. Both sides must apply the same rule: production hardcodes the
+// root one. tests/cross-workspace-constants.test.ts runs this copy against
+// the backend's on the same inputs, so the two cannot drift into agreeing on
+// the source and disagreeing on the answer — which here would mean the API
+// setting one production cookie name while this side cleared another, and a
+// logout that looked like it worked.
+// Both sides must apply the same rule: production hardcodes the
 // __Host- prefixed name (which requires Secure, and local HTTP dev can't set
 // it), and only SESSION_COOKIE_NAME takes a dev-only override, matching
 // auth.constants.ts's own comment on why the CSRF cookies don't get one.

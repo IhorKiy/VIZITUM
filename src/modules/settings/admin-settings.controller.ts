@@ -15,7 +15,7 @@ import { createStrictValidationPipe } from "../../common/strict-validation-pipe"
 import { PermissionGuard } from "../auth/permission.guard";
 import { RequirePermissions } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import {
   ConfirmLogoUploadDto,
   RegisterLogoUploadDto,
@@ -80,12 +80,4 @@ export class AdminSettingsController {
   removeLogo(@Req() request: Request) {
     return this.settingsService.removeLogo(getRequestContext(request));
   }
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-
-  return request.context;
 }

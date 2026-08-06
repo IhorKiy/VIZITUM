@@ -29,7 +29,7 @@ import {
   RequirePermissions,
 } from "../auth/permissions.decorator";
 import { PERMISSIONS } from "../roles/permissions";
-import type { RequestContext } from "../tenancy/request-context";
+import { getRequestContext } from "../tenancy/request-context";
 import {
   AddTextVisitNoteDto,
   CancelVisitDto,
@@ -289,14 +289,6 @@ export class VisitsController {
       body,
     );
   }
-}
-
-function getRequestContext(request: Request): RequestContext {
-  if (!request.context) {
-    throw new Error("Request context was not initialized.");
-  }
-
-  return request.context;
 }
 
 function parsePositiveInteger(value: string | undefined): number | undefined {
