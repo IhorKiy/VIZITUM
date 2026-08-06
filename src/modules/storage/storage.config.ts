@@ -32,6 +32,40 @@ export class StorageConfigService {
   }
 }
 
+/**
+ * Whether `S3_ENDPOINT` is a value the storage client can actually use.
+ *
+ * `getConfig` checks the four S3 variables for presence only, and the endpoint
+ * is not parsed until `buildObjectUrl` calls `new URL(config.endpoint)` on the
+ * first upload. So a scheme-less value — `r2.example.com` instead of
+ * `https://r2.example.com`, an ordinary paste error — boots green, passes
+ * readiness and the alert check, and then 500s every audio and photo register
+ * call with `TypeError: Invalid URL` (audit F2).
+ *
+ * Exported so the production boot gate in `auth/security-config.ts` can refuse
+ * to start on it, with one definition of what a usable endpoint is rather than
+ * a second opinion living next to the gate.
+ *
+ * The protocol check is the load-bearing half: `new URL` accepts `r2:example`
+ * as a URL with the `r2:` protocol, so parsing alone would let a mistyped
+ * endpoint through and fail later anyway.
+ */
+export function isUsableStorageEndpoint(value: string | undefined): boolean {
+  const endpoint = value?.trim();
+
+  if (!endpoint) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(endpoint);
+
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 function normalizeRequiredEnv(name: string): string {
   const value = normalizeOptionalEnv(name);
 

@@ -1,6 +1,7 @@
 import type { LoggerService } from "@nestjs/common";
 
 import { isSecretKeyValid } from "../../common/secret-box";
+import { isUsableStorageEndpoint } from "../storage/storage.config";
 
 // Security controls that are optional everywhere else and mandatory in
 // production. Each one degrades *silently* when its variable is missing —
@@ -56,6 +57,39 @@ const PRODUCTION_REQUIREMENTS: ProductionRequirement[] = [
 
       return Number.isInteger(parsed) && parsed >= 0;
     },
+  },
+  // The four storage variables. These do not degrade silently the way the ones
+  // above do — they throw — but they throw at the *first upload* rather than at
+  // boot, which lands in the same place: `/health/readiness` reports ready,
+  // UptimeRobot stays green, `npm run alerts:check` passes, and every
+  // `POST /visits/:id/notes/audio/register` answers 500. Field representatives
+  // lose audio and photo capture entirely, nothing pages anyone, and the first
+  // report is a rep saying the button does not work (audit F2). Readiness does
+  // not cover storage either, so this gate is the only thing that can catch it
+  // before a person does.
+  {
+    name: "S3_ENDPOINT",
+    reason:
+      "storage is read per request and only checked for presence, so an endpoint with no scheme (`r2.example.com` rather than `https://r2.example.com`) boots green and then fails every media upload with `TypeError: Invalid URL` — it must parse as an http(s) URL",
+    isSatisfied: (env) => isUsableStorageEndpoint(env.S3_ENDPOINT),
+  },
+  {
+    name: "S3_BUCKET",
+    reason:
+      "every visit photo and audio note is written to it; unset, the first capture of the deploy is the thing that finds out",
+    isSatisfied: (env) => Boolean(env.S3_BUCKET?.trim()),
+  },
+  {
+    name: "S3_ACCESS_KEY_ID",
+    reason:
+      "presigned upload and download URLs cannot be signed without it, so media capture fails with no other symptom",
+    isSatisfied: (env) => Boolean(env.S3_ACCESS_KEY_ID?.trim()),
+  },
+  {
+    name: "S3_SECRET_ACCESS_KEY",
+    reason:
+      "presigned upload and download URLs cannot be signed without it, so media capture fails with no other symptom",
+    isSatisfied: (env) => Boolean(env.S3_SECRET_ACCESS_KEY?.trim()),
   },
 ];
 

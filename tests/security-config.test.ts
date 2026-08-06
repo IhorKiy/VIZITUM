@@ -15,6 +15,10 @@ const COMPLETE_PRODUCTION_ENV = {
   // 32 bytes, base64 — the gate checks the key is usable, not merely present.
   TOTP_ENCRYPTION_KEY: "dml6aXR1bS10ZXN0LXRvdHAta2V5LTMyLWJ5dGVzISE=",
   TRUST_PROXY_HOPS: "2",
+  S3_ENDPOINT: "https://account.r2.cloudflarestorage.com",
+  S3_BUCKET: "vizitum",
+  S3_ACCESS_KEY_ID: "access-key-id",
+  S3_SECRET_ACCESS_KEY: "secret-access-key",
 } as NodeJS.ProcessEnv;
 
 describe("production security configuration", () => {
@@ -45,6 +49,10 @@ describe("production security configuration", () => {
     "SESSION_SECRET",
     "TOTP_ENCRYPTION_KEY",
     "TRUST_PROXY_HOPS",
+    "S3_ENDPOINT",
+    "S3_BUCKET",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
   ] as const) {
     it(`refuses to start in production without ${missing}`, () => {
       const env = { ...COMPLETE_PRODUCTION_ENV };
@@ -160,6 +168,41 @@ describe("production security configuration", () => {
     // One per production requirement, pinned to the list itself so adding a
     // requirement without a test for it is a failure rather than a silent
     // pass.
-    assert.equal(errors.length, 6);
+    assert.equal(errors.length, 10);
+  });
+
+  // The failure audit F2 recorded, and the reason presence alone is not
+  // enough: the endpoint is not parsed anywhere until `buildObjectUrl` calls
+  // `new URL` on the first upload, so a scheme-less value boots green, passes
+  // readiness and `alerts:check`, and then 500s every audio and photo register
+  // call with `TypeError: Invalid URL` while nothing pages anyone.
+  it("refuses an S3 endpoint that is present but not a usable URL", () => {
+    for (const endpoint of [
+      // The paste error itself.
+      "account.r2.cloudflarestorage.com",
+      // `new URL` accepts this — protocol `r2:` — so parsing alone would let
+      // it through and fail at the first upload anyway.
+      "r2:account",
+      "   ",
+      "/account",
+    ]) {
+      const errors = collectSecurityConfigurationErrors({
+        ...COMPLETE_PRODUCTION_ENV,
+        S3_ENDPOINT: endpoint,
+      } as NodeJS.ProcessEnv);
+
+      assert.equal(errors.length, 1, `expected "${endpoint}" to be refused`);
+      assert.match(errors[0], /S3_ENDPOINT/);
+    }
+  });
+
+  it("accepts an http endpoint, which is how a local S3 mock is reached", () => {
+    assert.deepEqual(
+      collectSecurityConfigurationErrors({
+        ...COMPLETE_PRODUCTION_ENV,
+        S3_ENDPOINT: "http://localhost:9000",
+      } as NodeJS.ProcessEnv),
+      [],
+    );
   });
 });
