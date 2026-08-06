@@ -6109,7 +6109,15 @@ textarea {
   margin-bottom: 16px;
 }
 
+/* Greeting and date on one line, sharing a baseline: two short phrases that
+   between them said less than the space two stacked lines cost. Wraps rather
+   than shrinking either, so a longer date drops under the greeting instead
+   of squeezing it. */
 .today-header-day {
+  align-items: baseline;
+  column-gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
   min-width: 0;
 }
 
@@ -6124,7 +6132,7 @@ textarea {
 .today-header-meta {
   color: var(--muted);
   font-size: 13px;
-  margin: 2px 0 0;
+  margin: 0;
 }
 
 /* How far through the list the rep is, at the end of the line that names it.
