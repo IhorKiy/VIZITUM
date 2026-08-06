@@ -104,12 +104,17 @@ export class S3StorageClient {
   // the transcription client — never a second client-facing hop.
   //
   // `maxBytes` is required rather than optional because this method buffers
-  // the whole object into memory. The size a client declared at registration
-  // bounds nothing on its own — the presigned PUT does not sign
-  // `Content-Length`, so the object can be arbitrarily larger than the number
-  // that was validated. Checking the length the store reports, before any of
-  // it is read, is what keeps an oversized upload from becoming an
-  // out-of-memory kill and an unbounded transcription bill.
+  // the whole object into memory, and the length the store reports is the only
+  // authority on what was actually stored. Checking it before reading a byte is
+  // what keeps an oversized object from becoming an out-of-memory kill and an
+  // unbounded transcription bill.
+  //
+  // Not because the upload was unchecked: the presigned PUT signs
+  // `Content-Length` (see `buildCanonicalHeaders` below), so a body over the
+  // size declared at registration fails the PUT rather than landing in the
+  // bucket. This is the second of two real checks, not the only real one — the
+  // comment here used to claim otherwise, which contradicted the one thirty
+  // lines further down in this same file (audit F9).
   async downloadObject(
     bucket: string,
     objectKey: string,
