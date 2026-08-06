@@ -58,23 +58,18 @@ export function TodayRouteDragList({
   removeAction,
 }: TodayRouteDragListProps) {
   const groups = groupByRoutePlan(stops);
-  const indexById = new Map<string, number>();
-
-  stops.forEach((stop, index) => {
-    indexById.set(stop.id, index);
-  });
 
   return (
     <ol className="route-stop-list">
       {groups.map((group) => (
         <TodayRouteGroup
-          indexById={indexById}
           isDemoMode={isDemoMode}
           key={group.routePlanId}
           markVisitedAction={markVisitedAction}
           removeAction={removeAction}
           reorderAction={reorderAction}
           routePlanId={group.routePlanId}
+          startIndex={group.startIndex}
           stops={group.stops}
           tenantSlug={tenantSlug}
         />
@@ -86,9 +81,13 @@ export function TodayRouteDragList({
 // A viewer with team-wide access sees every representative's plan for today
 // merged into one list (see getTodayRoutes), so each plan gets its own drag
 // context here — a stop can never be dragged into someone else's route.
+// Each group also carries where its stops start in the single run of numbers
+// the reader sees. Groups keep their order while only their contents are
+// draggable, so that offset is stable — a stop's position inside its group is
+// not, and is counted against the live order at render.
 function groupByRoutePlan(
   stops: TodayStop[],
-): Array<{ routePlanId: string; stops: TodayStop[] }> {
+): Array<{ routePlanId: string; startIndex: number; stops: TodayStop[] }> {
   const order: string[] = [];
   const byPlan = new Map<string, TodayStop[]>();
 
@@ -104,30 +103,38 @@ function groupByRoutePlan(
     planStops.push(stop);
   }
 
-  return order.map((routePlanId) => ({
-    routePlanId,
-    stops: byPlan.get(routePlanId) as TodayStop[],
-  }));
+  let startIndex = 0;
+
+  return order.map((routePlanId) => {
+    const planStops = byPlan.get(routePlanId) as TodayStop[];
+    const group = { routePlanId, startIndex, stops: planStops };
+
+    startIndex += planStops.length;
+
+    return group;
+  });
 }
 
 type TodayRouteGroupProps = {
-  indexById: Map<string, number>;
   isDemoMode: boolean;
   reorderAction: (routePlanId: string, itemIds: string[]) => Promise<void>;
   markVisitedAction: (formData: FormData) => Promise<void>;
   removeAction: (formData: FormData) => Promise<void>;
   routePlanId: string;
+  // How many stops the plans above this one contribute, so this group's
+  // numbers continue the list instead of restarting at 1.
+  startIndex: number;
   stops: TodayStop[];
   tenantSlug: string;
 };
 
 function TodayRouteGroup({
-  indexById,
   isDemoMode,
   reorderAction,
   markVisitedAction,
   removeAction,
   routePlanId,
+  startIndex,
   stops,
   tenantSlug,
 }: TodayRouteGroupProps) {
@@ -261,9 +268,13 @@ function TodayRouteGroup({
         items={order.map((stop) => stop.id)}
         strategy={verticalListSortingStrategy}
       >
-        {order.map((stop) => (
+        {/* Numbered by where the stop sits now, not by where the server last
+            saw it: the whole point of the handle is that the reader decides
+            the order, and a badge that travelled with its card left the list
+            reading 3, 1, 2 until the next load. */}
+        {order.map((stop, position) => (
           <TodayRouteStopRow
-            index={indexById.get(stop.id) ?? 0}
+            index={startIndex + position}
             isDemoMode={isDemoMode}
             key={stop.id}
             markVisitedAction={markVisitedAction}
