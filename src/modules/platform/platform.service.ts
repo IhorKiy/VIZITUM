@@ -806,6 +806,18 @@ export class PlatformService {
     return tenant;
   }
 
+  // Deliberately not behind `assertFreshSecondFactor`, unlike `requestTenantPurge`.
+  // The gate is scoped to *irreversible* operations, not to customer-visible
+  // ones: archive stops the tenant serving and revokes every session, but
+  // `unarchiveTenant` puts it back, and the purge worker only touches tenants
+  // that stay archived past retention. The cost of widening it is a
+  // confirmation nobody can act on quickly, which stops being read.
+  //
+  // What that leaves standing, stated rather than left to be rediscovered: a
+  // platform-owner session stolen inside its TTL can archive every tenant in
+  // sequence and take the customer base offline unchallenged. Recovery is one
+  // ungated call per tenant. Reviewed as audit F6 and kept as-is;
+  // `docs/security-remediation-plan.md` item 1.3 carries the same reasoning.
   async archiveTenant(
     tenantId: string,
     context: { actorUserId?: string; requestId?: string } = {},
