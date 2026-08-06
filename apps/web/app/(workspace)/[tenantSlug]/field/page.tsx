@@ -1,16 +1,18 @@
 import { redirect } from "next/navigation";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
 
+import { AddRouteStopModal } from "../../../../components/add-route-stop-modal";
 import { AnnouncementFeed } from "../../../../components/announcement-feed";
 import { AppShell } from "../../../../components/app-shell";
 import { DismissableNotice } from "../../../../components/dismissable-notice";
-import { PendingSubmitButton } from "../../../../components/pending-submit-button";
+import { ChevronRightIcon } from "../../../../components/icons";
 import {
   addRouteItem,
   deleteRouteItem,
   getCurrentSession,
   listActiveAnnouncements,
   listLocations,
+  listTasks,
   listTodayRoutes,
   markAnnouncementRead,
   reorderRouteItems,
@@ -19,6 +21,7 @@ import {
 } from "../../../../lib/api-client";
 import { RouteSnapshotWriter } from "../../../../components/route-snapshot-writer";
 import { isDemoFallbackEnabled } from "../../../../lib/demo-mode";
+import { summariseTasksByLocation } from "../../../../lib/field-stop-tasks";
 import { getFormString } from "../../../../lib/form";
 import { TodayRouteDragList } from "./today-route-drag-list";
 
@@ -30,6 +33,10 @@ type FieldPageProps = {
     stop?: string;
   }>;
 };
+
+// Enough to cover a rep's open work; the badges count what came back, and a
+// rep with more open tasks than this has a bigger problem than a badge.
+const OPEN_TASK_PAGE_SIZE = 200;
 
 type FieldRouteStop = {
   id: string;
@@ -84,20 +91,35 @@ export default async function FieldPage({
   // The add-stop affordance below reuses field.routes' strings rather than
   // duplicating them: it is the same "add a location to a route" action the
   // routes screen offers, and the two must not drift apart in wording.
-  const [t, tRoutes, tCommon, format] = await Promise.all([
+  const [t, tRoutes, tCommon, format, timeZone] = await Promise.all([
     getTranslations("field"),
     getTranslations("field.routes"),
     getTranslations("common"),
     getFormatter(),
+    getTimeZone(),
   ]);
+  // The rep's today, not the browser's — the same resolution the task list
+  // uses to decide what is due and what is late.
+  const todayIsoDate = new Intl.DateTimeFormat("en-CA", { timeZone }).format(
+    new Date(),
+  );
 
-  const [sessionResult, routesResult, locationsResult, announcementsResult] =
-    await Promise.all([
-      getCurrentSession(),
-      listTodayRoutes(),
-      listLocations(),
-      listActiveAnnouncements(),
-    ]);
+  const [
+    sessionResult,
+    routesResult,
+    locationsResult,
+    announcementsResult,
+    tasksResult,
+  ] = await Promise.all([
+    getCurrentSession(),
+    listTodayRoutes(),
+    listLocations(),
+    listActiveAnnouncements(),
+    // What is open against the stops on this route, so a card can say there
+    // is work waiting there before the rep walks in. A failure costs the
+    // badges, not the route.
+    listTasks(`pageSize=${OPEN_TASK_PAGE_SIZE}&status=in_progress`),
+  ]);
   const todayRoutesResult = sessionResult.ok
     ? routesResult
     : {
@@ -145,9 +167,6 @@ export default async function FieldPage({
     : demoRouteStops;
   const visitedStops = routeStops.filter((stop) => stop.visited).length;
   const isDemoMode = !todayRoutesResult.ok && demoFallbackEnabled;
-  const firstName = sessionResult.ok
-    ? sessionResult.data.user.firstName
-    : t("home.guestName");
 
   // A rep manages their own plans (routes.manage_own); a team lead may manage
   // any. Without either, POST would only 403, so the affordance stays hidden.
@@ -174,6 +193,34 @@ export default async function FieldPage({
   const availableLocations = locations.filter(
     (location) => !plannedLocationIds.has(location.id),
   );
+  // The badges count the *viewer's* open tasks (`listTasks` is scoped to the
+  // caller), but this list is not always the viewer's own day: a rep with
+  // team-wide access sees every representative's plan for today merged into
+  // one list (see groupByRoutePlan in today-route-drag-list.tsx). Left as-is,
+  // a team lead reading someone else's stop would see a badge about their own
+  // work at that location — the same card saying "1 overdue" to two people
+  // about two different tasks.
+  //
+  // So they are shown only when every plan on screen belongs to the viewer.
+  // Owner identity, not the number of groups: one rep can hold several plans
+  // for a day (one per template), which is an ordinary day and not a team
+  // view — counting groups would have hidden the badges from the reps they
+  // are for. A viewer whose list holds someone else's plan gets no badges at
+  // all rather than badges that are right for some cards and wrong for
+  // others; giving a lead the counts they actually mean would need a
+  // per-representative task read this screen does not make.
+  const listIsViewersOwnDay =
+    sessionResult.ok &&
+    todayRoutesResult.ok &&
+    todayRoutesResult.data.every(
+      (plan) => plan.representativeUserId === sessionResult.data.user.id,
+    );
+  const taskSummaries = listIsViewersOwnDay
+    ? summariseTasksByLocation(
+        tasksResult.ok ? tasksResult.data.items : [],
+        todayIsoDate,
+      )
+    : {};
   // A failed announcements fetch leaves the board empty rather than taking the
   // whole home screen down: the route is the thing the rep came here for, and
   // it is already loaded.
@@ -298,10 +345,12 @@ export default async function FieldPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field">
-      <header className="page-header greeting-header">
-        <div>
-          <h1>{t("home.greeting", { firstName })}</h1>
-          <p className="greeting-date">{formatGreetingDate(format)}</p>
+      {/* The greeting and the date, and nothing else: how far through the day
+          the rep is belongs with the list it counts, not up here. */}
+      <header className="page-header today-header">
+        <div className="today-header-day">
+          <h1>{t("home.greeting")}</h1>
+          <p className="today-header-meta">{formatTodayDate(format)}</p>
         </div>
       </header>
 
@@ -432,57 +481,30 @@ export default async function FieldPage({
         ) : null}
         {routeStops.length > 0 ? (
           <>
-            <article className="route-progress-card">
-              <div className="route-progress-head">
-                <span>{t("home.progressToday")}</span>
-                <span className="route-progress-count">
-                  {visitedStops}/{routeStops.length}
-                </span>
-              </div>
-              <div
-                className="route-progress-track"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={routeStops.length}
-                aria-valuenow={visitedStops}
-              >
-                <div
-                  className="route-progress-fill"
-                  style={{
-                    width: `${Math.round(
-                      (visitedStops / routeStops.length) * 100,
-                    )}%`,
-                  }}
-                />
-              </div>
-              <div className="route-progress-legend">
-                <span>{t("home.visitedCount", { count: visitedStops })}</span>
-                {routeStops.length - visitedStops > 0 ? (
-                  <span>
-                    {t("home.remainingCount", {
-                      count: routeStops.length - visitedStops,
-                    })}
-                  </span>
-                ) : (
-                  <span>{t("home.allVisited")}</span>
-                )}
-              </div>
-            </article>
-
             <div className="route-plan-card">
-              <div className="route-plan-head">
-                <span className="route-plan-icon" aria-hidden="true">
-                  ⇄
-                </span>
-                <div className="route-plan-heading">
-                  <p className="route-plan-name">{t("home.todayRoute")}</p>
-                  <a
-                    className="route-plan-link"
-                    href={`/${tenantSlug}/field/planning`}
-                  >
-                    {t("home.editPlan")}
-                  </a>
-                </div>
+              {/* One list for the day, whatever it was planned from: the rep
+                  walks a sequence of stops, and which saved route each came
+                  from is the planner's concern, not theirs.
+
+                  The count rides on the same line, at the far end: it counts
+                  this list, and the arrow says it opens the plan behind it.
+                  Its aria-label carries the sentence the fraction stands for,
+                  since "1/4" read aloud is not one. */}
+              <div className="route-day-head">
+                <h2 className="route-day-label">{t("home.todayRoute")}</h2>
+                <a
+                  aria-label={t("home.progressAria", {
+                    total: routeStops.length,
+                    visited: visitedStops,
+                  })}
+                  className="route-day-count"
+                  href={`/${tenantSlug}/field/planning`}
+                >
+                  <span>
+                    {visitedStops}/{routeStops.length}
+                  </span>
+                  <ChevronRightIcon size={16} />
+                </a>
               </div>
 
               <TodayRouteDragList
@@ -491,52 +513,30 @@ export default async function FieldPage({
                 removeAction={removeStopAction}
                 reorderAction={reorderTodayRouteAction}
                 stops={routeStops}
+                taskSummaries={taskSummaries}
                 tenantSlug={tenantSlug}
               />
 
               {/* Demo stops carry fabricated plan ids, so the write path is
-                  only offered against a real route. */}
+                  only offered against a real route.
+
+                  A sheet rather than a disclosure that expands in place: this
+                  card sits at the bottom of a scrolling column, so opening the
+                  form pushed the route it belongs to out of view. */}
               {canAddStop && !isDemoMode && lastStop ? (
-                <details className="route-add-stop today-add-stop">
-                  <summary className="route-add-stop-trigger">
-                    <span aria-hidden="true">+</span> {tRoutes("addStop")}
-                  </summary>
-                  {availableLocations.length > 0 ? (
-                    <form
-                      action={addTodayStopAction}
-                      className="visit-form compact"
-                    >
-                      <input
-                        name="routePlanId"
-                        type="hidden"
-                        value={lastStop.routePlanId}
-                      />
-                      <label>
-                        {tRoutes("locationLabel")}
-                        <select name="locationId" required>
-                          {availableLocations.map((location) => (
-                            <option key={location.id} value={location.id}>
-                              {location.name}
-                              {location.city ? ` · ${location.city}` : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <PendingSubmitButton
-                        className="primary-button"
-                        pendingLabel={tRoutes("adding")}
-                      >
-                        {tRoutes("addToRoute")}
-                      </PendingSubmitButton>
-                    </form>
-                  ) : (
-                    <p className="empty-state">
-                      {locations.length === 0
-                        ? tRoutes("noLocations")
-                        : tRoutes("allLocationsUsed")}
-                    </p>
-                  )}
-                </details>
+                <AddRouteStopModal
+                  action={addTodayStopAction}
+                  emptyMessage={
+                    locations.length === 0
+                      ? tRoutes("noLocations")
+                      : tRoutes("allLocationsUsed")
+                  }
+                  locationOptions={availableLocations.map((location) => ({
+                    id: location.id,
+                    label: `${location.name}${location.city ? ` · ${location.city}` : ""}`,
+                  }))}
+                  routePlanId={lastStop.routePlanId}
+                />
               ) : null}
             </div>
           </>
@@ -578,14 +578,15 @@ function toRouteStops(plans: RoutePlan[]): FieldRouteStop[] {
     .sort((a, b) => a.sequence - b.sequence);
 }
 
-function formatGreetingDate(
+// No year: this always names today, and "2026" in a header a rep reads every
+// morning is a word that never changes.
+function formatTodayDate(
   format: Awaited<ReturnType<typeof getFormatter>>,
 ): string {
   const formatted = format.dateTime(new Date(), {
     day: "numeric",
     month: "long",
     weekday: "long",
-    year: "numeric",
   });
 
   return formatted

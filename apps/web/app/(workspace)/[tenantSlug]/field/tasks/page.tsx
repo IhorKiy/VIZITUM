@@ -894,17 +894,15 @@ export default async function FieldTasksPage({
         ) : null}
       </section>
 
-      {/* Out of the header and into a floating button. The collapsed bar has
-          room for the filters or for this, not both, and creating a task is the
-          one action here that has to stay in reach at any scroll depth — it is
-          how a rep records what they were just told at a location. Rendered
-          after the list rather than inside the header because it is fixed to
-          the viewport: its place in the document is where its dialog lives, and
-          that belongs at the end. */}
+      {/* The dialog only — its button is the bottom nav's, on every field
+          screen (components/field-create-fab.tsx), and reaches this through
+          `?create=1`. Mounted here because this is the screen that has the
+          rep's assigned locations and the create action; rendered after the
+          list because a dialog belongs at the end of the document. */}
       <CreateOwnTaskModal
         action={createTaskAction}
         locationOptions={assignedLocationOptions}
-        triggerClassName="task-fab"
+        todayIsoDate={todayIsoDate}
       />
     </AppShell>
   );
@@ -1168,7 +1166,11 @@ function TaskSheetBody({
       <div className="task-sheet-actions">
         {/* The whole point of opening a task on a route: one tap to close it
             out. Finishing sends the rep back to the list, where the task has
-            moved to "closed today" and the confirmation says so. */}
+            moved to "closed today" and the confirmation says so.
+
+            The button carries the status word it writes — "Done", the same
+            word the status row above it and the edit sheet's own segment
+            use — rather than a synonym for the act of writing it. */}
         <form action={updateTaskStatusAction}>
           <input name="taskId" type="hidden" value={task.id} />
           <input

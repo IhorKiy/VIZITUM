@@ -23,6 +23,23 @@ import { describe, it } from "node:test";
 // exist, and a count would simply be bumped. Naming each one forces a new
 // `<Link>` in this zone to be argued in a diff — and makes the ones already
 // here visible, which they were not.
+//
+// **What this file cannot see: programmatic navigation.**
+// `components/field-create-fab.tsx` — the create button in the bottom nav —
+// navigates with `router.push`/`router.replace` rather than any element this
+// scan counts, and costs exactly what a converted link costs: the tap is a
+// client-side RSC fetch, so a rep with no signal gets no cached shell from it.
+// It is allowed to stand because an anchor cannot do its job. On the task list
+// the button adds `?create=1` to the query the rep is *currently* reading, and
+// an anchor would have to name a fixed href and so drop their filters — the
+// thing they would notice every day, against an offline gap on a button whose
+// only job is opening a dialog on a screen the nav beside it already reaches.
+//
+// The scan stays as it is rather than growing to catch `router.push`: every
+// field screen's real navigation is its links, and a regex over router calls
+// would flag the server-action redirects that make this zone work. This
+// paragraph is the record instead. A second programmatic navigation in this
+// zone belongs here too, with what it costs.
 
 const FIELD_ROOT = path.join(
   import.meta.dirname,

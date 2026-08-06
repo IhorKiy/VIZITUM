@@ -3648,37 +3648,6 @@ textarea {
   border-color: var(--danger);
 }
 
-/* Create-a-task, floating clear of the list. Sits above the bottom nav rather
-   than over it (--field-bottom-inset is that nav, measured), and clears the
-   device's own inset below that. On a viewport wider than the phone frame it
-   tucks into the frame's right edge instead of the window's. */
-.task-fab {
-  align-items: center;
-  background: var(--accent);
-  border: 0;
-  border-radius: 999px;
-  bottom: calc(
-    var(--field-bottom-inset, 65px) + 22px + env(safe-area-inset-bottom)
-  );
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 38%, transparent);
-  color: #ffffff;
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 14px;
-  font-weight: 800;
-  gap: 8px;
-  min-height: 52px;
-  padding: 0 20px;
-  position: fixed;
-  right: max(18px, calc(50% - 215px + 18px));
-  z-index: 15;
-}
-
-.task-fab:focus-visible {
-  outline: 2px solid var(--accent-strong);
-  outline-offset: 3px;
-}
-
 /* How many tasks are behind the pill, in the pill. Lighter than the label: it
    is the answer to the filter's question, not a second label. */
 .filter-pill-count {
@@ -4400,6 +4369,13 @@ textarea {
   padding: 16px 18px 0;
 }
 
+/* Stands in for the form when a sheet has nothing to offer — "every location
+   is already on today's route". Carries the form's own padding, since it
+   replaces it rather than sitting inside it. */
+.task-form-empty {
+  padding: 16px 18px 24px;
+}
+
 .task-form-field {
   display: grid;
   gap: 6px;
@@ -4530,14 +4506,11 @@ textarea {
   margin-top: 4px;
 }
 
-/* Priority as a switch with its consequence written next to it: "priority" on
-   its own is a word whose effect — the gold edge down the row — lives on
-   another screen entirely.
-
-   A plain row, not a panel. It used to sit in a tinted, outlined box, which
-   made the one optional flag in the form the heaviest thing in it — heavier
-   than the title, the deadline and the status it was stacked under. The switch
-   already draws the eye; the frame only competed with the fields around it. */
+/* Priority as a plain switch row, not a panel. It used to sit in a tinted,
+   outlined box, which made the one optional flag in the form the heaviest
+   thing in it — heavier than the title, the deadline and the status it was
+   stacked under. The switch already draws the eye; the frame only competed
+   with the fields around it. */
 .task-form-switch {
   align-items: center;
   cursor: pointer;
@@ -4549,20 +4522,12 @@ textarea {
 }
 
 .task-form-switch > span:first-child {
-  display: grid;
-  gap: 2px;
   min-width: 0;
 }
 
 .task-form-switch b {
   font-size: 15px;
   font-weight: 700;
-}
-
-.task-form-switch i {
-  color: var(--muted);
-  font-size: 13px;
-  font-style: normal;
 }
 
 /* The checkbox stays the control — the hit area, the keyboard target and the
@@ -5209,10 +5174,70 @@ textarea {
   white-space: nowrap;
 }
 
+/* The current tab, with no filled pill behind it: the fill read as a third
+   surface in a bar that already has the create button's circle in it.
+
+   Colour could not carry the state on its own. Both states are dark — muted
+   grey against the accent — so telling them apart meant comparing two dark
+   items rather than spotting a lit one, and lightening the inactive tabs was
+   not available: --muted is already only 4.9:1 on this bar's white, which is
+   as light as 12px text may go.
+
+   So the second cue is a shape, and specifically one that costs no space in
+   either direction. Weight is what a tab bar would normally use, but a tab is
+   72px wide since the button took a slot and "Планування" measures 78px bold
+   against 70px regular — it truncated whichever tab was active. The rule sits
+   in the 8px of padding above the row, so the bar keeps its height too. */
 .mobile-nav-link[aria-current="page"] {
-  background: var(--surface-muted);
   color: var(--accent-strong);
-  font-weight: 800;
+  position: relative;
+}
+
+.mobile-nav-link[aria-current="page"]::before {
+  background: var(--accent);
+  border-radius: 999px;
+  content: "";
+  height: 3px;
+  left: 50%;
+  position: absolute;
+  top: -6px;
+  transform: translateX(-50%);
+  width: 26px;
+}
+
+/* Create-a-task, in the bar rather than floating over one screen. The circle
+   is bigger than the slot it sits in and rides above the bar's top edge, which
+   is what separates it from the tabs either side — but its *layout* box is the
+   same 48px as a tab (the negative block margins absorb the rest), so the bar
+   stays at --mobile-nav-height and everything pinned above it keeps its
+   offset. */
+.mobile-nav-fab {
+  align-items: center;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 38%, transparent);
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 52px;
+  justify-content: center;
+  /* The block margins keep the 48px slot; the inline pair is deliberately
+     small. A 375px bar divides into four tabs and this, and "Планування" —
+     the longest label in either dictionary — needs all but two of the pixels
+     that leaves. Widen this and that label starts truncating (see the
+     aria-current rule above, which gave up its weight bump for the same
+     two pixels). */
+  margin-block: -2px;
+  margin-inline: 2px;
+  transform: translateY(-10px);
+  width: 52px;
+}
+
+.mobile-nav-fab:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
 }
 
 .login-surface {
@@ -6061,55 +6086,129 @@ textarea {
   margin-bottom: 24px;
 }
 
-.route-progress-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  display: grid;
-  gap: 10px;
-  padding: 16px;
-}
+/* The home screen's header: the greeting and date on the left, how far
+   through the day the rep is on the right. It replaced a greeting stacked
+   above a progress card — two blocks that between them spent most of a
+   phone's first screenful before the first stop, and a progress bar drawing
+   the same number the counter already gives.
 
-.route-progress-head {
+   Declared with the mobile-only compound (as .page-header--compact is) so the
+   row survives the rule that turns every other page header into a stacked
+   grid on a phone: this one is two columns by design, and stacked it puts the
+   count on a line of its own for no gain.
+
+   No surface of its own — it sits on the page the way the other field headers
+   do, which is also what keeps the greeting and the counter on the same left
+   and right edges as the label and cards below. */
+.today-header,
+.app-shell--mobile-only .page-header.today-header {
   align-items: center;
   display: flex;
-  font-weight: 800;
+  gap: 16px;
   justify-content: space-between;
+  margin-bottom: 16px;
 }
 
-.route-progress-count {
-  color: var(--accent);
-}
-
-.route-progress-track {
-  background: var(--surface-muted);
-  border-radius: 999px;
-  height: 8px;
-  overflow: hidden;
-}
-
-.route-progress-fill {
-  background: var(--accent);
-  border-radius: 999px;
-  height: 100%;
-  transition: width 0.3s ease;
-}
-
-.route-progress-legend {
-  color: var(--muted);
+/* Greeting and date on one line, sharing a baseline: two short phrases that
+   between them said less than the space two stacked lines cost. Wraps rather
+   than shrinking either, so a longer date drops under the greeting instead
+   of squeezing it. */
+.today-header-day {
+  align-items: baseline;
+  column-gap: 10px;
   display: flex;
+  /* Takes the header's whole width, or the date's `margin-left: auto` would
+     have no free space to push against and would just trail the greeting. */
+  flex: 1;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* The page-header size every other field screen uses, kept: this is the
+   home screen's title, and shrinking it made it read as a subheading of the
+   list under it. Wraps rather than pushing the count off the row. */
+.today-header h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Pushed to the far edge rather than trailing the greeting: `auto` and not
+   `justify-content`, so it still sits right when a long date wraps onto its
+   own line. Scoped to the header, like the count was: `.page-header p` sets
+   a top margin on every paragraph in a header and beats a bare class. */
+.today-header .today-header-meta {
+  color: var(--muted);
   font-size: 13px;
-  justify-content: space-between;
+  margin: 0 0 0 auto;
+}
+
+/* How far through the list the rep is, at the end of the line that names it.
+   A link, not a readout: this is what a rep looks at when wondering what is
+   left, which is the moment they would want to change the plan — and the
+   arrow is what says so. There was a progress bar under it once; the
+   fraction already draws the same picture in less space. */
+.route-day-count {
+  align-items: center;
+  color: var(--accent);
+  display: flex;
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 800;
+  gap: 2px;
+  letter-spacing: 0;
+  text-decoration: none;
+}
+
+.route-day-count svg {
+  /* Sits on the digits' own line rather than the text box's, which runs
+     taller than they do. */
+  margin-top: 1px;
 }
 
 /* Grouped route card (mobile-first, light) */
+/* No surface of its own: this only groups the day's heading, its stops and
+   the add control, and every one of those already draws its own card. A panel
+   around them put a bordered box inside a bordered box and narrowed each stop
+   by its padding for nothing. */
 .route-plan-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
   display: grid;
   gap: 8px;
-  padding: 10px;
+}
+
+/* Names the list under it and rules off to the right, the way the task list's
+   date bands do. A label rather than a card heading: the stops below carry
+   their own surfaces, and this only says what they are. Its own name, not
+   .route-section-head — that one is the planning screen's centred week
+   heading, and sharing it turned that heading into an uppercase band. */
+/* The label and the count share one line, with the label's own rule filling
+   whatever is left between them. */
+.route-day-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.route-day-label {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 8px;
+  letter-spacing: 0.06em;
+  /* No trailing margin: the label belongs to the list, and the card grid's
+     own 8px is the whole gap between them. */
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.route-day-label::after {
+  background: var(--line);
+  content: "";
+  flex: 1;
+  height: 1px;
 }
 
 .route-plan-head {
@@ -6121,15 +6220,34 @@ textarea {
   padding: 12px 14px;
 }
 
+.route-plan-count {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* Pushed to the far end, away from the name and count it does not belong to.
+   Shrink-proof: a long route name wraps rather than squeezing the link. */
+.route-plan-head .route-plan-link {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* An inline-flex box rather than a text glyph: this now holds the same SVG
+   the field menu draws beside "Routes", and a bare span would leave it
+   sitting on the text baseline. */
 .route-plan-icon {
+  align-items: center;
   color: var(--accent);
-  font-size: 18px;
+  display: inline-flex;
+  flex-shrink: 0;
   line-height: 1;
 }
 
 .route-plan-heading {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .route-plan-name {
@@ -6149,6 +6267,37 @@ textarea {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* What is waiting at a stop, said in the two colours the task list already
+   uses for the same states: gold for work due today, danger red for work
+   already late. Same 3px inset rail the task cards carry, so a reader
+   scanning either list is reading one vocabulary. */
+.route-stop-tasks {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
+  margin: 2px 0 0;
+}
+
+.route-stop-tasks.is-today {
+  color: var(--gold);
+}
+
+.route-stop-tasks.is-overdue {
+  color: var(--danger);
+}
+
+.route-stop.has-tasks-today .route-stop-surface {
+  border-color: color-mix(in srgb, var(--gold) 40%, var(--line));
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+
+.route-stop.has-overdue-tasks .route-stop-surface {
+  border-color: var(--danger-line);
+  box-shadow: inset 3px 0 0 var(--danger);
 }
 
 /* Clickable stop card (link to location detail). Also used, unchanged, as
@@ -6362,10 +6511,29 @@ textarea {
   border-style: solid;
 }
 
-/* On the home screen this sits last inside .route-plan-card's grid, where the
-   planning screen's trailing margin would double up with the card padding. */
-.route-add-stop.today-add-stop {
-  margin-bottom: 0;
+/* The home screen's way in: the same dashed block, but a button opening a
+   sheet rather than a disclosure expanding in place. That card sits at the
+   bottom of a scrolling column, so the form used to push the route it belongs
+   to out of view. No trailing margin — it is last inside .route-plan-card's
+   grid, where the planning screen's would double up with the card padding. */
+.route-add-stop-button {
+  align-items: center;
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  font-weight: 800;
+  gap: 6px;
+  justify-content: center;
+  padding: 16px;
+  width: 100%;
+}
+
+.route-add-stop-button:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
 }
 
 .route-add-stop-trigger {

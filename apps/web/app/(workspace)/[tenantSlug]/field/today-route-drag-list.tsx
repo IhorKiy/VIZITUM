@@ -21,12 +21,14 @@ import { useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
+  CalendarDashIcon,
   CheckIcon,
   GripIcon,
-  MapPinIcon,
+  ListTodoIcon,
   TrashIcon,
 } from "../../../../components/icons";
 import { withBackOrigin } from "../../../../lib/back-navigation";
+import { groupByRoutePlan } from "../../../../lib/today-route-groups";
 import { useSerializedReorder } from "../../../../lib/use-serialized-reorder";
 
 type TodayStop = {
@@ -40,9 +42,18 @@ type TodayStop = {
   visited: boolean;
 };
 
+// Open work at a location, counted by the page that fetched it.
+export type StopTaskSummary = {
+  overdue: number;
+  dueToday: number;
+  total: number;
+};
+
 type TodayRouteDragListProps = {
   tenantSlug: string;
   stops: TodayStop[];
+  // Keyed by locationId; absent means nothing open there.
+  taskSummaries: Record<string, StopTaskSummary>;
   isDemoMode: boolean;
   reorderAction: (routePlanId: string, itemIds: string[]) => Promise<void>;
   markVisitedAction: (formData: FormData) => Promise<void>;
@@ -52,30 +63,27 @@ type TodayRouteDragListProps = {
 export function TodayRouteDragList({
   tenantSlug,
   stops,
+  taskSummaries,
   isDemoMode,
   reorderAction,
   markVisitedAction,
   removeAction,
 }: TodayRouteDragListProps) {
   const groups = groupByRoutePlan(stops);
-  const indexById = new Map<string, number>();
-
-  stops.forEach((stop, index) => {
-    indexById.set(stop.id, index);
-  });
 
   return (
     <ol className="route-stop-list">
       {groups.map((group) => (
         <TodayRouteGroup
-          indexById={indexById}
           isDemoMode={isDemoMode}
           key={group.routePlanId}
           markVisitedAction={markVisitedAction}
           removeAction={removeAction}
           reorderAction={reorderAction}
           routePlanId={group.routePlanId}
+          startIndex={group.startIndex}
           stops={group.stops}
+          taskSummaries={taskSummaries}
           tenantSlug={tenantSlug}
         />
       ))}
@@ -83,52 +91,29 @@ export function TodayRouteDragList({
   );
 }
 
-// A viewer with team-wide access sees every representative's plan for today
-// merged into one list (see getTodayRoutes), so each plan gets its own drag
-// context here — a stop can never be dragged into someone else's route.
-function groupByRoutePlan(
-  stops: TodayStop[],
-): Array<{ routePlanId: string; stops: TodayStop[] }> {
-  const order: string[] = [];
-  const byPlan = new Map<string, TodayStop[]>();
-
-  for (const stop of stops) {
-    let planStops = byPlan.get(stop.routePlanId);
-
-    if (!planStops) {
-      planStops = [];
-      byPlan.set(stop.routePlanId, planStops);
-      order.push(stop.routePlanId);
-    }
-
-    planStops.push(stop);
-  }
-
-  return order.map((routePlanId) => ({
-    routePlanId,
-    stops: byPlan.get(routePlanId) as TodayStop[],
-  }));
-}
-
 type TodayRouteGroupProps = {
-  indexById: Map<string, number>;
   isDemoMode: boolean;
   reorderAction: (routePlanId: string, itemIds: string[]) => Promise<void>;
   markVisitedAction: (formData: FormData) => Promise<void>;
   removeAction: (formData: FormData) => Promise<void>;
   routePlanId: string;
+  // How many stops the plans above this one contribute, so the numbers run
+  // across the whole day rather than restarting per plan.
+  startIndex: number;
   stops: TodayStop[];
+  taskSummaries: Record<string, StopTaskSummary>;
   tenantSlug: string;
 };
 
 function TodayRouteGroup({
-  indexById,
   isDemoMode,
   reorderAction,
   markVisitedAction,
   removeAction,
   routePlanId,
+  startIndex,
   stops,
+  taskSummaries,
   tenantSlug,
 }: TodayRouteGroupProps) {
   const t = useTranslations("field.home");
@@ -261,15 +246,22 @@ function TodayRouteGroup({
         items={order.map((stop) => stop.id)}
         strategy={verticalListSortingStrategy}
       >
-        {order.map((stop) => (
+        {/* Numbered by where the stop sits now, not by where the server last
+            saw it: the whole point of the handle is that the reader decides
+            the order, and a badge that travelled with its card left the list
+            reading 3, 1, 2 until the next load. The count runs across the
+            whole day — the reader sees one list, whatever it was planned
+            from. */}
+        {order.map((stop, position) => (
           <TodayRouteStopRow
-            index={indexById.get(stop.id) ?? 0}
+            index={startIndex + position}
             isDemoMode={isDemoMode}
             key={stop.id}
             markVisitedAction={markVisitedAction}
             onHandleKeyDown={handleHandleKeyDown}
             removeAction={removeAction}
             stop={stop}
+            tasks={taskSummaries[stop.locationId]}
             tenantSlug={tenantSlug}
           />
         ))}
@@ -288,6 +280,7 @@ type TodayRouteStopRowProps = {
   ) => void;
   removeAction: (formData: FormData) => Promise<void>;
   stop: TodayStop;
+  tasks: StopTaskSummary | undefined;
   tenantSlug: string;
 };
 
@@ -305,6 +298,7 @@ function TodayRouteStopRow({
   onHandleKeyDown,
   removeAction,
   stop,
+  tasks,
   tenantSlug,
 }: TodayRouteStopRowProps) {
   const t = useTranslations("field.home");
@@ -322,6 +316,18 @@ function TodayRouteStopRow({
     transition,
     zIndex: isDragging ? 50 : undefined,
   };
+
+  // The coloured rail down the card's edge, in the task list's own two
+  // states. A visited stop takes neither: the work there is done with, and a
+  // struck-through card carrying a red edge reads as a problem it is not.
+  const taskRail =
+    stop.visited || !tasks
+      ? ""
+      : tasks.overdue > 0
+        ? " has-overdue-tasks"
+        : tasks.dueToday > 0
+          ? " has-tasks-today"
+          : "";
 
   const href = withBackOrigin(
     `/${tenantSlug}/field/locations/${stop.locationId}?routePlanId=${stop.routePlanId}&routeItemId=${stop.id}${stop.visited ? "&visited=1" : ""}${
@@ -472,7 +478,7 @@ function TodayRouteStopRow({
 
   return (
     <li
-      className={`route-stop${swipeEnabled ? " route-stop-swipeable" : ""}${isDragging ? " dragging" : ""}${stop.visited ? " visited" : ""}${offset !== 0 ? " swiped" : ""}`}
+      className={`route-stop${swipeEnabled ? " route-stop-swipeable" : ""}${isDragging ? " dragging" : ""}${stop.visited ? " visited" : ""}${offset !== 0 ? " swiped" : ""}${taskRail}`}
       ref={setNodeRef}
       style={style}
     >
@@ -552,13 +558,37 @@ function TodayRouteStopRow({
         >
           <span className="route-stop-body">
             <h3>{stop.name}</h3>
+            {/* Address and chain on one line: two facts about where this is,
+                and the chain used to sit under them as a badge of its own. */}
             <p className="route-stop-address">
-              <MapPinIcon />
-              <span>{stop.address}</span>
+              {stop.chain
+                ? t("stopAddressWithChain", {
+                    address: stop.address,
+                    chain: stop.chain.name,
+                  })
+                : stop.address}
             </p>
-            <span className="route-stop-chain">
-              {stop.chain?.name ?? t("stopChainNone")}
-            </span>
+            {/* What is waiting at this stop, in the colours the task list
+                already uses for the same two states. Late outranks due-today:
+                a card with both is a card the rep is behind on. Silent once
+                the stop is visited — the rep has been, and a struck-through
+                card still calling for attention reads as a mistake. */}
+            {stop.visited ? null : tasks && tasks.overdue > 0 ? (
+              <p className="route-stop-tasks is-overdue">
+                <CalendarDashIcon size={14} />
+                <span>
+                  {t("tasksOverdue", {
+                    overdue: tasks.overdue,
+                    total: tasks.total,
+                  })}
+                </span>
+              </p>
+            ) : tasks && tasks.dueToday > 0 ? (
+              <p className="route-stop-tasks is-today">
+                <ListTodoIcon size={14} />
+                <span>{t("tasksToday", { count: tasks.dueToday })}</span>
+              </p>
+            ) : null}
           </span>
         </a>
       </div>

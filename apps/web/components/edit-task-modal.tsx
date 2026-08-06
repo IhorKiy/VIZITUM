@@ -86,7 +86,11 @@ function fitToContent(field: HTMLTextAreaElement | null) {
   field.style.height = `${field.scrollHeight}px`;
 }
 
-// A per-task edit dialog, one instance per card. Unlike CreateOwnTaskModal /
+// A per-task edit dialog, one instance per card. Twin of the create sheet in
+// create-own-task-modal.tsx, which is drawn from the same markup and class
+// names — a field added here belongs there too, and the other way round.
+//
+// Unlike CreateOwnTaskModal /
 // AssignTaskModal, open/closed state is not mirrored into the URL — there is
 // no single shared query param that could name which of many task cards is
 // open. Opening is a plain imperative showModal(); closing after a
@@ -369,13 +373,9 @@ export function EditTaskModal({
             ) : null}
           </div>
 
-          {/* A switch that says what it does: "priority" alone is a word whose
-              consequence — the gold edge down the row — lives on another
-              screen. */}
           <label className="task-form-switch">
             <span>
               <b>{t("formPriority")}</b>
-              <i>{t("formPriorityHint")}</i>
             </span>
             <input
               defaultChecked={draft.isPriority}
