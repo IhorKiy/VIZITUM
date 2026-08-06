@@ -257,7 +257,22 @@ export function backOrigin(
   return queryString ? `${path}?${queryString}` : path;
 }
 
-/** Append an origin to an outgoing link, so the target knows where to return. */
+/**
+ * Append an origin to an outgoing link, so the target knows where to return.
+ *
+ * A fragment is kept last, where a URL requires it. Appending blindly would put
+ * the query *inside* the fragment — `/field/tasks#task-1?from=…` — which costs
+ * both halves at once: the server never sees `from`, so the target falls back,
+ * and the anchor id no longer matches, so the link stops scrolling to the row
+ * it names. The field location card's task deep link is the one caller with a
+ * fragment today (audit F17), and the trap is silent, so it is closed here
+ * rather than at that one call site.
+ */
 export function withBackOrigin(href: string, origin: string): string {
-  return `${href}${href.includes("?") ? "&" : "?"}from=${encodeURIComponent(origin)}`;
+  const hashAt = href.indexOf("#");
+  const path = hashAt === -1 ? href : href.slice(0, hashAt);
+  const fragment = hashAt === -1 ? "" : href.slice(hashAt);
+  const separator = path.includes("?") ? "&" : "?";
+
+  return `${path}${separator}from=${encodeURIComponent(origin)}${fragment}`;
 }

@@ -5,7 +5,13 @@ import { after, before, describe, it } from "node:test";
 
 import { buildUserNameFields } from "../src/common/person-name";
 import { ImportsService } from "../src/modules/imports/imports.service";
-import { PrismaService } from "../src/modules/prisma/prisma.service";
+import type { PrismaService } from "../src/modules/prisma/prisma.service";
+import {
+  createTestPrisma,
+  createTestTenant,
+  purgeTestTenant,
+  skipWithoutDatabase,
+} from "./fixtures/database";
 
 // The one test in this repository that talks to a database, and it exists
 // because audit F8 could not have been caught without one: every other backend
@@ -14,14 +20,10 @@ import { PrismaService } from "../src/modules/prisma/prisma.service";
 // expire (audit F24 records the same absence as its own finding). A per-row
 // query loop inside a 5 000 ms transaction is invisible to all of them.
 //
-// It is opt-in rather than skipped-by-default-forever: CI's backend job has no
-// Postgres service, so a test that assumed one would fail the build. Run it
-// against a scratch database — never a database with data you want:
-//
-//   docker exec vizitum-postgres psql -U postgres -c 'CREATE DATABASE vizitum_f8;'
-//   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/vizitum_f8" npx prisma migrate deploy
-//   IMPORT_VOLUME_TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/vizitum_f8" \
-//     node --import tsx --test tests/import-apply-volume.test.ts
+// It now runs in CI: the backend job provisions a Postgres service and sets
+// `TEST_DATABASE_URL`, which is what closed audit F24. It still skips — loudly,
+// with a reason — when that variable is absent, so a checkout with no database
+// is not a broken build. `tests/fixtures/database.ts` has the local setup.
 //
 // Two things are asserted that only a real database can show: that a
 // several-hundred-row file applies at all inside the transaction budget, and
@@ -33,7 +35,6 @@ import { PrismaService } from "../src/modules/prisma/prisma.service";
 // their source rows by position; this assertion is what would have caught that
 // going wrong, since every row would still be present and nothing would error.
 
-const VOLUME_DATABASE_URL = process.env.IMPORT_VOLUME_TEST_DATABASE_URL;
 // The largest file an import accepts (`MAX_IMPORT_ROWS`), so this exercises the
 // ceiling rather than a comfortable middle.
 const ROW_COUNT = 1000;
@@ -41,9 +42,7 @@ const REPRESENTATIVE_COUNT = 5;
 
 describe(
   "import apply: a several-hundred-row file applies against a real database",
-  {
-    skip: VOLUME_DATABASE_URL ? false : "IMPORT_VOLUME_TEST_DATABASE_URL unset",
-  },
+  { skip: skipWithoutDatabase },
   () => {
     let prisma: PrismaService;
     let tenantId: string;
@@ -54,24 +53,10 @@ describe(
     );
 
     before(async () => {
-      process.env.DATABASE_URL = VOLUME_DATABASE_URL;
-      prisma = new PrismaService();
+      prisma = createTestPrisma();
       await prisma.$connect();
 
-      const tenant = await prisma.platformTenant.create({
-        data: {
-          name: "Import volume",
-          slug: `import-volume-${Date.now()}`,
-          country: "UA",
-          timezone: "Europe/Kyiv",
-          language: "uk",
-          segmentTemplate: "distribution",
-          databaseKey: "import-volume",
-        },
-        select: { id: true },
-      });
-
-      tenantId = tenant.id;
+      tenantId = (await createTestTenant(prisma, "import-volume")).tenantId;
 
       const admin = await prisma.user.create({
         data: {
@@ -110,16 +95,7 @@ describe(
 
     after(async () => {
       if (tenantId) {
-        // Ordered by dependency: the schema does not cascade from the tenant.
-        await prisma.locationAssignment.deleteMany({ where: { tenantId } });
-        await prisma.location.deleteMany({ where: { tenantId } });
-        await prisma.chain.deleteMany({ where: { tenantId } });
-        await prisma.locationCategory.deleteMany({ where: { tenantId } });
-        await prisma.importRowIssue.deleteMany({ where: { tenantId } });
-        await prisma.importJob.deleteMany({ where: { tenantId } });
-        await prisma.userRole.deleteMany({ where: { tenantId } });
-        await prisma.user.deleteMany({ where: { tenantId } });
-        await prisma.platformTenant.delete({ where: { id: tenantId } });
+        await purgeTestTenant(prisma, tenantId);
       }
 
       await prisma.$disconnect();

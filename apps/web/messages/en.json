@@ -244,6 +244,12 @@
       "reportInvalid": "The report could not be saved as filled in. Check the fields and try again.",
       "photoInvalid": "The photo could not be attached. Try taking it again.",
       "unknown": "Something went wrong. Try again."
+    },
+    "notFound": {
+      "eyebrow": "404",
+      "title": "This address does not lead anywhere",
+      "description": "The workspace address is not one we recognise. Check the link, or open your workspace from the start screen.",
+      "action": "Go to the start screen"
     }
   },
   "auth": {
@@ -1409,6 +1415,7 @@
       "noOrderReasonRefused": "Refused",
       "noOrderReasonOther": "Other",
       "productSearchPlaceholder": "Search products...",
+      "productSearchClearAria": "Clear the search",
       "productsEmpty": "No products yet — add them in admin",
       "productsNoMatch": "No matches",
       "notesLabel": "Visit notes",

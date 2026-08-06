@@ -8392,6 +8392,26 @@ a.metric-card:hover {
   color: var(--danger);
 }
 
+/* The workspace 404 (app/(workspace)/not-found.tsx). Centred on its own,
+   because it renders in place of a whole screen rather than inside one — the
+   reader has no shell, no nav and, in an installed standalone app, no address
+   bar either, so the way out has to be the obvious thing on the page. */
+.not-found-screen {
+  align-content: center;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  margin: 0 auto;
+  max-width: 420px;
+  min-height: 70vh;
+  padding: 24px;
+  text-align: center;
+}
+
+.not-found-screen .primary-button {
+  margin-top: 8px;
+}
+
 /* Visit result: two full-width taps rather than .segmented, which needs a
    preselected option to look right. Nothing is selected until the rep
    chooses, and the choice colours itself by what it means. */
