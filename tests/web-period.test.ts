@@ -249,40 +249,95 @@ describe("period window (web)", () => {
 // reading, so the short name has to be a name — not a truncation, and never
 // empty for a range someone typed by hand.
 describe("period short label", () => {
-  // The dictionaries under common.period, as the two functions read them.
+  // The dictionaries under common.period, as the function reads them.
   const t = ((key: string, values?: Record<string, string>) =>
     values ? `${key}(${values.from}..${values.to})` : key) as never;
+  // Stands in for the next-intl formatter: renders exactly the fields asked
+  // for, so a test can see which ones the label decided to include.
   const format = {
-    dateTime: (value: Date) => value.toISOString().slice(0, 10),
+    dateTime: (value: Date, options: Intl.DateTimeFormatOptions) =>
+      [
+        value.toISOString().slice(8, 10),
+        value.toISOString().slice(5, 7),
+        options.year ? value.toISOString().slice(0, 4) : null,
+      ]
+        .filter(Boolean)
+        .join("."),
   } as never;
+  const kyiv = "Europe/Kyiv";
+  const inJuly2026 = new Date("2026-07-28T12:00:00.000Z");
 
   it("names a preset by its short form, which the pill has room for", () => {
     assert.equal(
-      periodShortLabel(t, format, {
-        from: "2026-06-29",
-        to: "2026-07-28",
-        preset: "month",
-      }),
+      periodShortLabel(
+        t,
+        format,
+        { from: "2026-06-29", to: "2026-07-28", preset: "month" },
+        kyiv,
+        inJuly2026,
+      ),
       "presetShort.month",
     );
   });
 
-  it("names a hand-picked range by its two dates, as the long form does", () => {
-    // A range has no short name to fall back on: its dates are its name, so
-    // both forms agree rather than one of them going blank.
-    const range = {
-      from: "2026-06-09",
-      to: "2026-07-08",
-      preset: "custom",
-    } as const;
+  it("drops the year from a range that sits inside the current one", () => {
+    // Spelled out on both ends this reads "4 Jul 2026 – 10 Jul 2026", which is
+    // wider than the phone the pill sits on — and it broke the screen's title
+    // across two lines to make room.
+    assert.equal(
+      periodShortLabel(
+        t,
+        format,
+        { from: "2026-07-04", to: "2026-07-10", preset: "custom" },
+        kyiv,
+        inJuly2026,
+      ),
+      "custom(04.07..10.07)",
+    );
+  });
+
+  it("keeps the year on both ends once a range reaches past this one", () => {
+    // Never on one end only: a range with a year at one end and none at the
+    // other reads as a typo rather than as a shorthand.
+    assert.equal(
+      periodShortLabel(
+        t,
+        format,
+        { from: "2025-12-20", to: "2026-01-10", preset: "custom" },
+        kyiv,
+        inJuly2026,
+      ),
+      "custom(20.12.2025..10.01.2026)",
+    );
+  });
+
+  it("reads the current year in the tenant's timezone, not the server's", () => {
+    // 22:30 UTC on 31 December is already 1 January in Kyiv, so a range in the
+    // *new* year is the current one there while the server is still in the old.
+    const newYearEve = new Date("2025-12-31T22:30:00.000Z");
 
     assert.equal(
-      periodShortLabel(t, format, range),
-      periodLabel(t, format, range),
+      periodShortLabel(
+        t,
+        format,
+        { from: "2026-01-01", to: "2026-01-07", preset: "custom" },
+        kyiv,
+        newYearEve,
+      ),
+      "custom(01.01..07.01)",
     );
+  });
+
+  it("still spells the period out in full wherever there is room", () => {
+    // periodLabel is the sentence form, unchanged: the two are different jobs,
+    // and the long one must not quietly inherit the pill's abbreviation.
     assert.equal(
-      periodShortLabel(t, format, range),
-      "custom(2026-06-09..2026-07-08)",
+      periodLabel(t, format, {
+        from: "2026-07-04",
+        to: "2026-07-10",
+        preset: "custom",
+      }),
+      "custom(04.07.2026..10.07.2026)",
     );
   });
 });

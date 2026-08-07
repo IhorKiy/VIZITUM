@@ -30,7 +30,10 @@ export function PeriodPill({ ariaLabel, href, label }: PeriodPillProps) {
       className="period-pill"
       href={href}
     >
-      {label}
+      {/* Its own element so it can trail off inside the pill rather than
+          widening it — the accessible name above carries the label in full
+          whatever the width does to it. */}
+      <span className="period-pill-label">{label}</span>
       <span aria-hidden="true" className="period-pill-chevron">
         <ChevronDownIcon />
       </span>

@@ -328,25 +328,46 @@ export function periodLabel(
 
 /**
  * The same window, named for a control rather than for a sentence: the short
- * preset name ("30 days") instead of the spelled-out one ("Last 30 days").
+ * preset name ("30 days") instead of the spelled-out one ("Last 30 days"), and
+ * a hand-picked range without the years it does not need.
  *
  * A pill carrying the window is read as the control's current value, with the
  * screen around it supplying "period"; the long form repeats a word the pill's
- * own position already says, and on a phone it is the difference between a pill
- * beside the title and one that wraps under it. A hand-picked range has no
- * short form to fall back on — its two dates *are* its name — so it reads the
- * same either way.
+ * own position already says. The years matter more: spelled out on both ends, a
+ * range runs to "4 лип. 2026 р. – 10 лип. 2026 р." — wider than the phone the
+ * pill sits on, which broke the screen's title across two lines to make room.
+ *
+ * So a range inside the current year drops the year from both ends, on the same
+ * rule the day headers use, and a range that reaches past it keeps them on both
+ * — never on one, which would read as a typo rather than as a shorthand.
  */
 export function periodShortLabel(
   t: PeriodTranslator,
   format: IntlFormatter,
   period: DayRange & { preset: PeriodPreset | "custom" },
+  timeZone: string,
+  now: Date = new Date(),
 ): string {
-  if (period.preset === "custom") {
-    return periodLabel(t, format, period);
+  if (period.preset !== "custom") {
+    return t(`presetShort.${period.preset}`);
   }
 
-  return t(`presetShort.${period.preset}`);
+  const currentYear = todayInTimeZone(timeZone, now).slice(0, 4);
+  const withinCurrentYear =
+    period.from.slice(0, 4) === currentYear &&
+    period.to.slice(0, 4) === currentYear;
+
+  // Date-only values are calendar days in the tenant's timezone, so they are
+  // formatted from UTC noon: a midnight instant would tip to the previous day
+  // in any timezone west of UTC.
+  const day = (value: string) =>
+    format.dateTime(new Date(`${value}T12:00:00.000Z`), {
+      day: "numeric",
+      month: "short",
+      ...(withinCurrentYear ? {} : { year: "numeric" }),
+    });
+
+  return t("custom", { from: day(period.from), to: day(period.to) });
 }
 
 /**

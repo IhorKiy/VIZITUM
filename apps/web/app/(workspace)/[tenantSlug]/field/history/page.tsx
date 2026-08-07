@@ -27,7 +27,6 @@ import {
   normalizeDayParam,
   normalizePage,
   periodAsRead,
-  periodLabel as formatPeriodLabel,
   periodSearchParams,
   periodShortLabel,
   PERIOD_MAX_MONTHS,
@@ -285,10 +284,15 @@ export default async function FieldHistoryPage({
     ...periodSearchParams(earlier, VISIT_PERIOD_PARAMS),
     ...(selectedStatus ? { status: selectedStatus } : {}),
   });
-  const earlierPeriodLabel = formatPeriodLabel(tPeriod, format, {
-    ...earlier,
-    preset: "custom",
-  });
+  // Short form, like the pill: the step sits at the bottom of a phone list and
+  // has a sentence in front of it ("Earlier period: …"), so two spelled-out
+  // years would wrap the control it labels.
+  const earlierPeriodLabel = periodShortLabel(
+    tPeriod,
+    format,
+    { ...earlier, preset: "custom" },
+    timeZone,
+  );
   // Two different endings, which the old copy collapsed into one false claim.
   // Reaching the first visit really is the end of the history. Hitting the
   // maximum window length is not — the months behind a trimmed window are one
@@ -336,7 +340,7 @@ export default async function FieldHistoryPage({
             ...windowParams,
             period: PERIOD_PICKER_VALUE,
           })}
-          label={periodShortLabel(tPeriod, format, period)}
+          label={periodShortLabel(tPeriod, format, period, timeZone)}
         />
       </header>
 

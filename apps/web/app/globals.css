@@ -1034,9 +1034,15 @@ textarea {
   display: none;
 }
 
+/* A date is a signpost, not a headline. At 850 a screen of them read as a
+   column of shouting — fourteen dates competing with each other and with the
+   visits underneath, which are what the screen is actually for. The weight
+   comes down to where the date is still the first thing found when scanning
+   for a day, and nothing more than that; uppercase and the letterspacing keep
+   it distinct from the recap beside it without the ink. */
 .visit-day-header h2 {
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: 0.02em;
   margin: 0;
   text-transform: uppercase;
@@ -1044,12 +1050,13 @@ textarea {
 }
 
 /* How many visits the day holds, next to its date — the number a folded day is
-   read for. Lighter than the date, which is what the eye is scanning down. */
+   read for. Same weight as the date it sits beside, in the muted ink: it
+   qualifies the date rather than competing with it. */
 .visit-day-count {
   color: var(--muted);
   flex: none;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 /* What became of the day, for a day that is folded. An open day says it with
@@ -3478,13 +3485,24 @@ textarea {
   border-radius: 999px;
   color: var(--ink);
   display: inline-flex;
-  flex: none;
+  /* Shrinks before the title does, and never past half the row: the label is a
+     window someone picked and can be a pair of dates, while the title is the
+     name of the screen. Belt and braces over periodShortLabel's own shortening
+     — a locale that spells its months out can still outrun the space. */
+  flex: 0 1 auto;
   font-size: 13px;
   font-weight: 800;
   gap: 4px;
+  max-width: 60%;
+  min-width: 0;
   padding: 8px 12px;
   text-decoration: none;
   white-space: nowrap;
+}
+
+.period-pill-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .period-pill:hover {
