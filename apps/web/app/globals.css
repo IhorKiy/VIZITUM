@@ -4470,6 +4470,13 @@ textarea {
   transform: translateY(var(--sheet-drag, 0px));
 }
 
+/* Where the sheet parks its opening focus (see the component): a container,
+   not a control, so it must not draw a ring for it — the same rule
+   .task-form-dialog's header carries one level up. */
+.sheet-panel:focus {
+  outline: none;
+}
+
 /* While a finger is on it the sheet tracks the finger exactly: a transition
    here would lag behind the drag and feel like rubber. */
 .sheet-panel[data-dragging="true"] {

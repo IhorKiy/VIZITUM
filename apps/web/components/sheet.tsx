@@ -69,6 +69,17 @@ export function Sheet({
 
     if (!dialog.open) {
       dialog.showModal();
+      // Opening focus goes to the panel, not to whatever showModal would pick
+      // on its own — which is the close button, the first focusable thing in
+      // here. A sheet that arrives by navigation (the history's rows are
+      // links, so the server renders it into a fresh page) counts as a
+      // non-pointer focus to the browser's heuristic, so that button came up
+      // wearing its focus ring: a box drawn around "Close" that nobody asked
+      // for and nothing was about to act on. The panel is a container, so it
+      // takes the focus the dialog needs without drawing anything (see the
+      // :focus rule), and a keyboard reader still tabs to the button — and
+      // gets the ring then, when it means something.
+      panelRef.current?.focus();
     }
 
     // One frame later, so the browser has the closed position to animate from
@@ -108,7 +119,9 @@ export function Sheet({
 
   return (
     <dialog aria-label={ariaLabel} className="sheet" ref={dialogRef}>
-      <div className="sheet-panel" ref={panelRef}>
+      {/* Focusable only programmatically: it is where the sheet parks its
+          opening focus, never a stop in the tab order. */}
+      <div className="sheet-panel" ref={panelRef} tabIndex={-1}>
         {/* The drag surface is the top of the sheet — the handle and the row
             beside it, where a thumb reaching to dismiss already is. The body
             below scrolls instead, so a long history stays readable. */}
