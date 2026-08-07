@@ -1042,7 +1042,7 @@ textarea {
    it distinct from the recap beside it without the ink. */
 .visit-day-header h2 {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.02em;
   margin: 0;
   text-transform: uppercase;
@@ -1056,7 +1056,7 @@ textarea {
   color: var(--muted);
   flex: none;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* What became of the day, for a day that is folded. An open day says it with
