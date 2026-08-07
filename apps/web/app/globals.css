@@ -1103,15 +1103,25 @@ textarea {
 }
 
 /* One visit, as a row: the date block, what it was, and a chevron. The whole
-   row is the link (VisitHistoryCard). */
+   row is the link (VisitHistoryCard).
+
+   One edge and no more — the row's own border. The tone is carried by the fill
+   of the date block and by the dot beside the name, not by a second coloured
+   rule inside the first: a rail drawn against the border it sits 1px inside
+   reads as two borders in two colours, which is the shape a broken layout has.
+   Built like .task-row for that reason, which this zone's reader already knows:
+   no padding on the row itself, `overflow: hidden` so the fill runs into the
+   rounded corners, and the text block carrying its own. */
 .visit-row {
   align-items: center;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
   color: inherit;
   display: flex;
   gap: 12px;
-  padding: 10px 10px 10px 0;
+  overflow: hidden;
+  padding-right: 12px;
   text-decoration: none;
   transition:
     border-color 0.15s ease,
@@ -1128,35 +1138,39 @@ textarea {
   outline-offset: 2px;
 }
 
-/* The date block: same width on every row, so the dates line up into a column
-   the eye runs down. Its fill and the rail on its left are the row's status —
-   see visitRowTone for why these colours are not the shared status pill's. */
+/* The date block: a filled column running edge to edge, the same width on every
+   row, so the dates line up into a column the eye runs down. Its fill and the
+   ink of the date in it are the row's status — see visitRowTone for why these
+   colours are not the shared status pill's. Sized and shaped like the task
+   list's rail, which is the same idea one screen over. */
 .visit-row-date {
   align-items: center;
   align-self: stretch;
   background: var(--visit-row-soft, var(--surface-muted));
-  border-radius: 11px 0 0 11px;
-  box-shadow: inset 3px 0 0 var(--visit-row-tone, var(--muted));
+  color: var(--visit-row-ink, var(--muted));
   display: flex;
   flex: none;
   flex-direction: column;
   justify-content: center;
-  padding: 8px 10px;
-  width: 58px;
+  min-height: 62px;
+  padding: 10px 6px;
+  text-align: center;
+  width: 62px;
 }
 
 .visit-row-date b {
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 850;
-  line-height: 1.1;
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
 
 .visit-row-date i {
-  color: var(--muted);
   font-size: 10px;
   font-style: normal;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  margin-top: 3px;
   text-transform: uppercase;
 }
 
@@ -1164,6 +1178,7 @@ textarea {
   display: grid;
   gap: 3px;
   min-width: 0;
+  padding: 10px 0;
 }
 
 .visit-row-title {
@@ -1231,29 +1246,37 @@ textarea {
   margin-left: auto;
 }
 
-/* The two custom properties every row above reads: one solid tone for the rail
-   and the dot, one tint of it for the date block. Set per status so the whole
-   row agrees with itself. */
+/* The three custom properties every row above reads: the tint the date block is
+   filled with, the ink the date in it is written in, and the solid tone of the
+   dot beside the name. Set per status so the whole row agrees with itself —
+   and, at 12%, the same tints the task list's date rail already uses, so a
+   green block means the same thing on both screens. */
 .visit-row.is-completed {
+  --visit-row-ink: var(--accent-strong);
+  --visit-row-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
   --visit-row-tone: var(--accent);
-  --visit-row-soft: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 /* A report still to be confirmed is a loose end, so it takes the attention gold
-   the overdue task rail uses — not the danger red, which would say it failed. */
+   the priority flag uses — not the danger red, which would say it failed. */
 .visit-row.is-unfinished {
-  --visit-row-tone: var(--gold);
+  --visit-row-ink: var(--gold);
   --visit-row-soft: color-mix(in srgb, var(--gold) 12%, var(--surface));
+  --visit-row-tone: var(--gold);
 }
 
 .visit-row.is-cancelled {
-  --visit-row-tone: var(--danger);
+  --visit-row-ink: var(--danger);
   --visit-row-soft: var(--danger-surface);
+  --visit-row-tone: var(--danger);
 }
 
+/* Never started. The one row with no colour to carry: the grey says there is
+   nothing here that finished, failed or is waiting on anyone. */
 .visit-row.is-draft {
-  --visit-row-tone: var(--muted);
+  --visit-row-ink: var(--muted);
   --visit-row-soft: var(--surface-muted);
+  --visit-row-tone: var(--muted);
 }
 
 /* The history period's recap, where the metric cards used to be: one line

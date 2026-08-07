@@ -3,10 +3,7 @@ import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../../../components/app-shell";
 import { BackLink } from "../../../../../../../components/back-link";
-import {
-  ActivityIcon,
-  CalendarIcon,
-} from "../../../../../../../components/icons";
+import { ActivityIcon } from "../../../../../../../components/icons";
 import { VisitHistoryCard } from "../../../../../../../components/visit-history-card";
 import {
   getCurrentSession,
@@ -71,6 +68,9 @@ export default async function LocationHistoryPage({
 
   const locationName = locationResult.data.name;
   const representativeUserId = sessionResult.data.user.id;
+  // The tenant's current year, not the server's: the two differ for a few hours
+  // every New Year's Eve, and this decides how each row states its date.
+  const currentYear = dayInTimeZone(timeZone, new Date()).slice(0, 4);
 
   // pageSize=50 is the API's max page size — this history list deliberately
   // shows only the 50 most recent visits for this rep at this location.
@@ -161,14 +161,25 @@ export default async function LocationHistoryPage({
                   key={item.id}
                   status={item.status}
                   statusLabel={formatEnumLabel(tCommon, item.status)}
-                  /* The full moment, not just the time: the date block says
-                     the day and the month, and a list that reaches back past
-                     New Year needs the year said somewhere. */
-                  subtitle={formatDateTime(
-                    format,
-                    item.completedAt ?? item.createdAt,
-                  )}
-                  subtitleIcon={<CalendarIcon />}
+                  /* The time alone, since the block beside it already says the
+                     day and the month — printing "29 Jul" twice on one row is
+                     the noise, not the information. A visit from an earlier
+                     year is the one case the block cannot place on its own, so
+                     that row spells the whole moment out. */
+                  subtitle={
+                    dayInTimeZone(
+                      timeZone,
+                      new Date(item.completedAt ?? item.createdAt),
+                    ).slice(0, 4) === currentYear
+                      ? format.dateTime(
+                          new Date(item.completedAt ?? item.createdAt),
+                          { hour: "numeric", minute: "2-digit" },
+                        )
+                      : formatDateTime(
+                          format,
+                          item.completedAt ?? item.createdAt,
+                        )
+                  }
                   title={formatEnumLabel(tCommon, item.visitType)}
                 />
               ))}
