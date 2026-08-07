@@ -1659,7 +1659,8 @@
       "periodOldestReached": "This is the earliest period. Nothing was recorded before it.",
       "periodWindowCapped": "One period covers at most {months} months. Pick an earlier range in the period picker to look further back.",
       "emptyEverTitle": "Nothing recorded here yet",
-      "emptyEverBody": "Not in this period, and not in any earlier one."
+      "emptyEverBody": "Not in this period, and not in any earlier one.",
+      "backToTop": "Back to the top of the list"
     },
     "locations": {
       "title": "Locations",

@@ -13,6 +13,10 @@ import { ChevronDownIcon, MapPinIcon } from "../../../../../components/icons";
 import { PeriodPill } from "../../../../../components/period-pill";
 import { PeriodSheet } from "../../../../../components/period-sheet";
 import { ScrollStrip } from "../../../../../components/scroll-strip";
+import {
+  StickyFilterBar,
+  type StickyFilterChip,
+} from "../../../../../components/sticky-filter-bar";
 import { VisitHistoryCard } from "../../../../../components/visit-history-card";
 import { VisitReportSheet } from "../../../../../components/visit-report-sheet";
 import {
@@ -285,6 +289,27 @@ export default async function FieldHistoryPage({
   // sheet: the list behind it is unaffected either way.
   const openReport = await loadOpenReport(pageState.open);
 
+  // The status chips, resolved once and drawn twice: as the radio fields of the
+  // form below, and as links in the collapsed bar. Neither holds state — the
+  // URL does — so the two can never disagree, and a filter picked from the bar
+  // lands at the top of the new list because a link is a navigation.
+  const statusChips: StickyFilterChip[] = [
+    {
+      active: selectedStatus === null,
+      count: statusTotals?.total,
+      href: withParams(windowParams),
+      key: "all",
+      label: tCommon("all"),
+    },
+    ...visitStatuses.map((status) => ({
+      active: selectedStatus === status,
+      count: statusCount(statusTotals, status),
+      href: withParams({ ...windowParams, status }),
+      key: status,
+      label: formatEnumLabel(tCommon, status),
+    })),
+  ];
+
   // Where the list continues once this window is read out: the window of the
   // same length immediately behind it, on page one.
   const earlier = previousPeriod(period);
@@ -360,7 +385,14 @@ export default async function FieldHistoryPage({
   );
 
   return (
-    <AppShell tenantSlug={tenantSlug} activeArea="field-history">
+    // The brand row scrolls away with the header here, the way it does on the
+    // task list: the collapsed bar below takes the top edge in their place, and
+    // two pinned rows over a list read a screenful at a time is one too many.
+    <AppShell
+      activeArea="field-history"
+      scrollingTopbar
+      tenantSlug={tenantSlug}
+    >
       {/* The rep opens this screen to read the list, so the header is the title
           and the one control that says how far back it reads. The status chips
           under it say which of those visits are on screen. */}
@@ -377,63 +409,80 @@ export default async function FieldHistoryPage({
       </header>
 
       <section aria-label={t("myVisits")} className="visit-history">
-        <FilterForm action={screenHref}>
-          {/* The window travels with the chip, or picking one would drop the
+        {/* The filter row, and the collapsed bar that takes over once it has
+            scrolled away. The bar holds the row so it can watch it — see
+            StickyFilterBar. */}
+        <StickyFilterBar
+          ariaLabel={t("statusFiltersAria")}
+          chips={statusChips}
+          scrollTopLabel={t("backToTop")}
+          title={t("title")}
+        >
+          <FilterForm action={screenHref}>
+            {/* The window travels with the chip, or picking one would drop the
               period back to the default 30 days. Hidden rather than visible
               for the same reason it is absent from the URL by default: the
               only window worth carrying is one someone chose. */}
-          {period.isDefault ? null : (
-            <>
-              <input
-                name={VISIT_PERIOD_PARAMS.from}
-                type="hidden"
-                value={period.from}
-              />
-              <input
-                name={VISIT_PERIOD_PARAMS.to}
-                type="hidden"
-                value={period.to}
-              />
-            </>
-          )}
-          {/* One strip that scrolls sideways rather than a block that wraps:
+            {period.isDefault ? null : (
+              <>
+                <input
+                  name={VISIT_PERIOD_PARAMS.from}
+                  type="hidden"
+                  value={period.from}
+                />
+                <input
+                  name={VISIT_PERIOD_PARAMS.to}
+                  type="hidden"
+                  value={period.to}
+                />
+              </>
+            )}
+            {/* One strip that scrolls sideways rather than a block that wraps:
               four chips with counts wrap to two rows on a 375px phone, and the
               second row costs the first visit its place on the screen. */}
-          <ScrollStrip>
-            <div
-              aria-label={t("statusFiltersAria")}
-              className="filter-pills filter-strip-row"
-              role="radiogroup"
-            >
-              <label>
-                <input
-                  defaultChecked={selectedStatus === null}
-                  name="status"
-                  type="radio"
-                  value=""
-                />
-                <span>
-                  {tCommon("all")}
-                  <FilterCount value={statusTotals?.total} />
-                </span>
-              </label>
-              {visitStatuses.map((status) => (
-                <label key={status}>
+            <ScrollStrip>
+              <div
+                aria-label={t("statusFiltersAria")}
+                className="filter-pills filter-strip-row"
+                // Keyed on the selection so a filter picked from the collapsed
+                // bar remounts these radios. They are uncontrolled —
+                // `defaultChecked` is read once, at mount — and the bar's links
+                // are client-side navigations that reconcile the very same
+                // inputs, so without this the row would go on lighting "All"
+                // over a list the reader had just narrowed.
+                key={selectedStatus ?? "all"}
+                role="radiogroup"
+              >
+                <label>
                   <input
-                    defaultChecked={selectedStatus === status}
+                    defaultChecked={selectedStatus === null}
                     name="status"
                     type="radio"
-                    value={status}
+                    value=""
                   />
                   <span>
-                    {formatEnumLabel(tCommon, status)}
-                    <FilterCount value={statusCount(statusTotals, status)} />
+                    {tCommon("all")}
+                    <FilterCount value={statusTotals?.total} />
                   </span>
                 </label>
-              ))}
-            </div>
-          </ScrollStrip>
-        </FilterForm>
+                {visitStatuses.map((status) => (
+                  <label key={status}>
+                    <input
+                      defaultChecked={selectedStatus === status}
+                      name="status"
+                      type="radio"
+                      value={status}
+                    />
+                    <span>
+                      {formatEnumLabel(tCommon, status)}
+                      <FilterCount value={statusCount(statusTotals, status)} />
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </ScrollStrip>
+          </FilterForm>
+        </StickyFilterBar>
 
         {visits.length > 0 ? (
           <>

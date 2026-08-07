@@ -3958,14 +3958,14 @@ textarea {
 }
 
 /* Holds the filter row so the collapsed bar can watch it. A grid item in the
-   board like the row was, and — like every grid item wrapping a strip that
+   list like the row was, and — like every grid item wrapping a strip that
    scrolls sideways — pinned to zero minimum width, or the strip's own content
    would widen the column and take the page's horizontal scroll with it. */
-.task-sticky-bar-source {
+.sticky-filter-bar-source {
   min-width: 0;
 }
 
-/* The collapsed header (TaskStickyBar): the screen's name and its filters, in
+/* The collapsed header (StickyFilterBar): the screen's name and its filters, in
    the strip of viewport under the pinned brand row.
 
    Off screen it is parked one full height above its resting place, so it slides
@@ -3974,7 +3974,7 @@ textarea {
    fixed, so nothing around it reflows either way. Visibility is what actually
    removes it: opacity alone would leave four filter links in the tab order and
    in the accessibility tree over a screen that is not showing them. */
-.task-sticky-bar {
+.sticky-filter-bar {
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
@@ -3996,7 +3996,7 @@ textarea {
   z-index: 9;
 }
 
-.task-sticky-bar.is-visible {
+.sticky-filter-bar.is-visible {
   opacity: 1;
   transform: translateY(0);
   transition:
@@ -4007,15 +4007,15 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .task-sticky-bar,
-  .task-sticky-bar.is-visible {
+  .sticky-filter-bar,
+  .sticky-filter-bar.is-visible {
     transition: none;
   }
 }
 
 /* The phone column, matched to .main-surface so the bar's contents line up with
    the list under it even where the viewport is wider than the frame. */
-.task-sticky-bar-inner {
+.sticky-filter-bar-inner {
   align-items: center;
   display: flex;
   gap: 10px;
@@ -4027,7 +4027,7 @@ textarea {
 
 /* The title doubles as the way back to the top of the list, which is what a
    collapsed header is expected to do everywhere else on a phone. */
-.task-sticky-bar-title {
+.sticky-filter-bar-title {
   background: none;
   border: 0;
   color: var(--ink);
@@ -4039,24 +4039,24 @@ textarea {
   padding: 0;
 }
 
-.task-sticky-bar-title:focus-visible {
+.sticky-filter-bar-title:focus-visible {
   border-radius: 6px;
   outline: 2px solid var(--accent-strong);
   outline-offset: 3px;
 }
 
 /* Same chips as the full row, scrolling sideways in the space left over. */
-.task-sticky-bar-pills {
+.sticky-filter-bar-pills {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.task-sticky-bar-pills::-webkit-scrollbar {
+.sticky-filter-bar-pills::-webkit-scrollbar {
   display: none;
 }
 
-.task-sticky-bar-pills a {
+.sticky-filter-bar-pills a {
   white-space: nowrap;
 }
 

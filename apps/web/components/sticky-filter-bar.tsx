@@ -19,7 +19,7 @@ export type StickyFilterChip = {
   tone?: "overdue" | "priority";
 };
 
-type TaskStickyBarProps = {
+type StickyFilterBarProps = {
   ariaLabel: string;
   chips: StickyFilterChip[];
   // The full filter row this bar stands in for. Wrapped rather than merely
@@ -33,9 +33,10 @@ type TaskStickyBarProps = {
 };
 
 /**
- * The task list's collapsed header: a 56px bar carrying the screen name and the
+ * A field list's collapsed header: a 56px bar carrying the screen name and the
  * same filters as the full header, shown once the real filter row has scrolled
- * out of reach.
+ * out of reach. The task list and the visit history both read this way — long
+ * lists whose filters are needed again halfway down.
  *
  * Why a second copy rather than pinning the real row: the full header is the
  * screen's first impression — brand row, title, the create action — and pinning
@@ -59,13 +60,13 @@ type TaskStickyBarProps = {
  * early. (An empty sentinel element would read better than a wrapper, but an
  * observed target with no height never reports at all.)
  */
-export function TaskStickyBar({
+export function StickyFilterBar({
   ariaLabel,
   chips,
   children,
   scrollTopLabel,
   title,
-}: TaskStickyBarProps) {
+}: StickyFilterBarProps) {
   const rowRef = useRef<HTMLDivElement>(null);
   // The spec's "collapsed" state, named for what it does here: the header is
   // collapsed exactly when this bar stands in for it.
@@ -139,7 +140,7 @@ export function TaskStickyBar({
 
   return (
     <>
-      <div className="task-sticky-bar-source" ref={rowRef}>
+      <div className="sticky-filter-bar-source" ref={rowRef}>
         {children}
       </div>
 
@@ -149,12 +150,12 @@ export function TaskStickyBar({
         // the same for focus: the copy must not be tabbable while collapsed.
         aria-hidden={barShown ? undefined : "true"}
         aria-label={ariaLabel}
-        className={`task-sticky-bar${barShown ? " is-visible" : ""}`}
+        className={`sticky-filter-bar${barShown ? " is-visible" : ""}`}
         role="region"
       >
-        <div className="task-sticky-bar-inner">
+        <div className="sticky-filter-bar-inner">
           <button
-            className="task-sticky-bar-title"
+            className="sticky-filter-bar-title"
             onClick={() =>
               window.scrollTo({
                 behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -170,7 +171,7 @@ export function TaskStickyBar({
             {title}
           </button>
 
-          <div className="task-sticky-bar-pills filter-pills">
+          <div className="sticky-filter-bar-pills filter-pills">
             {chips.map((chip) => (
               <Link
                 aria-current={chip.active ? "true" : undefined}

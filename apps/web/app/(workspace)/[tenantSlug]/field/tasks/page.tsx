@@ -34,9 +34,9 @@ import { PendingSubmitButton } from "../../../../../components/pending-submit-bu
 import { ScrollStrip } from "../../../../../components/scroll-strip";
 import { Sheet } from "../../../../../components/sheet";
 import {
-  TaskStickyBar,
+  StickyFilterBar,
   type StickyFilterChip,
-} from "../../../../../components/task-sticky-bar";
+} from "../../../../../components/sticky-filter-bar";
 import {
   createTask,
   getCurrentSession,
@@ -572,7 +572,7 @@ export default async function FieldTasksPage({
     <AppShell
       activeArea="field-tasks"
       // The brand row scrolls away with the header it belongs to: the top edge
-      // here is taken by this screen's own collapsed bar (TaskStickyBar), and
+      // here is taken by this screen's own collapsed bar (StickyFilterBar), and
       // only one of the two can hold it.
       scrollingTopbar
       tenantSlug={tenantSlug}
@@ -627,8 +627,8 @@ export default async function FieldTasksPage({
       <section aria-label={t("listAria")} className="task-board">
         {/* The filter row, and the collapsed bar that takes over once it has
             scrolled away. The bar holds the row so it can watch it — see
-            TaskStickyBar. */}
-        <TaskStickyBar
+            StickyFilterBar. */}
+        <StickyFilterBar
           ariaLabel={t("stickyFiltersAria")}
           chips={stickyChips}
           scrollTopLabel={t("backToTop")}
@@ -651,6 +651,14 @@ export default async function FieldTasksPage({
               <div
                 aria-label={t("filtersAria")}
                 className="filter-pills filter-strip-row"
+                // Keyed on what is selected so a filter picked from the
+                // collapsed bar remounts these fields. They are uncontrolled —
+                // `defaultChecked` is read once, at mount — and the bar's links
+                // are client-side navigations that reconcile the very same
+                // inputs, so without this the row went on showing the filters
+                // the reader had *left*, over a list narrowed by the ones they
+                // just picked.
+                key={`${isDoneList ? "done" : selectedStatus}-${selectedOverdueOnly}-${selectedPriorityOnly}`}
                 role="group"
               >
                 <label>
@@ -747,7 +755,7 @@ export default async function FieldTasksPage({
               </p>
             ) : null}
           </FilterForm>
-        </TaskStickyBar>
+        </StickyFilterBar>
 
         {/* How much finished work there is in total, above the page of it on
             screen — the denominator the pagination line below counts pages
