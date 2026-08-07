@@ -1051,6 +1051,16 @@ textarea {
   white-space: nowrap;
 }
 
+/* The month, set well under the day number beside it. The number is what tells
+   one heading from the next down a screen of them; the month repeats for a
+   fortnight at a time and only has to be legible enough to place the day.
+   Not literally half of 13px — at 6.5 it stops being readable at arm's length
+   in daylight, which is where this screen is used. */
+.visit-day-month {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
 /* How many visits the day holds, next to its date — the number a folded day is
    read for. Same weight and ink as the date it sits beside: it qualifies the
    date rather than competing with it. */

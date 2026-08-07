@@ -334,8 +334,10 @@ export function periodLabel(
  * A pill carrying the window is read as the control's current value, with the
  * screen around it supplying "period"; the long form repeats a word the pill's
  * own position already says. The years matter more: spelled out on both ends, a
- * range runs to "4 лип. 2026 р. – 10 лип. 2026 р." — wider than the phone the
- * pill sits on, which broke the screen's title across two lines to make room.
+ * range runs to something like "4 Jul 2026 - 10 Jul 2026" — and half again as
+ * wide in a language that inflects its month names, which is wider than the
+ * phone the pill sits on, and broke the screen's title across two lines to
+ * make room.
  *
  * So a range inside the current year drops the year from both ends, on the same
  * rule the day headers use, and a range that reaches past it keeps them on both

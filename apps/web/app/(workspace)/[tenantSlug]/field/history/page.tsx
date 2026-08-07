@@ -1,5 +1,10 @@
-import { useFormatter, useTranslations } from "next-intl";
-import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
+import {
+  getFormatter,
+  getLocale,
+  getTimeZone,
+  getTranslations,
+} from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
 import { FilterCount } from "../../../../../components/filter-count";
@@ -65,14 +70,16 @@ export default async function FieldHistoryPage({
   searchParams,
 }: FieldHistoryPageProps) {
   const { tenantSlug } = await params;
-  const [t, tField, tCommon, tPeriod, format, timeZone] = await Promise.all([
-    getTranslations("field.history"),
-    getTranslations("field"),
-    getTranslations("common"),
-    getTranslations("common.period"),
-    getFormatter(),
-    getTimeZone(),
-  ]);
+  const [t, tField, tCommon, tPeriod, format, locale, timeZone] =
+    await Promise.all([
+      getTranslations("field.history"),
+      getTranslations("field"),
+      getTranslations("common"),
+      getTranslations("common.period"),
+      getFormatter(),
+      getLocale(),
+      getTimeZone(),
+    ]);
   const sessionResult = await getCurrentSession();
 
   if (
@@ -407,6 +414,7 @@ export default async function FieldHistoryPage({
           <>
             <HistoryDays
               daySummary={daySummary}
+              locale={locale}
               origin={historyOrigin}
               page={page}
               pageSize={PAGE_SIZE}
@@ -495,6 +503,7 @@ export default async function FieldHistoryPage({
 // most likely came for without hiding anything they may go looking for.
 function HistoryDays({
   daySummary,
+  locale,
   origin,
   page,
   pageSize,
@@ -503,6 +512,7 @@ function HistoryDays({
   visits,
 }: {
   daySummary: VisitDaySummaryEntry[] | null;
+  locale: string;
   origin: string;
   page: number;
   pageSize: number;
@@ -512,7 +522,6 @@ function HistoryDays({
 }) {
   const t = useTranslations("field.history");
   const tCommon = useTranslations("common");
-  const format = useFormatter();
 
   // en-CA renders as YYYY-MM-DD, which is both a stable bucket key and sortable
   // as a plain string — the locale here is an implementation detail, never
@@ -579,20 +588,44 @@ function HistoryDays({
         const dayDate = new Date(visitDayTimestamp(group.visits[0]));
         const isToday = group.key === todayKey;
         const isYesterday = group.key === yesterdayKey;
-        const dateLabel = format.dateTime(dayDate, {
+        // Built from the date's own parts rather than as one string, so the
+        // month can be set smaller than the day number beside it: the number is
+        // what separates one heading from the next down a screen of them, and
+        // the month repeats for a fortnight at a time.
+        //
+        // Raw Intl rather than the next-intl formatter, which has no parts API
+        // — hence the explicit timeZone, which the formatter would otherwise
+        // have applied from the tenant's own setting.
+        const dateNode = new Intl.DateTimeFormat(locale, {
           day: "numeric",
           month: "long",
+          timeZone,
           // Only spell the year out once the history reaches back past the
           // current one, where day and month alone stop placing the day.
           ...(group.key.slice(0, 4) === todayKey.slice(0, 4)
             ? {}
             : { year: "numeric" }),
-        });
+        })
+          .formatToParts(dayDate)
+          .map((part, partIndex) =>
+            part.type === "month" ? (
+              <span className="visit-day-month" key={partIndex}>
+                {part.value}
+              </span>
+            ) : (
+              part.value
+            ),
+          );
+        // The date reaches the message as a tag rather than as a value: a
+        // placeholder takes a string, and this one is elements. The tag carries
+        // no content of its own — where the date sits in "Today, …" is the
+        // translator's call, which is the whole point of it being in the
+        // message at all.
         const dayLabel = isToday
-          ? t("dayToday", { date: dateLabel })
+          ? t.rich("dayToday", { date: () => <>{dateNode}</> })
           : isYesterday
-            ? t("dayYesterday", { date: dateLabel })
-            : dateLabel;
+            ? t.rich("dayYesterday", { date: () => <>{dateNode}</> })
+            : dateNode;
         // What became of the day, in the header — so a folded day still says
         // whether it holds anything to come back to. Only what actually
         // happened is named: a day with nothing completed says nothing about
