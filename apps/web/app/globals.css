@@ -1071,6 +1071,41 @@ textarea {
   font-weight: 600;
 }
 
+/* Each number in the recap wears its status colour — the same three the cards
+   under the heading use — so a folded day is read at a glance instead of word
+   by word. The number only: the word after it stays grey, or the line becomes
+   three coloured phrases pulling at the eye as hard as the visits do. */
+.visit-day-recap b {
+  font-weight: 800;
+}
+
+.visit-day-recap .is-completed b {
+  color: var(--accent);
+}
+
+.visit-day-recap .is-in-progress b {
+  color: var(--gold);
+}
+
+.visit-day-recap .is-cancelled b {
+  color: var(--danger);
+}
+
+/* The separator between the parts, drawn rather than written: with the counts
+   built as elements there is no string left to join them with. Out of the
+   accessibility tree where the alt-text syntax is supported — a screen reader
+   reading "4 completed dot 1 in progress" gains nothing from the dot. */
+.visit-day-recap span + span::before {
+  content: "·";
+  margin: 0 5px;
+}
+
+@supports (content: "a" / "") {
+  .visit-day-recap span + span::before {
+    content: "·" / "";
+  }
+}
+
 /* What became of the day, for a day that is folded. An open day says it with
    its cards, so the recap steps out rather than repeating them — and takes its
    room with it, since the rule beside it grows into the gap. */

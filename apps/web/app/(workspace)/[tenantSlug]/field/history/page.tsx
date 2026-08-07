@@ -631,17 +631,42 @@ function HistoryDays({
         // happened is named: a day with nothing completed says nothing about
         // completions rather than "0 completed", which reads as a failure on a
         // day that was entirely cancelled.
+        //
+        // Each number wears its own status colour — the same three the cards
+        // below use — so a folded day is read at a glance rather than word by
+        // word: green for done, gold for still open, red for cancelled. Only
+        // the number is coloured; the word after it stays grey, or the line
+        // becomes three coloured phrases competing with the visits underneath,
+        // which is the noise the rest of this header just lost.
         const recap = [
           summary.completed > 0
-            ? t("countCompleted", { count: summary.completed })
+            ? {
+                key: "completed",
+                text: t.rich("countCompleted", {
+                  count: summary.completed,
+                  n: (chunks) => <b>{chunks}</b>,
+                }),
+              }
             : null,
           summary.inProgress > 0
-            ? t("countInProgress", { count: summary.inProgress })
+            ? {
+                key: "in-progress",
+                text: t.rich("countInProgress", {
+                  count: summary.inProgress,
+                  n: (chunks) => <b>{chunks}</b>,
+                }),
+              }
             : null,
           summary.cancelled > 0
-            ? t("countCancelled", { count: summary.cancelled })
+            ? {
+                key: "cancelled",
+                text: t.rich("countCancelled", {
+                  count: summary.cancelled,
+                  n: (chunks) => <b>{chunks}</b>,
+                }),
+              }
             : null,
-        ].filter((part): part is string => part !== null);
+        ].filter((part) => part !== null);
 
         return (
           // Only the newest day is open. It is the one a rep opening this
@@ -669,7 +694,13 @@ function HistoryDays({
               {/* Hidden while the day is open, where the cards below say the
                   same thing in more detail — the recap is what a folded day
                   has instead of its cards, not a second copy of them. */}
-              <span className="visit-day-recap">{recap.join(" · ")}</span>
+              <span className="visit-day-recap">
+                {recap.map((part) => (
+                  <span className={`is-${part.key}`} key={part.key}>
+                    {part.text}
+                  </span>
+                ))}
+              </span>
               <span aria-hidden="true" className="visit-day-rule" />
               <span aria-hidden="true" className="visit-day-chevron">
                 <ChevronDownIcon />
