@@ -21,6 +21,7 @@ import {
   EditTaskModal,
   type EditTaskActionResult,
 } from "../../../../../components/edit-task-modal";
+import { FilterCount } from "../../../../../components/filter-count";
 import { FilterForm } from "../../../../../components/filter-form";
 import {
   CalendarDashIcon,
@@ -31,7 +32,7 @@ import {
 } from "../../../../../components/icons";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import { ScrollStrip } from "../../../../../components/scroll-strip";
-import { TaskSheet } from "../../../../../components/task-sheet";
+import { Sheet } from "../../../../../components/sheet";
 import {
   TaskStickyBar,
   type StickyFilterChip,
@@ -649,7 +650,7 @@ export default async function FieldTasksPage({
             <ScrollStrip>
               <div
                 aria-label={t("filtersAria")}
-                className="filter-pills task-filter-row"
+                className="filter-pills filter-strip-row"
                 role="group"
               >
                 <label>
@@ -865,7 +866,7 @@ export default async function FieldTasksPage({
             an id from another list, another rep or a stale link opens nothing
             rather than fetching a task this view was not showing. */}
         {openTask ? (
-          <TaskSheet
+          <Sheet
             ariaLabel={openTask.title}
             closeHref={listHref}
             closeLabel={tCommon("close")}
@@ -890,7 +891,7 @@ export default async function FieldTasksPage({
               updateTaskFieldsAction={updateTaskFieldsAction}
               updateTaskStatusAction={updateTaskStatusAction}
             />
-          </TaskSheet>
+          </Sheet>
         ) : null}
       </section>
 
@@ -906,16 +907,6 @@ export default async function FieldTasksPage({
       />
     </AppShell>
   );
-}
-
-// A count riding inside a filter pill. Absent rather than zero when the list it
-// counts failed to load: "0 overdue" is an answer, and this would be a guess.
-function FilterCount({ value }: { value: number | undefined }) {
-  if (value === undefined) {
-    return null;
-  }
-
-  return <b className="filter-pill-count">{value}</b>;
 }
 
 // One band of the list under its own heading — late, today, ahead, undated, or
@@ -1086,8 +1077,8 @@ type FieldTasksTranslator = Awaited<
 type CommonTranslator = Awaited<ReturnType<typeof getTranslations<"common">>>;
 
 // Everything the sheet says about one task, and every action on it. Rendered
-// on the server and handed to TaskSheet as children — the sheet itself only
-// owns the gesture, the backdrop and the way it closes.
+// on the server and handed to the shared Sheet as children — the sheet itself
+// only owns the gesture, the backdrop and the way it closes.
 function TaskSheetBody({
   format,
   listQuery,
@@ -1121,9 +1112,9 @@ function TaskSheetBody({
           description are as long as the rep who wrote them made them, and with
           only the history scrolling a wordy task pushed "Complete" — the whole
           reason the sheet opens — off the bottom of a small screen. */}
-      <div className="task-sheet-body">
-        <div className="task-sheet-head">
-          <h2 className="task-sheet-title">{task.title}</h2>
+      <div className="sheet-body">
+        <div className="sheet-head">
+          <h2 className="sheet-title">{task.title}</h2>
           {task.description ? (
             <p className="task-sheet-description">{task.description}</p>
           ) : null}
@@ -1163,7 +1154,7 @@ function TaskSheetBody({
         />
       </div>
 
-      <div className="task-sheet-actions">
+      <div className="sheet-actions">
         {/* The whole point of opening a task on a route: one tap to close it
             out. Finishing sends the rep back to the list, where the task has
             moved to "closed today" and the confirmation says so.

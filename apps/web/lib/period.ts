@@ -46,6 +46,20 @@ export const DEFAULT_PERIOD_PRESET: PeriodPreset = "month";
  */
 export const PERIOD_MAX_MONTHS = 12;
 
+/**
+ * The `period` URL value that asks a screen to open its window picker.
+ *
+ * The picker is a URL rather than component state, so the phone's back gesture
+ * closes it and a half-picked window survives a refresh. The window itself is
+ * already in the URL as the two date params — this only says the picker is
+ * open over it, which is why it is one value rather than a range of its own.
+ *
+ * The manager screens carry `period=custom` for the same job in their filter
+ * panel; the two are deliberately different values, since one opens a sheet
+ * over a phone screen and the other expands a disclosure on a table.
+ */
+export const PERIOD_PICKER_VALUE = "picker";
+
 /** A pair of calendar days, YYYY-MM-DD — the format the API's date filters take. */
 export type DayRange = { from: string; to: string };
 
@@ -310,6 +324,29 @@ export function periodLabel(
     });
 
   return t("custom", { from: day(period.from), to: day(period.to) });
+}
+
+/**
+ * The same window, named for a control rather than for a sentence: the short
+ * preset name ("30 days") instead of the spelled-out one ("Last 30 days").
+ *
+ * A pill carrying the window is read as the control's current value, with the
+ * screen around it supplying "period"; the long form repeats a word the pill's
+ * own position already says, and on a phone it is the difference between a pill
+ * beside the title and one that wraps under it. A hand-picked range has no
+ * short form to fall back on — its two dates *are* its name — so it reads the
+ * same either way.
+ */
+export function periodShortLabel(
+  t: PeriodTranslator,
+  format: IntlFormatter,
+  period: DayRange & { preset: PeriodPreset | "custom" },
+): string {
+  if (period.preset === "custom") {
+    return periodLabel(t, format, period);
+  }
+
+  return t(`presetShort.${period.preset}`);
 }
 
 /**

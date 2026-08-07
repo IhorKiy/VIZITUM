@@ -5,7 +5,9 @@ import {
   hasEarlierPeriod,
   historyFloor,
   periodAsRead,
+  periodLabel,
   periodPresetRange,
+  periodShortLabel,
   previousPeriod,
   resolvePeriod,
 } from "../apps/web/lib/period";
@@ -239,5 +241,48 @@ describe("period window (web)", () => {
       from: "2026-05-30",
       to: "2026-06-28",
     });
+  });
+});
+
+// What the window is called on the control that sets it. The pill in the visit
+// history's header is the only place a rep is told which period they are
+// reading, so the short name has to be a name — not a truncation, and never
+// empty for a range someone typed by hand.
+describe("period short label", () => {
+  // The dictionaries under common.period, as the two functions read them.
+  const t = ((key: string, values?: Record<string, string>) =>
+    values ? `${key}(${values.from}..${values.to})` : key) as never;
+  const format = {
+    dateTime: (value: Date) => value.toISOString().slice(0, 10),
+  } as never;
+
+  it("names a preset by its short form, which the pill has room for", () => {
+    assert.equal(
+      periodShortLabel(t, format, {
+        from: "2026-06-29",
+        to: "2026-07-28",
+        preset: "month",
+      }),
+      "presetShort.month",
+    );
+  });
+
+  it("names a hand-picked range by its two dates, as the long form does", () => {
+    // A range has no short name to fall back on: its dates are its name, so
+    // both forms agree rather than one of them going blank.
+    const range = {
+      from: "2026-06-09",
+      to: "2026-07-08",
+      preset: "custom",
+    } as const;
+
+    assert.equal(
+      periodShortLabel(t, format, range),
+      periodLabel(t, format, range),
+    );
+    assert.equal(
+      periodShortLabel(t, format, range),
+      "custom(2026-06-09..2026-07-08)",
+    );
   });
 });

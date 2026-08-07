@@ -2,13 +2,13 @@ import { useFormatter, useTranslations } from "next-intl";
 import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../components/app-shell";
-import { FilterDateRange } from "../../../../../components/filter-date-range";
-import { FilterDisclosure } from "../../../../../components/filter-disclosure";
-import { FilterFooter } from "../../../../../components/filter-footer";
+import { FilterCount } from "../../../../../components/filter-count";
 import { FilterForm } from "../../../../../components/filter-form";
-import { FilterPills } from "../../../../../components/filter-pills";
-import { ChevronDownIcon } from "../../../../../components/icons";
-import { PeriodLinks } from "../../../../../components/period-links";
+import { ChevronDownIcon, MapPinIcon } from "../../../../../components/icons";
+import { PeriodPill } from "../../../../../components/period-pill";
+import { PeriodSheet } from "../../../../../components/period-sheet";
+import { ScrollStrip } from "../../../../../components/scroll-strip";
+import { VisitHistoryCard } from "../../../../../components/visit-history-card";
 import {
   getCurrentSession,
   listVisitDaySummary,
@@ -20,8 +20,7 @@ import {
 } from "../../../../../lib/api-client";
 import { backOrigin, withBackOrigin } from "../../../../../lib/back-navigation";
 import { formatCancellationReason } from "../../../../../lib/visit-cancellation";
-import { isDayFullyDone } from "../../../../../lib/visit-history-days";
-import { formatEnumLabel, statusPillTone } from "../../../../../lib/format";
+import { formatEnumLabel } from "../../../../../lib/format";
 import {
   hasEarlierPeriod as canStepBack,
   historyFloor as resolveHistoryFloor,
@@ -30,18 +29,21 @@ import {
   periodAsRead,
   periodLabel as formatPeriodLabel,
   periodSearchParams,
+  periodShortLabel,
   PERIOD_MAX_MONTHS,
+  PERIOD_PICKER_VALUE,
   previousPeriod,
   resolvePeriod,
   VISIT_PERIOD_PARAMS,
 } from "../../../../../lib/period";
+import { summarizeVisitDay } from "../../../../../lib/visit-day-summary";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
     page?: string;
-    // Set by the "Period…" pill: the range itself is already in the URL, this
-    // only asks the filter panel to open on it.
+    // Set by the period pill: the window itself is already in the URL, this
+    // only says the picker is open over it.
     period?: string;
     startedFrom?: string;
     startedTo?: string;
@@ -113,16 +115,14 @@ export default async function FieldHistoryPage({
   const requestedTo = normalizeDayParam(pageState.startedTo);
   // The list is always read through a named window: with nothing in the URL
   // that is the last 30 days in the tenant's timezone, not all of history.
-  // Resolved here rather than left to the API so the recap below can say which
-  // period the numbers describe.
+  // Resolved here rather than left to the API so the pill above the list can
+  // name the period the numbers describe.
   const requestedPeriod = resolvePeriod(
     { from: requestedFrom, to: requestedTo },
     timeZone,
   );
   const page = normalizePage(pageState.page);
-  // The default window is nobody's choice, so it doesn't light the filter
-  // panel; a period the rep picked does.
-  const hasFilters = Boolean(selectedStatus) || !requestedPeriod.isDefault;
+  const isPickerOpen = pageState.period === PERIOD_PICKER_VALUE;
   // A visit report opens from here, from the location card and from a
   // location's own history; it returns to whichever one it was opened from,
   // with this list's period/status/page still applied. The window travels as
@@ -154,8 +154,8 @@ export default async function FieldHistoryPage({
   daySummaryQuery.delete("pageSize");
 
   // Two requests for the whole screen: the page of visits (whose response
-  // carries the period's status split, so the recap costs nothing extra) and
-  // the per-day aggregate the day headers read.
+  // carries the period's status split, so the chip counts cost nothing extra)
+  // and the per-day aggregate the day headers read.
   const [visitsResult, daySummaryResult] = await Promise.all([
     listVisits(query.toString()),
     listVisitDaySummary(daySummaryQuery.toString()),
@@ -196,7 +196,7 @@ export default async function FieldHistoryPage({
 
   const visits = visitsResult.data.items;
   const totalPages = visitsResult.data.totalPages;
-  // What the API actually read, which is what the recap names: a window longer
+  // What the API actually read, which is what the pill names: a window longer
   // than the 12-month maximum comes back trimmed, and announcing the requested
   // range would claim visits nobody looked for. The trimmed-away months are
   // still reachable — as their own window, which the note under the list says.
@@ -205,18 +205,15 @@ export default async function FieldHistoryPage({
     visitsResult.data.period?.startedFrom,
     timeZone,
   );
-  const periodLabel = formatPeriodLabel(tPeriod, format, period);
-  // The whole period's split, ignoring the status pill — it arrives with the
-  // list itself, so picking a pill promotes one of these numbers to the front
-  // of the line without asking the API anything more.
+  // The whole period's split, ignoring the status chip — it arrives with the
+  // list itself, so every chip can carry its own count without asking the API
+  // anything more.
   //
   // Absent for a minute or two mid-deploy, when this build is already serving
-  // pages against the previous API. A recap reading "0 visits" above a list of
-  // visible cards is worse than no recap, so the whole line sits it out.
+  // pages against the previous API; the chips simply lose their numbers rather
+  // than claiming zeroes over a visible list.
   const statusTotals = visitsResult.data.statusTotals;
-  const counts = statusTotals
-    ? buildHistoryCounts(statusTotals, selectedStatus, t)
-    : [];
+  const screenHref = `/${tenantSlug}/field/history`;
   const pageHref = (targetPage: number) => {
     const params = new URLSearchParams(query);
     params.delete("pageSize");
@@ -229,10 +226,34 @@ export default async function FieldHistoryPage({
 
     const search = params.toString();
 
-    return search
-      ? `/${tenantSlug}/field/history?${search}`
-      : `/${tenantSlug}/field/history`;
+    return search ? `${screenHref}?${search}` : screenHref;
   };
+  // What the picker has to carry through and cannot write itself: the status
+  // chip, and nothing else. Deliberately without the two date params — the
+  // picker renders these as hidden fields beside its own date inputs, and a
+  // second `startedFrom` in the same form would reach the URL twice.
+  const pickerOtherParams = new URLSearchParams(
+    selectedStatus ? { status: selectedStatus } : {},
+  );
+  // The window in the address, so opening and closing the picker reads the same
+  // period the list is showing — but only once it is a window someone chose.
+  // Writing the default 30 days into every URL would leave the screens this one
+  // links to carrying dates nobody picked (see `isDefault`).
+  const windowParams = period.isDefault
+    ? {}
+    : periodSearchParams(period, VISIT_PERIOD_PARAMS);
+  const withParams = (params: Record<string, string>) => {
+    const search = new URLSearchParams(pickerOtherParams);
+
+    for (const [name, value] of Object.entries(params)) {
+      search.set(name, value);
+    }
+
+    const query = search.toString();
+
+    return query ? `${screenHref}?${query}` : screenHref;
+  };
+
   // Where the list continues once this window is read out: the window of the
   // same length immediately behind it, on page one.
   const earlier = previousPeriod(period);
@@ -253,7 +274,7 @@ export default async function FieldHistoryPage({
     timeZone,
   );
   // Nothing was ever recorded in this scope — which is *not* the same as this
-  // window being empty. A status pill or a narrow window empties the list all
+  // window being empty. A status chip or a narrow window empties the list all
   // the time while older visits sit right behind it; only `historyStart` can
   // tell those apart, so `visits.length` is deliberately not consulted here.
   const historyIsEmpty = historyFloor.state === "empty";
@@ -263,9 +284,6 @@ export default async function FieldHistoryPage({
   const earlierPeriodParams = new URLSearchParams({
     ...periodSearchParams(earlier, VISIT_PERIOD_PARAMS),
     ...(selectedStatus ? { status: selectedStatus } : {}),
-    // Opens the filter panel on the range it just moved to, so the next step
-    // back is one edit away rather than a second guess.
-    period: "custom",
   });
   const earlierPeriodLabel = formatPeriodLabel(tPeriod, format, {
     ...earlier,
@@ -274,7 +292,7 @@ export default async function FieldHistoryPage({
   // Two different endings, which the old copy collapsed into one false claim.
   // Reaching the first visit really is the end of the history. Hitting the
   // maximum window length is not — the months behind a trimmed window are one
-  // date range away — so that case points at the filter instead of announcing
+  // date range away — so that case points at the picker instead of announcing
   // a bottom, and the step back stays offered.
   //
   // The trimmed note stands down once the first visit is inside the window:
@@ -286,8 +304,8 @@ export default async function FieldHistoryPage({
       {hasEarlierPeriod ? (
         <>
           <a
-            className="secondary-button"
-            href={`/${tenantSlug}/field/history?${earlierPeriodParams.toString()}`}
+            className="period-step-back"
+            href={`${screenHref}?${earlierPeriodParams.toString()}`}
           >
             {t("periodEarlier", { period: earlierPeriodLabel })}
           </a>
@@ -307,88 +325,79 @@ export default async function FieldHistoryPage({
 
   return (
     <AppShell tenantSlug={tenantSlug} activeArea="field-history">
-      {/* The rep opens this screen to read the list, so the header is the
-          title and nothing else: the period recap moved down to the list it
-          describes, and "today"/"new visit" are one tap away in the tab bar. */}
-      <header className="page-header">
-        <div>
-          <h1>{t("title")}</h1>
-        </div>
+      {/* The rep opens this screen to read the list, so the header is the title
+          and the one control that says how far back it reads. The status chips
+          under it say which of those visits are on screen. */}
+      <header className="page-header page-header--compact history-header">
+        <h1>{t("title")}</h1>
+        <PeriodPill
+          ariaLabel={t("visitPeriod")}
+          href={withParams({
+            ...windowParams,
+            period: PERIOD_PICKER_VALUE,
+          })}
+          label={periodShortLabel(tPeriod, format, period)}
+        />
       </header>
 
-      <section aria-label={t("myVisits")} className="panel drilldown-panel">
-        <FilterForm action={`/${tenantSlug}/field/history`}>
-          <div className="panel-toolbar panel-toolbar-filters">
-            <FilterPills
-              ariaLabel={t("statusFiltersAria")}
-              name="status"
-              options={[
-                { label: tCommon("all"), value: "" },
-                ...visitStatuses.map((status) => ({
-                  label: formatEnumLabel(tCommon, status),
-                  value: status,
-                })),
-              ]}
-              value={selectedStatus ?? ""}
-            />
-            {/* Under the pills, in text: they say which visits are on screen,
-                this says how far back the screen reads. */}
-            <PeriodLinks
-              action={`/${tenantSlug}/field/history`}
-              ariaLabel={t("visitPeriod")}
-              names={VISIT_PERIOD_PARAMS}
-              otherParams={
-                new URLSearchParams(
-                  selectedStatus ? { status: selectedStatus } : {},
-                )
-              }
-              period={period}
-              timeZone={timeZone}
-            />
-          </div>
-
-          <FilterDisclosure
-            hasFilters={hasFilters || pageState.period === "custom"}
-            label={tCommon("filtersLabel")}
-          >
-            <div className="filter-form field-history-filter-form">
-              {/* Seeded with the resolved window rather than with whatever the
-                  URL happened to carry: editing one end of the default period
-                  should narrow those 30 days, not open an unbounded range. */}
-              <FilterDateRange
-                fromLabel={t("startedFrom")}
-                fromName="startedFrom"
-                fromValue={period.from}
-                label={t("visitPeriod")}
-                placeholder={tCommon("datePlaceholder")}
-                toLabel={t("startedTo")}
-                toName="startedTo"
-                toValue={period.to}
+      <section aria-label={t("myVisits")} className="visit-history">
+        <FilterForm action={screenHref}>
+          {/* The window travels with the chip, or picking one would drop the
+              period back to the default 30 days. Hidden rather than visible
+              for the same reason it is absent from the URL by default: the
+              only window worth carrying is one someone chose. */}
+          {period.isDefault ? null : (
+            <>
+              <input
+                name={VISIT_PERIOD_PARAMS.from}
+                type="hidden"
+                value={period.from}
               />
-              {/* No match count here: the recap line under the panel already
-                  leads with the count for this very selection. */}
-              <FilterFooter
-                resetHref={
-                  hasFilters ? `/${tenantSlug}/field/history` : undefined
-                }
-                resetLabel={tCommon("reset")}
+              <input
+                name={VISIT_PERIOD_PARAMS.to}
+                type="hidden"
+                value={period.to}
               />
+            </>
+          )}
+          {/* One strip that scrolls sideways rather than a block that wraps:
+              four chips with counts wrap to two rows on a 375px phone, and the
+              second row costs the first visit its place on the screen. */}
+          <ScrollStrip>
+            <div
+              aria-label={t("statusFiltersAria")}
+              className="filter-pills filter-strip-row"
+              role="radiogroup"
+            >
+              <label>
+                <input
+                  defaultChecked={selectedStatus === null}
+                  name="status"
+                  type="radio"
+                  value=""
+                />
+                <span>
+                  {tCommon("all")}
+                  <FilterCount value={statusTotals?.total} />
+                </span>
+              </label>
+              {visitStatuses.map((status) => (
+                <label key={status}>
+                  <input
+                    defaultChecked={selectedStatus === status}
+                    name="status"
+                    type="radio"
+                    value={status}
+                  />
+                  <span>
+                    {formatEnumLabel(tCommon, status)}
+                    <FilterCount value={statusCount(statusTotals, status)} />
+                  </span>
+                </label>
+              ))}
             </div>
-          </FilterDisclosure>
+          </ScrollStrip>
         </FilterForm>
-
-        {/* No aria-label here: ARIA prohibits naming a paragraph, and the line
-            reads as its own label anyway. */}
-        {/* The period leads the line: a count with no window behind it is a
-            number without a denominator. */}
-        {statusTotals ? (
-          <p className="list-count-summary">
-            <strong>{periodLabel}</strong>
-            {counts.map((part) => (
-              <span key={part}>{part}</span>
-            ))}
-          </p>
-        ) : null}
 
         {visits.length > 0 ? (
           <>
@@ -397,10 +406,6 @@ export default async function FieldHistoryPage({
               origin={historyOrigin}
               page={page}
               pageSize={PAGE_SIZE}
-              // Under a status pill the day recap would only ever describe that
-              // one status — "0% completed" on every day of an in-progress
-              // list — so the share sits it out until the pill is cleared.
-              showCompletedShare={!selectedStatus}
               tenantSlug={tenantSlug}
               timeZone={timeZone}
               visits={visits}
@@ -424,21 +429,17 @@ export default async function FieldHistoryPage({
             ) : null}
             {/* Paging stops at the edge of the window rather than sliding
                 silently into the archive: the last page hands over to the
-                period control, which is the thing that actually reaches
+                period behind this one, which is the thing that actually reaches
                 further back. */}
             {page >= totalPages ? (
-              <div className="period-exhausted">
-                <p className="small-label">{t("periodExhaustedTitle")}</p>
-                <p>{t("periodExhaustedBody")}</p>
-                {earlierPeriodLink}
-              </div>
+              <div className="period-handover">{earlierPeriodLink}</div>
             ) : null}
           </>
         ) : (
           <div className="empty-state-panel">
             {/* An empty *window* and an empty *history* are different answers
                 and get different words. "No visits match this filter" is true
-                of a narrow window or a status pill and points at both; it is
+                of a narrow window or a status chip and points at both; it is
                 wrong for a rep who has never worked, where no filter and no
                 date will ever help. */}
             <h2>{historyIsEmpty ? t("emptyEverTitle") : t("emptyTitle")}</h2>
@@ -453,11 +454,8 @@ export default async function FieldHistoryPage({
                   that sentence in the toolbar would be the two-messages-side-
                   by-side this replaced. */}
               {historyIsEmpty ? null : earlierPeriodLink}
-              {hasFilters || page > 1 ? (
-                <a
-                  className="secondary-button"
-                  href={`/${tenantSlug}/field/history`}
-                >
+              {selectedStatus || !period.isDefault || page > 1 ? (
+                <a className="secondary-button" href={screenHref}>
                   {t("showAllVisits")}
                 </a>
               ) : null}
@@ -468,21 +466,34 @@ export default async function FieldHistoryPage({
           </div>
         )}
       </section>
+
+      {isPickerOpen ? (
+        <PeriodSheet
+          action={screenHref}
+          closeHref={withParams(windowParams)}
+          fromLabel={t("startedFrom")}
+          names={VISIT_PERIOD_PARAMS}
+          otherParams={pickerOtherParams}
+          period={period}
+          resetHref={period.isDefault ? undefined : screenHref}
+          timeZone={timeZone}
+          toLabel={t("startedTo")}
+        />
+      ) : null}
     </AppShell>
   );
 }
 
 // The day is the rep's unit of work, so it is the list's unit too: visits are
 // bucketed by the calendar day they happened on *in the tenant's timezone*,
-// newest day first, and each day carries its own recap. Unfinished visits keep
-// a gold rail and a "finish report" call to action, so the loose ends of a day
-// are visible without reaching for the status filter.
+// newest day first, and each day carries its own count. The newest day is open
+// and the ones behind it are folded, so the screen opens on the work the rep
+// most likely came for without hiding anything they may go looking for.
 function HistoryDays({
   daySummary,
   origin,
   page,
   pageSize,
-  showCompletedShare,
   tenantSlug,
   timeZone,
   visits,
@@ -491,7 +502,6 @@ function HistoryDays({
   origin: string;
   page: number;
   pageSize: number;
-  showCompletedShare: boolean;
   tenantSlug: string;
   timeZone: string;
   visits: Visit[];
@@ -512,10 +522,6 @@ function HistoryDays({
   const toDayKey = (value: string) => dayKeyFormat.format(new Date(value));
   const todayKey = toDayKey(new Date().toISOString());
   const yesterdayKey = shiftDayKey(todayKey, -1);
-  // Oldest day still inside the current week of work (today plus the six days
-  // behind it) — the window where a weekday name still means something to the
-  // rep reading the list.
-  const weekStartKey = shiftDayKey(todayKey, -6);
   const groups = groupVisitsByDay(visits, toDayKey);
   // Newest first, same order the list itself is fetched in, so the running
   // total below lines up with each day's actual position in the full result.
@@ -536,10 +542,10 @@ function HistoryDays({
   // calendar day. A visit whose startedAt was edited onto a different day
   // than it was created breaks that: its day's visits could scatter across
   // non-adjacent pages, and this label could land on the wrong page or miss
-  // a real continuation. Cosmetic only — the total/completed counts above
-  // stay correct regardless, since they come from the aggregate rather than
-  // this heuristic. The same assumption was already implicit in
-  // groupVisitsByDay's per-page bucketing.
+  // a real continuation. Cosmetic only — the counts in the header stay
+  // correct regardless, since they come from the aggregate rather than this
+  // heuristic. The same assumption was already implicit in groupVisitsByDay's
+  // per-page bucketing.
   const cumulativeBeforeDay = (dayKey: string): number => {
     let sum = 0;
 
@@ -554,206 +560,116 @@ function HistoryDays({
     return sum;
   };
 
-  // Each day's recap numbers, resolved once so the fully-done filter below and
-  // the rendered header read the same figures.
-  const groupsWithStats = groups.map((group, groupIndex) => {
-    const summaryEntry = daySummaryByDay.get(group.key);
-    const completed =
-      summaryEntry?.completed ??
-      group.visits.filter((visit) => visit.status === "completed").length;
-    const count = summaryEntry?.total ?? group.visits.length;
-    const cancelled =
-      summaryEntry?.cancelled ??
-      group.visits.filter((visit) => visit.status === "cancelled").length;
-    // The share, not the tally: how a day went is one number, and the day
-    // opens onto its own visits for anyone who wants them counted. The raw
-    // tally stays on the hover title.
-    //
-    // Cancelled visits leave the denominator: they were closed with a
-    // reason, not left undone, so a day of four completed and four
-    // cancelled reads as finished rather than half done. A day that was
-    // cancelled outright has nothing left to take a share of, so it shows
-    // no percentage at all — its cards carry the cancelled pill.
-    const workable = count - cancelled;
-    const completedPercent =
-      workable > 0 ? Math.round((completed / workable) * 100) : null;
-
-    return {
-      cancelled,
-      completed,
-      completedPercent,
-      group,
-      groupIndex,
-      workable,
-    };
-  });
-  // A day where every workable visit is completed has nothing left to act on,
-  // so it steps out of the running list and into one collapsed section at the
-  // bottom — see isDayFullyDone for the conditions that make it safe to treat a
-  // day as done. `showCompletedShare` is precisely "no pill is active".
-  //
-  // Collected rather than dropped: the rep who goes looking for a day they know
-  // they worked still finds it here, in the same list, one tap away — no filter
-  // change, no lost scroll position.
-  const openGroups: typeof groupsWithStats = [];
-  const doneGroups: typeof groupsWithStats = [];
-
-  for (const entry of groupsWithStats) {
-    const bucket = isDayFullyDone({
-      completed: entry.completed,
-      dayTotalsTrusted: daySummary !== null,
-      statusFilterActive: !showCompletedShare,
-      workable: entry.workable,
-    })
-      ? doneGroups
-      : openGroups;
-
-    bucket.push(entry);
-  }
-
-  // One day, rendered the same whether it sits in the running list or inside
-  // the collapsed section — a completed day keeps its header, its share and its
-  // visit cards, it just isn't in the way.
-  const renderDay = ({
-    cancelled,
-    completed,
-    completedPercent,
-    group,
-    groupIndex,
-    workable,
-  }: (typeof groupsWithStats)[number]) => {
-    const isContinuedFromPreviousPage =
-      groupIndex === 0 &&
-      page > 1 &&
-      daySummary !== null &&
-      cumulativeBeforeDay(group.key) < (page - 1) * pageSize;
-    const dayDate = new Date(visitDayTimestamp(group.visits[0]));
-    const isToday = group.key === todayKey;
-    const isYesterday = group.key === yesterdayKey;
-    // The date leads; the weekday is an aid for placing a day the rep still
-    // remembers by name, so it only rides along for the current week and
-    // drops off entirely further back.
-    const isThisWeek = group.key >= weekStartKey;
-    const dateLabel = format.dateTime(dayDate, {
-      day: "numeric",
-      month: "long",
-      // Only spell the year out once the history reaches back past the
-      // current one, where day and month alone stop placing the day.
-      ...(group.key.slice(0, 4) === todayKey.slice(0, 4)
-        ? {}
-        : { year: "numeric" }),
-    });
-    const dayLabel = isToday
-      ? t("dayToday", { date: dateLabel })
-      : isYesterday
-        ? t("dayYesterday", { date: dateLabel })
-        : isThisWeek
-          ? t("dayWithWeekday", {
-              date: dateLabel,
-              weekday: format.dateTime(dayDate, { weekday: "long" }),
-            })
-          : dateLabel;
-
-    return (
-      <details className="visit-day" key={group.key}>
-        {/* The day is the level above the visit cards, whose titles are
-                h3s — so it takes h2 and the page's h1 stays the only one. */}
-        <summary className="visit-day-header">
-          <span className="visit-day-header-text">
-            <h2>{dayLabel}</h2>
-            {isContinuedFromPreviousPage ? (
-              <span className="small-label">{t("dayContinued")}</span>
-            ) : null}
-            {showCompletedShare && completedPercent !== null ? (
-              <span
-                className="small-label"
-                title={
-                  cancelled > 0
-                    ? t("daySummaryTitleCancelled", {
-                        cancelled,
-                        completed,
-                        count: workable,
-                      })
-                    : t("daySummaryTitle", { completed, count: workable })
-                }
-              >
-                {t("daySummary", { completedPercent })}
-              </span>
-            ) : null}
-          </span>
-          <span aria-hidden="true" className="visit-day-chevron">
-            <ChevronDownIcon />
-          </span>
-        </summary>
-        <div className="field-card-list">
-          {group.visits.map((visit) => {
-            const unfinished = visit.status === "in_progress";
-
-            return (
-              <a
-                className={`location-mini-card location-mini-card-link visit-history-card${
-                  unfinished ? " is-unfinished" : ""
-                }`}
-                href={withBackOrigin(
-                  `/${tenantSlug}/field/visits/${visit.id}`,
-                  origin,
-                )}
-                key={visit.id}
-              >
-                <header>
-                  <div>
-                    <h3>{visit.location.name}</h3>
-                    <p>
-                      {[visit.location.addressLine, visit.location.city]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                  </div>
-                  <span
-                    className={`status-pill ${statusPillTone(visit.status)}`}
-                  >
-                    {formatEnumLabel(tCommon, visit.status)}
-                  </span>
-                </header>
-                {/* Why a visit was cancelled is the one thing the card
-                        can't convey with its status pill alone, so it stays
-                        even on the slimmed-down card. */}
-                {visit.status === "cancelled" && visit.cancellationReason ? (
-                  <p className="visit-meta">
-                    {t("cancelReasonLabel")}
-                    {": "}
-                    {formatCancellationReason(
-                      tCommon,
-                      visit.cancellationReason,
-                    )}
-                  </p>
-                ) : null}
-              </a>
-            );
-          })}
-        </div>
-      </details>
-    );
-  };
-
   return (
     <div className="visit-day-groups">
-      {openGroups.map(renderDay)}
-      {doneGroups.length > 0 ? (
-        <details className="visit-days-done">
-          <summary className="visit-days-done-header">
-            <span className="small-label">
-              {t("completedDaysSection", { count: doneGroups.length })}
-            </span>
-            <span aria-hidden="true" className="visit-day-chevron">
-              <ChevronDownIcon />
-            </span>
-          </summary>
-          <div className="visit-days-done-list">
-            {doneGroups.map(renderDay)}
-          </div>
-        </details>
-      ) : null}
+      {groups.map((group, groupIndex) => {
+        const summary = summarizeVisitDay({
+          summaryEntry: daySummaryByDay.get(group.key),
+          visits: group.visits,
+        });
+        const isContinuedFromPreviousPage =
+          groupIndex === 0 &&
+          page > 1 &&
+          daySummary !== null &&
+          cumulativeBeforeDay(group.key) < (page - 1) * pageSize;
+        const dayDate = new Date(visitDayTimestamp(group.visits[0]));
+        const isToday = group.key === todayKey;
+        const isYesterday = group.key === yesterdayKey;
+        const dateLabel = format.dateTime(dayDate, {
+          day: "numeric",
+          month: "long",
+          // Only spell the year out once the history reaches back past the
+          // current one, where day and month alone stop placing the day.
+          ...(group.key.slice(0, 4) === todayKey.slice(0, 4)
+            ? {}
+            : { year: "numeric" }),
+        });
+        const dayLabel = isToday
+          ? t("dayToday", { date: dateLabel })
+          : isYesterday
+            ? t("dayYesterday", { date: dateLabel })
+            : dateLabel;
+        // What became of the day, in the header — so a folded day still says
+        // whether it holds anything to come back to. Only what actually
+        // happened is named: a day with nothing completed says nothing about
+        // completions rather than "0 completed", which reads as a failure on a
+        // day that was entirely cancelled.
+        const recap = [
+          summary.completed > 0
+            ? t("countCompleted", { count: summary.completed })
+            : null,
+          summary.inProgress > 0
+            ? t("countInProgress", { count: summary.inProgress })
+            : null,
+          summary.cancelled > 0
+            ? t("countCancelled", { count: summary.cancelled })
+            : null,
+        ].filter((part): part is string => part !== null);
+
+        return (
+          // Only the newest day is open. It is the one a rep opening this
+          // screen is looking at nine times out of ten, and every day below it
+          // is a header-height line rather than a screenful of cards — so the
+          // shape of the whole window is readable without a scroll.
+          <details
+            className="visit-day"
+            key={group.key}
+            open={groupIndex === 0}
+          >
+            {/* The day is the level above the visit cards, whose titles are
+                h3s — so it takes h2 and the page's h1 stays the only one. */}
+            <summary className="visit-day-header">
+              <h2>{dayLabel}</h2>
+              <span aria-hidden="true" className="visit-day-count">
+                {summary.total}
+              </span>
+              <span className="sr-only">
+                {t("countVisits", { count: summary.total })}
+              </span>
+              {isContinuedFromPreviousPage ? (
+                <span className="small-label">{t("dayContinued")}</span>
+              ) : null}
+              {/* Hidden while the day is open, where the cards below say the
+                  same thing in more detail — the recap is what a folded day
+                  has instead of its cards, not a second copy of them. */}
+              <span className="visit-day-recap">{recap.join(" · ")}</span>
+              <span aria-hidden="true" className="visit-day-rule" />
+              <span aria-hidden="true" className="visit-day-chevron">
+                <ChevronDownIcon />
+              </span>
+            </summary>
+            <div className="field-card-list">
+              {group.visits.map((visit) => (
+                <VisitHistoryCard
+                  date={new Date(visitDayTimestamp(visit))}
+                  href={withBackOrigin(
+                    `/${tenantSlug}/field/visits/${visit.id}`,
+                    origin,
+                  )}
+                  key={visit.id}
+                  // Why a visit was cancelled is the one thing the row can't
+                  // convey with its colour alone, so it stays on the card.
+                  reason={
+                    visit.status === "cancelled" && visit.cancellationReason
+                      ? `${t("cancelReasonLabel")}: ${formatCancellationReason(
+                          tCommon,
+                          visit.cancellationReason,
+                        )}`
+                      : undefined
+                  }
+                  status={visit.status}
+                  statusLabel={formatEnumLabel(tCommon, visit.status)}
+                  subtitle={[visit.location.addressLine, visit.location.city]
+                    .filter(Boolean)
+                    .join(", ")}
+                  subtitleIcon={<MapPinIcon size={13} />}
+                  title={visit.location.name}
+                />
+              ))}
+            </div>
+          </details>
+        );
+      })}
     </div>
   );
 }
@@ -812,54 +728,30 @@ function shiftDayKey(key: string, days: number): string {
     .slice(0, 10);
 }
 
-type HistoryTranslator = Awaited<
-  ReturnType<typeof getTranslations<"field.history">>
->;
-
-// The rest of the recap line, after the period that leads it: with no status
-// pill it reads as the period's own total and its two working numbers, and
-// picking a status promotes that status's count to the front while the split
-// stays visible behind it. Cancelled is only ever the selected count — the
-// resting line keeps to the two numbers a rep acts on, done and still open.
-//
-// Every number comes from one status aggregate the list response already
-// carried, so the pill changes the phrasing, never the request count.
-function buildHistoryCounts(
-  totals: VisitStatusTotals,
-  selectedStatus: VisitStatus | null,
-  t: HistoryTranslator,
-): string[] {
-  // A period with nothing in it needs no tally: the empty state below already
-  // says so, and a row of zeroes just repeats the news — the period label
-  // leading the line still stands on its own.
-  if (totals.total === 0) {
-    return [];
+// The count behind one status chip. `undefined` rather than zero when the whole
+// aggregate is missing, so the chips lose their numbers together instead of
+// claiming a window holds nothing.
+function statusCount(
+  totals: VisitStatusTotals | undefined,
+  status: VisitStatus,
+): number | undefined {
+  if (!totals) {
+    return undefined;
   }
 
-  const total = t("countTotal", { count: totals.total });
-  const completed = t("countCompleted", { count: totals.completed });
-  const inProgress = t("countInProgress", { count: totals.inProgress });
-
-  if (!selectedStatus) {
-    return [t("countVisits", { count: totals.total }), completed, inProgress];
+  if (status === "completed") {
+    return totals.completed;
   }
 
-  // "draft" is a real VisitStatus but never offered as a filter, so it has no
-  // count phrasing of its own and simply leaves the line to the split below.
-  const selected =
-    selectedStatus === "completed"
-      ? completed
-      : selectedStatus === "in_progress"
-        ? inProgress
-        : selectedStatus === "cancelled"
-          ? t("countCancelled", { count: totals.cancelled })
-          : null;
+  if (status === "in_progress") {
+    return totals.inProgress;
+  }
 
-  return [
-    selected,
-    selectedStatus === "completed" ? inProgress : completed,
-    total,
-  ].filter((part): part is string => part !== null);
+  if (status === "cancelled") {
+    return totals.cancelled;
+  }
+
+  return undefined;
 }
 
 function normalizeVisitStatus(value: string | undefined): VisitStatus | null {

@@ -3,7 +3,11 @@ import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
 
 import { AppShell } from "../../../../../../../components/app-shell";
 import { BackLink } from "../../../../../../../components/back-link";
-import { ActivityIcon } from "../../../../../../../components/icons";
+import {
+  ActivityIcon,
+  CalendarIcon,
+} from "../../../../../../../components/icons";
+import { VisitHistoryCard } from "../../../../../../../components/visit-history-card";
 import {
   getCurrentSession,
   getLocation,
@@ -18,7 +22,6 @@ import {
 import {
   formatDateTime,
   formatEnumLabel,
-  statusPillTone,
 } from "../../../../../../../lib/format";
 import { dayInTimeZone } from "../../../../../../../lib/period";
 
@@ -141,38 +144,33 @@ export default async function LocationHistoryPage({
             </span>
           </div>
           {visitHistory.length > 0 ? (
+            /* The same rows the field visit history is read in, so the two
+               lists are one thing seen at two scopes. What they say differs
+               with what is constant on each: there the location leads and the
+               day heading above it carries the date, here every visit is at
+               the same location, so the row is titled by what the visit *was*
+               and the date block on the left is the only date it needs. */
             <div className="field-card-list">
               {visitHistory.map((item: Visit) => (
-                <a
-                  className="location-mini-card location-history-row"
+                <VisitHistoryCard
+                  date={new Date(item.completedAt ?? item.createdAt)}
                   href={withBackOrigin(
                     `/${tenantSlug}/field/visits/${item.id}`,
                     selfOrigin,
                   )}
                   key={item.id}
-                >
-                  <header>
-                    <div>
-                      <h3>
-                        {formatDateTime(
-                          format,
-                          item.completedAt ?? item.createdAt,
-                        )}
-                      </h3>
-                      <p>{formatEnumLabel(tCommon, item.visitType)}</p>
-                    </div>
-                    {/* This list is visit history, so "completed" is implied and
-                        the badge is redundant. Only surface the non-obvious
-                        "cancelled" status. */}
-                    {item.status !== "completed" ? (
-                      <span
-                        className={`status-pill ${statusPillTone(item.status)}`}
-                      >
-                        {formatEnumLabel(tCommon, item.status)}
-                      </span>
-                    ) : null}
-                  </header>
-                </a>
+                  status={item.status}
+                  statusLabel={formatEnumLabel(tCommon, item.status)}
+                  /* The full moment, not just the time: the date block says
+                     the day and the month, and a list that reaches back past
+                     New Year needs the year said somewhere. */
+                  subtitle={formatDateTime(
+                    format,
+                    item.completedAt ?? item.createdAt,
+                  )}
+                  subtitleIcon={<CalendarIcon />}
+                  title={formatEnumLabel(tCommon, item.visitType)}
+                />
               ))}
             </div>
           ) : (

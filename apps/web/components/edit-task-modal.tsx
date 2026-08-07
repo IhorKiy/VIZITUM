@@ -242,11 +242,7 @@ export function EditTaskModal({
           {/* The same worded control the sheet under this one closes with,
               not an icon: two levels of the same surface should be dismissed
               the same way. */}
-          <button
-            className="task-sheet-close"
-            onClick={closeDialog}
-            type="button"
-          >
+          <button className="sheet-close" onClick={closeDialog} type="button">
             {tCommon("close")}
           </button>
         </div>
