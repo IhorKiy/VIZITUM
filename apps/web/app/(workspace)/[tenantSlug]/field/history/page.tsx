@@ -14,8 +14,12 @@ import { PeriodPill } from "../../../../../components/period-pill";
 import { PeriodSheet } from "../../../../../components/period-sheet";
 import { ScrollStrip } from "../../../../../components/scroll-strip";
 import { VisitHistoryCard } from "../../../../../components/visit-history-card";
+import { VisitReportSheet } from "../../../../../components/visit-report-sheet";
 import {
+  createStorageObjectDownloadUrl,
   getCurrentSession,
+  getVisit,
+  getVisitReport,
   listVisitDaySummary,
   listVisits,
   type Visit,
@@ -41,10 +45,13 @@ import {
   VISIT_PERIOD_PARAMS,
 } from "../../../../../lib/period";
 import { summarizeVisitDay } from "../../../../../lib/visit-day-summary";
+import { problemPhotoObjectIdFromReport } from "../../../../../lib/visit-report";
 
 type FieldHistoryPageProps = {
   params: Promise<{ tenantSlug: string }>;
   searchParams: Promise<{
+    // The finished visit whose report is open in a sheet, by id.
+    open?: string;
     page?: string;
     // Set by the period pill: the window itself is already in the URL, this
     // only says the picker is open over it.
@@ -260,6 +267,24 @@ export default async function FieldHistoryPage({
     return query ? `${screenHref}?${query}` : screenHref;
   };
 
+  // This list exactly as it stands — the window, the chip and the page — which
+  // is where the report sheet closes back to and what its rows are opened on
+  // top of. Built through withParams rather than from `query`, so the default
+  // window stays out of the address the way it does everywhere else here.
+  const listParams = {
+    ...windowParams,
+    ...(page > 1 ? { page: String(page) } : {}),
+  };
+  const listHref = withParams(listParams);
+  // A finished visit's report opens over the list; an unfinished one is work,
+  // not a look, and still gets the whole screen (see VisitReportSheet).
+  const reportSheetHref = (visitId: string) =>
+    withParams({ ...listParams, open: visitId });
+  // Everything the sheet needs, fetched only when a row asked for one. A row
+  // that is not a finished visit — or an id someone typed — simply renders no
+  // sheet: the list behind it is unaffected either way.
+  const openReport = await loadOpenReport(pageState.open);
+
   // Where the list continues once this window is read out: the window of the
   // same length immediately behind it, on page one.
   const earlier = previousPeriod(period);
@@ -418,6 +443,7 @@ export default async function FieldHistoryPage({
               origin={historyOrigin}
               page={page}
               pageSize={PAGE_SIZE}
+              reportSheetHref={reportSheetHref}
               tenantSlug={tenantSlug}
               timeZone={timeZone}
               visits={visits}
@@ -479,6 +505,17 @@ export default async function FieldHistoryPage({
         )}
       </section>
 
+      {openReport ? (
+        <VisitReportSheet
+          closeHref={listHref}
+          isCancelledWithoutReport={openReport.isCancelledWithoutReport}
+          problemPhotoUrl={openReport.problemPhotoUrl}
+          report={openReport.report}
+          reportErrorMessage={openReport.reportErrorMessage}
+          visit={openReport.visit}
+        />
+      ) : null}
+
       {isPickerOpen ? (
         <PeriodSheet
           action={screenHref}
@@ -507,6 +544,7 @@ function HistoryDays({
   origin,
   page,
   pageSize,
+  reportSheetHref,
   tenantSlug,
   timeZone,
   visits,
@@ -516,6 +554,7 @@ function HistoryDays({
   origin: string;
   page: number;
   pageSize: number;
+  reportSheetHref: (visitId: string) => string;
   tenantSlug: string;
   timeZone: string;
   visits: Visit[];
@@ -709,10 +748,20 @@ function HistoryDays({
               {group.visits.map((visit) => (
                 <VisitHistoryCard
                   date={new Date(visitDayTimestamp(visit))}
-                  href={withBackOrigin(
-                    `/${tenantSlug}/field/visits/${visit.id}`,
-                    origin,
-                  )}
+                  // A finished visit is read in a sheet over this list, so the
+                  // rep is back where they were the moment they close it. One
+                  // still to be written is where the work happens — recording,
+                  // transcription, the manual fallback — and that needs the
+                  // screen, so it navigates as it always did, carrying this
+                  // list as its origin so the report knows its way back.
+                  href={
+                    isFinished(visit.status)
+                      ? reportSheetHref(visit.id)
+                      : withBackOrigin(
+                          `/${tenantSlug}/field/visits/${visit.id}`,
+                          origin,
+                        )
+                  }
                   key={visit.id}
                   // Why a visit was cancelled is the one thing the row can't
                   // convey with its colour alone, so it stays on the card.
@@ -819,6 +868,62 @@ function statusCount(
   }
 
   return undefined;
+}
+
+// A visit nobody can add to any more: its report is confirmed, or it was
+// closed with a reason. Exactly the two states the visit screen calls "locked",
+// and the two that have something to *read* rather than something to do.
+function isFinished(status: VisitStatus): boolean {
+  return status === "completed" || status === "cancelled";
+}
+
+// The report behind `?open=`, or null for every reason there is not one: no
+// id, an id the API will not hand over (another tenant's, another rep's, a
+// typo), or a visit that is not finished — which belongs on the full screen.
+//
+// The report read is deliberately not folded into the list's own Promise.all:
+// it only runs when a row asked for it, and the list must not wait on it.
+async function loadOpenReport(openVisitId: string | undefined) {
+  const visitId = openVisitId?.trim();
+
+  if (!visitId) {
+    return null;
+  }
+
+  const visitResult = await getVisit(visitId);
+
+  if (!visitResult.ok || !isFinished(visitResult.data.status)) {
+    return null;
+  }
+
+  const reportResult = await getVisitReport(visitId);
+  const photoObjectId = reportResult.ok
+    ? problemPhotoObjectIdFromReport(reportResult.data.confirmedData)
+    : null;
+  // The photo lives in storage, so the summary needs a freshly presigned link.
+  // Failing to sign one must not take the report down — the summary falls back
+  // to naming the attachment.
+  const photoResult = photoObjectId
+    ? await createStorageObjectDownloadUrl(photoObjectId)
+    : null;
+
+  return {
+    // A cancelled visit legitimately never gets a confirmed report. That is not
+    // a load failure, and it must not be reported as one.
+    isCancelledWithoutReport:
+      visitResult.data.status === "cancelled" &&
+      !reportResult.ok &&
+      reportResult.code === "REPORT_NOT_FOUND",
+    problemPhotoUrl: photoResult?.ok ? photoResult.data.url : null,
+    report: reportResult.ok
+      ? {
+          confirmedAt: reportResult.data.confirmedAt,
+          confirmedData: reportResult.data.confirmedData,
+        }
+      : null,
+    reportErrorMessage: reportResult.ok ? null : reportResult.message,
+    visit: visitResult.data,
+  };
 }
 
 function normalizeVisitStatus(value: string | undefined): VisitStatus | null {

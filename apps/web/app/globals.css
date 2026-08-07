@@ -3651,6 +3651,51 @@ textarea {
   font-weight: 800;
 }
 
+/* A finished visit's report, read in a sheet over the history list
+   (VisitReportSheet). The head names the outlet; everything under it is the
+   confirmed report exactly as the visit screen renders it. */
+.visit-sheet-address {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.visit-sheet-report {
+  padding: 0 20px 28px;
+}
+
+/* The report carries its own "Confirmed report" heading, which takes the panel
+   scale on the visit screen and the browser's own 24px here, where there is no
+   panel around it — twice the size of the outlet name it sits under. Stepped
+   down to the sheet's scale: inside a sheet the title is the thing the reader
+   tapped, and the report is what the sheet is for either way. */
+.visit-sheet-report h2 {
+  font-size: 15px;
+}
+
+/* The two states a finished visit can be in with no report to show. A panel
+   inside a sheet would be a box in a box, so these are plain blocks in the
+   sheet's own padding, keeping only the tone that tells them apart. */
+.visit-sheet-notice {
+  display: grid;
+  gap: 6px;
+  padding: 0 20px 28px;
+}
+
+.visit-sheet-notice h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.visit-sheet-notice p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.visit-sheet-notice.is-danger .eyebrow,
+.visit-sheet-notice.is-danger h3 {
+  color: var(--danger);
+}
+
 /* How far back the list reads (PeriodLinks), as text under the filter row it
    qualifies. No borders and no fill: this is a setting on the list the pills
    above chose, and anything pill-shaped here competes with them for the answer
