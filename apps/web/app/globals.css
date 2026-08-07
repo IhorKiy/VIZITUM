@@ -1034,13 +1034,15 @@ textarea {
   display: none;
 }
 
-/* A date is a signpost, not a headline. At 850 a screen of them read as a
-   column of shouting — fourteen dates competing with each other and with the
-   visits underneath, which are what the screen is actually for. The weight
-   comes down to where the date is still the first thing found when scanning
-   for a day, and nothing more than that; uppercase and the letterspacing keep
-   it distinct from the recap beside it without the ink. */
+/* A date is a signpost, not a headline. At 850 in full ink, a screen of them
+   read as a column of shouting — fourteen dates competing with each other and
+   with the visits underneath, which are what the screen is actually for.
+   So the whole header line is one quiet grey: the date keeps its place in the
+   hierarchy through uppercase and the letterspacing, not through weight and
+   ink, and the black on this screen belongs to the location names in the cards
+   — the only thing here a rep is actually looking for by name. */
 .visit-day-header h2 {
+  color: var(--muted);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -1050,8 +1052,8 @@ textarea {
 }
 
 /* How many visits the day holds, next to its date — the number a folded day is
-   read for. Same weight as the date it sits beside, in the muted ink: it
-   qualifies the date rather than competing with it. */
+   read for. Same weight and ink as the date it sits beside: it qualifies the
+   date rather than competing with it. */
 .visit-day-count {
   color: var(--muted);
   flex: none;
