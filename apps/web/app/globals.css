@@ -1061,16 +1061,6 @@ textarea {
   letter-spacing: 0.04em;
 }
 
-/* How many visits the day holds, next to its date — the number a folded day is
-   read for. Same weight and ink as the date it sits beside: it qualifies the
-   date rather than competing with it. */
-.visit-day-count {
-  color: var(--muted);
-  flex: none;
-  font-size: 13px;
-  font-weight: 600;
-}
-
 /* Each number in the recap wears its status colour — the same three the cards
    under the heading use — so a folded day is read at a glance instead of word
    by word. The number only: the word after it stays grey, or the line becomes

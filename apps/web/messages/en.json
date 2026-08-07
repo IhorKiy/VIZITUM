@@ -1635,7 +1635,6 @@
       "permissionRequiredBody": "Ask a Company Admin to assign the Field Representative role.",
       "connectionBody": "Live visit data is required before field history can continue.",
       "notConnectedTitle": "Visit history is not connected",
-      "countVisits": "{count, plural, one {# visit} other {# visits}}",
       "countCompleted": "<n>{count}</n> completed",
       "countInProgress": "<n>{count}</n> in progress",
       "countCancelled": "<n>{count}</n> cancelled",

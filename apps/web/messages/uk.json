@@ -1635,7 +1635,6 @@
       "permissionRequiredBody": "Попросіть адміністратора компанії призначити роль польового представника.",
       "connectionBody": "Для перегляду історії потрібні живі дані візитів.",
       "notConnectedTitle": "Історія візитів не підключена",
-      "countVisits": "{count, plural, one {# візит} few {# візити} many {# візитів} other {# візита}}",
       "countCompleted": "<n>{count}</n> завершено",
       "countInProgress": "<n>{count}</n> у процесі",
       "countCancelled": "<n>{count}</n> скасовано",

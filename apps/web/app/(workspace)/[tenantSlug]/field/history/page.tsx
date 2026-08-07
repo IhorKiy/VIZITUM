@@ -682,12 +682,11 @@ function HistoryDays({
                 h3s — so it takes h2 and the page's h1 stays the only one. */}
             <summary className="visit-day-header">
               <h2>{dayLabel}</h2>
-              <span aria-hidden="true" className="visit-day-count">
-                {summary.total}
-              </span>
-              <span className="sr-only">
-                {t("countVisits", { count: summary.total })}
-              </span>
+              {/* No total here. It sat between the date and the recap saying
+                  what the recap says again — "1 · 1 completed" on most days —
+                  and once the recap's numbers took their status colours it was
+                  the one number on the line with nothing to say. A day whose
+                  work is split across states adds its own parts up. */}
               {isContinuedFromPreviousPage ? (
                 <span className="small-label">{t("dayContinued")}</span>
               ) : null}
