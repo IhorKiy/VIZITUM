@@ -21,6 +21,7 @@ import {
   EditTaskModal,
   type EditTaskActionResult,
 } from "../../../../../components/edit-task-modal";
+import { FilterCount } from "../../../../../components/filter-count";
 import { FilterForm } from "../../../../../components/filter-form";
 import {
   CalendarDashIcon,
@@ -31,11 +32,11 @@ import {
 } from "../../../../../components/icons";
 import { PendingSubmitButton } from "../../../../../components/pending-submit-button";
 import { ScrollStrip } from "../../../../../components/scroll-strip";
-import { TaskSheet } from "../../../../../components/task-sheet";
+import { Sheet } from "../../../../../components/sheet";
 import {
-  TaskStickyBar,
+  StickyFilterBar,
   type StickyFilterChip,
-} from "../../../../../components/task-sticky-bar";
+} from "../../../../../components/sticky-filter-bar";
 import {
   createTask,
   getCurrentSession,
@@ -571,7 +572,7 @@ export default async function FieldTasksPage({
     <AppShell
       activeArea="field-tasks"
       // The brand row scrolls away with the header it belongs to: the top edge
-      // here is taken by this screen's own collapsed bar (TaskStickyBar), and
+      // here is taken by this screen's own collapsed bar (StickyFilterBar), and
       // only one of the two can hold it.
       scrollingTopbar
       tenantSlug={tenantSlug}
@@ -626,8 +627,8 @@ export default async function FieldTasksPage({
       <section aria-label={t("listAria")} className="task-board">
         {/* The filter row, and the collapsed bar that takes over once it has
             scrolled away. The bar holds the row so it can watch it — see
-            TaskStickyBar. */}
-        <TaskStickyBar
+            StickyFilterBar. */}
+        <StickyFilterBar
           ariaLabel={t("stickyFiltersAria")}
           chips={stickyChips}
           scrollTopLabel={t("backToTop")}
@@ -649,7 +650,15 @@ export default async function FieldTasksPage({
             <ScrollStrip>
               <div
                 aria-label={t("filtersAria")}
-                className="filter-pills task-filter-row"
+                className="filter-pills filter-strip-row"
+                // Keyed on what is selected so a filter picked from the
+                // collapsed bar remounts these fields. They are uncontrolled —
+                // `defaultChecked` is read once, at mount — and the bar's links
+                // are client-side navigations that reconcile the very same
+                // inputs, so without this the row went on showing the filters
+                // the reader had *left*, over a list narrowed by the ones they
+                // just picked.
+                key={`${isDoneList ? "done" : selectedStatus}-${selectedOverdueOnly}-${selectedPriorityOnly}`}
                 role="group"
               >
                 <label>
@@ -746,7 +755,7 @@ export default async function FieldTasksPage({
               </p>
             ) : null}
           </FilterForm>
-        </TaskStickyBar>
+        </StickyFilterBar>
 
         {/* How much finished work there is in total, above the page of it on
             screen — the denominator the pagination line below counts pages
@@ -865,7 +874,7 @@ export default async function FieldTasksPage({
             an id from another list, another rep or a stale link opens nothing
             rather than fetching a task this view was not showing. */}
         {openTask ? (
-          <TaskSheet
+          <Sheet
             ariaLabel={openTask.title}
             closeHref={listHref}
             closeLabel={tCommon("close")}
@@ -890,7 +899,7 @@ export default async function FieldTasksPage({
               updateTaskFieldsAction={updateTaskFieldsAction}
               updateTaskStatusAction={updateTaskStatusAction}
             />
-          </TaskSheet>
+          </Sheet>
         ) : null}
       </section>
 
@@ -906,16 +915,6 @@ export default async function FieldTasksPage({
       />
     </AppShell>
   );
-}
-
-// A count riding inside a filter pill. Absent rather than zero when the list it
-// counts failed to load: "0 overdue" is an answer, and this would be a guess.
-function FilterCount({ value }: { value: number | undefined }) {
-  if (value === undefined) {
-    return null;
-  }
-
-  return <b className="filter-pill-count">{value}</b>;
 }
 
 // One band of the list under its own heading — late, today, ahead, undated, or
@@ -1086,8 +1085,8 @@ type FieldTasksTranslator = Awaited<
 type CommonTranslator = Awaited<ReturnType<typeof getTranslations<"common">>>;
 
 // Everything the sheet says about one task, and every action on it. Rendered
-// on the server and handed to TaskSheet as children — the sheet itself only
-// owns the gesture, the backdrop and the way it closes.
+// on the server and handed to the shared Sheet as children — the sheet itself
+// only owns the gesture, the backdrop and the way it closes.
 function TaskSheetBody({
   format,
   listQuery,
@@ -1121,9 +1120,9 @@ function TaskSheetBody({
           description are as long as the rep who wrote them made them, and with
           only the history scrolling a wordy task pushed "Complete" — the whole
           reason the sheet opens — off the bottom of a small screen. */}
-      <div className="task-sheet-body">
-        <div className="task-sheet-head">
-          <h2 className="task-sheet-title">{task.title}</h2>
+      <div className="sheet-body">
+        <div className="sheet-head">
+          <h2 className="sheet-title">{task.title}</h2>
           {task.description ? (
             <p className="task-sheet-description">{task.description}</p>
           ) : null}
@@ -1163,7 +1162,7 @@ function TaskSheetBody({
         />
       </div>
 
-      <div className="task-sheet-actions">
+      <div className="sheet-actions">
         {/* The whole point of opening a task on a route: one tap to close it
             out. Finishing sends the rep back to the list, where the task has
             moved to "closed today" and the confirmation says so.

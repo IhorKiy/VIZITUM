@@ -73,11 +73,7 @@ export function AddRouteStopModal({
           <div>
             <h2 id="add-route-stop-title">{t("addStop")}</h2>
           </div>
-          <button
-            className="task-sheet-close"
-            onClick={closeDialog}
-            type="button"
-          >
+          <button className="sheet-close" onClick={closeDialog} type="button">
             {tCommon("close")}
           </button>
         </div>

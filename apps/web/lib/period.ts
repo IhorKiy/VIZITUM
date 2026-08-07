@@ -46,6 +46,20 @@ export const DEFAULT_PERIOD_PRESET: PeriodPreset = "month";
  */
 export const PERIOD_MAX_MONTHS = 12;
 
+/**
+ * The `period` URL value that asks a screen to open its window picker.
+ *
+ * The picker is a URL rather than component state, so the phone's back gesture
+ * closes it and a half-picked window survives a refresh. The window itself is
+ * already in the URL as the two date params — this only says the picker is
+ * open over it, which is why it is one value rather than a range of its own.
+ *
+ * The manager screens carry `period=custom` for the same job in their filter
+ * panel; the two are deliberately different values, since one opens a sheet
+ * over a phone screen and the other expands a disclosure on a table.
+ */
+export const PERIOD_PICKER_VALUE = "picker";
+
 /** A pair of calendar days, YYYY-MM-DD — the format the API's date filters take. */
 export type DayRange = { from: string; to: string };
 
@@ -307,6 +321,52 @@ export function periodLabel(
       day: "numeric",
       month: "short",
       year: "numeric",
+    });
+
+  return t("custom", { from: day(period.from), to: day(period.to) });
+}
+
+/**
+ * The same window, named for a control rather than for a sentence: the short
+ * preset name ("30 days") instead of the spelled-out one ("Last 30 days"), and
+ * a hand-picked range without the years it does not need.
+ *
+ * A pill carrying the window is read as the control's current value, with the
+ * screen around it supplying "period"; the long form repeats a word the pill's
+ * own position already says. The years matter more: spelled out on both ends, a
+ * range runs to something like "4 Jul 2026 - 10 Jul 2026" — and half again as
+ * wide in a language that inflects its month names, which is wider than the
+ * phone the pill sits on, and broke the screen's title across two lines to
+ * make room.
+ *
+ * So a range inside the current year drops the year from both ends, on the same
+ * rule the day headers use, and a range that reaches past it keeps them on both
+ * — never on one, which would read as a typo rather than as a shorthand.
+ */
+export function periodShortLabel(
+  t: PeriodTranslator,
+  format: IntlFormatter,
+  period: DayRange & { preset: PeriodPreset | "custom" },
+  timeZone: string,
+  now: Date = new Date(),
+): string {
+  if (period.preset !== "custom") {
+    return t(`presetShort.${period.preset}`);
+  }
+
+  const currentYear = todayInTimeZone(timeZone, now).slice(0, 4);
+  const withinCurrentYear =
+    period.from.slice(0, 4) === currentYear &&
+    period.to.slice(0, 4) === currentYear;
+
+  // Date-only values are calendar days in the tenant's timezone, so they are
+  // formatted from UTC noon: a midnight instant would tip to the previous day
+  // in any timezone west of UTC.
+  const day = (value: string) =>
+    format.dateTime(new Date(`${value}T12:00:00.000Z`), {
+      day: "numeric",
+      month: "short",
+      ...(withinCurrentYear ? {} : { year: "numeric" }),
     });
 
   return t("custom", { from: day(period.from), to: day(period.to) });

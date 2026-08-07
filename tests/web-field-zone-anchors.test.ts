@@ -81,9 +81,9 @@ const ALLOWED_CLIENT_LINKS: Record<string, { count: number; note: string }> = {
     count: 3,
     note: "week/month switch on the planning screen",
   },
-  "components/task-sticky-bar.tsx": {
+  "components/sticky-filter-bar.tsx": {
     count: 1,
-    note: "the field task list's sticky action bar",
+    note: "the sticky filter bar of the task list and the visit history",
   },
   // The persistent chrome, and the one group the audit already recorded as
   // being on the Link side: the bottom nav, the zone switcher and the account

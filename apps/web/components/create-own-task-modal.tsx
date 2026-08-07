@@ -188,7 +188,7 @@ export function CreateOwnTaskModal({
             <h2 id="create-own-task-title">{t("title")}</h2>
           </div>
           <button
-            className="task-sheet-close"
+            className="sheet-close"
             onClick={() => closeDialog()}
             type="button"
           >

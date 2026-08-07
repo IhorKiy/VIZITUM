@@ -19,6 +19,7 @@ import { resolveBackTarget } from "../../../../../../lib/back-navigation";
 import { cancelVisitAction } from "../../../../../../lib/cancel-visit-actions";
 import { isDemoFallbackEnabled } from "../../../../../../lib/demo-mode";
 import { formatCancellationReason } from "../../../../../../lib/visit-cancellation";
+import { problemPhotoObjectIdFromReport } from "../../../../../../lib/visit-report";
 
 type VisitDetailPageProps = {
   params: Promise<{ tenantSlug: string; visitId: string }>;
@@ -307,28 +308,4 @@ export default async function VisitDetailPage({
       )}
     </AppShell>
   );
-}
-
-function problemPhotoObjectIdFromReport(confirmedData: unknown): string | null {
-  if (typeof confirmedData !== "object" || confirmedData === null) {
-    return null;
-  }
-
-  const fieldReport = (confirmedData as { fieldReport?: unknown }).fieldReport;
-
-  if (typeof fieldReport !== "object" || fieldReport === null) {
-    return null;
-  }
-
-  const problem = (fieldReport as { problem?: unknown }).problem;
-
-  if (typeof problem !== "object" || problem === null) {
-    return null;
-  }
-
-  const photoObjectId = (problem as { photoObjectId?: unknown }).photoObjectId;
-
-  return typeof photoObjectId === "string" && photoObjectId
-    ? photoObjectId
-    : null;
 }

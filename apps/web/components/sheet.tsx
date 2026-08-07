@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
-type TaskSheetProps = {
-  // Names the dialog for a screen reader — the task's own title.
+type SheetProps = {
+  // Names the dialog for a screen reader — the task's own title, the name of
+  // the setting being picked.
   ariaLabel: string;
   children: ReactNode;
-  // Where the list lives without this sheet open. Closing replaces the current
-  // history entry with it (see close below).
+  // Where the screen lives without this sheet open. Closing replaces the
+  // current history entry with it (see close below).
   closeHref: string;
   closeLabel: string;
-  // Sits opposite the close button on the drag row: the priority tag, or
-  // nothing at all for a task that carries no flag.
+  // Sits opposite the close button on the drag row: the task's priority tag,
+  // the picker's own title, or nothing at all.
   eyebrow?: ReactNode;
 };
 
@@ -22,28 +23,29 @@ type TaskSheetProps = {
 const DISMISS_THRESHOLD_PX = 110;
 
 /**
- * The task detail sheet: it slides up over the list, and the list stays exactly
- * where it was underneath.
+ * The field zone's bottom sheet: it slides up over the screen, and the screen
+ * stays exactly where it was underneath. The task detail opens in one; so does
+ * the visit history's period picker.
  *
- * The sheet is a URL, not a piece of component state — the row links to
- * `?open=<taskId>` and this renders because the server saw it. That is what
- * makes the phone's own back gesture close it, which is the one control every
- * reader already knows and the first one they will try. Deep links, refreshes
- * and the browser's history keep working for free.
+ * The sheet is a URL, not a piece of component state — the caller links to
+ * `?open=<taskId>` / `?period=picker` and this renders because the server saw
+ * it. That is what makes the phone's own back gesture close it, which is the
+ * one control every reader already knows and the first one they will try. Deep
+ * links, refreshes and the browser's history keep working for free.
  *
  * Closing from inside (the button, the backdrop, a swipe) *replaces* that entry
- * rather than pushing the list again: the sheet was pushed on open, so
+ * rather than pushing the screen again: the sheet was pushed on open, so
  * replacing it on close leaves history holding one entry for this screen, and a
  * back press afterwards goes wherever the reader came from instead of
  * re-opening what they just dismissed.
  */
-export function TaskSheet({
+export function Sheet({
   ariaLabel,
   children,
   closeHref,
   closeLabel,
   eyebrow,
-}: TaskSheetProps) {
+}: SheetProps) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -67,6 +69,17 @@ export function TaskSheet({
 
     if (!dialog.open) {
       dialog.showModal();
+      // Opening focus goes to the panel, not to whatever showModal would pick
+      // on its own — which is the close button, the first focusable thing in
+      // here. A sheet that arrives by navigation (the history's rows are
+      // links, so the server renders it into a fresh page) counts as a
+      // non-pointer focus to the browser's heuristic, so that button came up
+      // wearing its focus ring: a box drawn around "Close" that nobody asked
+      // for and nothing was about to act on. The panel is a container, so it
+      // takes the focus the dialog needs without drawing anything (see the
+      // :focus rule), and a keyboard reader still tabs to the button — and
+      // gets the ring then, when it means something.
+      panelRef.current?.focus();
     }
 
     // One frame later, so the browser has the closed position to animate from
@@ -105,13 +118,15 @@ export function TaskSheet({
   };
 
   return (
-    <dialog aria-label={ariaLabel} className="task-sheet" ref={dialogRef}>
-      <div className="task-sheet-panel" ref={panelRef}>
+    <dialog aria-label={ariaLabel} className="sheet" ref={dialogRef}>
+      {/* Focusable only programmatically: it is where the sheet parks its
+          opening focus, never a stop in the tab order. */}
+      <div className="sheet-panel" ref={panelRef} tabIndex={-1}>
         {/* The drag surface is the top of the sheet — the handle and the row
             beside it, where a thumb reaching to dismiss already is. The body
             below scrolls instead, so a long history stays readable. */}
         <div
-          className="task-sheet-grab"
+          className="sheet-grab"
           onPointerCancel={() => {
             dragRef.current = null;
             panelRef.current?.removeAttribute("data-dragging");
@@ -181,10 +196,10 @@ export function TaskSheet({
             setDragOffset(0);
           }}
         >
-          <span aria-hidden="true" className="task-sheet-handle" />
-          <div className="task-sheet-grab-row">
-            <div className="task-sheet-eyebrow">{eyebrow}</div>
-            <button className="task-sheet-close" onClick={close} type="button">
+          <span aria-hidden="true" className="sheet-handle" />
+          <div className="sheet-grab-row">
+            <div className="sheet-eyebrow">{eyebrow}</div>
+            <button className="sheet-close" onClick={close} type="button">
               {closeLabel}
             </button>
           </div>

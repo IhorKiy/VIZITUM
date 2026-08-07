@@ -4,6 +4,7 @@ import { getFormatter, getTimeZone, getTranslations } from "next-intl/server";
 import { AppShell } from "../../../../../../../components/app-shell";
 import { BackLink } from "../../../../../../../components/back-link";
 import { ActivityIcon } from "../../../../../../../components/icons";
+import { VisitHistoryCard } from "../../../../../../../components/visit-history-card";
 import {
   getCurrentSession,
   getLocation,
@@ -18,7 +19,6 @@ import {
 import {
   formatDateTime,
   formatEnumLabel,
-  statusPillTone,
 } from "../../../../../../../lib/format";
 import { dayInTimeZone } from "../../../../../../../lib/period";
 
@@ -68,6 +68,9 @@ export default async function LocationHistoryPage({
 
   const locationName = locationResult.data.name;
   const representativeUserId = sessionResult.data.user.id;
+  // The tenant's current year, not the server's: the two differ for a few hours
+  // every New Year's Eve, and this decides how each row states its date.
+  const currentYear = dayInTimeZone(timeZone, new Date()).slice(0, 4);
 
   // pageSize=50 is the API's max page size — this history list deliberately
   // shows only the 50 most recent visits for this rep at this location.
@@ -141,38 +144,44 @@ export default async function LocationHistoryPage({
             </span>
           </div>
           {visitHistory.length > 0 ? (
+            /* The same rows the field visit history is read in, so the two
+               lists are one thing seen at two scopes. What they say differs
+               with what is constant on each: there the location leads and the
+               day heading above it carries the date, here every visit is at
+               the same location, so the row is titled by what the visit *was*
+               and the date block on the left is the only date it needs. */
             <div className="field-card-list">
               {visitHistory.map((item: Visit) => (
-                <a
-                  className="location-mini-card location-history-row"
+                <VisitHistoryCard
+                  date={new Date(item.completedAt ?? item.createdAt)}
                   href={withBackOrigin(
                     `/${tenantSlug}/field/visits/${item.id}`,
                     selfOrigin,
                   )}
                   key={item.id}
-                >
-                  <header>
-                    <div>
-                      <h3>
-                        {formatDateTime(
+                  status={item.status}
+                  statusLabel={formatEnumLabel(tCommon, item.status)}
+                  /* The time alone, since the block beside it already says the
+                     day and the month — printing "29 Jul" twice on one row is
+                     the noise, not the information. A visit from an earlier
+                     year is the one case the block cannot place on its own, so
+                     that row spells the whole moment out. */
+                  subtitle={
+                    dayInTimeZone(
+                      timeZone,
+                      new Date(item.completedAt ?? item.createdAt),
+                    ).slice(0, 4) === currentYear
+                      ? format.dateTime(
+                          new Date(item.completedAt ?? item.createdAt),
+                          { hour: "numeric", minute: "2-digit" },
+                        )
+                      : formatDateTime(
                           format,
                           item.completedAt ?? item.createdAt,
-                        )}
-                      </h3>
-                      <p>{formatEnumLabel(tCommon, item.visitType)}</p>
-                    </div>
-                    {/* This list is visit history, so "completed" is implied and
-                        the badge is redundant. Only surface the non-obvious
-                        "cancelled" status. */}
-                    {item.status !== "completed" ? (
-                      <span
-                        className={`status-pill ${statusPillTone(item.status)}`}
-                      >
-                        {formatEnumLabel(tCommon, item.status)}
-                      </span>
-                    ) : null}
-                  </header>
-                </a>
+                        )
+                  }
+                  title={formatEnumLabel(tCommon, item.visitType)}
+                />
               ))}
             </div>
           ) : (
