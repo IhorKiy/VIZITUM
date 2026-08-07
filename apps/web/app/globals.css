@@ -3491,9 +3491,14 @@ textarea {
 
 /* The visit history's header: the screen's name, and the one control that says
    how far back it reads, on the line beside it. The pill goes to the right
-   edge, where a phone's screens carry their single screen-level control. */
-.history-header {
-  justify-content: space-between;
+   edge, where a phone's screens carry their single screen-level control.
+
+   Pushed there by its own margin rather than by the row's `justify-content`:
+   the compact header is packed to the start by a mobile-only compound selector
+   that outweighs any single class this row could take, so a rule here would
+   silently lose. An auto margin is a property that rule does not set at all. */
+.history-header .period-pill {
+  margin-left: auto;
 }
 
 /* How far back the list reads (PeriodPill), as a pill in the header rather
